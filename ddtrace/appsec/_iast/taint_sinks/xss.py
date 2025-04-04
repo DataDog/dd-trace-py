@@ -98,10 +98,13 @@ def _iast_jinja2_xss(wrapped, instance, args, kwargs):
 
 def _iast_report_xss(code_string: Text):
     try:
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, XSS.vulnerability_type)
-        _set_metric_iast_executed_sink(XSS.vulnerability_type)
-        if asm_config.is_iast_request_enabled and XSS.has_quota():
-            if is_pyobject_tainted(code_string):
+        if asm_config.is_iast_request_enabled:
+            if XSS.has_quota() and is_pyobject_tainted(code_string):
                 XSS.report(evidence_value=code_string)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, XSS.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(XSS.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_report_xss. {e}")

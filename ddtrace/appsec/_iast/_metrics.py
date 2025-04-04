@@ -8,6 +8,8 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
@@ -139,11 +141,7 @@ def _set_span_tag_iast_executed_sink(span):
 
 
 def _metric_key_as_snake_case(key):
-    from ._taint_tracking import OriginType
-
     if isinstance(key, OriginType):
-        from ._taint_tracking import origin_to_str
-
         key = origin_to_str(key)
     key = key.replace(".", "_")
     return key.lower()
