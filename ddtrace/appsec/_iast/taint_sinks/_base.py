@@ -190,15 +190,19 @@ class VulnerabilityBase(Operation):
 
     @classmethod
     def is_valid_tainted(cls, string_to_check: Text) -> bool:
-        """Check if a string is tainted and not marked as secure.
+        """Check if a string is tainted and not marked as secure for the current vulnerability type.
 
-        This method verifies if a string has been marked as tainted and ensures it hasn't been
-        marked as secure for the current vulnerability type. A string is considered valid for
-        vulnerability detection if it has taint ranges and none of those ranges have been marked
-        as secure.
+        This method performs two main checks:
+        1. Verifies if the string has any taint ranges (indicating it contains user-controlled data)
+        2. Ensures none of these taint ranges have been marked as secure for the current vulnerability type
+
+        A string is considered valid for vulnerability detection if:
+        - It has taint ranges (indicating user input)
+        - None of those ranges have been marked as secure for the current vulnerability type
+        - The string is not None or empty
 
         Args:
-            string_to_check (Text): The string to check for taint marks
+            string_to_check (Text): The string to check for taint and secure marks
 
         Returns:
             bool: True if the string is tainted and not marked as secure, False otherwise
@@ -206,6 +210,6 @@ class VulnerabilityBase(Operation):
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
         for _range in ranges:
-            if _range.has_secure_mark(cls.secure_mark):
-                return False
+            if not _range.has_secure_mark(cls.secure_mark):
+                return True
         return True
