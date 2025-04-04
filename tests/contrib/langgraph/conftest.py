@@ -53,7 +53,7 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 @pytest.fixture
 def llmobs_span_writer():
     agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, DATADOG_SITE)
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    yield TestLLMObsSpanWriter(is_agentless=True, _agentless_url=agentless_url, interval=1.0, timeout=1.0)
 
 
 @pytest.fixture

@@ -107,7 +107,7 @@ def mock_llmobs_span_writer():
 @pytest.fixture
 def llmobs_span_writer():
     agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    yield TestLLMObsSpanWriter(is_agentless=True, _agentless_url=agentless_url, interval=1.0, timeout=1.0)
 
 
 @pytest.fixture

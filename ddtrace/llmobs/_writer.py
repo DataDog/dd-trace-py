@@ -16,13 +16,10 @@ import ddtrace
 from ddtrace import config
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
-from ddtrace.internal._encoding import BufferedEncoder
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.internal.writer import HTTPWriter
-from ddtrace.internal.writer import WriterClientBase
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_ENDPOINT
@@ -163,10 +160,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        if self._agentless:
-            conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
-        else:
-            conn = httplib.HTTPConnection(self._intake, timeout=self._timeout)
+        conn = get_connection(self._intake, self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -193,7 +187,7 @@ class BaseLLMObsWriter(PeriodicService):
 
     @property
     def _url(self) -> str:
-        return "https://{}{}".format(self._intake, self._endpoint)
+        return "{}{}".format(self._intake, self._endpoint)
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
         raise NotImplementedError
@@ -230,18 +224,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     EVENT_TYPE = "span"
 
     def __init__(
-        self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True, agentless_url: str = ""
+        self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True, _agentless_url: str = ""
     ) -> None:
         super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
+        self.agentless_url = _agentless_url
         if is_agentless:
-            if not agentless_url:
-                raise ValueError("agentless_url is required for agentless mode")
-            self._intake = agentless_url
+            if not _agentless_url:
+                raise ValueError("_agentless_url is required for agentless mode")
+            self._intake = _agentless_url or AGENTLESS_BASE_URL
             self._endpoint = AGENTLESS_SPAN_ENDPOINT
         else:
-            self._intake = agent_config.trace_agent_url.split("//")[-1]
+            self._intake = agent_config.trace_agent_url
             self._endpoint = EVP_PROXY_AGENT_ENDPOINT
-        self.agentless_url = agentless_url
 
     def start(self, *args, **kwargs):
         super(LLMObsSpanWriter, self).start()
@@ -274,7 +268,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
-            agentless_url=self.agentless_url,
+            _agentless_url=self.agentless_url,
         )
 
 

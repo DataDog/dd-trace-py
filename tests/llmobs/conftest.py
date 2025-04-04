@@ -213,7 +213,7 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
-    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
+    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, _agentless_url=url)
     sw._headers["DD-API-KEY"] = "<test-key>"
     yield sw
 

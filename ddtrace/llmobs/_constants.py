@@ -41,7 +41,7 @@ EVP_SUBDOMAIN_HEADER_VALUE = "llmobs-intake"
 EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
 EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
 
-AGENTLESS_BASE_URL = "llmobs-intake"
+AGENTLESS_BASE_URL = "https://llmobs-intake"
 AGENTLESS_SPAN_ENDPOINT = "/api/v2/llmobs"
 AGENTLESS_EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 

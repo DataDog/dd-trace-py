@@ -103,7 +103,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=config._llmobs_agentless_enabled,
-            agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
+            _agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
