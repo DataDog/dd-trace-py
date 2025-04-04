@@ -24,6 +24,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_CALL_NO_ARGS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
@@ -254,7 +255,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span._set_ctx_item("output_value", oai_span.to_agent or "")
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (handoff_tool_name, "{}", "handoff", span),
+            (handoff_tool_name, TOOL_CALL_NO_ARGS, "handoff", span),
         )
 
     def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:

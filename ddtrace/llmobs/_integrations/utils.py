@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOOL_CALL_NO_ARGS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -490,7 +491,8 @@ class OaiSpanAdapter:
         """Returns processed input messages for LLM Obs LLM spans.
 
         Returns:
-            A list of processed messages
+            - A list of processed messages
+            - A list of tool call IDs for span linking purposes
         """
         messages = self.input
         processed: List[Dict[str, Any]] = []
@@ -559,7 +561,8 @@ class OaiSpanAdapter:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
-            A list of processed messages
+            - A list of processed messages
+            - A list of tool call data (name, id, args) for span linking purposes
         """
         if not self.response or not self.response.output:
             return [], []
@@ -585,7 +588,9 @@ class OaiSpanAdapter:
                 message.update({"role": getattr(item, "role", "assistant"), "content": text})
             # Handle tool calls
             elif hasattr(item, "call_id") and hasattr(item, "arguments"):
-                tool_call_outputs.append((item.call_id, item.name, item.arguments if item.arguments else "{}"))
+                tool_call_outputs.append(
+                    (item.call_id, getattr(item, "name", ""), item.arguments if item.arguments else TOOL_CALL_NO_ARGS)
+                )
                 message.update(
                     {
                         "tool_calls": [
