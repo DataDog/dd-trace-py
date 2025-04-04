@@ -34,6 +34,12 @@ create_exception!(
 );
 create_exception!(
     trace_exporter_exceptions,
+    EncodingNotSupportedError,
+    PyException,
+    "Encoding not supported"
+);
+create_exception!(
+    trace_exporter_exceptions,
     SerializationError,
     PyException,
     "Serialization error"
@@ -51,7 +57,13 @@ impl From<TraceExporterErrorPy> for PyErr {
             }
             TraceExporterError::Io(error) => IoError::new_err(error.to_string()),
             TraceExporterError::Network(error) => NetworkError::new_err(error.to_string()),
-            TraceExporterError::Request(error) => RequestError::new_err(error.to_string()),
+            TraceExporterError::Request(error) => {
+                if error.status().as_u16() == 404 || error.status().as_u16() == 415 {
+                    EncodingNotSupportedError::new_err(error.to_string())
+                } else {
+                    RequestError::new_err(error.to_string())
+                }
+            }
             TraceExporterError::Serialization(error) => {
                 SerializationError::new_err(error.to_string())
             }
@@ -65,8 +77,7 @@ impl From<TraceExporterError> for TraceExporterErrorPy {
     }
 }
 
-pub fn register_exceptions(parent_module: &Bound<'_, PyModule>) -> PyResult<()> {
-    let m = PyModule::new(parent_module.py(), "trace_exporter_exceptions")?;
+pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("AgentError", m.py().get_type::<AgentError>())?;
     m.add("BuilderError", m.py().get_type::<BuilderError>())?;
     m.add(
@@ -80,6 +91,5 @@ pub fn register_exceptions(parent_module: &Bound<'_, PyModule>) -> PyResult<()> 
         "SerializationError",
         m.py().get_type::<SerializationError>(),
     )?;
-    parent_module.add_submodule(&m)?;
     Ok(())
 }
