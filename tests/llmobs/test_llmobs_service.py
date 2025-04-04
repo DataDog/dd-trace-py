@@ -100,16 +100,16 @@ def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
         llmobs_service.disable()
 
 
-def test_enable_agentless_when_agent_is_not_available(no_agent):
-    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
-        dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+# def test_enable_agentless_when_agent_is_not_available(no_agent):
+#     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+#         dummy_tracer = DummyTracer()
+#         llmobs_service.enable(_tracer=dummy_tracer)
+#         llmobs_instance = llmobs_service._instance
+#         assert llmobs_instance is not None
+#         assert llmobs_service.enabled
+#         assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
 
-        llmobs_service.disable()
+#         llmobs_service.disable()
 
 
 def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):

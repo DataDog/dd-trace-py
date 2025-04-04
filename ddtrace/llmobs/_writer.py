@@ -75,12 +75,12 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
 
-    agent_info: Optional[Dict[str, Any]]
+    agent_info: Optional[Dict[str, Any]] = agent.info()
 
-    try:
-        agent_info = agent.info()
-    except Exception:
-        agent_info = None
+    # try:
+    #     agent_info = agent.info()
+    # except Exception:
+    #     agent_info = None
 
     if agent_info is None:
         return True
