@@ -25,7 +25,7 @@ log = get_logger(__name__)
 
 def _asm_manual_keep(span: Span) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.constants import SamplingMechanism
 
     span.set_tag(constants.MANUAL_KEEP_KEY)
     # set decision maker to ASM = -5
@@ -295,7 +295,7 @@ def block_request() -> None:
     meaning that if you capture the exception the request blocking could not work.
     """
     if not asm_config._asm_enabled:
-        log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
+        log.warning("block_request() is disabled. To use this feature please enableApplication Security Monitoring")
         return
 
     _asm_request_context.block_request()

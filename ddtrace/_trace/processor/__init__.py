@@ -14,15 +14,16 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -150,7 +151,12 @@ class TraceSamplingProcessor(TraceProcessor):
                 if priority is not None and priority <= 0:
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
-                    single_spans = [_ for _ in trace if is_single_span_sampled(_)]
+
+                    single_spans = [
+                        _
+                        for _ in trace
+                        if _.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
+                    ]
 
                     return single_spans or None
 
@@ -159,8 +165,8 @@ class TraceSamplingProcessor(TraceProcessor):
                 for span in trace:
                     if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
                         for rule in self.single_span_rules:
-                            if rule.match(span):
-                                rule.sample(span)
+                            if rule.match(span.name, span.service):
+                                span.sample(rule)
                                 # If stats computation is enabled, we won't send all spans to the agent.
                                 # In order to ensure that the agent does not update priority sampling rates
                                 # due to single spans sampling, we set all of these spans to manual keep.

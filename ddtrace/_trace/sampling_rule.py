@@ -10,9 +10,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
-
 log = get_logger(__name__)
 KNUTH_FACTOR = 1111111111111111111
 
@@ -124,26 +121,6 @@ class SamplingRule(object):
                 return False
         else:
             return True
-
-    def matches(self, span):
-        # type: (Span) -> bool
-        """
-        Return if this span matches this rule
-
-        :param span: The span to match against
-        :type span: :class:`ddtrace._trace.span.Span`
-        :returns: Whether this span matches or not
-        :rtype: :obj:`bool`
-        """
-        tags_match = self.tags_match(span)
-        return tags_match and self._matches((span.service, span.name, span.resource))
-
-    def tags_match(self, span):
-        # type: (Span) -> bool
-        tag_match = True
-        if self._tag_value_matchers:
-            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
-        return tag_match
 
     def check_tags(self, meta, metrics):
         if meta is None and metrics is None:

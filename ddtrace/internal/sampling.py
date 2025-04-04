@@ -14,18 +14,8 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
-from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_RULE_DECISION
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
-from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
-from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._config import config
@@ -43,7 +33,6 @@ except ImportError:
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.context import Context  # noqa:F401
-    from ddtrace._trace.span import Span  # noqa:F401
 
 # Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111
@@ -126,28 +115,16 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span):
-        # type: (Span) -> bool
-        if self._sample(span):
-            if self._limiter.is_allowed():
-                self.apply_span_sampling_tags(span)
-                return True
-        return False
-
-    def _sample(self, span):
-        # type: (Span) -> bool
+    def _sample(self, span_id: int) -> bool:
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
             return False
 
-        return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
+        return ((span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
 
-    def match(self, span):
-        # type: (Span) -> bool
+    def match(self, name: Optional[str], service: Optional[str]) -> bool:
         """Determines if the span's service and name match the configured patterns"""
-        name = span.name
-        service = span.service
         # If a span lacks a name and service, we can't match on it
         if service is None and name is None:
             return False
@@ -168,14 +145,6 @@ class SpanSamplingRule:
             else:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
-
-    def apply_span_sampling_tags(self, span):
-        # type: (Span) -> None
-        span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
-        span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
-        # Only set this tag if it's not the default -1
-        if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
-            span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
 def get_span_sampling_rules() -> List[SpanSamplingRule]:
@@ -258,38 +227,3 @@ def _check_unsupported_pattern(string: str) -> None:
     for char in string:
         if char in unsupported_chars and config._raise:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
-
-
-def is_single_span_sampled(span):
-    # type: (Span) -> bool
-    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
-
-
-def _set_sampling_tags(span, sampled, sample_rate, mechanism):
-    # type: (Span, bool, float, int) -> None
-    # Set the sampling mechanism
-    set_sampling_decision_maker(span.context, mechanism)
-    # Set the sampling psr rate
-    if mechanism in (
-        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
-        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
-        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
-    ):
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
-    elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
-        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
-    # Set the sampling priority
-    priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
-    priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
-    span.context.sampling_priority = priorities[priority_index]
-
-
-def _get_highest_precedence_rule_matching(span, rules):
-    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
-    if not rules:
-        return None
-
-    for rule in rules:
-        if rule.matches(span):
-            return rule
-    return None
