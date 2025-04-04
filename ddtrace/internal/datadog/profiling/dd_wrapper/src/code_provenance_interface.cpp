@@ -4,6 +4,7 @@
 
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 void
 code_provenance_enable(bool enable)
@@ -24,7 +25,8 @@ code_provenance_set_stdlib_path(std::string_view stdlib_path)
 }
 
 void
-code_provenance_add_packages(std::unordered_map<std::string_view, std::string_view> distributions)
+code_provenance_add_packages(
+  std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> distributions)
 {
     Datadog::CodeProvenance::get_instance().add_packages(distributions);
 }

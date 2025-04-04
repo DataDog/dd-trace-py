@@ -8,6 +8,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace Datadog {
@@ -16,6 +17,7 @@ struct Package
 {
     std::string name;
     std::string version;
+    std::string path;
 };
 
 static constexpr const char* STDLIB = "stdlib";
@@ -40,7 +42,7 @@ class CodeProvenance
     bool is_enabled();
     void set_runtime_version(std::string_view runtime_version);
     void set_stdlib_path(std::string_view stdlib_path);
-    void add_packages(std::unordered_map<std::string_view, std::string_view> packages);
+    void add_packages(std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages);
     void add_filename(std::string_view filename);
     std::optional<std::string> try_serialize_to_json_str();
 
@@ -54,7 +56,7 @@ class CodeProvenance
     // Mapping from package name to Package object
     std::unordered_map<std::string_view, std::unique_ptr<Package>> packages;
     // Mapping from Package object to list of filenames that are associated with the package
-    std::unordered_map<const Package*, std::unordered_set<std::string>> packages_to_files;
+    std::unordered_set<const Package*> packages_to_output;
 
     // Private Constructor/Destructor to prevent instantiation/deletion from outside
     CodeProvenance() = default;
@@ -62,6 +64,6 @@ class CodeProvenance
 
     void reset();
     std::string_view get_package_name(std::string_view filename);
-    const Package* add_new_package(std::string_view package_name, std::string_view version);
+    const Package* add_new_package(std::string_view package_name, std::string_view version, std::string_view path);
 };
 }
