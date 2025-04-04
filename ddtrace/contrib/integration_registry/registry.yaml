@@ -43,10 +43,10 @@ integrations:
   instrumented_modules:
   - aiohttp_jinja2
   tested_version_min: 1.5.1
-  tested_version_max: '1.6'
+  tested_version_max: 1.6.0
   tested_versions_list:
   - 1.5.1
-  - '1.6'
+  - 1.6.0
 
 - integration_name: aiomysql
   is_external_package: true
@@ -1143,9 +1143,9 @@ integrations:
   tested_versions_list:
   - 4.5.3
   - 5.1.1
-  - '6.2'
+  - 6.2.0
   - 6.3.1
-  - '6.4'
+  - 6.4.0
   - 6.4.1
 
 - integration_name: unittest
@@ -1166,10 +1166,10 @@ integrations:
   - urllib3
   is_patchable: true
   patched_by_default: false
-  tested_version_min: '1.25'
+  tested_version_min: 1.25.0
   tested_version_max: 2.3.0
   tested_versions_list:
-  - '1.25'
+  - 1.25.0
   - 1.25.8
   - 1.25.11
   - 1.26.6

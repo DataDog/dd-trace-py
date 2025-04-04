@@ -66,6 +66,49 @@
             "description": "Optional: Explicit list of all versions found in test lockfiles (present if is_external_package=true and versions found).",
              "type": "array",
              "items": { "type": "string" }
+          },
+          "version_range": {
+            "description": "Future Goal: Supported version range as a PEP 440 string specifier (e.g., '>=1.0', '>=1.1,<3.0').",
+            "type": ["string", "null"]
+          },
+          "patched_methods": {
+            "description": "Future Goal: List of key functions/methods patched by the integration.",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": {
+            "description": "Future Goal: Brief description of the integration.",
+            "type": ["string", "null"]
+          },
+          "category": {
+            "description": "Future Goal: Primary category (e.g., web_framework, database, rpc, messaging, internal, stdlib, testing).",
+            "type": ["string", "null"]
+          },
+          "sub_category": {
+            "description": "Future Goal: Sub-category for finer grouping (e.g., kv-store, relational, document).",
+            "type": ["string", "null"]
+          },
+          "configurations": {
+            "description": "Future Goal: List of relevant DD_ environment variables used for configuration.",
+            "type": "array",
+            "items": {
+               "type": "string",
+               "pattern": "^DD_"
+            }
+          },
+          "features": {
+            "description": "Future Goal: List of features supported (e.g., distributed_tracing, log_correlation, dbm_propagation, appsec).",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "feature_tests": {
+            "description": "Future Goal: Map linking feature names to relevant test cases/files.",
+            "type": "object",
+            "additionalProperties": {
+              "description": "List of test file paths or specific test function identifiers.",
+              "type": "array",
+              "items": {"type": "string"}
+            }
           }
         },
         "required": [

@@ -1,29 +1,21 @@
 import os
 import pathlib
 import pytest
-import yaml # Requires PyYAML
+import yaml
 import sys
-import json # For loading JSON schema
+import json
 import jsonschema
 
+from ddtrace._monkey import PATCH_MODULES, _MODULES_FOR_CONTRIB
 
-# --- Dynamically add project root to sys.path ---
-# Assuming tests/contrib/test_registry.py, go up 3 levels
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Attempt to import PATCH_MODULES
-try:
-    from ddtrace._monkey import PATCH_MODULES
-except ImportError:
-    PATCH_MODULES = None # Allow parsing, test will fail if needed
 
-# --- Configuration ---
 CONTRIB_INTERNAL_DIR = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
 REGISTRY_YAML_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
 SCHEMA_JSON_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "_registry_schema.json"
 
-# --- Fixtures ---
 
 @pytest.fixture(scope="module")
 def registry_content() -> dict:
@@ -99,8 +91,6 @@ def patchable_integration_names(registry_data: list[dict]) -> set[str]:
     return names
 
 
-# --- Test Functions ---
-
 def test_all_internal_dirs_accounted_for(registry_data: list[dict], all_integration_names: set[str]):
     """
     Verify that every directory within ddtrace/contrib/internal is listed
@@ -109,7 +99,7 @@ def test_all_internal_dirs_accounted_for(registry_data: list[dict], all_integrat
     if not CONTRIB_INTERNAL_DIR.is_dir():
         pytest.fail(f"contrib/internal directory not found: {CONTRIB_INTERNAL_DIR}")
 
-    # We now only check against names defined in the YAML
+    # We only check against names defined in the YAML
     accounted_for_dirs = all_integration_names
     found_dirs_on_disk = set()
     unaccounted_dirs = []
@@ -189,7 +179,6 @@ def test_registry_integrations_in_patch_modules(patchable_integration_names: set
 
     assert not error_messages, "\n".join(error_messages)
 
-# --- NEW: Schema Validation Test --- 
 
 def test_registry_conforms_to_schema(registry_content: dict, registry_schema: dict):
     """Validates registry.yaml content against the defined JSON schema."""
@@ -204,7 +193,6 @@ def test_registry_conforms_to_schema(registry_content: dict, registry_schema: di
     except Exception as e:
          pytest.fail(f"An unexpected error occurred during schema validation: {e}")
 
-# --- NEW: Basic Schema Structure Tests ---
 
 def test_dependency_name_only_if_external(registry_data: list[dict]):
     """Verify 'dependency_name' only exists if 'is_external_package' is true."""
@@ -216,9 +204,9 @@ def test_dependency_name_only_if_external(registry_data: list[dict]):
 
         if is_external is False and has_deps:
             errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a 'dependency_name' field.")
-        # Optional: Check if external packages *always* have dependency_name? Might not be true.
-        # elif is_external is True and not has_deps:
-        #     errors.append(f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field.")
+        # Check that external packages have a defined dependency_name
+        elif is_external is True and not has_deps:
+            errors.append(f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field.")
 
     assert not errors, "\n".join(errors)
 
@@ -251,7 +239,6 @@ def test_patched_by_default_only_if_patchable(registry_data: list[dict]):
         elif is_patchable is True and not has_patch_status_field:
              errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing the 'patched_by_default' field.")
 
-
     assert not errors, "\n".join(errors)
 
 def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
@@ -264,12 +251,64 @@ def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
 
         if is_patchable is False and has_instr_mods:
              errors.append(f"Integration '{name}' has 'is_patchable: false' but contains an 'instrumented_modules' field.")
-        # Optional: Check if patchable things *always* have instrumented_modules? Maybe not if default is used.
-        # elif is_patchable is True and not has_instr_mods:
-        #      errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
+        # Check that patchable integrations always have instrumented_modules
+        elif is_patchable is True and not has_instr_mods:
+             errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
 
 
     assert not errors, "\n".join(errors)
 
-# TODO: Add more tests here to validate schema fields?
-# e.g., test_dependency_name_only_for_external, test_version_fields_only_for_external, etc.
+def test_external_packages_have_version_fields(registry_data: list[dict]):
+    """
+    Verify that every integration marked as 'is_external_package: true'
+    has the tested version fields populated (even if N/A).
+    The generation script should always add these for external packages.
+    """
+    errors = []
+    # These fields should always be generated for external packages by the script
+    # even if the value ends up being "N/A" or an empty list.
+    expected_version_fields = ["tested_version_min", "tested_version_max", "tested_versions_list"]
+    for entry in registry_data:
+        name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        is_external = entry.get("is_external_package")
+
+        if is_external is True: # Only check external packages
+            for field in expected_version_fields:
+                if field not in entry:
+                    errors.append(f"External integration '{name}' is missing the required field '{field}'.")
+
+    assert not errors, "\n".join(errors)
+
+def test_remapped_modules_in_contrib_map(registry_data: list[dict]):
+    """
+    Verify that if instrumented_modules doesn't contain the integration_name itself,
+    then the integration_name must be a key in _MODULES_FOR_CONTRIB.
+    """
+
+    errors = []
+    contrib_map_keys = set(_MODULES_FOR_CONTRIB.keys())
+
+    for entry in registry_data:
+        name = entry.get("integration_name")
+        instr_modules = entry.get("instrumented_modules")
+        is_patchable = entry.get("is_patchable")
+
+        # Only check patchable integrations that have instrumented_modules defined
+        if not is_patchable or not name or not isinstance(instr_modules, list) or not instr_modules:
+            continue
+
+        # Check if the integration name itself is listed as one of the instrumented modules
+        # This covers the default case and cases where _MODULES_FOR_CONTRIB includes the integration name
+        name_is_in_modules = name in instr_modules
+
+        # If the integration name is NOT listed in its own instrumented modules,
+        # it implies a remapping occurred, so it MUST be in _MODULES_FOR_CONTRIB
+        if not name_is_in_modules:
+            if name not in contrib_map_keys:
+                 errors.append(
+                     f"Integration '{name}' has instrumented_modules ({instr_modules}) that do not include '{name}', "
+                     f"but '{name}' is not found as a key in ddtrace._monkey._MODULES_FOR_CONTRIB. "
+                     f"Add it to _MODULES_FOR_CONTRIB if the mapping is intentional."
+                 )
+
+    assert not errors, "\n".join(errors)
