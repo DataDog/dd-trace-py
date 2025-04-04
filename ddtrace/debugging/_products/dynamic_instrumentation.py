@@ -1,7 +1,10 @@
 from ddtrace.settings.dynamic_instrumentation import config
 
 
-requires = ["remote-configuration"]
+requires = [
+    "remote-configuration",
+    "symbol-database",
+]
 
 
 def post_preload():
