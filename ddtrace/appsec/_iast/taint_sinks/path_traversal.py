@@ -2,6 +2,7 @@ from typing import Any
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -29,12 +30,14 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
     if not IS_REPORTED_INTRUMENTED_SINK:
         _set_metric_iast_instrumented_sink(VULN_PATH_TRAVERSAL)
         IS_REPORTED_INTRUMENTED_SINK = True
+    try:
+        if asm_config.is_iast_request_enabled and PathTraversal.has_quota():
+            filename_arg = args[0] if args else kwargs.get("file", None)
+            if PathTraversal.is_valid_tainted(filename_arg):
+                PathTraversal.report(evidence_value=filename_arg)
 
-    if asm_config.is_iast_request_enabled and PathTraversal.has_quota():
-        filename_arg = args[0] if args else kwargs.get("file", None)
-        if PathTraversal.is_valid_tainted(filename_arg):
-            PathTraversal.report(evidence_value=filename_arg)
-
-    # Reports Metrics
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, PathTraversal.vulnerability_type)
-    _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
+        # Reports Metrics
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, PathTraversal.vulnerability_type)
+        _set_metric_iast_executed_sink(PathTraversal.vulnerability_type)
+    except Exception as e:
+        iast_error(f"propagation::sink_point::Error in check_and_report_path_traversal. {e}")
