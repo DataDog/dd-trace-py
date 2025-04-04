@@ -11,8 +11,8 @@ from typing import Union
 
 import lz4.frame
 
-from ddtrace.profiling.exporter.pprof import pprof_pb2
 from tests.profiling.collector.lock_utils import LineNo
+from tests.profiling.collector.pprof import pprof_pb2
 
 
 UINT64_MAX = (1 << 64) - 1

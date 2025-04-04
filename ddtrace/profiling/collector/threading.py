@@ -10,21 +10,8 @@ from ddtrace.settings.profiling import config
 from . import _lock
 
 
-class ThreadingLockAcquireEvent(_lock.LockAcquireEvent):
-    """A threading.Lock has been acquired."""
-
-    __slots__ = ()
-
-
-class ThreadingLockReleaseEvent(_lock.LockReleaseEvent):
-    """A threading.Lock has been released."""
-
-    __slots__ = ()
-
-
 class _ProfiledThreadingLock(_lock._ProfiledLock):
-    ACQUIRE_EVENT_CLASS = ThreadingLockAcquireEvent
-    RELEASE_EVENT_CLASS = ThreadingLockReleaseEvent
+    pass
 
 
 class ThreadingLockCollector(_lock.LockCollector):
