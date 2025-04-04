@@ -38,7 +38,6 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -95,6 +94,11 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+
+
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:

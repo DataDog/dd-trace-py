@@ -17,6 +17,7 @@ from typing import Dict  # noqa:F401
 import pytest
 
 from ddtrace import config
+from ddtrace.contrib.internal.pytest._plugin_v2 import is_enabled
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
@@ -51,11 +52,6 @@ DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
-
-
-def is_enabled(config):
-    """Check if the ddtrace plugin is enabled."""
-    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def pytest_addoption(parser):
