@@ -13,9 +13,9 @@ class TestAgentsPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    @pytest.mark.skip(reason="skip hanging test")
-    def test_ddtrace_run_patch_on_import(self):
-        pass
+    # @pytest.mark.skip(reason="skip hanging test")
+    # def test_ddtrace_run_patch_on_import(self):
+    #     pass
 
     def assert_module_patched(self, agents):
         pass
