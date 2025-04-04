@@ -318,7 +318,7 @@ def agent_missing_proxy():
 @pytest.fixture
 def no_agent_info():
     with mock.patch("ddtrace.internal.agent.info", return_value=None):
-        yield  
+        yield
 
 
 @pytest.fixture
