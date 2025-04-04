@@ -150,7 +150,9 @@ def agents(monkeypatch):
 
 @pytest.fixture
 def openai(agents):
-    """The OpenAI Agents integration with patching and cleanup"""
+    """Fixture for openai client when chat completions is used as
+    The default API for agents SDK and LLM spans are produced by the openai integration.
+    """
     import openai
 
     from ddtrace.contrib.internal.openai.patch import patch as patch_openai
