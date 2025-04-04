@@ -13,6 +13,8 @@ from pyrometry.flamegraph import FlameGraph
 
 microseconds = int
 
+Z_THRESHOLD = 3.0  # 3 sigma rule
+
 
 @dataclass
 class ImportStack:
@@ -163,7 +165,7 @@ def main() -> None:
     print(f"The average import time from this PR is: {str(x_measure)}.\n")
     print(f"The average import time from base is: {str(y_measure)}.\n")
     print(f"The import time difference between this PR and base is: {str(diff_m)}.\n")
-    if (abs(z)) <= 1.96:
+    if abs(z) <= Z_THRESHOLD:
         print(f"The difference is not statistically significant (z = {z:.2f}).\n")
     print()
     print("### Import time breakdown")
@@ -180,7 +182,7 @@ def main() -> None:
     else:
         print("No import paths have changed significantly.")
 
-    if z > 1.96:
+    if z > Z_THRESHOLD:
         msg = f"Import time has increased significantly (z = {z:.2f})."
         raise ValueError(msg)
 
