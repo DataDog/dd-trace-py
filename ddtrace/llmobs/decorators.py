@@ -7,7 +7,6 @@ import sys
 from typing import Callable
 from typing import Optional
 
-from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -144,14 +143,12 @@ def _model_decorator(operation_kind):
                         ml_app=ml_app,
                         _decorator=True,
                     ) as span:
-                        if config._llmobs_auto_span_linking_enabled:
-                            for arg in args:
-                                LLMObs._instance._record_object(span, arg, "input")
-                            for arg in kwargs.values():
-                                LLMObs._instance._record_object(span, arg, "input")
+                        for arg in args:
+                            LLMObs._instance._record_object(span, arg, "input")
+                        for arg in kwargs.values():
+                            LLMObs._instance._record_object(span, arg, "input")
                         ret = func(*args, **kwargs)
-                        if config._llmobs_auto_span_linking_enabled:
-                            LLMObs._instance._record_object(span, ret, "output")
+                        LLMObs._instance._record_object(span, ret, "output")
                         return ret
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
@@ -248,11 +245,10 @@ def _llmobs_decorator(operation_kind):
                     with traced_operation(
                         name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
                     ) as span:
-                        if config._llmobs_auto_span_linking_enabled:
-                            for arg in args:
-                                LLMObs._instance._record_object(span, arg, "input")
-                            for arg in kwargs.values():
-                                LLMObs._instance._record_object(span, arg, "input")
+                        for arg in args:
+                            LLMObs._instance._record_object(span, arg, "input")
+                        for arg in kwargs.values():
+                            LLMObs._instance._record_object(span, arg, "input")
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
@@ -265,8 +261,7 @@ def _llmobs_decorator(operation_kind):
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
-                        if config._llmobs_auto_span_linking_enabled:
-                            LLMObs._instance._record_object(span, resp, "output")
+                        LLMObs._instance._record_object(span, resp, "output")
                         return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
