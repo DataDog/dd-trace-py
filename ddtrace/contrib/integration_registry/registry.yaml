@@ -5,6 +5,8 @@ integrations:
   - aiobotocore
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - aiobotocore
   tested_version_min: 1.4.2
   tested_version_max: 2.16.0
   tested_versions_list:
@@ -306,6 +308,8 @@ integrations:
   is_external_package: false
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - coverage
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -614,6 +618,8 @@ integrations:
   - kombu
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - kombu
   tested_version_min: 4.2.2.post1
   tested_version_max: 5.4.2
   tested_versions_list:
@@ -662,6 +668,8 @@ integrations:
   - logbook
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - logbook
   tested_version_min: 1.0.0
   tested_version_max: 1.7.0.post0
   tested_versions_list:
@@ -672,6 +680,8 @@ integrations:
   is_external_package: false
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - logging
 
 - integration_name: loguru
   is_external_package: true
@@ -679,6 +689,8 @@ integrations:
   - loguru
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - loguru
   tested_version_min: 0.4.1
   tested_version_max: 0.7.2
   tested_versions_list:
@@ -795,6 +807,8 @@ integrations:
   - protobuf
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - protobuf
   tested_version_min: 3.19.0
   tested_version_max: 6.30.1
   tested_versions_list:
@@ -1069,6 +1083,8 @@ integrations:
   - sqlalchemy
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - sqlalchemy
   tested_version_min: 1.2.19
   tested_version_max: 2.0.38
   tested_versions_list:
@@ -1117,6 +1133,8 @@ integrations:
   - structlog
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - structlog
   tested_version_min: 20.2.0
   tested_version_max: 25.1.0
   tested_versions_list:
@@ -1138,6 +1156,8 @@ integrations:
   - tornado
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - tornado
   tested_version_min: 4.5.3
   tested_version_max: 6.4.1
   tested_versions_list:
@@ -1166,6 +1186,8 @@ integrations:
   - urllib3
   is_patchable: true
   patched_by_default: false
+  instrumented_modules:
+  - urllib3
   tested_version_min: 1.25.0
   tested_version_max: 2.3.0
   tested_versions_list:

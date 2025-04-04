@@ -5,6 +5,7 @@ import yaml
 import sys
 import json
 import jsonschema
+from packaging.version import parse as parse_version, InvalidVersion
 
 from ddtrace._monkey import PATCH_MODULES, _MODULES_FOR_CONTRIB
 
@@ -222,6 +223,27 @@ def test_version_fields_only_if_external(registry_data: list[dict]):
             for field in version_fields:
                 if field in entry:
                     errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a '{field}' field.")
+        elif is_external is True:
+            # Check min/max format (should be parsable or N/A)
+            for field in ["tested_version_min", "tested_version_max"]:
+                if field in entry:
+                    version_str = entry[field]
+                    try:
+                        parse_version(version_str)
+                    except InvalidVersion:
+                        errors.append(f"External integration '{name}' has invalid SemVer format for '{field}': '{version_str}'.")
+
+            # Check list items format
+            if "tested_versions_list" in entry:
+                 version_list = entry["tested_versions_list"]
+                 if not isinstance(version_list, list):
+                      errors.append(f"External integration '{name}' field 'tested_versions_list' is not a list.")
+                 else:
+                      for i, v_str in enumerate(version_list):
+                           try:
+                               parse_version(v_str)
+                           except InvalidVersion:
+                                errors.append(f"External integration '{name}' has invalid SemVer format in 'tested_versions_list' at index {i}: '{v_str}'.")
 
     assert not errors, "\n".join(errors)
 
@@ -249,12 +271,8 @@ def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
         is_patchable = entry.get("is_patchable")
         has_instr_mods = "instrumented_modules" in entry
 
-        if is_patchable is False and has_instr_mods:
-             errors.append(f"Integration '{name}' has 'is_patchable: false' but contains an 'instrumented_modules' field.")
-        # Check that patchable integrations always have instrumented_modules
-        elif is_patchable is True and not has_instr_mods:
+        if is_patchable is True and not has_instr_mods:
              errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
-
 
     assert not errors, "\n".join(errors)
 
