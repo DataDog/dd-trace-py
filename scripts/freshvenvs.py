@@ -1,14 +1,14 @@
 import argparse
+from collections import defaultdict
 import datetime as dt
+from http.client import HTTPSConnection
+from io import StringIO
 import json
+from operator import itemgetter
 import os
 import pathlib
 import sys
 import typing
-from collections import defaultdict
-from http.client import HTTPSConnection
-from io import StringIO
-from operator import itemgetter
 from typing import Optional
 
 from packaging.version import Version
@@ -189,7 +189,7 @@ def _is_module_autoinstrumented(module: str) -> bool:
     return module in PATCH_MODULES and PATCH_MODULES[module]
 
 def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
-    """Return whether the tested versions cover the full range of supported versions"""
+    """Return whether the tested versions cover the upper bound range of supported versions"""
     if not versions:
         return False
     _, upper_bound = bounds
@@ -244,6 +244,7 @@ def output_outdated_packages(all_required_packages, envs, bounds):
     Output a list of package names that can be updated.
     """
     outdated_packages = []
+    print(bounds)
 
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
@@ -257,8 +258,11 @@ def output_outdated_packages(all_required_packages, envs, bounds):
 
 
     for package in all_required_packages:
+        print(package)
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
+            continue
+        if package not in bounds or bounds[package] == (None, None):
             continue
         if not _versions_fully_cover_bounds(bounds[package], ordered):
             outdated_packages.append(package)
