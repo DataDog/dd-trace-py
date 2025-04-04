@@ -14,18 +14,6 @@ from ddtrace.trace import Pin
 
 logger = get_logger(__name__)
 
-processor_enabled = True
-
-
-def disable_processor():
-    global processor_enabled
-    processor_enabled = False
-
-
-def enable_processor():
-    global processor_enabled
-    processor_enabled = True
-
 
 class LLMObsTraceProcessor(TracingProcessor):
     def __init__(self, integration):
@@ -38,7 +26,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that started.
         """
-        if not processor_enabled:
+        if not getattr(agents, "_datadog_patch", False):
             return
 
         oai_span = OaiSpanAdapter(span)
@@ -52,7 +40,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        if not processor_enabled:
+        if not getattr(agents, "_datadog_patch", False):
             return
 
         self._integration.trace(Pin.get_from(agents), oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True)
@@ -63,7 +51,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
-        if not processor_enabled:
+        if not getattr(agents, "_datadog_patch", False):
             return
 
         trace_adapter = OaiTraceAdapter(trace)
@@ -85,7 +73,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that finished.
         """
-        if not processor_enabled:
+        if not getattr(agents, "_datadog_patch", False):
             return
 
         span_adapter = OaiSpanAdapter(span)
@@ -100,46 +88,3 @@ class LLMObsTraceProcessor(TracingProcessor):
 
     def shutdown(self) -> None:
         self._integration.clear_state()
-
-
-class NoOpTraceProcessor(TracingProcessor):
-    def __init__(self):
-        super().__init__()
-
-    def on_trace_start(self, trace: OaiTrace) -> None:
-        """Called when a trace is started.
-
-        Args:
-            trace: The trace that started.
-        """
-        pass
-
-    def on_trace_end(self, trace: OaiTrace) -> None:
-        """Called when a trace is finished.
-
-        Args:
-            trace: The trace that started.
-        """
-        pass
-
-    def on_span_start(self, span: OaiSpan[Any]) -> None:
-        """Called when a span is started.
-
-        Args:
-            span: The span that started.
-        """
-        pass
-
-    def on_span_end(self, span: OaiSpan[Any]) -> None:
-        """Called when a span is finished. Should not block or raise exceptions.
-
-        Args:
-            span: The span that finished.
-        """
-        pass
-
-    def shutdown(self) -> None:
-        pass
-
-    def force_flush(self) -> None:
-        pass
