@@ -12,8 +12,8 @@ from ddtrace.settings._config import config
 from ddtrace.version import get_version
 
 from ...constants import _SPAN_MEASURED_KEY
+from .. import agent
 from .._encoding import packb
-from ..agent import get_connection
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
@@ -87,12 +87,17 @@ def _span_aggr_key(span):
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     """SpanProcessor for computing, collecting and submitting span metrics to the Datadog Agent."""
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
-        # type: (str, Optional[float], float, int) -> None
+    def __init__(
+        self,
+        agent_url: Optional[str] = None,
+        interval: Optional[float] = None,
+        timeout: float = 1.0,
+        retry_attempts: int = 3,
+    ):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
-        self._agent_url = agent_url
+        self._agent_url = agent_url or agent.config.trace_agent_url
         self._endpoint = "/v0.6/stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout
@@ -195,10 +200,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         return serialized_buckets
 
-    def _flush_stats(self, payload):
-        # type: (bytes) -> None
+    def _flush_stats(self, payload: bytes) -> None:
         try:
-            conn = get_connection(self._agent_url, self._timeout)
+            conn = agent.get_connection(self._agent_url, self._timeout)
             conn.request("PUT", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
         except Exception:
