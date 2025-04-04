@@ -109,6 +109,7 @@ PATCH_MODULES = {
     "coverage": False,
     "selenium": True,
     "valkey": True,
+    "protobuf": config._data_streams_enabled
 }
 
 

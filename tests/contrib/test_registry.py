@@ -1,104 +1,275 @@
-import csv
+import os
 import pathlib
 import pytest
+import yaml # Requires PyYAML
+import sys
+import json # For loading JSON schema
+import jsonschema
 
-# Determine the project root based on the test file location
+
+# --- Dynamically add project root to sys.path ---
 # Assuming tests/contrib/test_registry.py, go up 3 levels
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Attempt to import PATCH_MODULES
+try:
+    from ddtrace._monkey import PATCH_MODULES
+except ImportError:
+    PATCH_MODULES = None # Allow parsing, test will fail if needed
+
+# --- Configuration ---
 CONTRIB_INTERNAL_DIR = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
-REGISTRY_CSV_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.csv"
-WHITELIST_CSV_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "whitelist.csv"
+REGISTRY_YAML_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
+SCHEMA_JSON_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "_registry_schema.json"
+
+# --- Fixtures ---
 
 @pytest.fixture(scope="module")
-def integration_names() -> set[str]:
-    """Loads integration names from the registry CSV."""
-    names = set()
-    if not REGISTRY_CSV_PATH.exists():
-        pytest.fail(f"Registry file not found: {REGISTRY_CSV_PATH}")
+def registry_content() -> dict:
+    """Loads the entire content of registry.yaml as a dictionary."""
+    if not REGISTRY_YAML_PATH.is_file():
+        pytest.fail(f"Registry YAML file not found: {REGISTRY_YAML_PATH}")
     try:
-        with open(REGISTRY_CSV_PATH, "r", newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            # Ensure the expected column header exists
-            if "Integration Name" not in reader.fieldnames:
-                 pytest.fail(f"'Integration Name' column not found in {REGISTRY_CSV_PATH}")
-            for row in reader:
-                # Handle potential empty rows or missing data gracefully
-                integration_name = row.get("Integration Name")
-                if integration_name:
-                    names.add(integration_name.strip())
+        with open(REGISTRY_YAML_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            if not isinstance(data, dict):
+                 pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: Expected root object.")
+            return data
+    except yaml.YAMLError as e:
+        pytest.fail(f"Error parsing YAML file {REGISTRY_YAML_PATH}: {e}")
     except Exception as e:
-        pytest.fail(f"Error reading registry file {REGISTRY_CSV_PATH}: {e}")
+        pytest.fail(f"Error reading file {REGISTRY_YAML_PATH}: {e}")
+    return {}
+
+@pytest.fixture(scope="module")
+def registry_data(registry_content: dict) -> list[dict]:
+    """Extracts the list of integrations from the loaded YAML content."""
+    integrations = registry_content.get("integrations")
+    if not isinstance(integrations, list):
+        pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: Expected 'integrations' key with a list value.")
+    if not all(isinstance(item, dict) for item in integrations):
+         pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: 'integrations' list should contain objects.")
+    return integrations
+
+@pytest.fixture(scope="module")
+def registry_schema() -> dict:
+    """Loads the JSON schema definition."""
+    if not SCHEMA_JSON_PATH.is_file():
+        pytest.fail(f"Schema JSON file not found: {SCHEMA_JSON_PATH}")
+    try:
+        with open(SCHEMA_JSON_PATH, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+        return schema
+    except json.JSONDecodeError as e:
+         pytest.fail(f"Error parsing JSON schema file {SCHEMA_JSON_PATH}: {e}")
+    except Exception as e:
+         pytest.fail(f"Error reading schema file {SCHEMA_JSON_PATH}: {e}")
+    return {}
+
+@pytest.fixture(scope="module")
+def all_integration_names(registry_data: list[dict]) -> set[str]:
+    """Extracts all unique integration names from the registry data."""
+    names = set()
+    for entry in registry_data:
+        name = entry.get("integration_name")
+        if name and isinstance(name, str):
+            names.add(name)
+        else:
+            pytest.fail(f"Found entry in registry without a valid string 'integration_name': {entry}")
     if not names:
-        pytest.fail(f"No integration names found in {REGISTRY_CSV_PATH}")
+         pytest.fail("No integration names found in loaded registry data.")
     return names
 
 @pytest.fixture(scope="module")
-def whitelisted_dirs() -> set[str]:
-    """Loads whitelisted directory names from the TXT file."""
-    dirs = set()
-    if not WHITELIST_CSV_PATH.exists():
-        pytest.fail(f"Whitelist file not found: {WHITELIST_CSV_PATH}")
-    try:
-        with open(WHITELIST_CSV_PATH, "r", encoding="utf-8") as txtfile:
-            for line in txtfile:
-                stripped_line = line.strip()
-                if stripped_line: # Avoid adding empty lines
-                    dirs.add(stripped_line)
-    except Exception as e:
-        pytest.fail(f"Error reading whitelist file {WHITELIST_CSV_PATH}: {e}")
-    # It's okay if this file is empty, so no check for emptiness here.
-    return dirs
+def patchable_integration_names(registry_data: list[dict]) -> set[str]:
+    """Extracts integration names where 'is_patchable' is true in the registry."""
+    names = set()
+    for entry in registry_data:
+        name = entry.get("integration_name")
+        is_patchable = entry.get("is_patchable") # Explicitly check the field
 
-# --- Test Function ---
+        # Check if name is valid and is_patchable is explicitly True
+        if name and isinstance(name, str) and is_patchable is True:
+            names.add(name)
+        # Log or fail if is_patchable is missing? For now, only include if True.
+        elif name and isinstance(name, str) and is_patchable is None:
+             print(f"Warning: Integration '{name}' is missing the 'is_patchable' field in registry.", file=sys.stderr)
 
-def test_all_internal_dirs_accounted_for(integration_names: set[str], whitelisted_dirs: set[str]):
+    return names
+
+
+# --- Test Functions ---
+
+def test_all_internal_dirs_accounted_for(registry_data: list[dict], all_integration_names: set[str]):
     """
     Verify that every directory within ddtrace/contrib/internal is listed
-    either in integration_registry.csv (as an 'Integration Name')
-    or in non_integration_dirs.txt.
+    as an 'integration_name' in registry.yaml.
     """
     if not CONTRIB_INTERNAL_DIR.is_dir():
         pytest.fail(f"contrib/internal directory not found: {CONTRIB_INTERNAL_DIR}")
 
-    accounted_for_dirs = integration_names.union(whitelisted_dirs)
-    found_dirs = set()
+    # We now only check against names defined in the YAML
+    accounted_for_dirs = all_integration_names
+    found_dirs_on_disk = set()
     unaccounted_dirs = []
 
     for item in CONTRIB_INTERNAL_DIR.iterdir():
-        if item.is_dir():
+        if item.is_dir() and item.name != "__pycache__":
             dir_name = item.name
-            found_dirs.add(dir_name)
+            found_dirs_on_disk.add(dir_name)
             if dir_name not in accounted_for_dirs:
                 unaccounted_dirs.append(dir_name)
 
-    # Check for directories listed in files but not found on disk (optional sanity check)
-    missing_registry_dirs = integration_names - found_dirs
+    # Check for entries in YAML that don't have a corresponding directory
+    missing_dirs_in_yaml = accounted_for_dirs - found_dirs_on_disk
 
     error_messages = []
     if unaccounted_dirs:
         instructions = (
-            f"1. If the directory is a NEW or MISSED integration, add its name to '{REGISTRY_CSV_PATH.relative_to(PROJECT_ROOT)}'.\n"
-            f"2. If the directory is NOT an integration (e.g., internal util, common code, stdlib patch), add its name to '{WHITELIST_CSV_PATH.relative_to(PROJECT_ROOT)}'."
+            f"      Please add an entry for each directory listed below to '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n"
+            f"      Determine 'is_external_package' and 'is_patchable' based on the module's nature."
         )
         error_messages.append(
-            f"Unaccounted Directories Found:\n"
-            f"  The following directories exist in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}' but are NOT listed in either '{REGISTRY_CSV_PATH.name}' or '{WHITELIST_CSV_PATH.name}'.\n"
-            f"  Please update the registry files:\n"
+            f"\n\nUnaccounted Directories Found:\n"
+            f"    The following directories exist in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}' \n"
+            f"    but do NOT have a corresponding 'integration_name' entry in '{REGISTRY_YAML_PATH.name}'.\n\n"
             f"{instructions}\n\n"
-            f"  Unaccounted directories:\n"
-            f"  - " + "\n  - ".join(sorted(unaccounted_dirs))
+            f"      Unaccounted directories:\n"
+            f"        - " + "\n        - ".join(sorted(unaccounted_dirs)) + "\n"
         )
-    if missing_registry_dirs:
+    if missing_dirs_in_yaml:
          error_messages.append(
-             f"The following directories listed in {REGISTRY_CSV_PATH.name} were not found in {CONTRIB_INTERNAL_DIR}:\n"
-             f"{sorted(missing_registry_dirs)}"
+             f"\n\nMissing Directories for YAML Entries:\n"
+             f"    The following integration names are listed in '{REGISTRY_YAML_PATH.name}'\n"
+             f"    but do not have a corresponding directory in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}':\n\n"
+             f"      - " + "\n      - ".join(sorted(list(missing_dirs_in_yaml))) + "\n"
          )
-    # We might expect things in the whitelist not to exist (e.g., __pycache__) so only warn or skip this check
-    # if missing_whitelist_dirs:
-    #      error_messages.append(
-    #          f"The following directories listed in {NON_INTEGRATION_TXT_PATH.name} were not found in {CONTRIB_INTERNAL_DIR}:\n"
-    #          f"{sorted(missing_whitelist_dirs)}"
-    #      )
+
+    assert not error_messages, "\n".join(error_messages)
 
 
-    assert not error_messages, "\n\n".join(error_messages)
+def test_registry_integrations_in_patch_modules(patchable_integration_names: set[str]):
+    """
+    Verify that every integration marked as 'is_patchable: true' in the registry YAML
+    exists as a key in ddtrace._monkey.PATCH_MODULES.
+    """
+    if PATCH_MODULES is None:
+        pytest.fail("Could not import PATCH_MODULES from ddtrace._monkey. Ensure ddtrace is installed correctly.")
+
+    patch_module_keys = set(PATCH_MODULES.keys())
+
+    # Find patchable integrations from registry missing in PATCH_MODULES
+    missing_in_patch_modules = patchable_integration_names - patch_module_keys
+
+    error_messages = []
+    if missing_in_patch_modules:
+        sorted_missing = sorted(list(missing_in_patch_modules))
+        error_messages.append(
+            f"\n\nMissing Integrations in ddtrace._monkey.PATCH_MODULES:\n"
+            f"  The following integrations are marked 'is_patchable: true' in '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}' \n"
+            f"  but are MISSING as keys in the PATCH_MODULES dictionary in 'ddtrace/_monkey.py'.\n\n"
+            f"  Please ADD these integrations to PATCH_MODULES (set value to True/False/config as appropriate):\n\n"
+            f"    Missing integrations:\n"
+            f"      - " + "\n      - ".join(sorted_missing) + "\n"
+        )
+
+    # Optional: Check for keys in PATCH_MODULES that are NOT marked as patchable in the registry
+    # extraneous_in_patch_modules = patch_module_keys - patchable_integration_names
+    # if extraneous_in_patch_modules:
+    #     sorted_extraneous = sorted(list(extraneous_in_patch_modules))
+    #     error_messages.append(
+    #         f"\n\nExtraneous Keys in ddtrace._monkey.PATCH_MODULES:\n"
+    #         f"  The following keys exist in PATCH_MODULES in 'ddtrace/_monkey.py' \n"
+    #         f"  but are NOT marked as 'is_patchable: true' in '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n\n"
+    #         f"  Consider REMOVING them from PATCH_MODULES or correcting their 'is_patchable' status in the registry:\n\n"
+    #         f"    Extraneous keys:\n"
+    #         f"      - " + "\n      - ".join(sorted_extraneous) + "\n"
+    #     )
+
+    assert not error_messages, "\n".join(error_messages)
+
+# --- NEW: Schema Validation Test --- 
+
+def test_registry_conforms_to_schema(registry_content: dict, registry_schema: dict):
+    """Validates registry.yaml content against the defined JSON schema."""
+    if jsonschema is None:
+        pytest.skip("jsonschema library not installed, skipping schema validation.")
+
+    try:
+        jsonschema.validate(instance=registry_content, schema=registry_schema)
+    except jsonschema.ValidationError as e:
+        # Provide a more detailed error message upon failure
+        pytest.fail(f"Schema validation failed for {REGISTRY_YAML_PATH}: {e}", pytrace=False)
+    except Exception as e:
+         pytest.fail(f"An unexpected error occurred during schema validation: {e}")
+
+# --- NEW: Basic Schema Structure Tests ---
+
+def test_dependency_name_only_if_external(registry_data: list[dict]):
+    """Verify 'dependency_name' only exists if 'is_external_package' is true."""
+    errors = []
+    for entry in registry_data:
+        name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        is_external = entry.get("is_external_package")
+        has_deps = "dependency_name" in entry
+
+        if is_external is False and has_deps:
+            errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a 'dependency_name' field.")
+        # Optional: Check if external packages *always* have dependency_name? Might not be true.
+        # elif is_external is True and not has_deps:
+        #     errors.append(f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field.")
+
+    assert not errors, "\n".join(errors)
+
+def test_version_fields_only_if_external(registry_data: list[dict]):
+    """Verify version fields only exist if 'is_external_package' is true."""
+    errors = []
+    version_fields = ["tested_version_min", "tested_version_max", "tested_versions_list"]
+    for entry in registry_data:
+        name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        is_external = entry.get("is_external_package")
+
+        if is_external is False:
+            for field in version_fields:
+                if field in entry:
+                    errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a '{field}' field.")
+
+    assert not errors, "\n".join(errors)
+
+def test_patched_by_default_only_if_patchable(registry_data: list[dict]):
+    """Verify 'patched_by_default' only exists if 'is_patchable' is true or status is MISSING."""
+    errors = []
+    for entry in registry_data:
+        name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        is_patchable = entry.get("is_patchable")
+        patch_status = entry.get("patched_by_default")
+        has_patch_status_field = "patched_by_default" in entry
+
+        if is_patchable is False and has_patch_status_field and patch_status != "MISSING_IN_PATCH_MODULES":
+             errors.append(f"Integration '{name}' has 'is_patchable: false' but contains 'patched_by_default: {patch_status}' (expected field to be absent or value MISSING...).")
+        elif is_patchable is True and not has_patch_status_field:
+             errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing the 'patched_by_default' field.")
+
+
+    assert not errors, "\n".join(errors)
+
+def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
+    """Verify 'instrumented_modules' generally only exists if 'is_patchable' is true."""
+    errors = []
+    for entry in registry_data:
+        name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        is_patchable = entry.get("is_patchable")
+        has_instr_mods = "instrumented_modules" in entry
+
+        if is_patchable is False and has_instr_mods:
+             errors.append(f"Integration '{name}' has 'is_patchable: false' but contains an 'instrumented_modules' field.")
+        # Optional: Check if patchable things *always* have instrumented_modules? Maybe not if default is used.
+        # elif is_patchable is True and not has_instr_mods:
+        #      errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
+
+
+    assert not errors, "\n".join(errors)
+
+# TODO: Add more tests here to validate schema fields?
+# e.g., test_dependency_name_only_for_external, test_version_fields_only_for_external, etc.

@@ -2760,6 +2760,8 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
+                "PyYAML": latest,
+                "jsonschema": latest,
             },
             pys=select_pys(min_version="3.8"),
         ), 
