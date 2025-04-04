@@ -17,7 +17,9 @@ from tests.contrib.pytest.test_pytest import _get_spans_from_list
 from tests.contrib.pytest.utils import assert_stats
 
 
-pytestmark = pytest.mark.skipif(not _pytest_version_supports_attempt_to_fix(), reason="Attempt-to-Fix requires pytest >=7.0")
+pytestmark = pytest.mark.skipif(
+    not _pytest_version_supports_attempt_to_fix(), reason="Attempt-to-Fix requires pytest >=7.0"
+)
 
 _TEST_PASS = """
 def test_pass():

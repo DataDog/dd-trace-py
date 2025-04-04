@@ -22,7 +22,9 @@ from tests.contrib.pytest.test_pytest import _get_spans_from_list
 from tests.utils import override_env
 
 
-pytestmark = pytest.mark.skipif(not _pytest_version_supports_efd(), reason="Early Flake Detection requires pytest >=7.0")
+pytestmark = pytest.mark.skipif(
+    not _pytest_version_supports_efd(), reason="Early Flake Detection requires pytest >=7.0"
+)
 
 _KNOWN_TEST_IDS = _make_fqdn_test_ids(
     [

@@ -1,4 +1,3 @@
-import json
 import os
 from unittest import mock
 
@@ -35,9 +34,7 @@ def _get_span_coverage_data(span):
     """Returns an abstracted view of the coverage data from the span that is independent of the coverage format."""
     tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
     assert tag_data is not None, f"Coverage data not found in span {span}"
-    return {
-        file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]
-    }
+    return {file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]}
 
 
 class PytestTestCase(PytestTestCaseBase):
@@ -150,7 +147,7 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
-        second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
+        second_suite_coverage = _get_span_coverage_data(second_suite_span)
         assert len(second_suite_coverage) == 2
         assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
         assert second_suite_coverage["/ret_false.py"] == [(1, 2)]

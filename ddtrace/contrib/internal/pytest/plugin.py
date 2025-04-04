@@ -17,8 +17,19 @@ from typing import Dict  # noqa:F401
 import pytest
 
 from ddtrace import config
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 from ddtrace.contrib.internal.pytest._utils import _extract_span
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -99,20 +110,6 @@ def pytest_addoption(parser):
         from ddtrace.appsec._iast import _iast_pytest_activation
 
         _iast_pytest_activation()
-
-
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
 
 
 def pytest_configure(config):
