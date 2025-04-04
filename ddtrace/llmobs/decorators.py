@@ -142,14 +142,8 @@ def _model_decorator(operation_kind):
                         session_id=session_id,
                         ml_app=ml_app,
                         _decorator=True,
-                    ) as span:
-                        for arg in args:
-                            LLMObs._instance._record_object(span, arg, "input")
-                        for arg in kwargs.values():
-                            LLMObs._instance._record_object(span, arg, "input")
-                        ret = func(*args, **kwargs)
-                        LLMObs._instance._record_object(span, ret, "output")
-                        return ret
+                    ):
+                        return func(*args, **kwargs)
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 
@@ -245,10 +239,6 @@ def _llmobs_decorator(operation_kind):
                     with traced_operation(
                         name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
                     ) as span:
-                        for arg in args:
-                            LLMObs._instance._record_object(span, arg, "input")
-                        for arg in kwargs.values():
-                            LLMObs._instance._record_object(span, arg, "input")
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
@@ -261,7 +251,6 @@ def _llmobs_decorator(operation_kind):
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
-                        LLMObs._instance._record_object(span, resp, "output")
                         return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
