@@ -70,3 +70,32 @@ TEST_F(SecureMarksTest, AllVulnerabilityTypes)
     EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::WEAK_RANDOMNESS));
     EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::XSS));
 }
+
+TEST(TaintRange, IdempotentSecureMarks) {
+    // Create a taint range and add SQL_INJECTION mark
+    TaintRange taint_range;
+    taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::SQL_INJECTION));
+
+    // Add the same mark again
+    taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::SQL_INJECTION));
+
+    // Add multiple times and verify it's still the same
+    taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
+    taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::SQL_INJECTION));
+
+    // Verify other marks are still not set
+    EXPECT_FALSE(taint_range.has_secure_mark(VulnerabilityType::XSS));
+
+    // Add a different mark and verify both exist
+    taint_range.add_secure_mark(VulnerabilityType::XSS);
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::SQL_INJECTION));
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::XSS));
+
+    // Add SQL_INJECTION again and verify both still exist
+    taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::SQL_INJECTION));
+    EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::XSS));
+}

@@ -302,6 +302,7 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
                                 "faulty_session_threshold": 30
                             }
                         },
+                        "known_tests_enabled": false,
                         "flaky_test_retries_enabled": false,
                         "itr_enabled": true,
                         "require_git": false,

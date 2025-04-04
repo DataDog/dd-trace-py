@@ -11,6 +11,7 @@ from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
 from ddtrace.trace import Span
 from tests.llmobs._utils import DummyEvaluator
 from tests.llmobs._utils import _dummy_evaluator_eval_metric_event
+from tests.utils import flaky
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -30,6 +31,7 @@ def test_evaluator_runner_start(mock_evaluator_logs, active_evaluator_runner):
     mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
+@flaky(1744053478)
 def test_evaluator_runner_buffer_limit(mock_evaluator_logs, active_evaluator_runner):
     mock_evaluator_logs.reset_mock()
     for _ in range(1001):

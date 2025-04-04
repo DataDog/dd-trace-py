@@ -61,6 +61,21 @@ _BLOCK_CALL: Literal["block"] = "block"
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
 
 
+def report_error_on_span(error: str, message: str) -> None:
+    span = getattr(_get_asm_context(), "span", None) or core.get_span()
+    if not span:
+        # failsafe
+        from ddtrace import tracer
+
+        root_span = tracer.current_root_span()
+    else:
+        root_span = span._local_root or span
+    if not root_span:
+        return
+    root_span.set_tag_str(APPSEC.ERROR_TYPE, error)
+    root_span.set_tag_str(APPSEC.ERROR_MESSAGE, message)
+
+
 class ASM_Environment:
     """
     an object of this class contains all asm data (waf and telemetry)
@@ -344,6 +359,7 @@ def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) ->
         return callback(custom_data, **kwargs)
     else:
         logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
         return None
 
 
