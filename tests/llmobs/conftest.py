@@ -292,7 +292,7 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer, agentless_enabled=False)
+        llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
