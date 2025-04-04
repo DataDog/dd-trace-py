@@ -227,7 +227,7 @@ class ToolCall:
     tool_id: str
     tool_name: str
     arguments: str
-    llm_span_context: Dict[str, str] = {}  # span/trace id of the LLM span that initiated this tool call
+    llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
     tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
     is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
     tool_kind: str = "function"  # one of "function", "handoff"
