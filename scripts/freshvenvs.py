@@ -1,13 +1,14 @@
-from collections import defaultdict
+import argparse
 import datetime as dt
-from http.client import HTTPSConnection
-from io import StringIO
 import json
-from operator import itemgetter
 import os
 import pathlib
 import sys
 import typing
+from collections import defaultdict
+from http.client import HTTPSConnection
+from io import StringIO
+from operator import itemgetter
 from typing import Optional
 
 from packaging.version import Version
@@ -44,6 +45,7 @@ module_dependency_mapping = {
     "aiohttp_jinja2": "aiohttp-jinja2",
     "azure_functions": "azure-functions",
     "pytest_bdd": "pytest-bdd",
+    "aws_lambda": "datadog-lambda",
 }
 
 # map lockfile dependency => module name
@@ -67,6 +69,13 @@ class Capturing(list):
         sys.stdout = self._stdout
         sys.stderr = self._stderr
 
+def parse_args():
+    """
+    usage: python scripts/freshvenvs.py <output> OR <generate>
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mode", choices=["output", "generate"], help="Output mode")
+    return parser.parse_args()
 
 def _get_integrated_modules() -> typing.Set[str]:
     """Get all modules that have contribs implemented for them"""
@@ -159,7 +168,6 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
 
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
-    # Returns [(package, version), (package, versions)]
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     for line in lockfile_content:
@@ -210,17 +218,21 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 
 
 def _get_all_used_versions(envs, packages) -> dict:
-    # Returns dict(module, set(versions)) for a venv, as defined in riotfiles.
+    """
+    Returns dict(module, set(versions)) for a venv, as defined from riot lockfiles.
+    """
     all_used_versions = defaultdict(set)
     for env in envs:
-        versions_used = _get_package_versions_from(env, packages)  # returns list of (package, versions)
+        versions_used = _get_package_versions_from(env, packages)
         for package, version in versions_used:
             all_used_versions[package].add(version)
     return all_used_versions
 
 
 def _get_version_bounds(packages) -> dict:
-    # Return dict(module: (earliest, latest)) of the module on PyPI
+    """
+    Return dict(module: (earliest, latest)) of the module from PyPI
+    """
     bounds = dict()
     for package in packages:
         earliest, latest = _get_version_extremes(package)
@@ -228,6 +240,9 @@ def _get_version_bounds(packages) -> dict:
     return bounds
 
 def output_outdated_packages(all_required_packages, envs, bounds):
+    """
+    Output a list of package names that can be updated.
+    """
     outdated_packages = []
 
     for package in all_required_packages:
@@ -251,8 +266,11 @@ def output_outdated_packages(all_required_packages, envs, bounds):
     print(" ".join(outdated_packages))
 
 
-def generate_supported_versions(contrib_packages, all_used_versions, patched):
-    # Generate supported versions
+def generate_supported_versions(contrib_packages, all_used_versions):
+    """
+    Generate supported versions JSON
+    """
+    patched = {}
     for package in contrib_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
@@ -276,22 +294,18 @@ def generate_supported_versions(contrib_packages, all_used_versions, patched):
         json.dump(supported_versions_output, file, indent=4)
 
 def main():
+    args = parse_args()
     all_required_modules = _get_integrated_modules()
-    all_required_packages = _get_updatable_packages_implementing(all_required_modules)  # these are MODULE names
-    contrib_modules = _get_all_modules(all_required_modules)
+    all_required_packages = _get_updatable_packages_implementing(all_required_modules)  # MODULE names
     envs = _get_riot_envs_including_any(all_required_modules)
-    patched = {}
-    contrib_packages = contrib_modules
-    all_used_versions = _get_all_used_versions(envs, contrib_packages)
-    bounds = _get_version_bounds(contrib_packages)
+    contrib_packages = _get_all_modules(all_required_modules)
 
-    if len(sys.argv) != 2:
-        print("usage: python scripts/freshvenvs.py <output> or <generate>")
-        return
-    if sys.argv[1] == "output":
+    if args.mode == "output":
+        bounds = _get_version_bounds(contrib_packages)
         output_outdated_packages(all_required_packages, envs, bounds)
-    if sys.argv[1] == "generate":
-        generate_supported_versions(contrib_packages, all_used_versions, patched)
+    elif args.mode == "generate":
+        all_used_versions = _get_all_used_versions(envs, contrib_packages)
+        generate_supported_versions(contrib_packages, all_used_versions)
 
 
 if __name__ == "__main__":
