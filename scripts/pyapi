@@ -1,0 +1,350 @@
+#!/usr/bin/env python
+"""
+Program to programmatically generate the public API of the ddtrace package.
+
+The purpose of this script is to allow saving a snapshot of the public API in a way that can
+be validated for changes during PRs to ensure that the public API is not being changed.
+
+Usage:
+
+```
+$ ./scripts/pyapi --help
+usage: pyapi [-h] [-v] [--json] {generate,lint}
+
+positional arguments:
+  {generate,lint}
+
+options:
+  -h, --help       show this help message and exit
+  -v, --verbose
+  --json           Output linting errors in json format
+```
+
+## Generate
+
+The script generates data in yaml format with the following structure:
+
+```yaml
+definitions:
+  <fully qualified name>:
+    <mypy ast node data>
+modules:
+  <module name>:
+    name: <module name>
+    path: <module path>
+    exports:
+        <module exported name>: <anchor to definition data>
+```
+
+Definitions is a mapping of fully qualified names to the mypy ast node data for that definition. This can be considered
+as the list of interfaces that are part of the public API.
+
+Modules is a mapping of public module names to the name of attributes that are exported by that modules. With a link to
+the definition data for that attribute.
+
+## Lint
+
+Linting will parse the public API and perform the following checks:
+
+- Ensure that all definitions are not part of an internal namespace.
+- Ensure all returned types are not part of an internal namespace.
+
+
+An internal namespace is defined as any `ddtrace` module that matches the following patterns:
+- `*.internal.*`
+- `*.vendor.*`
+- `*._[!_]*`
+
+## Design decisions
+
+This script uses the mypy stubgen module to generate the AST for the codebase. This is then used to generate the public
+API based on the following rules:
+
+- Modules are considered part of the public API if they are not `_` prefixed or part of a
+  `internal` or `vendor` namespace
+- All top level module attributes which are not prefixed by `_` are considered part of the public API.
+  - We do not consider the `__all__` attribute since it only affects `from module import *` imports.
+"""
+
+import argparse
+import collections
+import fnmatch
+import glob
+import json
+import logging
+import re
+from typing import Generator
+import sys
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+log.addHandler(logging.StreamHandler(stream=sys.stderr))
+
+
+import pip  # noqa: E402
+
+
+# attempt to install any missing dependencies
+missing = []
+for import_name, dist_name in [
+    ("mypy", "mypy~=1.13.0"),
+    ("yaml", "pyyaml~=6.0.2"),
+]:
+    try:
+        __import__(import_name)
+    except ImportError:
+        missing.append(dist_name)
+if missing:
+    log.warning("Installing missing dependencies: %r", missing)
+    pip.main(["install", "--quiet"] + missing)
+
+
+import mypy.nodes  # noqa: E402
+from mypy.stubgen import (
+    mypy_options,
+    collect_build_targets,
+    Options,
+    generate_asts_for_modules,
+)
+import yaml  # noqa: E402
+
+
+TAG_INVALID = re.compile(r"[^a-zA-Z0-9_]")
+
+module_ignores = frozenset(
+    [
+        "*.internal.*",
+        "*.vendor.*",
+        "*._[!_]*",
+    ]
+)
+
+
+# Custom dumper to only generate anchors for dicts
+class CustomDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data) -> bool:
+        return not isinstance(data, dict)
+
+    def generate_anchor(self, node) -> str:
+        if isinstance(node, yaml.nodes.MappingNode):
+            for key_node, value_node in node.value:
+                if key_node.value == "fullname":
+                    return TAG_INVALID.sub("_", value_node.value)
+        return super().generate_anchor(node)
+
+
+def get_all_py_files() -> Generator[str, None, None]:
+    for file in glob.glob("ddtrace/**/*.py", recursive=True):
+        yield file
+    for file in glob.glob("ddtrace/**/*.pyi", recursive=True):
+        yield file
+
+
+def resolve_api() -> dict[str, dict]:
+    py_files = list(get_all_py_files())
+    log.debug("Found %d python files", len(py_files))
+
+    options = Options(
+        pyversion=(3, 7),
+        no_import=False,
+        inspect=True,
+        doc_dir="",
+        search_path=["ddtrace"],
+        interpreter="python3",
+        parse_only=False,
+        ignore_errors=False,
+        include_private=False,
+        output_dir="out/",
+        modules=[],
+        packages=[],
+        files=py_files,
+        verbose=False,
+        quiet=True,
+        export_less=True,
+        include_docstrings=False,
+    )
+
+    mypy_opts = mypy_options(options)
+    py_modules, _, _ = collect_build_targets(options, mypy_opts)
+    py_modules = sorted(py_modules, key=lambda mod: mod.module)
+
+    generate_asts_for_modules(
+        py_modules, parse_only=options.parse_only, mypy_options=mypy_opts, verbose=options.verbose
+    )
+
+    references = {}
+    modules = {}
+    for mod in py_modules:
+        log.debug("Parsing module: %s", mod.module)
+        assert mod.ast is not None
+
+        module = {
+            "name": mod.module,
+            "path": mod.path,
+            "exports": {},
+        }
+        modules[mod.module] = module
+        for name, node in mod.ast.names.items():
+            if not isinstance(node.node, mypy.nodes.SymbolNode):
+                continue
+
+            if node.fullname in references:
+                data = references[node.fullname]
+            else:
+                data = node.node.serialize()
+
+                if isinstance(node.node, mypy.nodes.MypyFile):
+                    data = {".class": data[".class"]}
+                elif isinstance(node.node, mypy.nodes.Var):
+                    del data["flags"]
+                elif isinstance(node.node, mypy.nodes.TypeInfo):
+                    if data["module_name"] != mod.module:
+                        data = dict((k, v) for k, v in data.items() if k in (".class", "module_name", "fullname"))
+                    else:
+                        data["names"] = dict(
+                            (k, v) for k, v in data["names"].items() if not fnmatch.fnmatch(k, "_[!_]")
+                        )
+
+                if "fullname" not in data:
+                    data["fullname"] = node.fullname
+
+                references[node.fullname] = data
+
+            if name.startswith("_"):
+                continue
+
+            module["exports"][name] = data
+
+    # modules and references are for the full codebase, resolve just what is exposed publically
+    public_api = {
+        "definitions": {},
+        "modules": {},
+    }
+    for mod_name, mod in modules.items():
+        if any(fnmatch.fnmatch(mod_name, ignore) for ignore in module_ignores):
+            continue
+
+        log.debug("Adding module: %s to public api", mod_name)
+        public_api["modules"][mod_name] = mod
+        for name, data in mod["exports"].items():
+            if data["fullname"] not in public_api["definitions"]:
+                public_api["definitions"][data["fullname"]] = data
+
+        for data in public_api["definitions"].copy().values():
+            if data[".class"] in ("FuncDef", "OverloadedFuncDef") and data.get("type"):
+                ret_type = data["type"].get("ret_type")
+                internal_ret, internal_name = _internal_ret_type(ret_type)
+                if internal_ret:
+                    public_api["definitions"][internal_name] = references[internal_name]
+
+    return public_api
+
+
+def _internal_ret_type(ret_type: str | dict) -> tuple[bool, str | None]:
+    if not ret_type:
+        return False, None
+
+    if isinstance(ret_type, str):
+        if not ret_type.startswith("ddtrace."):
+            return False, None
+        if any(fnmatch.fnmatch(ret_type, ignore) for ignore in module_ignores):
+            return True, ret_type
+
+    if not isinstance(ret_type, dict):
+        return False, None
+
+    type_cls = ret_type.get(".class")
+    if not type_cls or type_cls in ("NoneType", "AnyType"):
+        return False, None
+    elif ret_type[".class"] in ("TypeAliasType", "Instance"):
+        if any(fnmatch.fnmatch(ret_type["type_ref"], ignore) for ignore in module_ignores):
+            return _internal_ret_type(ret_type["type_ref"])
+    elif ret_type[".class"] in ("UnionType", "TupleType"):
+        for type_ref in ret_type["items"]:
+            internal_type, internal_name = _internal_ret_type(type_ref)
+            if internal_type:
+                return internal_type, internal_name
+    elif ret_type[".class"] in ("CallableType",):
+        return _internal_ret_type(ret_type["ret_type"])
+    elif ret_type[".class"] in ("TypeVarType",):
+        return _internal_ret_type(ret_type["fullname"])
+    elif ret_type[".class"] in ("TypeType",):
+        return _internal_ret_type(ret_type["item"])
+    else:
+        log.warning("Unknown return type class: %s", ret_type[".class"])
+    return False, None
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=["generate", "lint"])
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--json", action="store_true", help="Output linting errors in json format")
+    args = parser.parse_args()
+
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+
+    public_api = resolve_api()
+
+    if args.command == "generate":
+        yaml.dump(
+            public_api,
+            sys.stdout,
+            Dumper=CustomDumper,
+            default_flow_style=False,
+            indent=2,
+        )
+    elif args.command == "lint":
+        errors = collections.defaultdict(lambda: {"exported_by": set(), "returned_by": set()})
+
+        # Find all internal definitions that are exported by a module
+        for def_name, def_data in public_api["definitions"].items():
+            if any(fnmatch.fnmatch(def_name, ignore) for ignore in module_ignores):
+                for mod_name, mod_data in public_api["modules"].items():
+                    for export_name, export_data in mod_data["exports"].items():
+                        if export_data == def_data:
+                            errors[def_name]["exported_by"].add(".".join((mod_name, export_name)))
+
+        # Find all internal definitions that are returned by a function
+        for mod_name, mod_data in public_api["modules"].items():
+            for export_name, export_data in mod_data["exports"].items():
+                if export_data[".class"] not in ("FuncDef", "OverloadedFuncDef"):
+                    continue
+
+                if not export_data.get("type"):
+                    continue
+
+                ret_type = export_data["type"].get("ret_type")
+                is_internal, internal_name = _internal_ret_type(ret_type)
+                if is_internal:
+                    errors[internal_name]["returned_by"].add(".".join((mod_name, export_name)))
+
+        if errors:
+            if args.json:
+                json.dump(
+                    dict(
+                        (k, {"exported_by": list(v["exported_by"]), "returned_by": list(v["returned_by"])})
+                        for k, v in errors.items()
+                    ),
+                    sys.stdout,
+                )
+            else:
+                error_count = sum(len(e["exported_by"]) + len(e["returned_by"]) for e in errors.values())
+                log.error("Found %d errors", error_count)
+                for def_name, error in sorted(errors.items(), key=lambda x: x[0]):
+                    log.error("Internal: %s", def_name)
+                    if error["exported_by"]:
+                        log.error("  Exported by:")
+                        for export in error["exported_by"]:
+                            log.error("    %s", export)
+                    if error["returned_by"]:
+                        log.error("  Returned by:")
+                        for export in error["returned_by"]:
+                            log.error("    %s", export)
+
+            sys.exit(-1)
+
+
+if __name__ == "__main__":
+    main()
