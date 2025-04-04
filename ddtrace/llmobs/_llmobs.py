@@ -69,6 +69,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -86,6 +87,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
+    "openai_agents": "openai_agents",
 }
 
 
@@ -308,7 +310,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
-        agentless_enabled: bool = False,
+        agentless_enabled: Optional[bool] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -352,7 +354,12 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+            config._llmobs_agentless_enabled = should_use_agentless(
+                user_defined_agentless_enabled=agentless_enabled
+                if agentless_enabled is not None
+                else config._llmobs_agentless_enabled
+            )
+
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs
                 if not config._dd_api_key:

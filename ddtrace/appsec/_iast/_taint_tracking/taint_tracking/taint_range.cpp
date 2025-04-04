@@ -8,7 +8,7 @@ void
 TaintRange::reset()
 {
     source.reset();
-    secure_marks.clear();
+    secure_marks = 0;
     start = 0;
     length = 0;
 };
@@ -41,15 +41,13 @@ TaintRange::get_hash() const
 void
 TaintRange::add_secure_mark(VulnerabilityType mark)
 {
-    if (has_secure_mark(mark)) {
-        secure_marks.push_back(mark);
-    }
+    secure_marks |= (1ULL << static_cast<uint64_t>(mark));
 }
 
 bool
-TaintRange::has_secure_mark(VulnerabilityType mark)
+TaintRange::has_secure_mark(VulnerabilityType mark) const
 {
-    return std::find(secure_marks.begin(), secure_marks.end(), mark) != secure_marks.end();
+    return (secure_marks & (1ULL << static_cast<uint64_t>(mark))) != 0;
 }
 
 TaintRangePtr
@@ -450,13 +448,21 @@ pyexport_taintrange(py::module& m)
       [](const RANGE_START start,
          const RANGE_LENGTH length,
          const Source& source,
-         const SecureMarksList& secure_marks = SecureMarksList()) {
-          return initializer->allocate_taint_range(start, length, source, secure_marks);
+         const py::object& secure_marks = py::none()) {
+          uint64_t marks = 0;
+          if (secure_marks.is_none()) {
+              marks = 0;
+          } else if (py::isinstance<py::int_>(secure_marks)) {
+              marks = secure_marks.cast<uint64_t>();
+          } else if (py::hasattr(secure_marks, "value")) {
+              marks = secure_marks.attr("value").cast<uint64_t>();
+          }
+          return initializer->allocate_taint_range(start, length, source, marks);
       },
       "start"_a,
       "length"_a,
       "source"_a,
-      "secure_marks"_a = SecureMarksList(),
+      "secure_marks"_a = py::none(),
       py::return_value_policy::move);
 
     py::enum_<VulnerabilityType>(m, "VulnerabilityType")
@@ -487,6 +493,7 @@ pyexport_taintrange(py::module& m)
       .def("__hash__", &TaintRange::get_hash)
       .def("get_hash", &TaintRange::get_hash)
       .def("add_secure_mark", &TaintRange::add_secure_mark)
+      .def("has_secure_mark", &TaintRange::has_secure_mark)
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

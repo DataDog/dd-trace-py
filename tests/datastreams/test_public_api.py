@@ -18,8 +18,8 @@ class MockedConfig:
 
 def test_public_api():
     headers = {}
-    with mock.patch("ddtrace.internal.datastreams.processor.ddtrace.tracer", new=MockedTracer()):
-        with mock.patch("ddtrace.internal.datastreams.processor.ddtrace.config", new=MockedConfig()):
+    with mock.patch("ddtrace.tracer", new=MockedTracer()):
+        with mock.patch("ddtrace.config", new=MockedConfig()):
             set_produce_checkpoint("kinesis", "stream-123", headers.setdefault)
             got = set_consume_checkpoint("kinesis", "stream-123", headers.get)
             ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
