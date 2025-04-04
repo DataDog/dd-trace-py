@@ -14,7 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.settings import IntegrationConfig
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
