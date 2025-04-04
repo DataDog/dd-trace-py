@@ -148,6 +148,24 @@ def agents(monkeypatch):
     unpatch()
 
 
+@pytest.fixture
+def openai(agents):
+    """Fixture for openai client when chat completions is used as
+    The default API for agents SDK and LLM spans are produced by the openai integration.
+    """
+    import openai
+
+    from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+    from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+
+    patch_openai()
+    from agents import set_default_openai_api
+
+    set_default_openai_api("chat_completions")
+    yield openai
+    unpatch_openai()
+
+
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -162,6 +180,13 @@ def mock_tracer(agents):
     mock_tracer = DummyTracer()
     pin = Pin.get_from(agents)
     pin._override(agents, tracer=mock_tracer)
+    yield mock_tracer
+
+
+@pytest.fixture
+def mock_tracer_chat_completions(agents, openai, mock_tracer):
+    pin = Pin.get_from(agents)
+    pin._override(openai, tracer=mock_tracer)
     yield mock_tracer
 
 

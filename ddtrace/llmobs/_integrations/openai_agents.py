@@ -6,8 +6,12 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -15,6 +19,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
@@ -201,11 +206,30 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             span._set_ctx_item(MODEL_PROVIDER, "openai")
 
         if oai_span.input:
-            messages = oai_span.llmobs_input_messages()
+            messages, tool_call_ids = oai_span.llmobs_input_messages()
+
+            for tool_call_id in tool_call_ids:
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
+
             span._set_ctx_item(INPUT_MESSAGES, messages)
 
         if oai_span.response and oai_span.response.output:
-            messages = oai_span.llmobs_output_messages()
+            messages, tool_call_outputs = oai_span.llmobs_output_messages()
+
+            for tool_id, tool_name, tool_args in tool_call_outputs:
+                core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_id,
+                        tool_name,
+                        tool_args,
+                        {
+                            "trace_id": format_trace_id(span.trace_id),
+                            "span_id": str(span.span_id),
+                        },
+                    ),
+                )
+
             span._set_ctx_item(OUTPUT_MESSAGES, messages)
 
         metadata = oai_span.llmobs_metadata
@@ -219,12 +243,20 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (oai_span.name, oai_span.input, "function", span),
+        )
 
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
         span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span),
+        )
 
     def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         if oai_span.llmobs_metadata:
