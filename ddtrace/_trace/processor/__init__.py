@@ -189,7 +189,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
-        if span.is_top_level:
+        if span._is_top_level:
             span.set_metric("_dd.top_level", 1)
 
 
@@ -373,7 +373,7 @@ class SpanAggregator(SpanProcessor):
         ]
         if unfinished_spans:
             log.warning(
-                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
                 len(unfinished_spans),
                 ", ".join(unfinished_spans),
             )

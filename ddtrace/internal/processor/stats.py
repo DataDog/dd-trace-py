@@ -127,7 +127,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        if not (is_top_level := span.is_top_level) and not _is_measured(span):
+        if not (is_top_level := span._is_top_level) and not _is_measured(span):
             return
 
         with self._lock:

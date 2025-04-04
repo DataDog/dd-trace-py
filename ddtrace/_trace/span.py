@@ -814,7 +814,7 @@ class Span(object):
         )
 
     @property
-    def is_top_level(self) -> bool:
+    def _is_top_level(self) -> bool:
         """Return whether the span is a "top level" span.
 
         Top level meaning the root of the trace or a child span

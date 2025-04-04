@@ -1770,20 +1770,20 @@ def test_tracer_memory_leak_span_processors():
 
 def test_top_level(tracer):
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert parent_span.is_top_level
+        assert parent_span._is_top_level
         with tracer.trace("child") as child_span:
-            assert not child_span.is_top_level
+            assert not child_span._is_top_level
             with tracer.trace("subchild") as subchild_span:
-                assert not subchild_span.is_top_level
+                assert not subchild_span._is_top_level
             with tracer.trace("subchild2", service="svc-2") as subchild_span2:
-                assert subchild_span2.is_top_level
+                assert subchild_span2._is_top_level
 
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert parent_span.is_top_level
+        assert parent_span._is_top_level
         with tracer.trace("child", service="child-svc") as child_span:
-            assert child_span.is_top_level
+            assert child_span._is_top_level
         with tracer.trace("child2", service="child-svc") as child_span2:
-            assert child_span2.is_top_level
+            assert child_span2._is_top_level
 
 
 def test_finish_span_with_ancestors(tracer):
