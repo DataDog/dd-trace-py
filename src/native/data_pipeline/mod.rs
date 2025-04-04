@@ -1,45 +1,18 @@
+use std::time::Duration;
+
 use data_pipeline::trace_exporter::{
-    TraceExporter, TraceExporterBuilder, TraceExporterInputFormat, TraceExporterOutputFormat,
+    TelemetryConfig, TraceExporter, TraceExporterBuilder, TraceExporterInputFormat,
+    TraceExporterOutputFormat,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use tinybytes::Bytes;
 mod exceptions;
 
-#[pyclass(eq, eq_int)]
-#[derive(PartialEq)]
-pub enum TraceFormat {
-    V04,
-    V05,
-}
-
-impl TryFrom<&TraceFormat> for TraceExporterInputFormat {
-    type Error = PyErr;
-    fn try_from(value: &TraceFormat) -> Result<Self, Self::Error> {
-        match value {
-            TraceFormat::V04 => Ok(Self::V04),
-            TraceFormat::V05 => Ok(Self::V05),
-        }
-    }
-}
-
-impl TryFrom<&TraceFormat> for TraceExporterOutputFormat {
-    type Error = PyErr;
-    fn try_from(value: &TraceFormat) -> Result<Self, Self::Error> {
-        match value {
-            TraceFormat::V04 => Ok(Self::V04),
-            TraceFormat::V05 => Ok(Self::V05),
-        }
-    }
-}
-
 /// A wrapper arround [TraceExporterBuilder]
 ///
 /// Allows to use the builder as a python class. Only one exporter can be built using a builder
 /// once `build` has been called the builder shouldn't be used.
-#[pyclass(
-    name = "TraceExporterBuilder",
-    module = "ddtrace.internal._native.data_pipeline"
-)]
+#[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
     builder: Option<TraceExporterBuilder>,
 }
@@ -130,13 +103,46 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    fn set_input_format(mut slf: PyRefMut<'_, Self>, vendor: &TraceFormat) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.set_input_format(vendor.try_into()?);
+    fn set_input_format(mut slf: PyRefMut<'_, Self>, input_format: &str) -> PyResult<Py<Self>> {
+        let input_format = match input_format {
+            "v0.4" => Ok(TraceExporterInputFormat::V04),
+            "v0.5" => Ok(TraceExporterInputFormat::V05),
+            _ => Err(PyValueError::new_err("Invalid trace format")),
+        }?;
+        slf.try_as_mut()?.set_input_format(input_format);
         Ok(slf.into())
     }
 
-    fn set_output_format(mut slf: PyRefMut<'_, Self>, vendor: &TraceFormat) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.set_output_format(vendor.try_into()?);
+    fn set_output_format(mut slf: PyRefMut<'_, Self>, output_format: &str) -> PyResult<Py<Self>> {
+        let output_format = match output_format {
+            "v0.4" => Ok(TraceExporterOutputFormat::V04),
+            "v0.5" => Ok(TraceExporterOutputFormat::V05),
+            _ => Err(PyValueError::new_err("Invalid trace format")),
+        }?;
+        slf.try_as_mut()?.set_output_format(output_format);
+        Ok(slf.into())
+    }
+
+    fn set_client_computed_top_level(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_client_computed_top_level();
+        Ok(slf.into())
+    }
+
+    fn enable_stats(mut slf: PyRefMut<'_, Self>, bucket_size_ns: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .enable_stats(Duration::from_nanos(bucket_size_ns));
+        Ok(slf.into())
+    }
+
+    fn enable_telemetry(
+        mut slf: PyRefMut<'_, Self>,
+        heartbeat: u64,
+        runtime_id: String,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_telemetry(Some(TelemetryConfig {
+            heartbeat,
+            runtime_id: Some(runtime_id),
+        }));
         Ok(slf.into())
     }
 
@@ -160,10 +166,7 @@ impl TraceExporterBuilderPy {
 }
 
 /// A python object wrapping a [TraceExporter] instance
-#[pyclass(
-    name = "TraceExporter",
-    module = "ddtrace.internal._native.data_pipeline"
-)]
+#[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
     inner: TraceExporter,
 }
@@ -194,7 +197,6 @@ impl TraceExporterPy {
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
-    m.add_class::<TraceFormat>()?;
     exceptions::register_exceptions(m)?;
 
     Ok(())
