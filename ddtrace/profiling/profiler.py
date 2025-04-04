@@ -10,14 +10,9 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config
-from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal import service
-from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
@@ -46,39 +41,18 @@ class Profiler(object):
     def __init__(self, *args, **kwargs):
         self._profiler = _ProfilerInstance(*args, **kwargs)
 
-    def start(self, stop_on_exit=True, profile_children=True):
-        """Start the profiler.
-
-        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
-        :param profile_children: Whether to start a profiler in child processes.
-        """
-
-        if profile_children:
-            try:
-                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
-            except uwsgi.uWSGIMasterProcess:
-                # Do nothing, the start() method will be called in each worker subprocess
-                return
+    def start(self):
+        """Start the profiler."""
 
         self._profiler.start()
-
-        if stop_on_exit:
-            atexit.register(self.stop)
-
-        if profile_children:
-            forksafe.register(self._restart_on_fork)
-
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
     def stop(self, flush=True):
         """Stop the profiler.
 
         :param flush: Flush last profile.
         """
-        atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
