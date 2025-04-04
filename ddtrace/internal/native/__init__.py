@@ -6,6 +6,18 @@ from ._native import DDSketch  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
 from ._native import store_metadata  # noqa: F401
+from ._native import TraceExporter, TraceExporterBuilder
+
+# Exceptions used by the TraceExporter
+from ._native import (
+    AgentError,
+    BuilderError,
+    DeserializationError,
+    IoError,
+    NetworkError,
+    RequestError,
+    SerializationError,
+)
 
 
 def get_configuration_from_disk(
