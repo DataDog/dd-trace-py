@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Text
 from typing import Tuple
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._logs import iast_error
@@ -40,8 +41,14 @@ def check_and_report_sqli(
     reported = False
     try:
         if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-            if asm_config.is_iast_request_enabled and SqlInjection.has_quota():
-                if len(args) and args[0] and SqlInjection.is_valid_tainted(args[0]):
+            if (
+                len(args)
+                and args[0]
+                and isinstance(args[0], IAST.TEXT_TYPES)
+                and asm_config.is_iast_request_enabled
+                and SqlInjection.has_quota()
+            ):
+                if SqlInjection.is_valid_tainted(args[0]):
                     SqlInjection.report(evidence_value=args[0], dialect=integration_name)
                     reported = True
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
