@@ -126,10 +126,16 @@ def test_blocking_exception_correctly_propagated():
 
 
 def test_log_waf_callback(caplog):
+    from ddtrace import tracer
     import ddtrace.internal.logger as ddlogger
 
-    with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
-        _asm_request_context.call_waf_callback()
+    with tracer.trace("test", service="test_service") as span:
+        with caplog.at_level(logging.WARNING), override_global_config({"_asm_enabled": True}):
+            _asm_request_context.call_waf_callback()
+
+    root_span = span._local_root or span
+    assert root_span.get_tag("_dd.appsec.error.type") == "appsec::instrumentation::diagnostic"
+    assert root_span.get_tag("_dd.appsec.error.message") == "asm_context::call_waf_callback::not_set"
 
     # warning log
     assert len(caplog.records) == 1, f"expected 1 log record, got {len(caplog.records)}: {caplog.records}"
