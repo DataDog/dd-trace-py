@@ -53,9 +53,9 @@ class DDWaf(WAF):
         obfuscation_parameter_value_regexp: bytes,
     ):
         # avoid circular import
-        from ddtrace.appsec._metrics import _set_waf_error_log
+        from ddtrace.appsec import _metrics
 
-        self.report_error = _set_waf_error_log
+        self.report_error = _metrics._set_waf_error_log
         config = ddwaf_config(
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
@@ -78,6 +78,7 @@ class DDWaf(WAF):
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
+        _metrics.ddwaf_version = version()
 
     @property
     def required_data(self) -> List[str]:

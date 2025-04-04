@@ -192,7 +192,7 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    from ddtrace.appsec._metrics import DDWAF_VERSION
+    from ddtrace.appsec._metrics import ddwaf_version
 
     # Make sure we find a root span to attach the triggers to
     if env.span is None:
@@ -217,7 +217,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+    root_span.set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
     if telemetry_results.total_duration:
         update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results.duration)
         telemetry_results.duration = 0.0

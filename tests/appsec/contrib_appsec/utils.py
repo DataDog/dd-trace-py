@@ -1454,7 +1454,7 @@ class Contrib_TestClass_For_Threats:
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
-        from ddtrace.appsec._metrics import DDWAF_VERSION
+        from ddtrace.appsec._metrics import ddwaf_version
         from ddtrace.ext import http
 
         def validate_top_function(trace):
@@ -1500,13 +1500,13 @@ class Contrib_TestClass_For_Threats:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
