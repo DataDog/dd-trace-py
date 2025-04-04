@@ -9,6 +9,8 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -161,7 +163,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_messages = []
         for m in kwargs.get("messages", []):
             if m.get("tool_call_id"):
-                core.dispatch("on_tool_call_output_used", (m.get("tool_call_id"), span))
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (m.get("tool_call_id"), span))
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
         span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -214,7 +216,7 @@ class OpenAIIntegration(BaseLLMIntegration):
                 }
                 tool_calls_info.append(tool_call_info)
                 core.dispatch(
-                    "on_llm_tool_choice",
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
                     (
                         tool_id,
                         tool_name,

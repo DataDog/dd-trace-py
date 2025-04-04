@@ -69,3 +69,7 @@ SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
 DECORATOR = "_ml_obs.decorator"
 INTEGRATION = "_ml_obs.integration"
+
+DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
+DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
+DISPATCH_ON_TOOL_CALL = "on_tool_call"

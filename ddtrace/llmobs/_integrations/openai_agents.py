@@ -9,6 +9,9 @@ import weakref
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -205,7 +208,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             messages, tool_call_ids = oai_span.llmobs_input_messages()
 
             for tool_call_id in tool_call_ids:
-                core.dispatch("on_tool_call_output_used", (tool_call_id, span))
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
             span._set_ctx_item(INPUT_MESSAGES, messages)
 
@@ -214,7 +217,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
             for tool_id, tool_name, tool_args in tool_call_outputs:
                 core.dispatch(
-                    "on_llm_tool_choice",
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
                     (
                         tool_id,
                         tool_name,
@@ -240,7 +243,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
         core.dispatch(
-            "on_tool_call",
+            DISPATCH_ON_TOOL_CALL,
             (oai_span.name, oai_span.input, "function", span),
         )
 
@@ -250,7 +253,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
         core.dispatch(
-            "on_tool_call",
+            DISPATCH_ON_TOOL_CALL,
             (handoff_tool_name, "{}", "handoff", span),
         )
 
