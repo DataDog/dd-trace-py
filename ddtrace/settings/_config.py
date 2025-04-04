@@ -190,6 +190,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
+        "openai_agents",
     }
 )
 
@@ -877,3 +878,6 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+config = Config()
