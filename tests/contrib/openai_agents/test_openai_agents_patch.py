@@ -13,9 +13,8 @@ class TestAgentsPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    @pytest.mark.skip(reason="Not applicable for openai_agents")
+    @pytest.mark.skip(reason="skip hanging test")
     def test_ddtrace_run_patch_on_import(self):
-        # This overrides the parent method and skips it
         pass
 
     def assert_module_patched(self, agents):
