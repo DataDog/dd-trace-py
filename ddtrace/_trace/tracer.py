@@ -49,8 +49,8 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -389,7 +389,7 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
-        if isinstance(self._span_aggregator.writer, AgentWriter):
+        if isinstance(self._span_aggregator.writer, NativeWriter):
             if appsec_enabled:
                 self._span_aggregator.writer._api_version = "v0.4"
 
@@ -765,7 +765,7 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
+        if isinstance(self._span_aggregator.writer, NativeWriter):
             return self._span_aggregator.writer.agent_url
 
         return None
