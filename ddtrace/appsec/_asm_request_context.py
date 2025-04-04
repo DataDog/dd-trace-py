@@ -459,6 +459,7 @@ def set_waf_telemetry_results(
         result.total_duration += waf_results.total_runtime
     else:
         # Exploit Prevention telemetry
+        result.rasp.blocked |= is_blocked
         result.rasp.sum_eval += 1
         result.rasp.eval[rule_type] += 1
         result.rasp.match[rule_type] += int(is_triggered)

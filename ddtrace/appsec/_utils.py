@@ -116,9 +116,10 @@ class Truncation_result:
 
 
 class Rasp_result:
-    __slots__ = ["sum_eval", "duration", "total_duration", "eval", "match", "timeout", "durations"]
+    __slots__ = ["blocked", "sum_eval", "duration", "total_duration", "eval", "match", "timeout", "durations"]
 
     def __init__(self):
+        self.blocked = False
         self.sum_eval = 0
         self.duration = 0.0
         self.total_duration = 0.0

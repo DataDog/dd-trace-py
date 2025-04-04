@@ -1509,10 +1509,11 @@ class Contrib_TestClass_For_Threats:
                         ("waf_version", DDWAF_VERSION),
                         ("event_rules_version", "rules_rasp"),
                     )
-                    assert matches == [expected_tags], matches
+                match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
+                assert matches == [match_expected_tags], (matches, match_expected_tags)
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert expected_tags in evals
+                assert expected_tags in evals, (expected_tags, evals)
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:

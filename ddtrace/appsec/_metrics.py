@@ -179,6 +179,7 @@ def _set_waf_request_metrics(*_args):
                 TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
             rasp = result.rasp
+            print(f"{rasp=} {rasp.blocked=}")
             if rasp.sum_eval:
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
                     for rule_type, value in getattr(rasp, t).items():
@@ -188,7 +189,7 @@ def _set_waf_request_metrics(*_args):
                                 ("event_rules_version", result.version or UNKNOWN_VERSION),
                             )
                             if t == "match":
-                                tags += (("block", ["irrelevant", "success"][result.blocked]),)
+                                tags = tags + (("block", ["irrelevant", "success"][rasp.blocked]),)
                             telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, n, value, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:request"}
@@ -209,4 +210,17 @@ def _report_api_security(route: bool, schemas: int) -> None:
             )
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":api_security"}
+        logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
+
+
+def _report_rasp_skipped(rule_type: str, import_error: bool) -> None:
+    try:
+        tags = _TYPES_AND_TAGS.get(rule_type, ()) + (("reason", "app-startup" if import_error else "out-of-request"),)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "rasp.rule.skipped", 1, tags=tags)
+    except Exception:
+        extra = {
+            "product": "appsec",
+            "exec_limit": 6,
+            "more_info": f":waf:rasp_rule_skipped:{rule_type}:{import_error}",
+        }
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
