@@ -59,8 +59,8 @@ if ddtrace_version.split(".")[0] == "0":
 
 
 def drop_traces(tracer):
-    if hasattr(tracer, "_span_aggregagtor"):
-        writer = tracer._span_aggregagtor.writer
+    if hasattr(tracer, "_span_aggregator"):
+        writer = tracer._span_aggregator.writer
     else:
         writer = tracer._writer
     # Avoids sending traces to the agent
