@@ -29,6 +29,7 @@ suite_to_package = {
     "flask_cache": "flask-caching",
     "graphql": "graphql-core",
     "mysql": "mysql-connector-python",
+    "mysqldb": "mysqlclient",
     "asyncio": "pytest-asyncio",
     "sqlite3": "pysqlite3-binary",
     "grpc": "grpcio",
@@ -38,6 +39,9 @@ suite_to_package = {
     "rediscluster": "redis-py-cluster",
     "dogpile_cache": "dogpile-cache",
     "vertica": "vertica_python",
+    "aiohttp_jinja2": "aiohttp-jinja2",
+    "azure_functions": "azure-functions",
+    "pytest_bdd": "pytest-bdd",
 }
 
 lockfiles = {
@@ -47,6 +51,7 @@ lockfiles = {
     "flask-caching": "flask_cache",
     "graphql-core": "graphql",
     "mysql-connector-python": "mysql",
+    "mysqlclient": "mysqldb",
     "pytest-asyncio": "asyncio",
     "pysqlite3-binary": "sqlite3",
     "grpcio": "grpc",
@@ -56,6 +61,9 @@ lockfiles = {
     "redis-py-cluster": "rediscluster",
     "dogpile-cache": "dogpile_cache",
     "vertica-python": "vertica",
+    "aiohttp-jinja2": "aiohttp_jinja2",
+    "azure-functions": "azure_functions",
+    "pytest-bdd": "pytest_bdd",
 }
 
 
@@ -73,6 +81,10 @@ mapping_module_to_package = {
     "grpc": "grpcio",
     "graphql": "graphql-core",
     "mysql": "pymysql",
+    "mysqldb": "mysqlclient",
+    "aiohttp_jinja2": "aiohttp-jinja2",
+    "azure_functions": "azure-functions",
+    "pytest_bdd": "pytest-bdd",
 }
 
 
@@ -105,13 +117,8 @@ def _get_integrated_modules() -> typing.Set[str]:
         patch_filepath = item / "patch.py"
 
         if os.path.isfile(patch_filepath):
-            with open(patch_filepath, "r") as patchfile:
-                patch_content = patchfile.read()
-
-            # Check if this patch file has a get_version function
-            if "def get_version()" in patch_content:
-                module_name = item.name
-                all_required_modules.add(module_name)
+            module_name = item.name
+            all_required_modules.add(module_name)
 
 
     return all_required_modules
@@ -192,18 +199,18 @@ def _get_version_extremes(package_name: str) -> typing.Tuple[Optional[str], Opti
 def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.List[typing.Tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
     # Returns [(package, version), (package, versions)]
-    print("_get_package_versions_from packages: ", packages)
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     for line in lockfile_content:
         package, _, versions = line.partition("==")
         # remap the package -> module name
+        # if package == "cassandra-driver":
+        #     breakpoint()
         if package in packages:
             lock_packages.append((package, versions))
         elif package in lockfiles and lockfiles[package] in packages:
             lock_packages.append((lockfiles[package], versions))
 
-    print("lock pages:", lock_packages)
     return lock_packages
 
 
@@ -246,12 +253,9 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
 
 def _get_all_used_versions(envs, packages) -> dict:
     # Returns dict(module, set(versions)) for a venv, as defined in riotfiles.
-    print(packages)
-    print(envs)
     all_used_versions = defaultdict(set)
     for env in envs:
         versions_used = _get_package_versions_from(env, packages)  # returns list of (package, versions)
-        print(versions_used)
         for package, version in versions_used:
             all_used_versions[package].add(version)
     return all_used_versions
@@ -291,14 +295,12 @@ def output_outdated_packages(all_required_packages, envs, bounds):
 
 def generate_supported_versions(contrib_packages, all_used_versions, patched):
     for mod in mapping_module_to_package:
-        contrib_packages.discard(mod)
         contrib_packages.add(mapping_module_to_package[mod])
         patched[mapping_module_to_package[mod]] = _is_module_autoinstrumented(mod)
 
     # Generate supported versions
     for package in contrib_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
-        print(ordered)
         if not ordered:
             continue
         json_format = {
@@ -325,9 +327,7 @@ def main():
     contrib_modules = _get_all_modules(all_required_modules)
     envs = _get_riot_envs_including_any(all_required_modules)
     patched = {}
-
     contrib_packages = contrib_modules
-    print("contrib packages: ", contrib_packages)
     all_used_versions = _get_all_used_versions(envs, contrib_packages)
     bounds = _get_version_bounds(contrib_packages)
 
