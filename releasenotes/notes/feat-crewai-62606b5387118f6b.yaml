@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    crewai: Introduces tracing support for the CrewAI SDK, specifically tracing crew, task, agent, and tool executions.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#crewai>`_
+      for more information.
+  - |
+    LLM Observability: Introduces tracing support for CrewAI crew, task, agent, and tool executions.

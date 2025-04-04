@@ -1,0 +1,389 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Senior Research Scientist.
+      You''re a seasoned researcher with a knack for uncovering the latest developments
+      in AI. Known for your ability to find the most relevant information and present
+      it in a clear and concise manner.\nYour personal goal is: Uncover cutting-edge
+      developments in AI\nTo give my best complete final answer to the task respond
+      using the exact following format:\n\nThought: I now can give a great answer\nFinal
+      Answer: Your final answer must be the great and the most complete as possible,
+      it must be outcome described.\n\nI MUST use these formats, my job depends on
+      it!"}, {"role": "user", "content": "\nCurrent Task: Conduct a thorough research
+      about AI. Make sure you find any interesting and relevant information given
+      the current year is 2025.\n\nThis is the expected criteria for your final answer:
+      A list with 3 bullet points of the most relevant information about AI\nyou MUST
+      return the actual complete content as the final answer, not a summary.\n\nBegin!
+      This is VERY important to you, use the tools available and give your best Final
+      Answer, your job depends on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop":
+      ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1215'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFbBbhtHDL37K4g9GpJgG06c+KYgaesCQYGmQQ9NYFAz3F3GszMTcnZV
+        Oci/F5yVJSVNgV4EaDnkvvf4htwvZwAN++YWGtdjcUMOy1evrrfPQ06v8/v37Z9vurfb6dm7zxc3
+        m/Wvn/pmYRlp84lcecpauTTkQIVTnMNOCAtZ1cub68uXLy6uXlzVwJA8BUvrcllep+XAkZdXF1fX
+        y4ub5eWLfXaf2JE2t/DXGQDAl/prOKOnv5tbuFg8PRlIFTtqbg+HABpJwZ40qMpaMJZmcQy6FAvF
+        Cv0OYtqCwwgdTwQIncEGjLolAfgQf+KIAdb1/609WML5+dpPGB0NFIsCR1jfwTtsqewAo4c3pWen
+        5+e38I67yC07jAW0CHtS6HEi2BBFGNCTZXuaKKTMsYNWcKBtkgeFNonV1Vp3Aei9kKodIquPAVyK
+        jiTqor6Voo5iYSHNKSpvAlkBTzmknUFdwW/SYeRHtC4poFBln4WTcOFHyy6CUTMKRbczcBg6C/aD
+        LmDDqDBw4a5WmN+LzqUxFtxw4LKDgVBHIV3AtmfXQ48KgTyUBKUnIC24Cay9AYLUglA3BixJdrBJ
+        nsmIu7HyTFXYLk0k0eSGLqQNhrBbwdp7Ngj2bwEDxh0Ucj2YCTFaFSNHw4a8/04yZU+yV4DjDItn
+        qXdayHgO+GBJXADBUSyCATJKxTuf3resksiSHKkaw83IwUORUQtsufQwKomuPsTZNm8Gko6MSWrh
+        Z4okGPiRPKzvzC2/kxLKXrMsqbOGV+m2KF6h3igD1n2TesTtMKN1PbWQSdokg51G2LInEIxdDRXU
+        B63w0lhqUyKRr36z0FIzOTOtWYEjx24FdzGm6aAZKIV2qWMmmdgAmg1a2i61TwUCoVjWbHR0joLp
+        bTx61lPlFoAhpK2drTOhSogec6kVayFoJQ1gI2LAAB4LAsc8loO/9HjFwg6E/OhIK6vCA9VCQppG
+        scdCn0eWJ7IHen8YMO25LcAKQ5oM0voOXEhKYqj6ccC4DPxAMEZPYiOlGsvqH9pRFZq7YJeB6dj6
+        9Z0J91rGDl6zOvP0PCx+IQyldyhkFvijt4lQqJsdau1a3y298ESxOjymkDrzt80Nq+YP1cw1QlMK
+        o6VWc5gMuUcZ0NFY6g0IGL06zLSCVzsINJFgV5nMM83DgK7nSMdGno4A2XuUROvU/DyyewhGBcPu
+        kWBCLbVNSqX2kz3Fwu0OcrKZy9ZFw+1MQI/FJkXKhQd+JHA9Dft7OuQ0Rr+fbVnIs5vNmsbi0kBq
+        2rjAsZ4vwhh0BW+TkKmxsPaxwoYqgZwDkzfNMona2KjyDFaVIy2Aok0lM+2hHXYDJ5sVlUZBDtUz
+        hGUe+xs066cIHD1P7EcM1QmFnaW2HIwaD7VM7CBj4TrznvAbMbWCQ+D43bvVrpYjXZ2uLaF2VLTV
+        GccQTgIYYyrz9bSF+XEf+XpYkSF1WdJGv0ttWo6s/b0Qaoq2DrWk3NTo1zOAj3UVj99s1yZLGnK5
+        L+mB6uuurp7P9ZrjF8BJ9OblPlpSwXAMPLt4tvhBwXtPJrWebPPGoevJH1OPqx9Hz+kkcHZC+99w
+        flR7ps6x+z/ljwHnKBfy93tjfkP5eEzIvpD+69hB5gq42bf8vjCJtcJTi2OYv1uaecTftxw7kiw8
+        f7y0+f7m4uXN5bW/vLpuzr6e/QMAAP//AwBBruO2ygkAAA==
+    headers:
+      CF-RAY:
+      - 9206271ada75578c-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 14 Mar 2025 19:24:44 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=PKITyOcLogPsjaMRCILVhefeat6h2QLa.NcjDnvTIlE-1741980284-1.0.1.1-KKraAM517e81ByK4y._YSjvbyzE6w.2_hPkna.SIhThQl3fXIGNyLDqLbKDnVnijvCK_3BKZkdVYD7IiIao_h8ZKn8NESufyRIFLmiHWWgM;
+        path=/; expires=Fri, 14-Mar-25 19:54:44 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=uW_vg3UENKZR593hlnhxKNoIpsqD1.ss91IjUqTHLyc-1741980284608-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1936'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999714'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2a5ca9a321bf7d729a0497f13bffa8f8
+    status:
+      code: 200
+      message: OK
+- request:
+    body: !!binary |
+      Cu0QCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSxBAKEgoQY3Jld2FpLnRl
+      bGVtZXRyeRKLDAoQC5msTzYTp3gD9Nr81+4D1hIIEFz4lqwxnp0qDENyZXcgQ3JlYXRlZDABOXB/
+      iEHWwSwYQdgIkkHWwSwYShsKDmNyZXdhaV92ZXJzaW9uEgkKBzAuMTA1LjBKGgoOcHl0aG9uX3Zl
+      cnNpb24SCAoGMy4xMC41Si4KCGNyZXdfa2V5EiIKIGVmYTlhYzY1MDEyODYwYTFkYjFmY2FlNzJk
+      ZTk2ODk5SjEKB2NyZXdfaWQSJgokYmZiZjA4NjItNDg5ZS00YjdiLWJkZTktYzExZjE0OGYzYTc5
+      ShwKDGNyZXdfcHJvY2VzcxIMCgpzZXF1ZW50aWFsShEKC2NyZXdfbWVtb3J5EgIQAEoaChRjcmV3
+      X251bWJlcl9vZl90YXNrcxICGAJKGwoVY3Jld19udW1iZXJfb2ZfYWdlbnRzEgIYAkqtBQoLY3Jl
+      d19hZ2VudHMSnQUKmgVbeyJrZXkiOiAiNmNmMmQyZjcyYWQxMGRlYWMzNjA4ZWNjZmYyYTlkZDMi
+      LCAiaWQiOiAiYjNiNzcxYjgtYTNiYi00MTNjLThlM2ItMDc4YzkyNmU4NGExIiwgInJvbGUiOiAi
+      U2VuaW9yIFJlc2VhcmNoIFNjaWVudGlzdCIsICJ2ZXJib3NlPyI6IGZhbHNlLCAibWF4X2l0ZXIi
+      OiAyNSwgIm1heF9ycG0iOiBudWxsLCAiZnVuY3Rpb25fY2FsbGluZ19sbG0iOiAiIiwgImxsbSI6
+      ICJncHQtNG8tbWluaSIsICJkZWxlZ2F0aW9uX2VuYWJsZWQ/IjogZmFsc2UsICJhbGxvd19jb2Rl
+      X2V4ZWN1dGlvbj8iOiBmYWxzZSwgIm1heF9yZXRyeV9saW1pdCI6IDIsICJ0b29sc19uYW1lcyI6
+      IFtdfSwgeyJrZXkiOiAiZWE4Yjc3YTZmZjI3NzgxMjMxMjNhYTQxMDgyMjdlNTEiLCAiaWQiOiAi
+      NTNkY2M3YTktYjYxZC00YzVhLWI0YTAtMWM4MTkyN2Q5MjMwIiwgInJvbGUiOiAie3RvcGljfSBS
+      ZXBvcnRpbmcgQW5hbHlzdCIsICJ2ZXJib3NlPyI6IGZhbHNlLCAibWF4X2l0ZXIiOiAyNSwgIm1h
+      eF9ycG0iOiBudWxsLCAiZnVuY3Rpb25fY2FsbGluZ19sbG0iOiAiIiwgImxsbSI6ICJncHQtNG8t
+      bWluaSIsICJkZWxlZ2F0aW9uX2VuYWJsZWQ/IjogZmFsc2UsICJhbGxvd19jb2RlX2V4ZWN1dGlv
+      bj8iOiBmYWxzZSwgIm1heF9yZXRyeV9saW1pdCI6IDIsICJ0b29sc19uYW1lcyI6IFtdfV1KigQK
+      CmNyZXdfdGFza3MS+wMK+ANbeyJrZXkiOiAiNzZhYTAwMjM2MzFhYmEyY2ViNGRlNDIyMzExZTY3
+      MTkiLCAiaWQiOiAiNmJjNGJlODYtMTIwOC00NjQwLTljOTUtNjJhZDViZGViYzFlIiwgImFzeW5j
+      X2V4ZWN1dGlvbj8iOiBmYWxzZSwgImh1bWFuX2lucHV0PyI6IGZhbHNlLCAiYWdlbnRfcm9sZSI6
+      ICJTZW5pb3IgUmVzZWFyY2ggU2NpZW50aXN0IiwgImFnZW50X2tleSI6ICI2Y2YyZDJmNzJhZDEw
+      ZGVhYzM2MDhlY2NmZjJhOWRkMyIsICJ0b29sc19uYW1lcyI6IFtdfSwgeyJrZXkiOiAiMDljMDkz
+      OTEyYmI0MmFmNDQ0NzNmZjgwNTk0ZjYyNmQiLCAiaWQiOiAiNjRkOWRhN2EtNDIxZC00ODI1LWEz
+      NzItOTA1NTVkNjU2MWYxIiwgImFzeW5jX2V4ZWN1dGlvbj8iOiBmYWxzZSwgImh1bWFuX2lucHV0
+      PyI6IGZhbHNlLCAiYWdlbnRfcm9sZSI6ICJ7dG9waWN9IFJlcG9ydGluZyBBbmFseXN0IiwgImFn
+      ZW50X2tleSI6ICJlYThiNzdhNmZmMjc3ODEyMzEyM2FhNDEwODIyN2U1MSIsICJ0b29sc19uYW1l
+      cyI6IFtdfV16AhgBhQEAAQAAEo4CChDMCM579TulCgvmNhlVbGacEgh8yFdEpyKXOyoMVGFzayBD
+      cmVhdGVkMAE5mEesQdbBLBhBePOsQdbBLBhKLgoIY3Jld19rZXkSIgogZWZhOWFjNjUwMTI4NjBh
+      MWRiMWZjYWU3MmRlOTY4OTlKMQoHY3Jld19pZBImCiRiZmJmMDg2Mi00ODllLTRiN2ItYmRlOS1j
+      MTFmMTQ4ZjNhNzlKLgoIdGFza19rZXkSIgogNzZhYTAwMjM2MzFhYmEyY2ViNGRlNDIyMzExZTY3
+      MTlKMQoHdGFza19pZBImCiQ2YmM0YmU4Ni0xMjA4LTQ2NDAtOWM5NS02MmFkNWJkZWJjMWV6AhgB
+      hQEAAQAAEo4CChATt+XHb+o8YHzmKt0GM1j0Eghun0MoxoTUBioMVGFzayBDcmVhdGVkMAE52E1Y
+      5dbBLBhBSNxZ5dbBLBhKLgoIY3Jld19rZXkSIgogZWZhOWFjNjUwMTI4NjBhMWRiMWZjYWU3MmRl
+      OTY4OTlKMQoHY3Jld19pZBImCiRiZmJmMDg2Mi00ODllLTRiN2ItYmRlOS1jMTFmMTQ4ZjNhNzlK
+      LgoIdGFza19rZXkSIgogMDljMDkzOTEyYmI0MmFmNDQ0NzNmZjgwNTk0ZjYyNmRKMQoHdGFza19p
+      ZBImCiQ2NGQ5ZGE3YS00MjFkLTQ4MjUtYTM3Mi05MDU1NWQ2NTYxZjF6AhgBhQEAAQAA
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2160'
+      Content-Type:
+      - application/x-protobuf
+      User-Agent:
+      - OTel-OTLP-Exporter-Python/1.31.0
+    method: POST
+    uri: https://telemetry.crewai.com:4319/v1/traces
+  response:
+    body:
+      string: "\n\0"
+    headers:
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/x-protobuf
+      Date:
+      - Fri, 14 Mar 2025 19:24:46 GMT
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are AI Reporting Analyst.
+      You''re a meticulous analyst with a keen eye for detail. You''re known for your
+      ability to turn complex data into clear and concise reports, making it easy
+      for others to understand and act on the information you provide.\nYour personal
+      goal is: Create detailed reports based on AI data analysis and research findings\nTo
+      give my best complete final answer to the task respond using the exact following
+      format:\n\nThought: I now can give a great answer\nFinal Answer: Your final
+      answer must be the great and the most complete as possible, it must be outcome
+      described.\n\nI MUST use these formats, my job depends on it!"}, {"role": "user",
+      "content": "\nCurrent Task: Review the context you got and expand each topic
+      into a full section for a report. Make sure the report is detailed and contains
+      any and all relevant information.\n\nThis is the expected criteria for your
+      final answer: A fully fledged report with the main topics, each with a full
+      section of information.\nyou MUST return the actual complete content as the
+      final answer, not a summary.\n\nThis is the context you''re working with:\n-
+      **Advancements in AI Safety and Ethics**: Significant strides have been made
+      in developing frameworks for AI safety, addressing ethical concerns, and ensuring
+      responsible AI deployment. Organizations are now prioritizing transparency in
+      algorithms, bias mitigation, and accountability measures, which has led to the
+      establishment of regulatory bodies focusing on AI governance globally. Additionally,
+      many tech companies are embedding ethical considerations into their AI systems,
+      making it a central part of their development process to build trust with users.\n\n-
+      **Emergence of Generalized AI**: Research has progressed towards creating generalized
+      AI systems, capable of performing a wide range of tasks without the need for
+      task-specific training. Innovations in self-supervised and few-shot learning
+      have accelerated this development, allowing models to adapt and learn from minimal
+      data inputs, which significantly reduces the time and resources required for
+      training. This shift is moving AI closer to human-like understanding and generalization
+      capabilities.\n\n- **AI in Drug Discovery and Healthcare**: The integration
+      of AI-driven technologies in drug discovery has revolutionized the pharmaceutical
+      landscape. By leveraging advanced machine learning algorithms, researchers can
+      quickly analyze vast datasets to identify potential drug candidates, optimize
+      chemical compounds, and predict the outcomes of clinical trials. Moreover, AI
+      is being applied in personalized medicine, enabling healthcare providers to
+      tailor treatments based on individual genetic profiles, improving patient outcomes
+      and streamlining healthcare services.\n\nBegin! This is VERY important to you,
+      use the tools available and give your best Final Answer, your job depends on
+      it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3007'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=PKITyOcLogPsjaMRCILVhefeat6h2QLa.NcjDnvTIlE-1741980284-1.0.1.1-KKraAM517e81ByK4y._YSjvbyzE6w.2_hPkna.SIhThQl3fXIGNyLDqLbKDnVnijvCK_3BKZkdVYD7IiIao_h8ZKn8NESufyRIFLmiHWWgM;
+        _cfuvid=uW_vg3UENKZR593hlnhxKNoIpsqD1.ss91IjUqTHLyc-1741980284608-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-RAY:
+      - 9206272b1a98578c-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 14 Mar 2025 19:24:50 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '6118'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999268'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_04b779cfc1d7330f78341c1bb7d4489f
+    status:
+      code: 200
+      message: OK
+version: 1
