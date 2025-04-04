@@ -148,7 +148,7 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
     }
 
 
-def send_telemetry(event):
+def _send_telemetry(event):
     event_json = json.dumps(event)
     _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
@@ -161,15 +161,38 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    if p.stdin:
-        p.stdin.write(event_json)
-        p.stdin.close()
-        _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
-    else:
-        _log(
-            "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
-            level="error",
-        )
+    # Mimic Popen.__exit__ which was added in Python 3.3
+    try:
+        if p.stdin:
+            p.stdin.write(event_json)
+            _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+        else:
+            _log(
+                "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
+                level="error",
+            )
+    finally:
+        if p.stdin:
+            p.stdin.close()
+        if p.stderr:
+            p.stderr.close()
+        if p.stdout:
+            p.stdout.close()
+
+        # backwards compatible `p.wait(1)`
+        start = time.time()
+        while p.poll() is None:
+            if time.time() - start > 1:
+                p.kill()
+                break
+            time.sleep(0.05)
+
+
+def send_telemetry(event):
+    try:
+        _send_telemetry(event)
+    except Exception as e:
+        _log("Failed to send telemetry: %s" % e, level="error")
 
 
 def _get_clib():

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: Fixed a NotImplementedError that occurred when trying to deepcopy wrapped builtin functions (like `open`)
+    while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.

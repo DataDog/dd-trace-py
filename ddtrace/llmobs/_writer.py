@@ -212,7 +212,14 @@ class LLMObsSpanEncoder(BufferedEncoder):
                 return None, 0
             events = self._buffer
             self._init_buffer()
-        data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+        """
+        Send a batch of events, where each event contains a single span in the `spans` field. This allows us to
+        fully take advantage of EVP event/payload size limits.
+        """
+        data = [
+            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            for event in events
+        ]
         try:
             enc_llm_events = safe_json(data)
             logger.debug("encode %d LLMObs span events to be sent", len(events))
@@ -267,6 +274,8 @@ class LLMObsSpanWriter(HTTPWriter):
             intake_url = agent.get_trace_url()
             headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
 
+        self.agentless_url = agentless_url
+
         super(LLMObsSpanWriter, self).__init__(
             intake_url=intake_url,
             clients=clients,
@@ -319,6 +328,7 @@ class LLMObsSpanWriter(HTTPWriter):
             interval=self._interval,
             timeout=self._timeout,
             is_agentless=config._llmobs_agentless_enabled,
+            agentless_url=self.agentless_url,
         )
 
 
