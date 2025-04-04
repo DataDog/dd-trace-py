@@ -39,6 +39,7 @@ from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
+import ddtrace.internal.native as native
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -617,3 +618,320 @@ class AgentWriter(HTTPWriter):
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
+
+
+class NativeWriter(periodic.PeriodicService, TraceWriter):
+    """Writer to an arbitrary HTTP intake endpoint."""
+
+    RETRY_ATTEMPTS = 3
+    HTTP_METHOD = "PUT"
+    STATSD_NAMESPACE = "tracer"
+
+    def __init__(
+        self,
+        agent_url: str,
+        processing_interval: Optional[float] = None,
+        # Match the payload size since there is no functionality
+        # to flush dynamically.
+        compute_stats_enabled: bool = False,
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional["DogStatsd"] = None,
+        sync_mode: bool = False,
+        api_version: Optional[str] = None,
+        report_metrics: bool = True,
+        response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    ) -> None:
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+        if timeout is None:
+            timeout = agent.config.trace_agent_timeout_seconds
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
+
+        # Default to v0.4 if we are on Windows since there is a known compatibility issue
+        # https://github.com/DataDog/dd-trace-py/issues/4829
+        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
+        #      as a safety precaution.
+        #      https://docs.python.org/3/library/sys.html#sys.platform
+        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        default_api_version = "v0.5"
+        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
+            default_api_version = "v0.4"
+
+        self._api_version = api_version or config._trace_api or default_api_version
+        if is_windows and self._api_version == "v0.5":
+            raise RuntimeError(
+                "There is a known compatibility issue with v0.5 API and Windows, "
+                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
+            )
+
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
+        if self._api_version not in WRITER_CLIENTS:
+            log.warning(
+                "Unsupported api version: '%s'. The supported versions are: %r",
+                self._api_version,
+                ", ".join(sorted(WRITER_CLIENTS.keys())),
+            )
+            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
+        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
+
+        stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        bucket_size_ns = int(stats_interval * 1e9)  # type: int
+
+        super(NativeWriter, self).__init__(interval=processing_interval)
+        self.agent_url = agent_url
+        self._buffer_size = buffer_size
+        self._max_payload_size = max_payload_size
+        self._timeout = timeout
+
+        self._clients = [client]
+        self.dogstatsd = dogstatsd
+        self._metrics: Dict[str, int] = defaultdict(int)
+        self._report_metrics = report_metrics
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._sync_mode = sync_mode
+        self._compute_stats_enabled = compute_stats_enabled
+        self._response_cb = response_callback
+        # TODO: Handle build error
+        # TODO: Set all configuration
+        builder = (
+            native.TraceExporterBuilder()
+            .set_url(self.agent_url)
+            .set_language("python")
+            .set_language_version(compat.PYTHON_VERSION)
+            .set_language_interpreter(compat.PYTHON_INTERPRETER)
+            .set_tracer_version(ddtrace.__version__)
+            .set_client_computed_top_level()
+            .set_input_format(self._api_version)
+            .set_output_format(self._api_version)
+        )
+        if compute_stats_enabled:
+            builder.enable_stats(bucket_size_ns)
+        self._exporter = builder.build()
+
+    def recreate(self):
+        return self.__class__(
+            agent_url=self.agent_url,
+            processing_interval=self._interval,
+            compute_stats_enabled=self._compute_stats_enabled,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+            api_version=self._api_version,
+            report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
+        )
+
+    def _downgrade(self, response, client):
+        if client.ENDPOINT == "v0.5/traces":
+            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
+            # TODO: Rebuild the exporter
+
+            # Since we have to change the encoding in this case, the payload
+            # would need to be converted to the downgraded encoding before
+            # sending it, but we chuck it away instead.
+            log.warning(
+                "Calling endpoint '%s' but received %s; downgrading API. "
+                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
+                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
+                client.ENDPOINT,
+                response.status,
+            )
+        else:
+            log.error(
+                "unsupported endpoint '%s': received response %s from intake (%s)",
+                client.ENDPOINT,
+                response.status,
+                self.agent_url,
+            )
+
+    # NOTE: Only used for logging
+    def _intake_endpoint(self, client=None):
+        return "{}/{}".format(self.agent_url, client.ENDPOINT if client else self._endpoint)
+
+    # NOTE: Only used for logging
+    @property
+    def _endpoint(self):
+        return self._clients[0].ENDPOINT
+
+    @property
+    def _encoder(self):
+        return self._clients[0].encoder
+
+    # TODO: For all metrics related stuff see if libdatadog telemetry replaces it
+    # + should we add specific telemetry for tracer <-> libdatadog communication
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+        if not self._report_metrics:
+            return
+        if config._health_metrics_enabled and self.dogstatsd:
+            self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
+
+    # TODO: Can be handled by counting number of traces lost when the trace exporter raises an error
+    def _set_drop_rate(self) -> None:
+        accepted = self._metrics["accepted_traces"]
+        sent = self._metrics["sent_traces"]
+        encoded = sum([len(client.encoder) for client in self._clients])
+        # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
+        # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
+        dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
+        self._drop_sma.set(dropped, accepted)
+        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
+        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
+
+    # NOTE: Should be applied before sending spans to libdatadog
+    def _set_keep_rate(self, trace):
+        if trace:
+            trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+
+    def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
+        self._metrics_dist("http.requests")
+
+        try:
+            # TODO: Return agent response from send
+            response_body = self._exporter.send(payload, count)
+            if self._response_cb:
+                response = Response(body=response_body)
+                raw_resp = response.get_json()
+                if raw_resp and "rate_by_service" in raw_resp:
+                    self._response_cb(
+                        AgentResponse(
+                            rate_by_service=raw_resp["rate_by_service"],
+                        )
+                    )
+        except (native.AgentError, native.NetworkError, native.RequestError) as e:
+            msg = "failed to send traces to intake at %s: %s"
+            log_args = (
+                self._intake_endpoint(client),
+                e,
+            )
+            # Append the payload if requested
+            if config._trace_writer_log_err_payload:
+                msg += ", payload %s"
+                # If the payload is bytes then hex encode the value before logging
+                if isinstance(payload, bytes):
+                    log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
+                else:
+                    log_args += (payload,)
+
+            log.error(msg, *log_args)
+            raise e
+        except (native.DeserializationError, native.SerializationError, native.IoError) as e:
+            log.debug("failed to send traces: %s", e)
+            raise e
+
+    def write(self, spans=None):
+        for client in self._clients:
+            self._write_with_client(client, spans=spans)
+        if self._sync_mode:
+            self.flush_queue()
+
+    def _write_with_client(self, client, spans=None):
+        # type: (WriterClientBase, Optional[List[Span]]) -> None
+        if spans is None:
+            return
+
+        if self._sync_mode is False:
+            # Start the HTTPWriter on first write.
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+
+            except service.ServiceStatusError:
+                pass
+
+        self._metrics_dist("writer.accepted.traces")
+        self._metrics["accepted_traces"] += 1
+        self._set_keep_rate(spans)
+
+        try:
+            client.encoder.put(spans)
+        except BufferItemTooLarge as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace (%db) larger than payload buffer item limit (%db), dropping",
+                payload_size,
+                client.encoder.max_item_size,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
+        except BufferFull as e:
+            payload_size = e.args[0]
+            log.warning(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                len(client.encoder),
+                client.encoder.size,
+                client.encoder.max_size,
+                payload_size,
+                self.status.value,
+            )
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
+            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
+        except NoEncodableSpansError:
+            self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
+        else:
+            self._metrics_dist("buffer.accepted.traces", 1)
+            self._metrics_dist("buffer.accepted.spans", len(spans))
+
+    def flush_queue(self, raise_exc: bool = False):
+        try:
+            for client in self._clients:
+                self._flush_queue_with_client(client, raise_exc=raise_exc)
+        finally:
+            self._set_drop_rate()
+
+    def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
+        n_traces = len(client.encoder)
+        try:
+            encoded, n_traces = client.encoder.encode()
+            if encoded is None:
+                return
+        except Exception:
+            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
+            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            self._metrics_dist("encoder.dropped.traces", n_traces)
+            return
+
+        try:
+            self._send_payload(encoded, n_traces, client)
+        except Exception:
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.bytes", len(encoded))
+            self._metrics_dist("http.dropped.traces", n_traces)
+            if raise_exc:
+                raise
+            else:
+                log.error(
+                    "failed to send, dropping %d traces to intake at %s after %d retries",
+                    n_traces,
+                    self._intake_endpoint(client),
+                    self.RETRY_ATTEMPTS,
+                )
+        finally:
+            self._metrics_dist("http.sent.bytes", len(encoded))
+            self._metrics_dist("http.sent.traces", n_traces)
+
+    def periodic(self):
+        self.flush_queue(raise_exc=False)
+
+    # TODO: Add bindings for TraceExporter shutdown
+    def _stop_service(
+        self,
+        timeout: Optional[float] = None,
+    ) -> None:
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(NativeWriter, self)._stop_service()
+        self.join(timeout=timeout)
+
+    def on_shutdown(self):
+        try:
+            self.periodic()
+        finally:
+            pass
