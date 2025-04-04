@@ -49,6 +49,7 @@ def unpatch():
     # we added to a no-op instance
     global _span_processor
     if _span_processor is not None:
+        _span_processor._integration.clear_state()
         _span_processor = NoOpTraceProcessor()
 
     agents._datadog_patch = False
