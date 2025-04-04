@@ -11,6 +11,7 @@ from ddtrace.trace import Pin
 
 from .utils import create_context
 from .utils import get_function_name
+from .utils import wrap_function
 
 
 config._add(
@@ -38,6 +39,8 @@ def patch():
     Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+    _w("azure.functions", "FunctionApp.service_bus_queue_trigger", _patched_service_bus_queue_trigger)
+    _w("azure.functions", "FunctionApp.service_bus_topic_trigger", _patched_service_bus_topic_trigger)
     _w("azure.functions", "FunctionApp.timer_trigger", _patched_timer_trigger)
 
 
@@ -78,6 +81,22 @@ def _patched_route(wrapped, instance, args, kwargs):
 
 
 def _patched_timer_trigger(wrapped, instance, args, kwargs):
+    return wrap_function(wrapped, instance, args, kwargs, "Timer", "azure.functions.patched_timer")
+
+
+def _patched_service_bus_queue_trigger(wrapped, instance, args, kwargs):
+    return wrap_function(
+        wrapped, instance, args, kwargs, "ServiceBusQueue", "azure.functions.patched_service_bus_queue"
+    )
+
+
+def _patched_service_bus_topic_trigger(wrapped, instance, args, kwargs):
+    return wrap_function(
+        wrapped, instance, args, kwargs, "ServiceBusTopic", "azure.functions.patched_service_bus_topic"
+    )
+
+
+def _patched_timer_trigger_old(wrapped, instance, args, kwargs):
     trigger = "Timer"
 
     pin = Pin.get_from(instance)
@@ -90,9 +109,59 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
             with create_context("azure.functions.patched_timer", pin, function_name) as ctx, ctx.span:
-                ctx.set_item("timer_span", ctx.span)
+                ctx.set_item("trigger_span", ctx.span)
                 core.dispatch(
-                    "azure.functions.timer_call_modifier",
+                    "azure.functions.trigger_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger),
+                )
+                func(*args, **kwargs)
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_service_bus_queue_trigger_old(wrapped, instance, args, kwargs):
+    trigger = "ServiceBusQueue"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        function_name = get_function_name(pin, instance, func)
+
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            with create_context("azure.functions.patched_service_bus_queue", pin, function_name) as ctx, ctx.span:
+                ctx.set_item("trigger_span", ctx.span)
+                core.dispatch(
+                    "azure.functions.trigger_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger),
+                )
+                func(*args, **kwargs)
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_service_bus_topic_trigger_old(wrapped, instance, args, kwargs):
+    trigger = "ServiceBusTopic"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        function_name = get_function_name(pin, instance, func)
+
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            with create_context("azure.functions.patched_service_bus_topic", pin, function_name) as ctx, ctx.span:
+                ctx.set_item("trigger_span", ctx.span)
+                core.dispatch(
+                    "azure.functions.trigger_call_modifier",
                     (ctx, config.azure_functions, function_name, trigger),
                 )
                 func(*args, **kwargs)
