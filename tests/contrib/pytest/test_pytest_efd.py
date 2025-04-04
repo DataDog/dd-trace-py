@@ -11,7 +11,6 @@ from xml.etree import ElementTree
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -23,10 +22,7 @@ from tests.contrib.pytest.test_pytest import _get_spans_from_list
 from tests.utils import override_env
 
 
-pytestmark = pytest.mark.skipif(
-    not (_USE_PLUGIN_V2 and _pytest_version_supports_efd()),
-    reason="Early Flake Detection requires v2 of the plugin and pytest >=7.0",
-)
+pytestmark = pytest.mark.skipif(not _pytest_version_supports_efd(), reason="Early Flake Detection requires pytest >=7.0")
 
 _KNOWN_TEST_IDS = _make_fqdn_test_ids(
     [

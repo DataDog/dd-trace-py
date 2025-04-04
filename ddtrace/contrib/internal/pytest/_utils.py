@@ -31,8 +31,6 @@ log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = not asbool(os.environ.get("_DD_PYTEST_USE_LEGACY_PLUGIN", "false"))
-
 
 class _PYTEST_STATUS:
     ERROR = "error"
@@ -197,11 +195,8 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
 
 def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
-    if _USE_PLUGIN_V2:
-        test_id = _get_test_id_from_item(item)
-        return InternalTest.get_span(test_id)
-
-    return getattr(item, "_datadog_span", None)
+    test_id = _get_test_id_from_item(item)
+    return InternalTest.get_span(test_id)
 
 
 def _is_enabled_early(early_config):

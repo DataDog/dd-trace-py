@@ -1467,18 +1467,6 @@ venv = Venv(
                                 "pytest": ["~=7.0", latest],
                                 "pytest-cov": "==2.12.0",
                             },
-                            venvs=[
-                                Venv(
-                                    env={
-                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
-                                    },
-                                ),
-                                Venv(
-                                    env={
-                                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
-                                    },
-                                ),
-                            ],
                         ),
                     ],
                 ),
@@ -1495,18 +1483,6 @@ venv = Venv(
                         "more_itertools": "<8.11.0",
                         "httpx": latest,
                     },
-                    venvs=[
-                        Venv(
-                            env={
-                                "DD_PYTEST_LEGACY_PLUGIN": "true",
-                            },
-                        ),
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
-                            },
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -1567,18 +1543,6 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
-                    venvs=[
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
-                            },
-                        ),
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
-                            },
-                        ),
-                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
@@ -1588,18 +1552,6 @@ venv = Venv(
                             ">=6.0,<6.1",
                         ]
                     },
-                    venvs=[
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
-                            },
-                        ),
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
-                            },
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -1617,19 +1569,6 @@ venv = Venv(
                         "pytest-benchmark": [
                             ">=3.1.0,<=4.0.0",
                         ]
-                    },
-                    env={
-                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
-                    },
-                ),
-                Venv(
-                    pkgs={
-                        "pytest-benchmark": [
-                            ">=3.1.0,<=4.0.0",
-                        ]
-                    },
-                    env={
-                        "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
                     },
                 ),
             ],

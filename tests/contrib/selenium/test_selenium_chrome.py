@@ -116,7 +116,6 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_PYTEST_USE_LEGACY_PLUGIN=os.environ.get("_TESTED_PYTEST_LEGACY_PLUGIN"),
             )
         ),
     )
@@ -167,7 +166,6 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_PYTEST_USE_LEGACY_PLUGIN=os.environ.get("_TESTED_PYTEST_LEGACY_PLUGIN"),
             )
         ),
     )
@@ -221,7 +219,6 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
                 DD_PATCH_MODULES="sqlite3:false",
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                _DD_PYTEST_USE_LEGACY_PLUGIN=os.environ.get("_TESTED_PYTEST_LEGACY_PLUGIN"),
             )
         ),
     )

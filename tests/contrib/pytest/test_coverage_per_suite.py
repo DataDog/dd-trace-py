@@ -4,7 +4,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
@@ -32,21 +31,13 @@ def _get_tuples_from_segments(segments):
     return list((segment[0], segment[2]) for segment in segments)
 
 
-def _get_span_coverage_data(span, use_plugin_v2=False):
+def _get_span_coverage_data(span):
     """Returns an abstracted view of the coverage data from the span that is independent of the coverage format."""
-    if use_plugin_v2:
-        tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
-        assert tag_data is not None, f"Coverage data not found in span {span}"
-        return {
-            file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]
-        }
-
-    else:
-        # This will raise an exception and the test will fail if the tag is not found
-        tag_data = json.loads(span.get_tag(COVERAGE_TAG_NAME))
-        return {
-            file_data["filename"]: _get_tuples_from_segments(file_data["segments"]) for file_data in tag_data["files"]
-        }
+    tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
+    assert tag_data is not None, f"Coverage data not found in span {span}"
+    return {
+        file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]
+    }
 
 
 class PytestTestCase(PytestTestCaseBase):
@@ -139,40 +130,30 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
         assert first_suite_span.get_tag("type") == "test_suite_end"
-        first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
+        first_suite_coverage = _get_span_coverage_data(first_suite_span)
         assert len(first_suite_coverage) == 3
-        if _USE_PLUGIN_V2:
-            assert first_suite_coverage["/test_cov.py"] == [
-                (1, 2),
-                (4, 5),
-                (7, 9),
-                (11, 13),
-                (16, 17),
-                (20, 22),
-                (24, 25),
-                (28, 31),
-                (33, 36),
-                (39, 42),
-                (44, 45),
-            ]
-            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
-            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
-
-        else:
-            assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9), (12, 13), (21, 22), (35, 36)]
-            assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
-            assert first_suite_coverage["ret_false.py"] == [(1, 2)]
+        assert first_suite_coverage["/test_cov.py"] == [
+            (1, 2),
+            (4, 5),
+            (7, 9),
+            (11, 13),
+            (16, 17),
+            (20, 22),
+            (24, 25),
+            (28, 31),
+            (33, 36),
+            (39, 42),
+            (44, 45),
+        ]
+        assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+        assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
 
         second_suite_span = test_suite_spans[-1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
         second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
         assert len(second_suite_coverage) == 2
-        if _USE_PLUGIN_V2:
-            assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
-            assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
-        else:
-            assert second_suite_coverage["test_cov_second.py"] == [(4, 5)]
-            assert second_suite_coverage["ret_false.py"] == [(2, 2)]
+        assert second_suite_coverage["/test_cov_second.py"] == [(1, 1), (3, 5)]
+        assert second_suite_coverage["/ret_false.py"] == [(1, 2)]
 
     def test_pytest_will_report_coverage_by_suite_with_itr_skipped(self):
         self.testdir.makepyfile(
@@ -249,17 +230,10 @@ class PytestTestCase(PytestTestCaseBase):
         second_suite_span = test_suite_spans[1]
         assert second_suite_span.get_tag("type") == "test_suite_end"
 
-        first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
+        first_suite_coverage = _get_span_coverage_data(first_suite_span)
 
-        if _USE_PLUGIN_V2:
-            assert len(first_suite_coverage) == 3
-            assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
-            assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
-            assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
-            assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
-        else:
-            assert len(first_suite_coverage) == 3
-            assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]
-            assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
-            assert first_suite_coverage["ret_false.py"] == [(1, 2)]
-            assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
+        assert len(first_suite_coverage) == 3
+        assert first_suite_coverage["/test_cov.py"] == [(1, 2), (4, 5), (7, 9)]
+        assert first_suite_coverage["/lib_fn.py"] == [(1, 2)]
+        assert first_suite_coverage["/ret_false.py"] == [(1, 2)]
+        assert second_suite_span.get_struct_tag(COVERAGE_TAG_NAME) is None
