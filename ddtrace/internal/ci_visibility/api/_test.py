@@ -89,6 +89,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._is_disabled = is_disabled
         self._is_attempt_to_fix = is_attempt_to_fix
 
+        self._is_known_tests_enabled = session_settings.known_tests_enabled
         self._efd_is_retry = is_efd_retry
         self._efd_retries: List[TestVisibilityTest] = []
         self._efd_abort_reason: Optional[str] = None
@@ -125,6 +126,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         if self._overwritten_suite_name is not None:
             self.set_tag(test.SUITE, self._overwritten_suite_name)
 
+    def _set_known_tests_tags(self) -> None:
+        # NOTE: The `is_new` tag is currently being set in the context of:
+        # - Known tests enabled
+        # - EFD
+        if not self.is_new():
+            return
+
+        session = self.get_session()
+        if session is not None and self._session_settings.efd_settings.enabled:
+            # If a session is considered faulty, we do not want to tag the
+            # test as new.
+            if not session.efd_is_faulty_session():
+                self.set_tag(TEST_IS_NEW, self._is_new)
+
+        elif self._is_known_tests_enabled:
+            self.set_tag(TEST_IS_NEW, self._is_new)
+
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
             self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
@@ -132,13 +150,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         if self._efd_abort_reason is not None:
             self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
-
-        # NOTE: The is_new tag is currently only being set in the context of EFD (since that is the only context in
-        # which unique tests are fetched). Additionally, if a session is considered faulty, we do not want to tag the
-        # test as new.
-        session = self.get_session()
-        if self.is_new() and session is not None and not session.efd_is_faulty_session():
-            self.set_tag(TEST_IS_NEW, self._is_new)
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
