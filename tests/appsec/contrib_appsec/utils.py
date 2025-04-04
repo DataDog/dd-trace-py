@@ -1454,7 +1454,6 @@ class Contrib_TestClass_For_Threats:
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
-        from ddtrace.appsec._metrics import ddwaf_version
         from ddtrace.ext import http
 
         def validate_top_function(trace):
@@ -1496,6 +1495,9 @@ class Contrib_TestClass_For_Threats:
                     "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                # import delayed to get the correct version
+                from ddtrace.appsec._metrics import ddwaf_version
+
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
