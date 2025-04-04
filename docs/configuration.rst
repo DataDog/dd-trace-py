@@ -269,7 +269,7 @@ Traces
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog,tracecontext``
+         ``datadog,tracecontext,baggage``
      
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
@@ -278,7 +278,7 @@ Traces
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, ``baggage``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
@@ -293,6 +293,7 @@ Traces
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
        v2.6.0: Updated default value to ``datadog,tracecontext``.
+       v2.16.0: Updated default value to ``datadog,tracecontex,baggage``.
 
    DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
       type: Integer
