@@ -118,8 +118,9 @@ Bucket = NamedTuple(
 class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
-    def __init__(self, agent_url=None, interval=None, timeout=1.0, retry_attempts=3):
-        # type: (Optional[str], Optional[float], float, int) -> None
+    def __init__(
+        self, agent_url: Optional[str], interval: Optional[float] = None, timeout: float = 1.0, retry_attempts: int = 3
+    ):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
@@ -264,8 +265,7 @@ class DataStreamsProcessor(PeriodicService):
 
         return serialized_buckets
 
-    def _flush_stats(self, payload):
-        # type: (bytes) -> None
+    def _flush_stats(self, payload: bytes) -> None:
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("POST", self._endpoint, payload, self._headers)
