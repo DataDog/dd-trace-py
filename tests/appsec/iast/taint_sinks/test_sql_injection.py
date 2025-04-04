@@ -151,7 +151,7 @@ def test_checked_tainted_args(iast_context_defaults):
         args=(tainted_arg, untainted_arg), kwargs=None, integration_name="mysql", method=cursor.execute
     )
 
-    # Returns True:
-    assert check_and_report_sqli(
+    # Returns False: No more QUOTA
+    assert not check_and_report_sqli(
         args=(tainted_arg, untainted_arg), kwargs=None, integration_name="psycopg", method=cursor.execute
     )

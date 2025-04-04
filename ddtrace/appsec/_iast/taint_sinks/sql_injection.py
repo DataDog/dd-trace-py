@@ -1,8 +1,8 @@
 from typing import Any
 from typing import Callable
 from typing import Dict
-from typing import List
 from typing import Text
+from typing import Tuple
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
@@ -24,7 +24,7 @@ class SqlInjection(VulnerabilityBase):
 
 
 def check_and_report_sqli(
-    args: List[Any], kwargs: Dict[str, Any], integration_name: Text, method: Callable[..., Any]
+    args: Tuple[Text], kwargs: Dict[str, Any], integration_name: Text, method: Callable[..., Any]
 ) -> bool:
     """Check for SQL injection vulnerabilities in database operations and report them.
 
