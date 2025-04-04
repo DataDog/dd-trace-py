@@ -39,7 +39,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def __init__(self, integration_config):
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
-        self.oai_to_llmobs_span: Dict[str, Span] = weakref.WeakValueDictionary()
+        self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, Span] = weakref.WeakValueDictionary()
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: Dict[str, LLMObsTraceInfo] = {}
@@ -257,4 +257,11 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
+        for k, v in self.llmobs_traces.items():
+            if v.input_oai_span:
+                v.input_oai_span = None
+            if v.output_oai_span:
+                v.output_oai_span = None
         self.llmobs_traces.clear()
+        self.oai_to_llmobs_span = weakref.WeakValueDictionary()
+        self.llmobs_traces = {}
