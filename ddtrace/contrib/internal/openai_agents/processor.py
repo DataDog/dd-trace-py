@@ -14,6 +14,18 @@ from ddtrace.trace import Pin
 
 logger = get_logger(__name__)
 
+processor_enabled = True
+
+
+def disable_processor():
+    global processor_enabled
+    processor_enabled = False
+
+
+def enable_processor():
+    global processor_enabled
+    processor_enabled = True
+
 
 class LLMObsTraceProcessor(TracingProcessor):
     def __init__(self, integration):
@@ -26,6 +38,9 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that started.
         """
+        if not processor_enabled:
+            return
+
         oai_span = OaiSpanAdapter(span)
         if not oai_span.llmobs_span_kind:
             return
@@ -37,6 +52,9 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
+        if not processor_enabled:
+            return
+
         self._integration.trace(Pin.get_from(agents), oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True)
 
     def on_trace_end(self, trace: OaiTrace) -> None:
@@ -45,6 +63,9 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             trace: The trace that started.
         """
+        if not processor_enabled:
+            return
+
         trace_adapter = OaiTraceAdapter(trace)
         trace_root_span = self._integration.oai_to_llmobs_span.get(trace_adapter.trace_id)
         if not trace_root_span:
@@ -64,6 +85,9 @@ class LLMObsTraceProcessor(TracingProcessor):
         Args:
             span: The span that finished.
         """
+        if not processor_enabled:
+            return
+
         span_adapter = OaiSpanAdapter(span)
         llmobs_span = self._integration.oai_to_llmobs_span.get(span_adapter.span_id)
         if not llmobs_span:
@@ -75,7 +99,6 @@ class LLMObsTraceProcessor(TracingProcessor):
         pass
 
     def shutdown(self) -> None:
-        """Shuts down the processor."""
         self._integration.clear_state()
 
 
