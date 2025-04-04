@@ -194,4 +194,5 @@ class APIManager(Service):
                     repr(value)[:256],
                     exc_info=True,
                 )
+        env.api_security_reported = nb_schemas
         self._metrics._report_api_security(True, nb_schemas)
