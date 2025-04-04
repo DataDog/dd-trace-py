@@ -32,6 +32,7 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 
 @deduplication
 def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None:
+    """used for waf configuration errors"""
     try:
         log_tags = {
             "waf_version": DDWAF_VERSION,
@@ -131,6 +132,29 @@ def _report_waf_truncations(observator):
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
+def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optional[str]):
+    """used for waf run errors"""
+    try:
+        if rule_type is None:
+            waf_tags = (
+                ("waf_version", DDWAF_VERSION),
+                ("event_rules_version", rule_version or UNKNOWN_VERSION),
+                ("waf_error", str(error)),
+            )
+            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.error", 1, tags=waf_tags)
+        else:
+            rasp_tags = (
+                ("waf_version", DDWAF_VERSION),
+                ("event_rules_version", rule_version or UNKNOWN_VERSION),
+                ("waf_error", str(error)),
+            ) + _TYPES_AND_TAGS.get(rule_type, ())
+            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "rasp.error", 1, tags=rasp_tags)
+    except Exception:
+        extra = {"product": "appsec", "exec_limit": 6, "more_info": f":waf:run_error:{rule_type or 'srb'}"}
+        logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
+        raise
+
+
 def _set_waf_request_metrics(*_args):
     try:
         result = _asm_request_context.get_waf_telemetry_results()
@@ -159,16 +183,13 @@ def _set_waf_request_metrics(*_args):
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
                     for rule_type, value in getattr(rasp, t).items():
                         if value:
-                            telemetry.telemetry_writer.add_count_metric(
-                                TELEMETRY_NAMESPACE.APPSEC,
-                                n,
-                                value,
-                                tags=_TYPES_AND_TAGS.get(rule_type, ())
-                                + (
-                                    ("waf_version", DDWAF_VERSION),
-                                    ("event_rules_version", result.version or UNKNOWN_VERSION),
-                                ),
+                            tags = _TYPES_AND_TAGS.get(rule_type, ()) + (
+                                ("waf_version", DDWAF_VERSION),
+                                ("event_rules_version", result.version or UNKNOWN_VERSION),
                             )
+                            if t == "match":
+                                tags += (("block", ["irrelevant", "success"][result.blocked]),)
+                            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, n, value, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:request"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)

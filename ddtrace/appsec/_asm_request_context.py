@@ -93,6 +93,7 @@ class ASM_Environment:
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
         self.finalized: bool = False
+        self.api_security_reported: int = 0
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -420,7 +421,7 @@ def asm_request_context_set(
 
 
 def set_waf_telemetry_results(
-    rules_version: Optional[str],
+    rules_version: str,
     is_blocked: bool,
     waf_results: DDWaf_result,
     rule_type: Optional[str],
@@ -434,11 +435,14 @@ def set_waf_telemetry_results(
     from ddtrace.appsec._metrics import _report_waf_truncations
 
     result.rate_limited |= is_sampled
-    if waf_results.return_code:
+    if waf_results.return_code < 0:
         if result.error:
             result.error = max(result.error, waf_results.return_code)
         else:
             result.error = waf_results.return_code
+        from ddtrace.appsec._metrics import _report_waf_run_error
+
+        _report_waf_run_error(waf_results.return_code, rules_version, rule_type)
     _report_waf_truncations(waf_results.truncation)
     for key in ["container_size", "container_depth", "string_length"]:
         res = getattr(waf_results.truncation, key)
@@ -449,7 +453,7 @@ def set_waf_telemetry_results(
         result.triggered |= is_triggered
         result.blocked |= is_blocked
         result.timeout += waf_results.timeout
-        if rules_version is not None:
+        if rules_version:
             result.version = rules_version
         result.duration += waf_results.runtime
         result.total_duration += waf_results.total_runtime
@@ -459,6 +463,7 @@ def set_waf_telemetry_results(
         result.rasp.eval[rule_type] += 1
         result.rasp.match[rule_type] += int(is_triggered)
         result.rasp.timeout[rule_type] += int(waf_results.timeout)
+        result.rasp.durations[rule_type] += waf_results.runtime
         result.rasp.duration += waf_results.runtime
         result.rasp.total_duration += waf_results.total_runtime
 

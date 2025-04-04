@@ -161,7 +161,7 @@ class DDWaf(WAF):
         ephemeral_data: DDWafRulesType = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
-        start = time.time()
+        start = time.monotonic()
         if not ctx:
             LOGGER.debug("DDWaf.run: dry run. no context created.")
             return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
@@ -173,7 +173,6 @@ class DDWaf(WAF):
         error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
-            self.report_error(f"appsec.waf.request::error::{error}", self._cached_version)
         if error == DDWAF_ERR_INTERNAL:
             # result is not valid
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
@@ -182,7 +181,7 @@ class DDWaf(WAF):
             result.events.struct,
             result.actions.struct,
             result.total_runtime / 1e3,
-            (time.time() - start) * 1e6,
+            (time.monotonic() - start) * 1e6,
             result.timeout,
             observator,
             result.derivatives.struct,
