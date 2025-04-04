@@ -1,5 +1,5 @@
 """
-The OpenAI Agents integration instruments the openai-agents Python library to emit traces for agentic workflows.
+The OpenAI Agents integration instruments the openai-agents Python library to emit traces for agent workflows.
 
 All traces submitted from the OpenAI Agents integration are tagged by:
 - ``service``, ``env``, ``version``: see the `Unified Service Tagging docs <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
