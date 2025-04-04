@@ -868,8 +868,8 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
     )
 
 
-def _on_azure_functions_timer_span_modifier(ctx, azure_functions_config, function_name, trigger):
-    span = ctx.get_item("timer_span")
+def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger):
+    span = ctx.get_item("trigger_span")
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
 
 
@@ -926,7 +926,7 @@ def listen():
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
-    core.on("azure.functions.timer_call_modifier", _on_azure_functions_timer_span_modifier)
+    core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
