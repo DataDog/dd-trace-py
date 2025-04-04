@@ -1,75 +1,76 @@
 integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
-aiobotocore *,1.4.2,2.16.0,False
-aiohttp *,3.9.1,3.11.13,True
+aiobotocore,1.4.2,2.16.0,False
+aiohttp,3.9.1,3.11.13,True
 aiohttp_jinja2 *,1.5.1,1.6,True
-aiomysql *,0.1.1,0.2.0,True
+aiomysql,0.1.1,0.2.0,True
 aiopg *,1.4.0,1.4.0,True
 algoliasearch *,2.6.3,2.6.3,True
-anthropic *,0.26.0,0.49.0,True
-aredis *,1.1.8,1.1.8,True
+anthropic,0.26.0,0.49.0,True
+aredis,1.1.8,1.1.8,True
 asyncio *,0.21.1,0.26.0,True
-asyncpg *,0.23.0,0.30.0,True
-avro *,1.12.0,1.12.0,True
-aws_lambda *,6.105.0,6.105.0,True
+asyncpg,0.23.0,0.30.0,True
+avro,1.12.0,1.12.0,True
+aws_lambda,6.105.0,6.105.0,True
 azure_functions *,1.21.3,1.21.3,True
 boto,2.49.0,2.49.0,True
 botocore *,1.20.106,1.37.5,True
-bottle *,0.12.25,0.13.2,True
-cassandra *,3.24.0,3.29.2,True
-celery *,5.3.6,5.4.0,True
-cherrypy *,17.4.2,18.10.0,False
-consul *,1.1.0,1.1.0,True
+bottle,0.12.25,0.13.2,True
+cassandra,3.24.0,3.29.2,True
+celery,5.3.6,5.4.0,True
+cherrypy,17.4.2,18.10.0,False
+consul,1.1.0,1.1.0,True
+coverage,7.4.4,7.4.4,False
 django *,2.2.1,5.1.4,True
 dogpile_cache *,0.9.2,1.3.3,True
-dramatiq *,1.17.0,1.17.0,True
-elasticsearch *,7.13.4,8.17.0,True
-falcon *,3.0.1,4.0.2,True
-fastapi *,0.64.0,0.115.8,True
-flask *,0.12.5,3.1.0,True
-flask_cache *,1.10.1,2.3.0,False
-gevent *,20.12.1,24.11.1,True
-google_generativeai *,0.8.3,0.8.3,True
-graphql *,3.1.7,3.2.6,True
-grpc *,1.34.1,1.68.1,True
-httpx *,0.15.4,0.28.1,True
-jinja2 *,2.10.3,3.1.5,True
-kafka *,1.9.2,2.6.2,True
-kombu *,4.2.2.post1,5.4.2,False
-langchain *,0.1.20,0.3.18,True
+dramatiq,1.17.0,1.17.0,True
+elasticsearch,7.13.4,8.17.0,True
+falcon,3.0.1,4.0.2,True
+fastapi,0.64.0,0.115.8,True
+flask,0.12.5,3.1.0,True
+flask_cache,1.10.1,2.3.0,False
+gevent,20.12.1,24.11.1,True
+google_generativeai,0.8.3,0.8.3,True
+graphql,3.1.7,3.2.6,True
+grpc,1.34.1,1.68.1,True
+httpx,0.15.4,0.28.1,True
+jinja2,2.10.3,3.1.5,True
+kafka,1.9.2,2.6.2,True
+kombu,4.2.2.post1,5.4.2,False
+langchain,0.1.20,0.3.18,True
 langgraph *,0.2.60,0.2.61,False
-logbook *,1.0.0,1.8.1,False
-loguru *,0.4.1,0.7.2,False
-mako *,1.1.6,1.3.8,True
-mariadb *,1.0.11,1.1.11,True
-molten *,1.0.2,1.0.2,True
-mongoengine *,0.29.1,0.29.1,True
-mysql *,8.0.5,9.1.0,True
-mysqldb *,2.2.1,2.2.6,True
-openai *,1.30.3,1.65.3,True
-protobuf *,3.19.0,6.30.2,False
-psycopg *,3.2.1,3.2.3,True
-pylibmc *,1.6.3,1.6.3,True
-pymemcache *,3.4.4,4.0.0,True
-pymongo *,3.8.0,4.10.1,True
-pymysql *,0.10.1,1.1.1,True
+logbook,1.0.0,1.8.1,False
+loguru,0.4.1,0.7.2,False
+mako,1.1.6,1.3.8,True
+mariadb,1.0.11,1.1.11,True
+molten,1.0.2,1.0.2,True
+mongoengine,0.29.1,0.29.1,True
+mysql,8.0.5,9.1.0,True
+mysqldb,2.2.1,2.2.6,True
+openai,1.30.3,1.65.3,True
+protobuf,3.19.0,6.30.2,False
+psycopg,3.2.1,3.2.3,True
+pylibmc,1.6.3,1.6.3,True
+pymemcache,3.4.4,4.0.0,True
+pymongo,3.8.0,4.10.1,True
+pymysql,0.10.1,1.1.1,True
 pynamodb *,5.5.1,5.5.1,True
-pyodbc *,4.0.39,5.2.0,True
-pyramid *,1.10.8,2.0.2,True
-pytest *,4.6.11,8.3.5,False
+pyodbc,4.0.39,5.2.0,True
+pyramid,1.10.8,2.0.2,True
+pytest,4.6.11,8.3.5,False
 pytest_bdd,4.1.0,6.0.1,False
-redis *,2.10.6,5.2.1,True
-rediscluster *,2.0.0,2.1.3,True
-requests *,2.22.0,2.32.3,True
-rq *,1.8.1,1.16.2,True
-sanic *,20.12.7,24.6.0,True
-snowflake *,2.3.10,3.12.2,False
-sqlalchemy *,1.2.19,2.0.38,False
-sqlite3 *,0.5.2.post3,0.5.2.post3,True
-starlette *,0.13.6,0.44.0,True
-structlog *,20.2.0,25.1.0,False
+redis,2.10.6,5.2.1,True
+rediscluster,2.0.0,2.1.3,True
+requests,2.22.0,2.32.3,True
+rq,1.8.1,1.16.2,True
+sanic,20.12.7,24.6.0,True
+snowflake,2.3.10,3.12.2,False
+sqlalchemy,1.2.19,2.0.38,False
+sqlite3,0.5.2.post3,0.5.2.post3,True
+starlette,0.13.6,0.44.0,True
+structlog,20.2.0,25.1.0,False
 tornado *,4.5.3,6.4.1,False
-urllib3 *,1.25,2.3.0,False
-valkey *,6.0.2,6.0.2,True
-vertexai *,1.71.1,1.71.1,True
+urllib3,1.25,2.3.0,False
+valkey,6.0.2,6.0.2,True
+vertexai,1.71.1,1.71.1,True
 vertica *,0.6.14,0.7.4,True
-yaaredis *,2.0.4,3.0.0,True
+yaaredis,2.0.4,3.0.0,True
