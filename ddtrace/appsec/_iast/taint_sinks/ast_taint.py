@@ -3,7 +3,7 @@ from typing import Callable
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
