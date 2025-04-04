@@ -50,6 +50,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
@@ -346,14 +347,6 @@ class LLMObs(Service):
         error = None
         start_ns = time.time_ns()
         try:
-            # validate required values for LLMObs
-            if not config._llmobs_ml_app:
-                error = "missing_ml_app"
-                raise ValueError(
-                    "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
-                    "Ensure this configuration is set before running your application."
-                )
-
             config._llmobs_agentless_enabled = should_use_agentless(
                 user_defined_agentless_enabled=agentless_enabled
                 if agentless_enabled is not None
@@ -1334,12 +1327,15 @@ class LLMObs(Service):
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:
             return
-        active_context = cls._instance._current_trace_context()
-        if active_context is None:
-            parent_id = ROOT_PARENT_ID
-        else:
-            parent_id = str(active_context.span_id)
+
+        active_span = cls._instance._llmobs_context_provider.active()
+        active_context = active_span.context if isinstance(active_span, Span) else active_span
+
+        parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
+        ml_app = active_span._get_ctx_item(ML_APP) if isinstance(active_span, Span) else config._llmobs_ml_app
+
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+        span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:

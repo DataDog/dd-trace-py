@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.trace import Span
@@ -162,7 +163,7 @@ def _get_ml_app(span: Span) -> str:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or config._llmobs_ml_app or "unknown-ml-app"
+    return ml_app or config._llmobs_ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or "unknown-ml-app"
 
 
 def _get_session_id(span: Span) -> Optional[str]:
