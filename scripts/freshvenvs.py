@@ -22,7 +22,9 @@ CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
 excluded = {"coverage"}
-suite_to_package = {
+
+# map module => lockfile dependency
+module_dependency_mapping = {
     "kafka": "confluent-kafka",
     "consul": "python-consul",
     "snowflake": "snowflake-connector-python",
@@ -38,55 +40,14 @@ suite_to_package = {
     "cassandra": "cassandra-driver",
     "rediscluster": "redis-py-cluster",
     "dogpile_cache": "dogpile-cache",
-    "vertica": "vertica_python",
+    "vertica": "vertica-python",
     "aiohttp_jinja2": "aiohttp-jinja2",
     "azure_functions": "azure-functions",
     "pytest_bdd": "pytest-bdd",
 }
 
-lockfiles = {
-    "confluent-kafka": "kafka",
-    "python-consul": "consul",
-    "snowflake-connector-python": "snowflake",
-    "flask-caching": "flask_cache",
-    "graphql-core": "graphql",
-    "mysql-connector-python": "mysql",
-    "mysqlclient": "mysqldb",
-    "pytest-asyncio": "asyncio",
-    "pysqlite3-binary": "sqlite3",
-    "grpcio": "grpc",
-    "google-generativeai": "google_generativeai",
-    "psycopg2-binary": "psycopg2",
-    "cassandra-driver": "cassandra",
-    "redis-py-cluster": "rediscluster",
-    "dogpile-cache": "dogpile_cache",
-    "vertica-python": "vertica",
-    "aiohttp-jinja2": "aiohttp_jinja2",
-    "azure-functions": "azure_functions",
-    "pytest-bdd": "pytest_bdd",
-}
-
-
-
-# mapping the name of the module to the name of the package (on pypi and as defined in lockfiles)
-mapping_module_to_package = {
-    "confluent_kafka": "confluent-kafka",
-    "snowflake": "snowflake-connector-python",
-    "cassandra": "cassandra-driver",
-    "rediscluster": "redis-py-cluster",
-    "vertica_python": "vertica-python",
-    "flask_cache": "flask-cache",
-    "flask_caching": "flask-caching",
-    "consul": "python-consul",
-    "grpc": "grpcio",
-    "graphql": "graphql-core",
-    "mysql": "pymysql",
-    "mysqldb": "mysqlclient",
-    "aiohttp_jinja2": "aiohttp-jinja2",
-    "azure_functions": "azure-functions",
-    "pytest_bdd": "pytest-bdd",
-}
-
+# map lockfile dependency => module name
+dependency_module_mapping = {v: k for k, v in module_dependency_mapping.items()}
 
 supported_versions = []  # list of dicts
 pinned_packages = set()
@@ -133,7 +94,7 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
                 lockfile_content = lockfile.read()
                 for module in modules:
                     if module in lockfile_content or (
-                        module in suite_to_package and suite_to_package[module] in lockfile_content
+                        module in module_dependency_mapping and module_dependency_mapping[module] in lockfile_content
                     ):
                         envs |= {item.split(".")[0]}
                         break
@@ -203,13 +164,10 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
     lock_packages = []
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        # remap the package -> module name
-        # if package == "cassandra-driver":
-        #     breakpoint()
         if package in packages:
             lock_packages.append((package, versions))
-        elif package in lockfiles and lockfiles[package] in packages:
-            lock_packages.append((lockfiles[package], versions))
+        elif package in dependency_module_mapping and dependency_module_mapping[package] in packages:
+            lock_packages.append((dependency_module_mapping[package], versions))
 
     return lock_packages
 
@@ -235,9 +193,9 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
     Returns whether the Venv for the package uses `latest` or not.
     DFS traverse through the Venv, as it may have nested Venvs.
 
-    If the suite name is in suite_to_package, remap it.
+    If the module name is in module_dependency_mapping, remap it.
     """
-    package = suite_to_package.get(suite_name, suite_name)
+    package = module_dependency_mapping.get(suite_name, suite_name)
 
     if package in venv.pkgs:
         if LATEST in venv.pkgs[package]:
@@ -294,10 +252,6 @@ def output_outdated_packages(all_required_packages, envs, bounds):
 
 
 def generate_supported_versions(contrib_packages, all_used_versions, patched):
-    for mod in mapping_module_to_package:
-        contrib_packages.add(mapping_module_to_package[mod])
-        patched[mapping_module_to_package[mod]] = _is_module_autoinstrumented(mod)
-
     # Generate supported versions
     for package in contrib_packages:
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
