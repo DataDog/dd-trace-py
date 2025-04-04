@@ -52,7 +52,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
-    "langgraph": False,
+    "langgraph": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,

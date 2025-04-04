@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    langgraph: The ``langgraph`` integration is enabled by default instead of being opt-in by setting ``_DD_TRACE_LANGGRAPH_ENABLED``.

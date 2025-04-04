@@ -1,5 +1,4 @@
 import abc
-import os
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -11,7 +10,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
@@ -34,9 +32,7 @@ class BaseLLMIntegration:
 
     @property
     def span_linking_enabled(self) -> bool:
-        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false")) or asbool(
-            os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false")
-        )
+        return config._llmobs_auto_span_linking_enabled
 
     @property
     def llmobs_enabled(self) -> bool:
