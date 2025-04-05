@@ -18,6 +18,7 @@ ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
+ddtrace/internal/telemetry/metrics_namespaces.c
 pygoat/*
 *.so
 *.dylib
