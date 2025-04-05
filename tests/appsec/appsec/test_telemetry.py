@@ -30,13 +30,15 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
     metric_update = 0
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
-    assert len(generate_metrics) == 3 + is_updated, f"Expected {2 + is_updated} generate_metrics"
+    assert len(generate_metrics) == 3 + is_updated, (
+        f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
+    )
     for metric in generate_metrics:
         metric_name = metric["metric"]
         if metric_name == "waf.requests":
             assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
             assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
-            # assert metric._tags["request_truncated"] is False
+            # assert not any(tag.startswith("request_truncated") for tag in metric.["tags"])
             assert "waf_timeout:false" in metric["tags"]
             assert f"waf_version:{version()}" in metric["tags"]
             assert any("event_rules_version:" in t for t in metric["tags"])
@@ -212,16 +214,18 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             span_processor.on_span_start(span)
             asm_request_context._call_waf(span, {})
             list_telemetry_logs = list(telemetry_writer._logs)
-            assert len(list_telemetry_logs) == 1
-            assert list_telemetry_logs[0]["message"] == "appsec.waf.request::error::-3"
-            assert "waf_version:{}".format(version()) in list_telemetry_logs[0]["tags"]
+            assert len(list_telemetry_logs) == 0
             assert span.get_tag("_dd.appsec.waf.error") == "-3"
             list_telemetry_metrics = list(
                 telemetry_writer._namespace._metrics_data.get("generate-metrics", {}).get("appsec", {}).values()
             )
-            error_metrics = [m for m in list_telemetry_metrics if m.name == "waf.config_errors"]
+            error_metrics = [m for m in list_telemetry_metrics if m.name == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
-            assert error_metrics[0]._tags == (("waf_version", version()), ("event_rules_version", mock.ANY))
+            assert error_metrics[0]._tags == (
+                ("waf_version", version()),
+                ("event_rules_version", mock.ANY),
+                ("waf_error", "-3"),
+            )
 
 
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):

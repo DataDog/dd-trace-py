@@ -116,15 +116,17 @@ class Truncation_result:
 
 
 class Rasp_result:
-    __slots__ = ["sum_eval", "duration", "total_duration", "eval", "match", "timeout"]
+    __slots__ = ["blocked", "sum_eval", "duration", "total_duration", "eval", "match", "timeout", "durations"]
 
     def __init__(self):
+        self.blocked = False
         self.sum_eval = 0
         self.duration = 0.0
         self.total_duration = 0.0
         self.eval = collections.defaultdict(int)
         self.match = collections.defaultdict(int)
         self.timeout = collections.defaultdict(int)
+        self.durations = collections.defaultdict(float)
 
 
 class Telemetry_result:
@@ -145,7 +147,7 @@ class Telemetry_result:
         self.blocked = False
         self.triggered = False
         self.timeout = 0
-        self.version: Optional[str] = None
+        self.version: str = ""
         self.duration = 0.0
         self.total_duration = 0.0
         self.truncation = Truncation_result()
