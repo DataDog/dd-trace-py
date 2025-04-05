@@ -222,11 +222,10 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             )
             error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
-            assert error_metrics[0]["tags"] == (
-                ("waf_version", version()),
-                ("event_rules_version", mock.ANY),
-                ("waf_error", "-3"),
-            )
+            assert len(error_metrics[0]["tags"]) == 3
+            assert f"waf_version:{version()}" in error_metrics[0]["tags"]
+            assert "waf_error:-3" in error_metrics[0]["tags"]
+            assert any(tag.startswith("event_rules_version:") for tag in error_metrics[0]["tags"])
 
 
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
