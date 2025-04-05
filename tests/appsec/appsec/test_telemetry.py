@@ -216,6 +216,7 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             list_telemetry_logs = list(telemetry_writer._logs)
             assert len(list_telemetry_logs) == 0
             assert span.get_tag("_dd.appsec.waf.error") == "-3"
+            metrics_result = telemetry_writer._namespace.flush()
             list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
                 TELEMETRY_NAMESPACE.APPSEC.value, {}
             )
