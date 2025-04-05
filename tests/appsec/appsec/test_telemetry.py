@@ -30,9 +30,9 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
     metric_update = 0
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
-    assert len(generate_metrics) == 3 + is_updated, (
-        f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
-    )
+    assert (
+        len(generate_metrics) == 3 + is_updated
+    ), f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
     for metric in generate_metrics:
         metric_name = metric["metric"]
         if metric_name == "waf.requests":
