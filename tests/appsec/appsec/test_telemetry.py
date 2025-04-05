@@ -216,12 +216,12 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             list_telemetry_logs = list(telemetry_writer._logs)
             assert len(list_telemetry_logs) == 0
             assert span.get_tag("_dd.appsec.waf.error") == "-3"
-            list_telemetry_metrics = list(
-                telemetry_writer._namespace._metrics_data.get("generate-metrics", {}).get("appsec", {}).values()
+            list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
+                TELEMETRY_NAMESPACE.APPSEC.value, {}
             )
-            error_metrics = [m for m in list_telemetry_metrics if m.name == "waf.error"]
+            error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
-            assert error_metrics[0]._tags == (
+            assert error_metrics[0]["tags"] == (
                 ("waf_version", version()),
                 ("event_rules_version", mock.ANY),
                 ("waf_error", "-3"),

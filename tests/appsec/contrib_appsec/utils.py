@@ -495,9 +495,9 @@ class Contrib_TestClass_For_Threats:
             if asm_enabled and not bypassed:
                 assert get_tag(http.URL) == f"http://localhost:8000/{query}"
                 assert get_tag(http.METHOD) == "GET", f"method={get_tag(http.METHOD)}, expected=GET"
-                assert get_tag("actor.ip") == headers["X-Real-Ip"], (
-                    f"actor.ip={get_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
-                )
+                assert (
+                    get_tag("actor.ip") == headers["X-Real-Ip"]
+                ), f"actor.ip={get_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
                 if monitored:
                     self.check_rules_triggered(["blk-001-010", rule], root_span)
                 else:
@@ -1504,9 +1504,9 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(root_span)
                 for trace in self.check_for_stack_trace(root_span):
                     assert "frames" in trace
-                    assert validate_top_function(trace), (
-                        f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
-                    )
+                    assert validate_top_function(
+                        trace
+                    ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
@@ -1518,18 +1518,18 @@ class Contrib_TestClass_For_Threats:
 
                 if expected_variant:
                     expected_tags = (
-                        f"rule_type:{expected_rule_type}",
-                        f"rule_variant:{expected_variant}",
-                        f"waf_version:{ddwaf_version}",
-                        "event_rules_version:rules_rasp",
+                        ("rule_type", expected_rule_type),
+                        ("rule_variant", expected_variant),
+                        ("waf_version", ddwaf_version),
+                        ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
-                        f"rule_type:{expected_rule_type}",
-                        f"waf_version:{ddwaf_version}",
-                        "event_rules_version:rules_rasp",
+                        ("rule_type", expected_rule_type),
+                        ("waf_version", ddwaf_version),
+                        ("event_rules_version", "rules_rasp"),
                     )
-                match_expected_tags = expected_tags + ("block:irrelevant" if action_level < 2 else "success",)
+                match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
                 assert matches == [match_expected_tags], (matches, match_expected_tags)
                 evals = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
