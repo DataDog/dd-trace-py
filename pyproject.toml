@@ -53,6 +53,9 @@ ddtrace-run = "ddtrace.commands.ddtrace_run:main"
 [project.entry-points.opentelemetry_context]
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
+[project.entry-points.opentelemetry_logger_provider]
+ddlogger_provider = "ddtrace.internal.opentelemetry.logs:LogsProvider"
+
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "ddtrace.pytest_bdd" = "ddtrace.contrib.internal.pytest_bdd.plugin"
