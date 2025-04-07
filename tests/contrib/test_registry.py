@@ -1,13 +1,16 @@
-import os
+import json
 import pathlib
+import sys
+
+import jsonschema
+from packaging.version import InvalidVersion
+from packaging.version import parse as parse_version
 import pytest
 import yaml
-import sys
-import json
-import jsonschema
-from packaging.version import parse as parse_version, InvalidVersion
 
-from ddtrace._monkey import PATCH_MODULES, _MODULES_FOR_CONTRIB
+from ddtrace._monkey import _MODULES_FOR_CONTRIB
+from ddtrace._monkey import PATCH_MODULES
+
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -27,13 +30,14 @@ def registry_content() -> dict:
         with open(REGISTRY_YAML_PATH, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
             if not isinstance(data, dict):
-                 pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: Expected root object.")
+                pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: Expected root object.")
             return data
     except yaml.YAMLError as e:
         pytest.fail(f"Error parsing YAML file {REGISTRY_YAML_PATH}: {e}")
     except Exception as e:
         pytest.fail(f"Error reading file {REGISTRY_YAML_PATH}: {e}")
     return {}
+
 
 @pytest.fixture(scope="module")
 def registry_data(registry_content: dict) -> list[dict]:
@@ -42,8 +46,9 @@ def registry_data(registry_content: dict) -> list[dict]:
     if not isinstance(integrations, list):
         pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: Expected 'integrations' key with a list value.")
     if not all(isinstance(item, dict) for item in integrations):
-         pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: 'integrations' list should contain objects.")
+        pytest.fail(f"Invalid structure in {REGISTRY_YAML_PATH}: 'integrations' list should contain objects.")
     return integrations
+
 
 @pytest.fixture(scope="module")
 def registry_schema() -> dict:
@@ -55,10 +60,11 @@ def registry_schema() -> dict:
             schema = json.load(f)
         return schema
     except json.JSONDecodeError as e:
-         pytest.fail(f"Error parsing JSON schema file {SCHEMA_JSON_PATH}: {e}")
+        pytest.fail(f"Error parsing JSON schema file {SCHEMA_JSON_PATH}: {e}")
     except Exception as e:
-         pytest.fail(f"Error reading schema file {SCHEMA_JSON_PATH}: {e}")
+        pytest.fail(f"Error reading schema file {SCHEMA_JSON_PATH}: {e}")
     return {}
+
 
 @pytest.fixture(scope="module")
 def all_integration_names(registry_data: list[dict]) -> set[str]:
@@ -71,8 +77,9 @@ def all_integration_names(registry_data: list[dict]) -> set[str]:
         else:
             pytest.fail(f"Found entry in registry without a valid string 'integration_name': {entry}")
     if not names:
-         pytest.fail("No integration names found in loaded registry data.")
+        pytest.fail("No integration names found in loaded registry data.")
     return names
+
 
 @pytest.fixture(scope="module")
 def patchable_integration_names(registry_data: list[dict]) -> set[str]:
@@ -80,14 +87,14 @@ def patchable_integration_names(registry_data: list[dict]) -> set[str]:
     names = set()
     for entry in registry_data:
         name = entry.get("integration_name")
-        is_patchable = entry.get("is_patchable") # Explicitly check the field
+        is_patchable = entry.get("is_patchable")  # Explicitly check the field
 
         # Check if name is valid and is_patchable is explicitly True
         if name and isinstance(name, str) and is_patchable is True:
             names.add(name)
         # Log or fail if is_patchable is missing? For now, only include if True.
         elif name and isinstance(name, str) and is_patchable is None:
-             print(f"Warning: Integration '{name}' is missing the 'is_patchable' field in registry.", file=sys.stderr)
+            print(f"Warning: Integration '{name}' is missing the 'is_patchable' field in registry.", file=sys.stderr)
 
     return names
 
@@ -118,7 +125,8 @@ def test_all_internal_dirs_accounted_for(registry_data: list[dict], all_integrat
     error_messages = []
     if unaccounted_dirs:
         instructions = (
-            f"      Please add an entry for each directory listed below to '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n"
+            f"      Please add an entry for each directory listed below to"
+            f"'{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n"
             f"      Determine 'is_external_package' and 'is_patchable' based on the module's nature."
         )
         error_messages.append(
@@ -130,12 +138,12 @@ def test_all_internal_dirs_accounted_for(registry_data: list[dict], all_integrat
             f"        - " + "\n        - ".join(sorted(unaccounted_dirs)) + "\n"
         )
     if missing_dirs_in_yaml:
-         error_messages.append(
-             f"\n\nMissing Directories for YAML Entries:\n"
-             f"    The following integration names are listed in '{REGISTRY_YAML_PATH.name}'\n"
-             f"    but do not have a corresponding directory in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}':\n\n"
-             f"      - " + "\n      - ".join(sorted(list(missing_dirs_in_yaml))) + "\n"
-         )
+        error_messages.append(
+            f"\n\nMissing Directories for YAML Entries:\n"
+            f"    The following integration names are listed in '{REGISTRY_YAML_PATH.name}'\n"
+            f"    but do not have a corresponding directory in '{CONTRIB_INTERNAL_DIR.relative_to(PROJECT_ROOT)}':\n\n"
+            f"      - " + "\n      - ".join(sorted(list(missing_dirs_in_yaml))) + "\n"
+        )
 
     assert not error_messages, "\n".join(error_messages)
 
@@ -158,7 +166,8 @@ def test_registry_integrations_in_patch_modules(patchable_integration_names: set
         sorted_missing = sorted(list(missing_in_patch_modules))
         error_messages.append(
             f"\n\nMissing Integrations in ddtrace._monkey.PATCH_MODULES:\n"
-            f"  The following integrations are marked 'is_patchable: true' in '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}' \n"
+            f"  The following integrations are marked 'is_patchable: true' in "
+            f"'{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}' \n"
             f"  but are MISSING as keys in the PATCH_MODULES dictionary in 'ddtrace/_monkey.py'.\n\n"
             f"  Please ADD these integrations to PATCH_MODULES (set value to True/False/config as appropriate):\n\n"
             f"    Missing integrations:\n"
@@ -172,8 +181,10 @@ def test_registry_integrations_in_patch_modules(patchable_integration_names: set
     #     error_messages.append(
     #         f"\n\nExtraneous Keys in ddtrace._monkey.PATCH_MODULES:\n"
     #         f"  The following keys exist in PATCH_MODULES in 'ddtrace/_monkey.py' \n"
-    #         f"  but are NOT marked as 'is_patchable: true' in '{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n\n"
-    #         f"  Consider REMOVING them from PATCH_MODULES or correcting their 'is_patchable' status in the registry:\n\n"
+    #         f"  but are NOT marked as 'is_patchable: true' in "
+    #         f"'{REGISTRY_YAML_PATH.relative_to(PROJECT_ROOT)}'.\n\n"
+    #         f"  Consider REMOVING them from PATCH_MODULES or correcting their "
+    #         f"'is_patchable' status in the registry:\n\n"
     #         f"    Extraneous keys:\n"
     #         f"      - " + "\n      - ".join(sorted_extraneous) + "\n"
     #     )
@@ -192,7 +203,7 @@ def test_registry_conforms_to_schema(registry_content: dict, registry_schema: di
         # Provide a more detailed error message upon failure
         pytest.fail(f"Schema validation failed for {REGISTRY_YAML_PATH}: {e}", pytrace=False)
     except Exception as e:
-         pytest.fail(f"An unexpected error occurred during schema validation: {e}")
+        pytest.fail(f"An unexpected error occurred during schema validation: {e}")
 
 
 def test_dependency_name_only_if_external(registry_data: list[dict]):
@@ -204,12 +215,17 @@ def test_dependency_name_only_if_external(registry_data: list[dict]):
         has_deps = "dependency_name" in entry
 
         if is_external is False and has_deps:
-            errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a 'dependency_name' field.")
+            errors.append(
+                f"Integration '{name}' has 'is_external_package: false' but contains a 'dependency_name' field."
+            )
         # Check that external packages have a defined dependency_name
         elif is_external is True and not has_deps:
-            errors.append(f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field.")
+            errors.append(
+                f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field."
+            )
 
     assert not errors, "\n".join(errors)
+
 
 def test_version_fields_only_if_external(registry_data: list[dict]):
     """Verify version fields only exist if 'is_external_package' is true."""
@@ -222,7 +238,9 @@ def test_version_fields_only_if_external(registry_data: list[dict]):
         if is_external is False:
             for field in version_fields:
                 if field in entry:
-                    errors.append(f"Integration '{name}' has 'is_external_package: false' but contains a '{field}' field.")
+                    errors.append(
+                        f"Integration '{name}' has 'is_external_package: false' but contains a '{field}' field."
+                    )
         elif is_external is True:
             # Check min/max format (should be parsable or N/A)
             for field in ["tested_version_min", "tested_version_max"]:
@@ -231,21 +249,27 @@ def test_version_fields_only_if_external(registry_data: list[dict]):
                     try:
                         parse_version(version_str)
                     except InvalidVersion:
-                        errors.append(f"External integration '{name}' has invalid SemVer format for '{field}': '{version_str}'.")
+                        errors.append(
+                            f"External integration '{name}' has invalid SemVer format for '{field}': '{version_str}'."
+                        )
 
             # Check list items format
             if "tested_versions_list" in entry:
-                 version_list = entry["tested_versions_list"]
-                 if not isinstance(version_list, list):
-                      errors.append(f"External integration '{name}' field 'tested_versions_list' is not a list.")
-                 else:
-                      for i, v_str in enumerate(version_list):
-                           try:
-                               parse_version(v_str)
-                           except InvalidVersion:
-                                errors.append(f"External integration '{name}' has invalid SemVer format in 'tested_versions_list' at index {i}: '{v_str}'.")
+                version_list = entry["tested_versions_list"]
+                if not isinstance(version_list, list):
+                    errors.append(f"External integration '{name}' field 'tested_versions_list' is not a list.")
+                else:
+                    for i, v_str in enumerate(version_list):
+                        try:
+                            parse_version(v_str)
+                        except InvalidVersion:
+                            errors.append(
+                                f"External integration '{name}' has invalid SemVer format "
+                                f"in 'tested_versions_list' at index {i}: '{v_str}'."
+                            )
 
     assert not errors, "\n".join(errors)
+
 
 def test_patched_by_default_only_if_patchable(registry_data: list[dict]):
     """Verify 'patched_by_default' only exists if 'is_patchable' is true or status is MISSING."""
@@ -257,11 +281,17 @@ def test_patched_by_default_only_if_patchable(registry_data: list[dict]):
         has_patch_status_field = "patched_by_default" in entry
 
         if is_patchable is False and has_patch_status_field and patch_status != "MISSING_IN_PATCH_MODULES":
-             errors.append(f"Integration '{name}' has 'is_patchable: false' but contains 'patched_by_default: {patch_status}' (expected field to be absent or value MISSING...).")
+            errors.append(
+                f"Integration '{name}' has 'is_patchable: false' but contains 'patched_by_default: "
+                f"{patch_status}' (expected field to be absent or value MISSING...)."
+            )
         elif is_patchable is True and not has_patch_status_field:
-             errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing the 'patched_by_default' field.")
+            errors.append(
+                f"Integration '{name}' has 'is_patchable: true' but is missing the 'patched_by_default' field."
+            )
 
     assert not errors, "\n".join(errors)
+
 
 def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
     """Verify 'instrumented_modules' generally only exists if 'is_patchable' is true."""
@@ -272,9 +302,10 @@ def test_instrumented_modules_only_if_patchable(registry_data: list[dict]):
         has_instr_mods = "instrumented_modules" in entry
 
         if is_patchable is True and not has_instr_mods:
-             errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
+            errors.append(f"Integration '{name}' has 'is_patchable: true' but is missing 'instrumented_modules' field.")
 
     assert not errors, "\n".join(errors)
+
 
 def test_external_packages_have_version_fields(registry_data: list[dict]):
     """
@@ -290,12 +321,13 @@ def test_external_packages_have_version_fields(registry_data: list[dict]):
         name = entry.get("integration_name", "UNKNOWN_ENTRY")
         is_external = entry.get("is_external_package")
 
-        if is_external is True: # Only check external packages
+        if is_external is True:  # Only check external packages
             for field in expected_version_fields:
                 if field not in entry:
                     errors.append(f"External integration '{name}' is missing the required field '{field}'.")
 
     assert not errors, "\n".join(errors)
+
 
 def test_remapped_modules_in_contrib_map(registry_data: list[dict]):
     """
@@ -323,10 +355,10 @@ def test_remapped_modules_in_contrib_map(registry_data: list[dict]):
         # it implies a remapping occurred, so it MUST be in _MODULES_FOR_CONTRIB
         if not name_is_in_modules:
             if name not in contrib_map_keys:
-                 errors.append(
-                     f"Integration '{name}' has instrumented_modules ({instr_modules}) that do not include '{name}', "
-                     f"but '{name}' is not found as a key in ddtrace._monkey._MODULES_FOR_CONTRIB. "
-                     f"Add it to _MODULES_FOR_CONTRIB if the mapping is intentional."
-                 )
+                errors.append(
+                    f"Integration '{name}' has instrumented_modules ({instr_modules}) that do not include '{name}', "
+                    f"but '{name}' is not found as a key in ddtrace._monkey._MODULES_FOR_CONTRIB. "
+                    f"Add it to _MODULES_FOR_CONTRIB if the mapping is intentional."
+                )
 
     assert not errors, "\n".join(errors)

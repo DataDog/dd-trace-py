@@ -2764,7 +2764,7 @@ venv = Venv(
                 "jsonschema": latest,
             },
             pys=select_pys(min_version="3.8"),
-        ), 
+        ),
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
