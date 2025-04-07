@@ -30,6 +30,7 @@ class BaseLLMIntegration:
         )
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
+    @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled

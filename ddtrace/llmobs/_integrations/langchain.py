@@ -143,6 +143,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         self._set_links(span)
+        model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
         is_workflow = False
