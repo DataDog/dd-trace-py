@@ -16,7 +16,7 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Other Changes
 
-- library: Ensure that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi]() .
+- library: Ensure that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs]( https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi) .
 
 
 ---
