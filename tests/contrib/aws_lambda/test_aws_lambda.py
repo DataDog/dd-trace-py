@@ -1,3 +1,5 @@
+import contextlib
+
 import pytest
 
 from ddtrace.contrib.internal.aws_lambda.patch import patch
@@ -11,7 +13,6 @@ from tests.contrib.aws_lambda.handlers import instance_handler_with_code
 from tests.contrib.aws_lambda.handlers import manually_wrapped_handler
 from tests.contrib.aws_lambda.handlers import static_handler
 from tests.contrib.aws_lambda.handlers import timeout_handler
-from tests.utils import flaky
 from tests.utils import override_env
 
 
@@ -46,13 +47,15 @@ def get_env(env=None):
     return {**common_env, **env}
 
 
-@pytest.fixture(autouse=True)
-def setup():
-    yield
-    unpatch()
+@contextlib.contextmanager
+def override_env_and_patch(env):
+    # patching and unpatching must be done while the environment is set
+    with override_env(env):
+        patch()
+        yield
+        unpatch()
 
 
-@flaky(1735812000)
 @pytest.mark.parametrize("customApmFlushDeadline", [("-100"), ("10"), ("100"), ("200")])
 @pytest.mark.snapshot
 def test_timeout_traces(context, customApmFlushDeadline):
@@ -64,9 +67,7 @@ def test_timeout_traces(context, customApmFlushDeadline):
         }
     )
 
-    with override_env(env):
-        patch()
-
+    with override_env_and_patch(env):
         datadog(timeout_handler)({}, context())
 
 
@@ -83,9 +84,7 @@ def test_continue_on_early_trace_ending(context):
         }
     )
 
-    with override_env(env):
-        patch()
-
+    with override_env_and_patch(env):
         datadog(finishing_spans_early_handler)({}, context())
 
 
@@ -98,11 +97,8 @@ async def test_file_patching(context):
         }
     )
 
-    with override_env(env):
-        patch()
-
+    with override_env_and_patch(env):
         result = datadog(handler)({}, context())
-
         assert result == {"success": True}
 
 
@@ -117,11 +113,8 @@ async def test_module_patching(mocker, context):
         }
     )
 
-    with override_env(env):
-        patch()
-
+    with override_env_and_patch(env):
         result = manually_wrapped_handler({}, context())
-
         assert result == {"success": True}
 
 
@@ -143,8 +136,6 @@ def test_class_based_handlers(context, handler, function_name):
         }
     )
 
-    with override_env(env):
-        patch()
-
+    with override_env_and_patch(env):
         result = datadog(handler)({}, context())
         assert result == {"success": True}
