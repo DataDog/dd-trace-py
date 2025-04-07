@@ -195,6 +195,12 @@ class LLMObs(Service):
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
 
+        if ml_app is None:
+            raise ValueError(
+                "ML app is required for sending LLM Observability data. "
+                "Ensure this configuration is set before running your application."
+            )
+
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
@@ -641,8 +647,14 @@ class LLMObs(Service):
         session_id = session_id if session_id is not None else _get_session_id(span)
         if session_id is not None:
             span._set_ctx_item(SESSION_ID, session_id)
+
+        ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
-            ml_app = _get_ml_app(span)
+            raise ValueError(
+                "ML app is required for sending LLM Observability data. "
+                "Ensure this configuration is set before running your application."
+            )
+
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
 

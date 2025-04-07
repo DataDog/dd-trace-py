@@ -134,17 +134,6 @@ def test_service_enable_no_api_key():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_no_ml_app_specified():
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is False
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
-
-
 def test_service_enable_already_enabled(mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -216,6 +205,12 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
                 continue
             assert kwargs[module] is True
         llmobs_service.disable()
+
+
+def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
+    with pytest.raises(ValueError):
+        with llmobs_no_ml_app.task():
+            pass
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):

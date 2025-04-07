@@ -149,7 +149,7 @@ def _is_evaluation_span(span: Span) -> bool:
     return False
 
 
-def _get_ml_app(span: Span) -> str:
+def _get_ml_app(span: Span) -> Optional[str]:
     """
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
@@ -163,7 +163,7 @@ def _get_ml_app(span: Span) -> str:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or config._llmobs_ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or "unknown-ml-app"
+    return ml_app or config._llmobs_ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY)
 
 
 def _get_session_id(span: Span) -> Optional[str]:
