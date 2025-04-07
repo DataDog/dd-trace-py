@@ -222,6 +222,7 @@ def test_ospathsplit_no_exceptions(string_):
     assert os.path.split(string_) == ospathsplit_aspect(string_)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12) and os.name != "nt", reason="Requires Python 3.12 or Windows")
 @given(text())
 def test_ospathsplitdrive_no_exceptions(string_):
     assert os.path.splitdrive(PosixPath(string_)) == ospathsplitdrive_aspect(PosixPath(string_))
@@ -234,6 +235,7 @@ def test_ospathsplitext_no_exceptions(string_):
     assert os.path.splitext(string_) == ospathsplitext_aspect(string_)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
 @given(text())
 def test_ospathsplitroot_no_exceptions(string_):
     assert os.path.splitroot(PosixPath(string_)) == ospathsplitroot_aspect(PosixPath(string_))

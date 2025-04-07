@@ -1323,11 +1323,11 @@ def ospathsplitext_aspect(*args: Any, **kwargs: Any) -> Any:
 
 def ospathsplitroot_aspect(*args: Any, **kwargs: Any) -> Any:
     if not all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
-        return os.path.splitroot(*args, **kwargs)  # noqa: attr-defined
+        return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]
 
     try:
         return _aspect_ospathsplitroot(*args, **kwargs)
     except Exception as e:
         iast_propagation_error_log(f"_aspect_ospathsplitroot. {e}")
 
-    return os.path.splitroot(*args, **kwargs)  # noqa: attr-defined
+    return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]
