@@ -81,7 +81,9 @@ async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, 
 
 @pytest.mark.parametrize("model", ["command-r", "anthropic/claude-3-5-sonnet-20240620"])
 def test_litellm_completion_different_models(litellm, snapshot_context, request_vcr, model):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["meta.litellm.request.model"]):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["meta.litellm.request.model"]
+    ):
         with request_vcr.use_cassette(f"completion_{model.split('/')[0]}.yaml"):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             litellm.completion(
