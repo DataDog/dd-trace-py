@@ -138,9 +138,7 @@ class TraceMiddleware:
         try:
             headers = _extract_headers(scope)
         except Exception as e:
-            telemetry_writer.add_integration_error_log(
-                "failed to decode headers for distributed tracing", e, warning=True
-            )
+            telemetry_writer.add_integration_error_log("failed to decode headers for distributed tracing", e)
             headers = {}
         else:
             trace_utils.activate_distributed_headers(
@@ -250,7 +248,7 @@ class TraceMiddleware:
                 try:
                     response_headers = _extract_headers(message)
                 except Exception as e:
-                    telemetry_writer.add_integration_error_log("failed to extract response headers", e, warning=True)
+                    telemetry_writer.add_integration_error_log("failed to extract response headers", e)
                     response_headers = None
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)

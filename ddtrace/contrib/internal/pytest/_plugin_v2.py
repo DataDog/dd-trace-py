@@ -247,7 +247,7 @@ def pytest_configure(config: pytest_Config) -> None:
             _disable_ci_visibility()
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "encountered error during configure, disabling Datadog CI Visibility", e, warning=True
+            "encountered error during configure, disabling Datadog CI Visibility", e
         )
         _disable_ci_visibility()
 

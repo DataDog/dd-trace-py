@@ -66,9 +66,9 @@ def _get_step_func_args_json(step, step_func, step_func_args):
         if extracted_step_func_args:
             return json.dumps(extracted_step_func_args)
         return None
-    except TypeError as err:
-        telemetry_writer.add_integration_error_log("Could not serialize arguments", err)
-        return json.dumps({"error_serializing_args": str(err)})
+    except TypeError as e:
+        telemetry_writer.add_integration_error_log("Could not serialize arguments", e)
+        return json.dumps({"error_serializing_args": str(e)})
 
 
 class _PytestBddPlugin:

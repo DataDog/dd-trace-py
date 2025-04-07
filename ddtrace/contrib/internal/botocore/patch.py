@@ -85,9 +85,7 @@ def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
         return table_primary_keys
 
     except Exception as e:
-        telemetry_writer.add_integration_error_log(
-            "failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", e, warning=True
-        )
+        telemetry_writer.add_integration_error_log("failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", e)
         return {}
 
 

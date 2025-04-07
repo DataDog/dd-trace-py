@@ -322,7 +322,7 @@ def serialize_key(instance, topic, key, headers):
                 key = instance._key_serializer(key, ctx)
                 return key
             except Exception as e:
-                telemetry_writer.add_integration_error_log("Failed to set Kafka Consumer key tag: %s" % str(key), e)
+                telemetry_writer.add_integration_error_log("Failed to set Kafka Consumer key tag: %s", e, str(key))
                 return None
         else:
             log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))

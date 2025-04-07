@@ -73,7 +73,7 @@ def _parse_target_from_args(args, kwargs):
         try:
             port = parsed.port
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Non-integer port in target '%s'" % target, e, warning=True)
+            telemetry_writer.add_integration_error_log("Non-integer port in target '%s'", e, target)
 
         # an empty hostname in Python 2.7 will be an empty string rather than
         # None
@@ -81,7 +81,7 @@ def _parse_target_from_args(args, kwargs):
 
         return hostname, port
     except ValueError as e:
-        telemetry_writer.add_integration_error_log("Malformed target '%s'." % target, e, warning=True)
+        telemetry_writer.add_integration_error_log("Malformed target '%s'.", e, target)
         return None
 
 

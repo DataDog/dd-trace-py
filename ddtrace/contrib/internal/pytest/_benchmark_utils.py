@@ -32,5 +32,5 @@ def _set_benchmark_data_from_item(item: pytest.Item) -> None:
         InternalTest.set_benchmark_data(test_id, benchmark_data, is_benchmark=True)
 
     except Exception as e:
-        telemetry_writer.add_integration_error_log("Unable to set benchmark data for item %s" % item, e)
+        telemetry_writer.add_integration_error_log("Unable to set benchmark data for item %s", e, item)
         return None

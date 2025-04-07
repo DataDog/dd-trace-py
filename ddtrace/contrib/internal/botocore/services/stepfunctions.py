@@ -29,7 +29,7 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         try:
             input_obj = json.loads(params["input"])
         except ValueError as e:
-            telemetry_writer.add_integration_error_log("Input is not a valid JSON string", e, warning=True)
+            telemetry_writer.add_integration_error_log("Input is not a valid JSON string", e)
             return
 
     if not isinstance(input_obj, dict) or "_datadog" in input_obj:

@@ -106,14 +106,12 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
         except Exception as e:
             parameters["arguments"][param_name] = "Could not encode"
-            telemetry_writer.add_integration_error_log("Failed to encode %r" % param_name, e, warning=True)
+            telemetry_writer.add_integration_error_log("Failed to encode %r", e, param_name)
 
     try:
         return json.dumps(parameters, sort_keys=True)
-    except TypeError:
-        telemetry_writer.add_integration_error_log(
-            "Failed to serialize parameters for test %s" % item, None, warning=True
-        )
+    except TypeError as e:
+        telemetry_writer.add_integration_error_log("Failed to serialize parameters for test %s", e, item)
         return None
 
 
@@ -149,7 +147,7 @@ def _get_source_file_info(item, item_path) -> t.Optional[TestSourceFileInfo]:
         return source_file_info
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Unable to get source file info for item %s (path %s)" % (item, item_path), e
+            "Unable to get source file info for item %s (path %s)", e, item, item_path
         )
         return None
 

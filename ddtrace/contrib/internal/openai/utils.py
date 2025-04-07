@@ -275,9 +275,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
         operation = "completion" if is_completion else "chat"
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception as e:
-        telemetry_writer.add_integration_error_log(
-            "Error processing streamed completion/chat response.", e, warning=True
-        )
+        telemetry_writer.add_integration_error_log("Error processing streamed completion/chat response.", e)
 
 
 def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:

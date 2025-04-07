@@ -193,7 +193,7 @@ def instrument_dbs(django):
         try:
             patch_conn(django, conn)
         except Exception as e:
-            telemetry_writer.add_integration_error_log("Error instrumenting database connection %r" % conn, e)
+            telemetry_writer.add_integration_error_log("Error instrumenting database connection %r", e, conn)
         return conn
 
     if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
@@ -259,7 +259,7 @@ def instrument_caches(django):
                 if not trace_utils.iswrapped(cls, method):
                     trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
             except Exception as e:
-                telemetry_writer.add_integration_error_log("Error instrumenting cache %r" % cache_path, e)
+                telemetry_writer.add_integration_error_log("Error instrumenting cache %r", e, cache_path)
 
 
 @trace_utils.with_traced_module
@@ -440,7 +440,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        telemetry_writer.add_integration_error_log("Could not gather some metadata on blocked request", e, warning=True)
+        telemetry_writer.add_integration_error_log("Could not gather some metadata on blocked request", e)
     core.dispatch("django.block_request_callback", (ctx, metadata, config.django, url, query))
 
 
@@ -680,7 +680,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
         else:
             kwargs["view"] = instrument_view(django, view)
     except Exception as e:
-        telemetry_writer.add_integration_error_log("Failed to instrument Django url path %r %r" % (args, kwargs), e)
+        telemetry_writer.add_integration_error_log("Failed to instrument Django url path %r %r", e, args, kwargs)
     return wrapped(*args, **kwargs)
 
 
@@ -692,7 +692,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     try:
         instrument_view(django, instance)
     except Exception as e:
-        telemetry_writer.add_integration_error_log("Failed to instrument Django view %r" % instance, e)
+        telemetry_writer.add_integration_error_log("Failed to instrument Django view %r", e, instance)
     view = func(*args, **kwargs)
     return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 

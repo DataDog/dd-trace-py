@@ -273,7 +273,6 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
         telemetry_writer.add_integration_error_log(
             "Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.",
             e,
-            warning=True,
         )
 
     if not isinstance(text, list):
@@ -332,7 +331,6 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
         telemetry_writer.add_integration_error_log(
             "Unable to extract text/finish_reason from response body. Defaulting to empty text/finish_reason.",
             e,
-            warning=True,
         )
 
     if not isinstance(text, list):

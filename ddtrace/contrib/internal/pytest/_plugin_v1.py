@@ -716,7 +716,7 @@ def pytest_runtest_protocol(item, nextitem):
                     parameters["arguments"][param_name] = encode_test_parameter(param_val)
                 except Exception as e:
                     parameters["arguments"][param_name] = "Could not encode"
-                    telemetry_writer.add_integration_error_log("Failed to encode %r." % param_name, e, warning=True)
+                    telemetry_writer.add_integration_error_log("Failed to encode %r.", e, param_name)
             span.set_tag_str(test.PARAMETERS, json.dumps(parameters))
 
         if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:

@@ -96,7 +96,7 @@ def _done_callback_stream(span):
         except ValueError as e:
             # ValueError is thrown from _parse_rpc_repr_string
             telemetry_writer.add_integration_error_log(
-                "Unable to parse async grpc string for status code and details.", e, warning=True
+                "Unable to parse async grpc string for status code and details.", e
             )
         finally:
             span.finish()

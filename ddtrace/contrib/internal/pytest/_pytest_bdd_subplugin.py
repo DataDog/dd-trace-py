@@ -38,7 +38,7 @@ def _get_workspace_relative_path(feature_path_str: str) -> Path:
             return feature_path.relative_to(workspace_path)
         except ValueError as e:  # noqa: E722
             telemetry_writer.add_integration_error_log(
-                "Feature path %s is not relative to workspace path %s" % (feature_path, workspace_path), e
+                "Feature path %s is not relative to workspace path %s", e, feature_path, workspace_path
             )
     return feature_path
 

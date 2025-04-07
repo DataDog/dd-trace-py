@@ -500,18 +500,19 @@ class TelemetryWriter(PeriodicService):
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
 
-    def add_integration_error_log(self, msg, exc, warning=False):
-        if warning is False:
-            log.debug(msg, exc_info=exc)
+    def add_integration_error_log(self, msg, exc, *template_values):
+        if template_values:
+            log.debug(msg, *template_values)
+            telemetry_msg = msg % tuple("<REDACTED>" for _ in template_values)
         else:
-            log.warning(msg, exc_info=exc)
+            log.debug(msg)
+            telemetry_msg = msg
 
         if config.LOG_COLLECTION_ENABLED:
             stack_trace = self._format_stack_trace(exc)
             self.add_log(
                 TELEMETRY_LOG_LEVEL.ERROR,
-                msg,
-                tags={"lib_language": "python"},
+                telemetry_msg,
                 stack_trace=stack_trace if stack_trace is not None else "",
             )
 

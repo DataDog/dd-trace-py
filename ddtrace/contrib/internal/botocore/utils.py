@@ -79,7 +79,7 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
             try:
                 detail = json.loads(entry["Detail"])
             except ValueError as e:
-                telemetry_writer.add_integration_error_log("Detail is not a valid JSON string", e, warning=True)
+                telemetry_writer.add_integration_error_log("Detail is not a valid JSON string", e)
                 continue
 
         detail["_datadog"] = {}
@@ -105,16 +105,14 @@ def update_client_context(ctx: ExecutionContext) -> None:
             client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
             client_context_object = json.loads(client_context_json)
         except Exception as e:
-            telemetry_writer.add_integration_error_log(
-                "malformed client_context=%s" % params["ClientContext"], e, warning=True
-            )
+            telemetry_writer.add_integration_error_log("malformed client_context=%s", e, params["ClientContext"])
             return
     modify_client_context(client_context_object, trace_headers)
     try:
         json_context = json.dumps(client_context_object).encode("utf-8")
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "unable to encode modified client context as json: %s" % client_context_object, e, warning=True
+            "unable to encode modified client context as json: %s" % client_context_object, e
         )
         return
     params["ClientContext"] = base64.b64encode(json_context).decode("utf-8")

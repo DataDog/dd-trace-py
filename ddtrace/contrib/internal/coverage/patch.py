@@ -61,6 +61,4 @@ def run_coverage_report():
         current_coverage_object = coverage.Coverage.current()
         _coverage_data[PCT_COVERED_KEY] = current_coverage_object.report()
     except Exception as e:
-        telemetry_writer.add_integration_error_log(
-            "An exception occurred when running a coverage report", e, warning=True
-        )
+        telemetry_writer.add_integration_error_log("An exception occurred when running a coverage report", e)

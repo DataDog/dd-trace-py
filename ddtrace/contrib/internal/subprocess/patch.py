@@ -346,7 +346,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
         return ret
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]" % (args, kwargs), e
+            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", e, args, kwargs
         )
         return wrapped(*args, **kwargs)
 
@@ -363,7 +363,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
         return ret
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]" % (args, kwargs), e
+            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", e, args, kwargs
         )
         return wrapped(*args, **kwargs)
 
@@ -392,7 +392,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 return ret
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]" % (args, kwargs), e
+            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", e, args, kwargs
         )
 
     return wrapped(*args, **kwargs)
@@ -428,7 +428,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Could not trace subprocess execution: [args: %s kwargs: %s]" % (args, kwargs), e
+            "Could not trace subprocess execution: [args: %s kwargs: %s]", e, args, kwargs
         )
 
     return wrapped(*args, **kwargs)
@@ -456,6 +456,6 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
             return ret
     except Exception as e:
         telemetry_writer.add_integration_error_log(
-            "Could not trace subprocess execution [args: %s kwargs: %s]" % (args, kwargs), e
+            "Could not trace subprocess execution [args: %s kwargs: %s]", e, args, kwargs
         )
         return wrapped(*args, **kwargs)

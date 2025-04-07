@@ -45,7 +45,7 @@ def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context
         try:
             data_json = json.dumps(data_obj)
         except Exception as e:
-            telemetry_writer.add_integration_error_log("Unable to update kinesis record", e, warning=True)
+            telemetry_writer.add_integration_error_log("Unable to update kinesis record", e)
 
         if line_break is not None:
             data_json += line_break
