@@ -37,7 +37,8 @@ class CodeProvenance:
         )
 
         for dist in get_distributions():
-            self.libraries.append(Library(kind="library", name=dist.name, version=dist.version, paths=[dist.paths]))
+            if dist.paths:
+                self.libraries.append(Library(kind="library", name=dist.name, version=dist.version, paths=dist.paths))
 
     def to_dict(self):
         return {"v1": [lib.to_dict() for lib in self.libraries]}
