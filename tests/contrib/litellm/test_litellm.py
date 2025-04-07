@@ -4,7 +4,7 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
 
 
-def test_global_tags(ddtrace_config_litellm, litellm, request_vcr, mock_tracer):
+def test_global_tags(litellm, request_vcr, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
