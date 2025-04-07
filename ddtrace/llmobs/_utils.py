@@ -1,4 +1,7 @@
+from hashlib import sha256
 import json
+from re import compile
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -7,6 +10,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -17,57 +21,200 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.utils import Message
+from ddtrace.llmobs.utils import Prompt
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
 
+# SemVer regex from https://semver.org/
+SEMVER_PATTERN_COMPILED = compile(
+    r"^(?P<major>0|[1-9]\d*)\."
+    r"(?P<minor>0|[1-9]\d*)\."
+    r"(?P<patch>0|[1-9]\d*)"
+    r"(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-]"
+    r"[0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-]"
+    r"[0-9a-zA-Z-]*))*))?"
+    r"(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+"
+    r"(?:\.[0-9a-zA-Z-]+)*))?$"
+)
 
-def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
-    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
+PromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
+
+
+def validate_prompt(
+    prompt: Union[Dict[str, Any], Prompt], ml_app: str = "", strict_validation: bool = True
+) -> Dict[str, Any]:
+    # Stage 0: Check if dict
     if not isinstance(prompt, dict):
-        raise TypeError("Prompt must be a dictionary")
+        raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
+
+    # Stage 1: Extract values
+    name = prompt.get("name")
+    prompt_id = prompt.get("id")
+    version = prompt.get("version")
     variables = prompt.get("variables")
     template = prompt.get("template")
-    version = prompt.get("version")
-    prompt_id = prompt.get("id")
+    chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
-    rag_query_variable_keys = prompt.get("rag_query_variables")
+    query_variable_keys = prompt.get("rag_query_variables")
+
+    # Stage 2: Strict validations
+    if strict_validation:
+        strict_validate_prompt(prompt)
+
+    # Stage 3: Set defaults
+    final_prompt_id = prompt_id or name or DEFAULT_PROMPT_NAME
+    final_name = name or prompt_id or DEFAULT_PROMPT_NAME
+    final_version = version or "1.0.0"
+    final_ctx_variable_keys = ctx_variable_keys or ["context"]
+    final_query_variable_keys = query_variable_keys or ["question"]
+
+    # Stage 4: Type checks
+    if not isinstance(final_prompt_id, str):
+        raise TypeError(f"'id' must be str, got {type(final_prompt_id).__name__}.")
+
+    if not isinstance(final_name, str):
+        raise TypeError(f"'name' must be str, got {type(final_name).__name__}.")
+
+    if not isinstance(final_version, str):
+        try:
+            final_version = str(final_version)
+        except Exception:
+            raise TypeError(f"'version' must be str, got {type(final_version).__name__}.")
+
+    if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
+        raise TypeError("'rag_context_variables' must be a List[str].")
+
+    if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
+        raise TypeError("'rag_query_variables' must be a List[str].")
+
+    if template is not None and not isinstance(template, str):
+        raise TypeError(f"'template' must be str, got {type(template).__name__}.")
+
+    if chat_template is not None:
+        if not isinstance(chat_template, list):
+            raise TypeError("'chat_template' must be a list.")
+        for ct in chat_template:
+            if not (
+                (isinstance(ct, tuple) and len(ct) == 2 and all(isinstance(e, str) for e in ct))
+                or (isinstance(ct, dict) and all(key in ["role", "content"] for key in ct))
+            ):
+                raise TypeError("Each 'chat_template' entry should be Message, tuple[str,str], or dict[str,str].")
+
     if variables is not None:
         if not isinstance(variables, dict):
-            raise TypeError("Prompt variables must be a dictionary.")
-        if not any(isinstance(k, str) or isinstance(v, str) for k, v in variables.items()):
-            raise TypeError("Prompt variable keys and values must be strings.")
+            raise TypeError(f"'variables' must be Dict[str,Any], got {type(variables).__name__}")
+        if not all(isinstance(k, str) for k in variables):
+            raise TypeError("Keys of 'variables' must all be strings.")
+        if not all(isinstance(v, (str, int, float, bool, list, dict)) for v in variables.values()):
+            raise TypeError("Values of 'variables' must be JSON serializable.")
+
+    # Stage 5: Transformations
+    # Normalize version to full semver (fill minor/patch if omitted)
+    version_parts = (final_version.split(".") + ["0", "0"])[:3]
+    final_version = ".".join(version_parts)
+    if not SEMVER_PATTERN_COMPILED.match(final_version):
+        log.warning("'version' not semver compatible", final_version)
+
+    # Ensure chat_template is standardized List[dict[role:str, content:str]]
+    final_chat_template = None
+    if chat_template:
+        final_chat_template = []
+        for msg in chat_template:
+            if isinstance(msg, tuple):
+                role, content = msg
+                final_chat_template.append(Message(role=role, content=content))
+            elif isinstance(msg, dict):
+                final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
+
+    # Stage 6: Hash Generation
+    instance_id = _get_prompt_instance_id(
+        {
+            "id": final_prompt_id,
+            "name": final_name,
+            "version": final_version,
+            "template": template,
+            "chat_template": final_chat_template,
+            "variables": variables,
+            "rag_context_variables": final_ctx_variable_keys,
+            "rag_query_variables": final_query_variable_keys,
+        },
+        ml_app,
+    )
+
+    # Stage 7: Produce output
+    validated_prompt: PromptDict = {}
+    if final_prompt_id:
+        validated_prompt["id"] = final_prompt_id
+    if final_name:
+        validated_prompt["name"] = final_name
+    if final_version:
+        validated_prompt["version"] = final_version
+    if variables:
         validated_prompt["variables"] = variables
-    if template is not None:
-        if not isinstance(template, str):
-            raise TypeError("Prompt template must be a string")
+    if template:
         validated_prompt["template"] = template
-    if version is not None:
-        if not isinstance(version, str):
-            raise TypeError("Prompt version must be a string.")
-        validated_prompt["version"] = version
-    if prompt_id is not None:
-        if not isinstance(prompt_id, str):
-            raise TypeError("Prompt id must be a string.")
-        validated_prompt["id"] = prompt_id
-    if ctx_variable_keys is not None:
-        if not isinstance(ctx_variable_keys, list):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        if not all(isinstance(k, str) for k in ctx_variable_keys):
-            raise TypeError("Prompt field `context_variable_keys` must be a list of strings.")
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ctx_variable_keys
-    else:
-        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = ["context"]
-    if rag_query_variable_keys is not None:
-        if not isinstance(rag_query_variable_keys, list):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        if not all(isinstance(k, str) for k in rag_query_variable_keys):
-            raise TypeError("Prompt field `rag_query_variables` must be a list of strings.")
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = rag_query_variable_keys
-    else:
-        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = ["question"]
+    if final_chat_template:
+        validated_prompt["chat_template"] = final_chat_template
+    if final_ctx_variable_keys:
+        validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
+    if final_query_variable_keys:
+        validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+    if instance_id:
+        validated_prompt["instance_id"] = instance_id
+
     return validated_prompt
+
+
+def strict_validate_prompt(prompt: Union[Dict[str, Any], Prompt]):
+    """
+    Validate prompt dictionary under strict validation mode. Ensures that :
+    - 'id' is mandatory
+    - 'version' is semver compatible
+    - 'template' or 'chat_template' is mandatory
+    """
+    prompt_id = prompt.get("id")
+    version = prompt.get("version")
+    template = prompt.get("template")
+    chat_template = prompt.get("chat_template")
+
+    if prompt_id is None:
+        raise ValueError("'id' is mandatory under strict validation.")
+
+    if version is not None:
+        # Normalize version to full semver (fill minor/patch if omitted)
+        version_parts = (version.split(".") + ["0", "0"])[:3]
+        version = ".".join(version_parts)
+        if not SEMVER_PATTERN_COMPILED.match(version):
+            raise ValueError(f"'version' must be semver compatible, but got '{version}'.")
+
+    if template is None and chat_template is None:
+        raise ValueError("Either 'template' or 'chat_template' must be provided.")
+
+
+def _get_prompt_instance_id(validated_prompt: dict, ml_app: str = "") -> str:
+    name = validated_prompt.get("name")
+    variables = validated_prompt.get("variables")
+    template = validated_prompt.get("template")
+    chat_template = validated_prompt.get("chat_template")
+    version = validated_prompt.get("version")
+    prompt_id = validated_prompt.get("id")
+    ctx_variable_keys = validated_prompt.get("rag_context_variables")
+    rag_query_variable_keys = validated_prompt.get("rag_query_variables")
+
+    instance_id_str = (
+        f"[{ml_app}]{prompt_id}"
+        f"{name}{prompt_id}{version}{template}{chat_template}{variables}"
+        f"{ctx_variable_keys}{rag_query_variable_keys}"
+    )
+
+    hasher = sha256()
+    hasher.update(instance_id_str.encode("utf-8"))
+    instance_id = hasher.hexdigest()
+
+    return instance_id
 
 
 class LinkTracker:
