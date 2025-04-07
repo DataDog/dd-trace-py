@@ -14,10 +14,10 @@ from ..._constants import IAST_SPAN_TAGS
 from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
-from .._metrics import increment_iast_span_metric
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
+from .._span_metrics import increment_iast_span_metric
 from ..constants import DEFAULT_WEAK_HASH_ALGORITHMS
 from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
