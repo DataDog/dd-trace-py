@@ -300,9 +300,6 @@ class ToolCallTracker:
         if tool_call.tool_kind == "handoff":
             self._tool_calls[tool_id].is_handoff_completed = True
 
-        if not tool_call.tool_span_context:
-            return
-
         add_span_link(
             llm_span,
             tool_call.tool_span_context["span_id"],

@@ -162,8 +162,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
         input_messages = []
         for m in kwargs.get("messages", []):
-            if m.get("tool_call_id"):
-                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (m.get("tool_call_id"), span))
+            tool_call_id = m.get("tool_call_id")
+            if tool_call_id:
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
             input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
         span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
