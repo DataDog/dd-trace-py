@@ -33,20 +33,18 @@ import os
 import sys
 import types
 
+import ddtrace.appsec._iast._overhead_control_engine
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from ._listener import iast_listen
-from ._overhead_control_engine import OverheadControl
 
 
 log = get_logger(__name__)
 
 _IAST_TO_BE_LOADED = True
 _iast_propagation_enabled = False
-
-oce = OverheadControl()
 
 
 def ddtrace_iast_flask_patch():
@@ -101,7 +99,6 @@ def enable_iast_propagation():
 
 def _iast_pytest_activation():
     global _iast_propagation_enabled
-    global oce
     if _iast_propagation_enabled:
         return
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
@@ -116,7 +113,7 @@ def _iast_pytest_activation():
     asm_config._iast_max_vulnerabilities_per_requests = 1000
     asm_config._iast_max_concurrent_requests = 1000
     enable_iast_propagation()
-    oce.reconfigure()
+    ddtrace.appsec._iast._overhead_control_engine.oce.reconfigure()
 
 
 def disable_iast_propagation():
@@ -137,7 +134,6 @@ def disable_iast_propagation():
 
 
 __all__ = [
-    "oce",
     "ddtrace_iast_flask_patch",
     "enable_iast_propagation",
     "disable_iast_propagation",

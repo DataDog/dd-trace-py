@@ -2,7 +2,6 @@ from typing import List
 from typing import Union
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
@@ -13,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
+from .._overhead_control_engine import oce
 from ._base import VulnerabilityBase
 
 
