@@ -1,4 +1,3 @@
-#include "code_provenance_interface.hpp"
 #include "ddup_interface.hpp"
 
 #include <array>
@@ -40,31 +39,6 @@ static constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
 } };
 
 inline static void
-configure_code_provenance()
-{
-    code_provenance_enable(true);
-    code_provenance_set_runtime_version("3.10.6");
-    code_provenance_set_stdlib_path("/usr/lib/python3.10");
-    std::unordered_map<std::string, std::pair<std::string, std::string>> packages;
-
-    for (size_t i = 0; i < names[0].size(); i++) {
-        for (size_t j = 0; j < names[1].size(); j++) {
-            for (size_t k = 0; k < names[2].size(); k++) {
-                std::string name =
-                  std::string(names[0][i]) + "_" + std::string(names[1][j]) + "_" + std::string(names[2][k]);
-                packages[name] = { "1.0.0", "/usr/lib/python3.10/site-packages/" + name };
-            }
-        }
-    }
-
-    std::unordered_map<std::string_view, std::pair<std::string_view, std::string_view>> packages_view;
-    for (const auto& [key, value] : packages) {
-        packages_view[key] = { value.first, value.second };
-    }
-    code_provenance_add_packages(packages_view);
-}
-
-inline static void
 configure(const char* service,
           const char* env,
           const char* version,
@@ -82,7 +56,6 @@ configure(const char* service,
     ddup_config_runtime_version(runtime_version);
     ddup_config_profiler_version(profiler_version);
     ddup_config_max_nframes(max_nframes);
-    configure_code_provenance();
     ddup_start();
 }
 

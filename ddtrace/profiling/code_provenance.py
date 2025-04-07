@@ -56,6 +56,3 @@ class CodeProvenance:
 def json_str_to_export():
     cp = CodeProvenance()
     return json.dumps(cp.to_dict())
-
-
-JSON_STR = json_str_to_export()

@@ -1,7 +1,6 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import sysconfig
 from typing import Dict
 from typing import Optional
 from typing import Union
@@ -15,10 +14,10 @@ import platform
 from .._types import StringType
 from ..util import sanitize_string
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+from ddtrace.profiling.code_provenance import json_str_to_export
 from ddtrace.settings._agent import config as agent_config
 
 
@@ -86,11 +85,13 @@ cdef extern from "ddup_interface.hpp":
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
-cdef extern from "code_provenance_interface.hpp":
-    void code_provenance_enable(bint enable)
-    void code_provenance_set_runtime_version(string_view runtime_version)
-    void code_provenance_set_stdlib_path(string_view stdlib_path)
-    void code_provenance_add_packages(unordered_map[string_view, pair[string_view, string_view]] packages)
+
+cdef extern from "code_provenance.hpp" namespace "Datadog":
+    cdef cppclass CodeProvenance:
+        @staticmethod
+        CodeProvenance& get_instance()
+        void set_json_str(string_view json_str)
+
 
 # Create wrappers for cython
 cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
@@ -122,56 +123,6 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
             string_view(key_utf8_data, key_utf8_size),
             string_view(val_utf8_data, val_utf8_size)
         )
-
-cdef call_code_provenance_add_packages(distributions):
-    dist_names = []
-    dist_versions = []
-    dist_paths = []
-    cdef unordered_map[string_view, pair[string_view, string_view]] names_and_versions = \
-        unordered_map[string_view, pair[string_view, string_view]]()
-
-    cdef const char* dist_name_utf8_data
-    cdef Py_ssize_t dist_name_utf8_size
-    cdef const char* dist_version_utf8_data
-    cdef Py_ssize_t dist_version_utf8_size
-    cdef const char* dist_path_utf8_data
-    cdef Py_ssize_t dist_path_utf8_size
-
-    for dist in distributions:
-        dist_name = dist.name
-        dist_version = dist.version
-        dist_path = dist.path
-        # dist_path can be optional
-        if not dist_name or not dist_version:
-            continue
-        dist_names.append(dist_name)
-        dist_versions.append(dist_version)
-        dist_paths.append(dist_path)
-        if isinstance(dist_name, bytes) and isinstance(dist_version, bytes) and isinstance(dist_path, bytes):
-            names_and_versions.insert(
-                pair[string_view, pair[string_view, string_view]](
-                    string_view(<const char*>dist_name, len(dist_name)),
-                    pair[string_view, string_view](
-                        string_view(<const char*>dist_version, len(dist_version)),
-                        string_view(<const char*>dist_path, len(dist_path))
-                    )
-                )
-            )
-            continue
-        dist_name_utf8_data = PyUnicode_AsUTF8AndSize(dist_name, &dist_name_utf8_size)
-        dist_version_utf8_data = PyUnicode_AsUTF8AndSize(dist_version, &dist_version_utf8_size)
-        dist_path_utf8_data = PyUnicode_AsUTF8AndSize(dist_path, &dist_path_utf8_size)
-        if dist_name_utf8_data != NULL and dist_version_utf8_data != NULL:
-            names_and_versions.insert(
-                pair[string_view, pair[string_view, string_view]](
-                    string_view(dist_name_utf8_data, dist_name_utf8_size),
-                    pair[string_view, string_view](
-                        string_view(dist_version_utf8_data, dist_version_utf8_size),
-                        string_view(dist_path_utf8_data, dist_path_utf8_size)
-                    )
-                )
-            )
-    code_provenance_add_packages(names_and_versions)
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
@@ -364,6 +315,14 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
+cdef call_code_provenance_set_json_str(str json_str):
+    cdef const char* json_str_data
+    cdef Py_ssize_t json_str_size
+    json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
+    if json_str_data != NULL:
+        CodeProvenance.get_instance().set_json_str(string_view(json_str_data, json_str_size))
+
+
 # Public API
 def config(
         service: StringType = None,
@@ -406,11 +365,7 @@ def config(
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
     if enable_code_provenance:
-        code_provenance_enable(enable_code_provenance)
-        call_func_with_str(code_provenance_set_runtime_version, platform.python_version())
-        # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
-        call_func_with_str(code_provenance_set_stdlib_path, sysconfig.get_path("stdlib"))
-        call_code_provenance_add_packages(get_distributions())
+        call_code_provenance_set_json_str(json_str_to_export())
 
 
 def start() -> None:
