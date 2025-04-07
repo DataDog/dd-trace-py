@@ -124,6 +124,13 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
             string_view(val_utf8_data, val_utf8_size)
         )
 
+cdef call_code_provenance_set_json_str(str json_str):
+    cdef const char* json_str_data
+    cdef Py_ssize_t json_str_size
+    json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
+    if json_str_data != NULL:
+        CodeProvenance.get_instance().set_json_str(string_view(json_str_data, json_str_size))
+
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
     # and prevent them to be GC'ed. We do this by storing them in a list.
@@ -305,7 +312,6 @@ cdef uint64_t clamp_to_uint64_unsigned(value):
         return UINT64_MAX
     return value
 
-
 cdef int64_t clamp_to_int64_unsigned(value):
     # This clamps a Python int to the nonnegative range of a signed 64-bit integer.
     if value < 0:
@@ -313,15 +319,6 @@ cdef int64_t clamp_to_int64_unsigned(value):
     if value > INT64_MAX:
         return INT64_MAX
     return value
-
-
-cdef call_code_provenance_set_json_str(str json_str):
-    cdef const char* json_str_data
-    cdef Py_ssize_t json_str_size
-    json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
-    if json_str_data != NULL:
-        CodeProvenance.get_instance().set_json_str(string_view(json_str_data, json_str_size))
-
 
 # Public API
 def config(
