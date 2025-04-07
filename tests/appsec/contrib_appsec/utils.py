@@ -1454,7 +1454,6 @@ class Contrib_TestClass_For_Threats:
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
-        from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.ext import http
 
         def validate_top_function(trace):
@@ -1496,23 +1495,27 @@ class Contrib_TestClass_For_Threats:
                     "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                # import delayed to get the correct version
+                from ddtrace.appsec._metrics import ddwaf_version
+
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
-                    assert matches == [expected_tags], matches
+                match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
+                assert matches == [match_expected_tags], (matches, match_expected_tags)
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert expected_tags in evals
+                assert expected_tags in evals, (expected_tags, evals)
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
