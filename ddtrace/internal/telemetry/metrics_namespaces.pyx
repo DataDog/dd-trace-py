@@ -83,8 +83,8 @@ cdef class MetricNamespace:
         tags: object = None,
     ) -> None:
         """
-        Telemetry Metrics are stored in DD dashboards, check the metrics in datadoghq.com/metric/explorer.
-        The metric will store in dashboard as "dd.instrumentation_telemetry_data." + namespace + "." + name
+        Adds a new telemetry metric to the internal metrics.
+        Telemetry metrics are stored under "dd.instrumentation_telemetry_data.<namespace>.<name>".
         """
         cdef float v
         cdef tuple metric_id
