@@ -110,7 +110,7 @@ class LangChainIntegration(BaseLLMIntegration):
     """Maps span to instances."""
 
     def record_instance(self, instance, span: Span):
-        if not self.llmobs_enabled or not self.span_linking_enabled:
+        if not self.llmobs_enabled:
             return
 
         instance = _extract_instance(instance)
@@ -142,9 +142,7 @@ class LangChainIntegration(BaseLLMIntegration):
             log.warning("Unsupported operation : %s", operation)
             return
 
-        if self.span_linking_enabled:
-            self._set_links(span)
-
+        self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
