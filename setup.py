@@ -79,7 +79,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.24.0"
+LIBDDWAF_VERSION = "1.24.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -728,6 +728,11 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
+                ),
+                Extension(
+                    "ddtrace.internal.telemetry.metrics_namespaces",
+                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                    language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
