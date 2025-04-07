@@ -1,0 +1,73 @@
+interactions:
+- request:
+    body: '{"num_generations": 1, "stream": false, "message": "Hey, what is up?"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '70'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      request-source:
+      - unspecified:litellm
+      user-agent:
+      - litellm/1.63.12
+    method: POST
+    uri: https://api.cohere.ai/v1/chat
+  response:
+    body:
+      string: "{\"response_id\":\"8f713d62-24ad-4435-965e-55909eff5364\",\"text\":\"Hey
+        there! Not much, just hanging out in the digital realm, ready to assist and
+        chat. How about you? What\u2019s going on in your world?\",\"generation_id\":\"d84a0b66-856e-4090-9869-2b104095a5a4\",\"chat_history\":[{\"role\":\"USER\",\"message\":\"Hey,
+        what is up?\"},{\"role\":\"CHATBOT\",\"message\":\"Hey there! Not much, just
+        hanging out in the digital realm, ready to assist and chat. How about you?
+        What\u2019s going on in your world?\"}],\"finish_reason\":\"COMPLETE\",\"meta\":{\"api_version\":{\"version\":\"1\"},\"billed_units\":{\"input_tokens\":6,\"output_tokens\":33},\"tokens\":{\"input_tokens\":501,\"output_tokens\":35}}}"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '647'
+      Via:
+      - 1.1 google
+      access-control-expose-headers:
+      - X-Debug-Trace-ID
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 02 Apr 2025 15:53:19 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      num_chars:
+      - '2594'
+      num_tokens:
+      - '39'
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-debug-trace-id:
+      - 57c1bbb4f171cd5a92c9d8ed92cf81ac
+      x-endpoint-monthly-call-limit:
+      - '1000'
+      x-envoy-upstream-service-time:
+      - '23066'
+      x-trial-endpoint-call-limit:
+      - '10'
+      x-trial-endpoint-call-remaining:
+      - '9'
+    status:
+      code: 200
+      message: OK
+version: 1
