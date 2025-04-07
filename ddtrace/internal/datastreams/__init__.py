@@ -1,5 +1,4 @@
 from ddtrace import config
-from ddtrace.settings._agent import config as agent_config
 
 from ...internal.utils.importlib import require_modules
 
