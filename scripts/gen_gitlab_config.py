@@ -23,6 +23,7 @@ class JobSpec:
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
+    allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
 
@@ -95,6 +96,9 @@ class JobSpec:
 
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
+
+        if self.allow_failure:
+            lines.append("  allow_failure: true")
 
         return "\n".join(lines)
 
@@ -300,7 +304,7 @@ build_base_venvs:
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    # Re-use job artifacts between runs if no native source files have been changed
+    # Reuse job artifacts between runs if no native source files have been changed
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
       paths:
         - .riot/venv_*
