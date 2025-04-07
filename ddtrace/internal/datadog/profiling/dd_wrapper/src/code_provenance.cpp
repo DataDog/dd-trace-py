@@ -16,8 +16,8 @@ void
 Datadog::CodeProvenance::set_json_str(std::string_view _json_str)
 {
     std::cout << "set_json_str on " << getpid() << std::endl;
-    std::cout << _json_str << std::endl;
     this->json_str = _json_str;
+    std::cout << this->json_str << std::endl;
 }
 
 }
