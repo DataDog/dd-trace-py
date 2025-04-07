@@ -40,6 +40,9 @@ def analyze(args):
 
     args.output.write_text(json.dumps(list(cycles.values())))
 
+    if cycles:
+        print(f"Detected {len(cycles)} circular imports.")
+
 
 def compare(args):
     def to_dict(path: Path) -> dict[frozenset, tuple]:
@@ -82,7 +85,7 @@ def compare(args):
     return bool(new_cycles)
 
 
-def main() -> None:
+def main() -> bool:
     argp = ArgumentParser()
 
     subp = argp.add_subparsers(dest="command")
@@ -96,7 +99,7 @@ def main() -> None:
 
     args = argp.parse_args()
 
-    globals()[args.command](args)
+    return globals()[args.command](args)
 
 
 if __name__ == "__main__":

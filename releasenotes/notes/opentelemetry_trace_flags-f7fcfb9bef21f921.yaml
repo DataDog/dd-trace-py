@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    opentelemetry: Updates trace flags in ``opentelemetry.trace.Span.get_span_context()`` to match OpenTelemetry specification.

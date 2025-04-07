@@ -643,7 +643,6 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
-        self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
@@ -877,3 +876,6 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+config = Config()
