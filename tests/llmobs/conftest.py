@@ -300,9 +300,10 @@ def llmobs(
 
 @pytest.fixture
 def llmobs_no_ml_app(tracer):
-    llmobs_service.enable(_tracer=tracer)
-    yield llmobs_service
-    llmobs_service.disable()
+    with override_global_config(dict(_llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
 
 
 @pytest.fixture
