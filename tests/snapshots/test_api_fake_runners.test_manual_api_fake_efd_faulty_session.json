@@ -925,7 +925,6 @@
       "test.command": "manual_efd_faulty_session",
       "test.framework": "dd_manual_test_fw",
       "test.framework_version": "1.0.0",
-      "test.is_new": "true",
       "test.module": "m2",
       "test.module_path": "",
       "test.name": "m2_s1_t2",
