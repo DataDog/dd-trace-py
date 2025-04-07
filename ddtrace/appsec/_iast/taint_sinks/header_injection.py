@@ -123,20 +123,25 @@ def _process_header(headers_args):
     header_name, header_value = headers_args
     if header_name is None:
         return
-
     try:
         for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
             header_name_lower = header_name.lower()
             if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
                 return
 
-        if asm_config.is_iast_request_enabled and HeaderInjection.has_quota():
-            if HeaderInjection.is_valid_tainted(header_name) or HeaderInjection.is_valid_tainted(header_value):
+        if asm_config.is_iast_request_enabled:
+            if (
+                HeaderInjection.has_quota()
+                and HeaderInjection.is_valid_tainted(header_name)
+                or HeaderInjection.is_valid_tainted(header_value)
+            ):
                 header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
                 HeaderInjection.report(evidence_value=header_evidence)
 
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
-        _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_report_header_injection. {e}")
 

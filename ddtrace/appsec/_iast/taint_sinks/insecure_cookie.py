@@ -23,7 +23,6 @@ from ddtrace.settings.asm import config as asm_config
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    secure_mark = VulnerabilityType.INSECURE_COOKIE
 
 
 @oce.register

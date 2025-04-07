@@ -84,15 +84,15 @@ class CodeInjection(VulnerabilityBase):
 def _iast_report_code_injection(code_string: Text):
     reported = False
     try:
-        if (
-            asm_config.is_iast_request_enabled
-            and isinstance(code_string, IAST.TEXT_TYPES)
-            and CodeInjection.has_quota()
-        ):
-            if CodeInjection.is_valid_tainted(code_string):
-                CodeInjection.report(evidence_value=code_string)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
-        _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
+        if asm_config.is_iast_request_enabled:
+            if isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
+                if CodeInjection.is_valid_tainted(code_string):
+                    CodeInjection.report(evidence_value=code_string)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_report_code_injection. {e}")
     return reported
