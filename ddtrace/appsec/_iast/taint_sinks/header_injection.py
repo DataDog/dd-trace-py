@@ -130,10 +130,8 @@ def _process_header(headers_args):
                 return
 
         if asm_config.is_iast_request_enabled:
-            if (
-                HeaderInjection.has_quota()
-                and (HeaderInjection.is_tainted_pyobject(header_name)
-                or HeaderInjection.is_tainted_pyobject(header_value))
+            if HeaderInjection.has_quota() and (
+                HeaderInjection.is_tainted_pyobject(header_name) or HeaderInjection.is_tainted_pyobject(header_value)
             ):
                 header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
                 HeaderInjection.report(evidence_value=header_evidence)
