@@ -40,6 +40,7 @@ cryptography,<39
 daphne,0
 databases,0
 datadog-lambda,>=6.105.0
+ddtrace-api,==0.0.1
 django,>=2.2
 django-pylibmc,>=0.6
 django-q,0
@@ -122,7 +123,7 @@ opentracing,>=2.0.0
 peewee,0
 pinecone-client,0
 pony,0
-protobuf,>=3
+protobuf,>3
 psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0

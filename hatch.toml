@@ -815,3 +815,36 @@ matrix.tested_pytest_plugin_version.env-vars = [
     { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
     { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
 ]
+
+[envs.appsec_integrations_pygoat]
+template = "appsec_integrations_pygoat"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "requests",
+    "hypothesis",
+    "pyyaml==6.0.1",
+]
+
+[envs.appsec_integrations_pygoat.env-vars]
+DD_CIVISIBILITY_ITR_ENABLED = "0"
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_ENABLED = "true"
+_DD_IAST_DEBUG = "false"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100"
+DD_REMOTE_CONFIGURATION_ENABLED = "true"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+DD_TRACE_AGENT_URL = "http://0.0.0.0:9126"
+DD_FAST_BUILD = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+PYTHONUNBUFFERED = "1"
+
+[envs.appsec_integrations_pygoat.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh {args:tests/appsec/integrations/pygoat_tests/}",
+]
+
+[[envs.appsec_integrations_pygoat.matrix]]
+python = ["3.10", "3.11", "3.12"]
