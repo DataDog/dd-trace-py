@@ -55,7 +55,7 @@ def test_propagate_ranges_with_no_context(caplog):
         )
         assert string_input == "abcde"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert any("[IAST] " in message for message in log_messages), log_messages
+    assert any("iast::" in message for message in log_messages), log_messages
 
 
 @pytest.mark.skip_iast_check_logs
@@ -67,9 +67,9 @@ def test_call_to_set_ranges_directly_raises_a_exception(caplog):
     with pytest.raises(ValueError) as excinfo:
         set_ranges(
             input_str,
-            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER))],
+            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
         )
-    assert str(excinfo.value).startswith("[IAST] Tainted Map isn't initialized")
+    assert str(excinfo.value).startswith("iast::propagation::native::error::Tainted Map isn't initialized")
 
 
 def test_taint_ranges_as_evidence_info_tainted_op1_add():

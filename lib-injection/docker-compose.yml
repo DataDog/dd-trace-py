@@ -18,7 +18,7 @@ services:
 
   # testagent is used to collect data from the library to validate.
   testagent:
-    image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.11.0
+    image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     ports:
       - "8126:8126"
 

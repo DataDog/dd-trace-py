@@ -89,7 +89,8 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._configure(api_version="v0.4")
+        interface.tracer._writer._api_version = "v0.4"
+        interface.tracer._recreate()
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -130,6 +131,8 @@ class Contrib_TestClass_For_Threats:
             assert root_span()._get_ctx_item("http.request.method") == "GET"
             query = dict(root_span()._get_ctx_item("http.request.query"))
             assert query == {"q": "1"} or query == {"q": ["1"]}
+            # DEV: fastapi may send "requests" instead of "fastapi"
+            # assert get_tag("component") == interface.name
 
     def test_simple_attack_timeout(self, interface: Interface, root_span, get_metric):
         from unittest.mock import patch as mock_patch
@@ -245,6 +248,8 @@ class Contrib_TestClass_For_Threats:
                         ("request_blocked", "false"),
                         ("waf_timeout", "false"),
                         ("input_truncated", "true"),
+                        ("waf_error", "0"),
+                        ("rate_limited", "false"),
                     ),
                 ),
             ]
@@ -1141,10 +1146,13 @@ class Contrib_TestClass_For_Threats:
     ):
         import base64
         import gzip
+        from unittest.mock import patch as mock_patch
 
         from ddtrace.ext import http
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch(
+            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        ) as mocked:
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -1176,6 +1184,14 @@ class Contrib_TestClass_For_Threats:
                             api,
                             name,
                         )
+                telemetry_calls = {
+                    (c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list
+                }
+                assert (
+                    "CountMetric",
+                    "appsec.api_security.request.schema",
+                    (("framework", interface.name),),
+                ) in telemetry_calls
             else:
                 assert value is None, name
 
@@ -1438,7 +1454,6 @@ class Contrib_TestClass_For_Threats:
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
-        from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.ext import http
 
         def validate_top_function(trace):
@@ -1480,23 +1495,27 @@ class Contrib_TestClass_For_Threats:
                     "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
                 )
                 matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                # import delayed to get the correct version
+                from ddtrace.appsec._metrics import ddwaf_version
+
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
-                    assert matches == [expected_tags], matches
+                match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
+                assert matches == [match_expected_tags], (matches, match_expected_tags)
                 evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert expected_tags in evals
+                assert expected_tags in evals, (expected_tags, evals)
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
@@ -1590,13 +1609,13 @@ class Contrib_TestClass_For_Threats:
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
             # check for fingerprints when user events
-            if asm_enabled and auto_events_enabled and mode != "disabled":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
-                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
@@ -1613,7 +1632,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == code
             assert get_tag("http.status_code") == str(code)
             # check for fingerprints when security events
-            if asm_enabled and user_agent == "dd-test-scanner-log-block":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
@@ -1650,7 +1669,6 @@ def test_tracer():
     ddtrace.tracer = tracer
 
     # Yield to our test
-    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer

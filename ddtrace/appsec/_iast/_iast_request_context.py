@@ -1,16 +1,18 @@
 import os
-import sys
-from typing import Dict
+from typing import Literal  # noqa:F401
 from typing import Optional
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._iast_env import IASTEnvironment
+from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
-from ddtrace.appsec._iast._metrics import _set_span_tag_iast_executed_sink
-from ddtrace.appsec._iast._metrics import _set_span_tag_iast_request_tainted
+from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
+from ddtrace.appsec._iast._utils import _request_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
@@ -24,35 +26,12 @@ log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
+def _set_span_tag_iast_request_tainted(span):
+    total_objects_tainted = _request_tainted()
 
-class IASTEnvironment:
-    """
-    an object of this class contains all asm data (waf and telemetry)
-    for a single request. It is bound to a single asm request context.
-    It is contained into a ContextVar.
-    """
-
-    def __init__(self, span: Optional[Span] = None):
-        self.span = span or core.get_span()
-
-        self.request_enabled: bool = False
-        self.iast_reporter: Optional[IastSpanReporter] = None
-        self.iast_span_metrics: Dict[str, int] = {}
-        self.iast_stack_trace_id: int = 0
-        self.iast_stack_trace_reported: bool = False
-
-
-def _get_iast_context() -> Optional[IASTEnvironment]:
-    return core.get_item(IAST.REQUEST_CONTEXT_KEY)
-
-
-def in_iast_context() -> bool:
-    return core.get_item(IAST.REQUEST_CONTEXT_KEY) is not None
+    if total_objects_tainted > 0:
+        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
 def start_iast_context():
@@ -62,7 +41,7 @@ def start_iast_context():
 
 
 def end_iast_context(span: Optional[Span] = None):
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env is not None and env.span is span:
         finalize_iast_env(env)
     reset_propagation_context()
@@ -73,35 +52,35 @@ def finalize_iast_env(env: IASTEnvironment) -> None:
 
 
 def set_iast_reporter(iast_reporter: IastSpanReporter) -> None:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         env.iast_reporter = iast_reporter
     else:
-        log.debug("[IAST] Trying to set IAST reporter but no context is present")
+        log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
 def get_iast_reporter() -> Optional[IastSpanReporter]:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         return env.iast_reporter
     return None
 
 
 def get_iast_stacktrace_reported() -> bool:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         return env.iast_stack_trace_reported
     return False
 
 
 def set_iast_stacktrace_reported(reported: bool) -> None:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         env.iast_stack_trace_reported = reported
 
 
 def get_iast_stacktrace_id() -> int:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         env.iast_stack_trace_id += 1
         return env.iast_stack_trace_id
@@ -109,11 +88,11 @@ def get_iast_stacktrace_id() -> int:
 
 
 def set_iast_request_enabled(request_enabled) -> None:
-    env = _get_iast_context()
+    env = _get_iast_env()
     if env:
         env.request_enabled = request_enabled
     else:
-        log.debug("[IAST] Trying to set IAST reporter but no context is present")
+        log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
 def _move_iast_data_to_root_span():
@@ -154,7 +133,9 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 req_span = span
             else:
                 req_span = ctx.get_item("req_span")
-
+        if req_span is None:
+            log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
+            return
         if asm_config._iast_enabled:
             existing_data = req_span.get_tag(IAST.JSON)
             if existing_data is None:
@@ -173,7 +154,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 _create_and_attach_iast_report_to_span(req_span, existing_data, merge=True)
 
     except Exception:
-        log.debug("[IAST] Error finishing IAST context", exc_info=True)
+        log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)
 
 
 def _iast_start_request(span=None, *args, **kwargs):
@@ -185,4 +166,4 @@ def _iast_start_request(span=None, *args, **kwargs):
                 request_iast_enabled = True
             set_iast_request_enabled(request_iast_enabled)
     except Exception:
-        log.debug("[IAST] Error starting IAST context", exc_info=True)
+        log.debug("iast::propagation::context::Error starting IAST context", exc_info=True)

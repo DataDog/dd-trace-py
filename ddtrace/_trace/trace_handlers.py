@@ -14,11 +14,6 @@ from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
-from ddtrace._trace.utils_botocore.span_tags import (
-    set_botocore_patched_api_call_span_tags as set_patched_api_call_span_tags,
-)
-from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -111,14 +106,15 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
+    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
-    distributed_headers_config = ctx.get_item("distributed_headers_config")
-    if distributed_headers_config:
+    integration_config = ctx.get_item("integration_config")
+    if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
-            int_config=distributed_headers_config,
+            int_config=integration_config,
             request_headers=ctx["distributed_headers"],
             override=ctx.get_item("distributed_headers_config_override"),
         )
@@ -128,7 +124,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
@@ -202,7 +198,7 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_config):
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
@@ -212,7 +208,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
 
     # Inferred Proxy Spans
-    if distributed_headers_config and headers is not None:
+    if integration_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(
             ctx,
             headers=headers,
@@ -504,7 +500,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
@@ -517,7 +513,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["distributed_headers_config"],
+        ctx["integration_config"],
         method=request.method,
         query=query,
         raw_uri=uri,
@@ -580,8 +576,10 @@ def _on_django_after_request_headers_post(
 
 
 def _on_botocore_patched_api_call_started(ctx):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_patched_api_call_span_tags
+
     span = ctx.span
-    set_patched_api_call_span_tags(
+    set_botocore_patched_api_call_span_tags(
         span,
         ctx.get_item("instance"),
         ctx.get_item("args"),
@@ -598,6 +596,8 @@ def _on_botocore_patched_api_call_started(ctx):
 
 
 def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_error_code_fn):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+
     span = ctx.span
     # `ClientError.response` contains the result, so we can still grab response metadata
     set_botocore_response_metadata_tags(span, response, is_error_code_fn=is_error_code_fn)
@@ -610,11 +610,15 @@ def _on_botocore_patched_api_call_exception(ctx, response, exception_type, is_er
 
 
 def _on_botocore_patched_api_call_success(ctx, response):
+    from ddtrace._trace.utils_botocore.span_tags import set_botocore_response_metadata_tags
+
     span = ctx.span
 
     set_botocore_response_metadata_tags(span, response)
 
     if config.botocore.add_span_pointers:
+        from ddtrace._trace.utils_botocore.span_pointers import extract_span_pointers_from_successful_botocore_response
+
         for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
             dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
             endpoint_name=ctx.get_item("endpoint_name"),
@@ -717,6 +721,19 @@ def _on_end_of_traced_method_in_fork(ctx):
     immediately after this method returns
     """
     ctx["pin"].tracer.flush()
+
+
+def _on_botocore_bedrock_process_response_converse(
+    ctx: core.ExecutionContext,
+    result: List[Dict[str, Any]],
+):
+    ctx["bedrock_integration"].llmobs_set_tags(
+        ctx.span,
+        args=[ctx],
+        kwargs={},
+        response=result,
+    )
+    ctx.span.finish()
 
 
 def _on_botocore_bedrock_process_response(
@@ -896,6 +913,7 @@ def listen():
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
+    core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)

@@ -144,7 +144,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_patch_modules_from_env(self):
         """
-        DD_PATCH_MODULES overrides the defaults for patch_all()
+        DD_PATCH_MODULES overrides the defaults for _patch_all()
         """
         with self.override_env(
             env=dict(

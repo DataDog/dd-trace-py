@@ -1,11 +1,59 @@
 import os
 
+import boto3
+
 
 try:
     import vcr
 except ImportError:
     vcr = None
     get_request_vcr = None
+
+from ddtrace.internal.utils.version import parse_version
+
+
+BOTO_VERSION = parse_version(boto3.__version__)
+
+bedrock_converse_args_with_system_and_tool = {
+    "system": "You are an expert swe that is to use the tool fetch_concept",
+    "user_message": "Explain the concept of distributed tracing in a simple way",
+    "tools": [
+        {
+            "toolSpec": {
+                "name": "fetch_concept",
+                "description": "Fetch an expert explanation for a concept",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                        "required": ["concept"],
+                    }
+                },
+            }
+        },
+    ],
+}
+
+
+def create_bedrock_converse_request(user_message=None, tools=None, system=None):
+    request_params = {
+        "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "messages": [{"role": "user", "content": [{"text": user_message}]}],
+        "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+    }
+    if system:
+        request_params["system"] = [{"text": system}]
+    if tools:
+        request_params["toolConfig"] = {"tools": tools}
+    return request_params
+
+
+_MOCK_RESPONSE_DATA = (
+    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
+    b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
+    b'escape their event horizon. They are formed when very large stars collapse.", '
+    b'"completionReason": "FINISH"}]}'
+)
 
 
 _MODELS = {

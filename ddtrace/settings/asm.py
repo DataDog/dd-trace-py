@@ -6,7 +6,6 @@ import sys
 from typing import List
 from typing import Optional
 
-from ddtrace import config as tracer_config
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -17,8 +16,8 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -65,9 +64,7 @@ class ASMConfig(DDConfig):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = tracer_config._from_endpoint.get(  # type: ignore
-        "iast_enabled", DDConfig.var(bool, IAST.ENV, default=False)
-    )
+    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
@@ -223,6 +220,8 @@ class ASMConfig(DDConfig):
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
+    _rc_client_id: Optional[str] = None
+
     def __init__(self):
         super().__init__()
         if not self._iast_supported:
@@ -279,4 +278,3 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
-_report_telemetry(config)

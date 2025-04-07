@@ -10,11 +10,11 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
@@ -130,7 +130,7 @@ def collect(tracer):
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        statsd_url=agent.get_stats_url(),
+        statsd_url=agent_config.dogstatsd_url,
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
@@ -146,7 +146,7 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        global_tags=os.getenv("DD_TAGS", ""),
+        global_tags=tags_to_str(ddtrace.config.tags),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,

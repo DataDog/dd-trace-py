@@ -3,25 +3,25 @@ from typing import Text
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_unwrap
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
-from ddtrace.appsec._iast._taint_tracking._errors import iast_taint_log_error
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
-
-from ._base import VulnerabilityBase
 
 
 @oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
-    scrub_evidence = False
 
 
 @oce.register
@@ -47,6 +47,9 @@ class CookiesVulnerability(VulnerabilityBase):
                 if file_name is None:
                     return
                 if insecure_cookie:
+                    increment_iast_span_metric(
+                        IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, InsecureCookie.vulnerability_type
+                    )
                     _set_metric_iast_executed_sink(InsecureCookie.vulnerability_type)
                     InsecureCookie._create_evidence_and_report(
                         InsecureCookie.vulnerability_type,
@@ -60,6 +63,9 @@ class CookiesVulnerability(VulnerabilityBase):
                     )
 
                 if no_http_only:
+                    increment_iast_span_metric(
+                        IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoHttpOnlyCookie.vulnerability_type
+                    )
                     _set_metric_iast_executed_sink(NoHttpOnlyCookie.vulnerability_type)
                     NoHttpOnlyCookie._create_evidence_and_report(
                         NoHttpOnlyCookie.vulnerability_type,
@@ -73,6 +79,7 @@ class CookiesVulnerability(VulnerabilityBase):
                     )
 
                 if no_samesite:
+                    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, NoSameSite.vulnerability_type)
                     _set_metric_iast_executed_sink(NoSameSite.vulnerability_type)
                     NoSameSite._create_evidence_and_report(
                         NoSameSite.vulnerability_type,
@@ -151,5 +158,5 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
                     cookie_key, kwargs.get("secure") is not True, kwargs.get("httponly") is not True, report_samesite
                 )
     except Exception as e:
-        iast_taint_log_error("[IAST] error in asm_check_cookies. {}".format(e))
+        iast_error(f"propagation::sink_point::Error in _iast_response_cookies. {e}")
     return wrapped(*args, **kwargs)

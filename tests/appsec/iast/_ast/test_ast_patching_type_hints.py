@@ -11,10 +11,9 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
     """
     import astunparse
 
-    from ddtrace.appsec._iast._ast.ast_patching import get_encoding
     from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(module_path, "rb") as source_file:
         source_text = source_file.read()
 
         new_source = visit_ast(
