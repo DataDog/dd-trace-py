@@ -841,10 +841,6 @@ integrations:
   - 3.2.1
   - 3.2.3
 
-- integration_name: pydantic
-  is_external_package: false
-  is_patchable: false
-
 - integration_name: pylibmc
   is_external_package: true
   dependency_name:
