@@ -122,6 +122,7 @@ class RateSamplerTest(unittest.TestCase):
             (13794769880582338323, True),
             (18444899399302180861, False),
             (18446744073709551615, False),
+            (10, False),
         ]
 
         for trace_id, expected_decision in test_cases:

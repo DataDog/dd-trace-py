@@ -16,6 +16,7 @@ except ImportError:
 
 from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
@@ -280,6 +281,8 @@ def _set_sampling_tags(span, sampled, sample_rate, mechanism):
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
+
+    span.set_metric(_SAMPLING_PRIORITY_KEY, priorities[priority_index])
     span.context.sampling_priority = priorities[priority_index]
 
 
