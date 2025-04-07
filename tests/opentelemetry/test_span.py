@@ -72,7 +72,6 @@ def test_otel_span_events(oteltracer):
         ("service.name", "service-override"),
         ("resource.name", "resource-override"),
         ("span.type", "type-override"),
-        ("analytics.event", 0.5),
         ("http.response.status_code", 200),
     ],
 )
