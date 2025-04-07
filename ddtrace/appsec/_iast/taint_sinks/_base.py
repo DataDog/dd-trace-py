@@ -6,20 +6,21 @@ from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context import set_iast_reporter
-from ddtrace.appsec._iast._overhead_control_engine import Operation
-from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace.appsec._iast.reporter import Evidence
-from ddtrace.appsec._iast.reporter import IastSpanReporter
-from ddtrace.appsec._iast.reporter import Location
-from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import tracer
+
+from .._iast_request_context import get_iast_reporter
+from .._iast_request_context import set_iast_reporter
+from .._overhead_control_engine import Operation
+from .._stacktrace import get_info_frame
+from .._utils import _is_iast_debug_enabled
+from ..reporter import Evidence
+from ..reporter import IastSpanReporter
+from ..reporter import Location
+from ..reporter import Vulnerability
 
 
 log = get_logger(__name__)
