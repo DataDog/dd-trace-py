@@ -3,7 +3,6 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
-import os
 import sys
 import sysconfig
 from types import ModuleType
@@ -18,37 +17,57 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.List[str])])
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Tuple[str, ...])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
-def get_unique_directories(dist):
-    """Retrieve top-level package paths for this distribution:
-    1. Directories containing .py files
-    2. .py files directly in site-packages/
-    """
-    files = dist.files or []
-    site_packages = dist._path.parent.resolve()
+class TrieNode:
+    def __init__(self) -> None:
+        self.children: t.Dict[str, "TrieNode"] = collections.defaultdict(TrieNode)
+        self.library: t.Optional[str] = None
 
-    # Keep only .py files that exist within site-packages
-    py_files = [
-        (site_packages / file).resolve()
-        for file in files
-        if file.name.endswith(".py") and (site_packages / file).exists()
-    ]
+    def insert(self, path_parts: t.List[str], library: str) -> None:
+        node = self
+        for part in path_parts:
+            node = node.children[part]
+        node.library = library
 
-    # Normalize and collect their parent directories
-    dirpaths = {f.parent for f in py_files}
+    def collapse(self) -> None:
+        def _collapse(node: "TrieNode") -> t.Optional[str]:
+            if not node.children:
+                return node.library
 
-    # Get the shortest set of directories that are NOT nested in each other
-    result = set()
-    for dirpath in sorted(dirpaths):
-        if not any(other != dirpath and str(dirpath).startswith(str(other) + os.sep) for other in result):
-            result.add(str(dirpath))
+            child_libs = []
+            for child in node.children.values():
+                lib = _collapse(child)
+                child_libs.append(lib)
 
-    return tuple(result)
+            unique_libs = set(child_libs)
+            if len(unique_libs) == 1 and list(unique_libs)[0] is not None:
+                node.children.clear()
+                node.library = unique_libs.pop()
+                return node.library
 
+            return None
+
+        _collapse(self)
+
+    def collect_library_paths(
+        self, current_path: Path = Path(), result: t.Optional[t.Dict[str, t.Set[str]]] = None
+    ) -> t.Dict[str, t.Set[str]]:
+        """Returns: {library: set of collapsed path prefixes as string paths}"""
+        if result is None:
+            result = collections.defaultdict(set)
+
+        if self.library:
+            result[self.library].add(str(current_path))
+            return result
+
+        for part, child in self.children.items():
+            child.collect_library_paths(current_path / part, result)
+
+        return result
 
 def get_distributions():
     # type: () -> t.Set[Distribution]
@@ -58,17 +77,27 @@ def get_distributions():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    pkgs = set()
+    names_to_versions = {}
+    trie = TrieNode()
     for dist in importlib_metadata.distributions():
-        # Get the root path of all files in a distribution
-        paths = get_unique_directories(dist)
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(paths=paths, name=name.lower(), version=version))
+            names_to_versions[name] = version
+        paths = []
+        if dist.files is not None:
+            paths = [f for f in dist.files if f.name.endswith(".py")]
+        for path in paths:
+            trie.insert(list(path.parts), dist.metadata["name"])
+    trie.collapse()
+
+    library_to_paths = trie.collect_library_paths()
+
+    pkgs = set()
+    for name, version in names_to_versions.items():
+        dist_paths = tuple(library_to_paths.get(name, []))
+        pkgs.add(Distribution(paths=dist_paths, name=name, version=version))
 
     return pkgs
 
