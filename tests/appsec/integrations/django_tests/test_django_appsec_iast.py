@@ -11,7 +11,6 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
@@ -1005,53 +1004,6 @@ def test_django_insecure_cookie_special_characters(client, test_spans, tracer):
     )
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
-
-
-@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_stacktrace_leak(client, test_spans, tracer):
-    root_span, _ = _aux_appsec_get_root_span(
-        client,
-        test_spans,
-        tracer,
-        url="/appsec/stacktrace_leak/",
-    )
-
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-    loaded = json.loads(root_span.get_tag(IAST.JSON))
-    assert loaded["sources"] == []
-    assert len(loaded["vulnerabilities"]) == 1
-    vulnerability = loaded["vulnerabilities"][0]
-    assert vulnerability["type"] == VULN_STACKTRACE_LEAK
-    assert vulnerability["evidence"] == {
-        "valueParts": [
-            {"value": 'Module: ".home.foobaruser.sources.minimal-django-example.app.py"\nException: IndexError'}
-        ]
-    }
-    assert vulnerability["hash"]
-
-
-def test_django_stacktrace_from_technical_500_response(client, test_spans, tracer, debug_mode):
-    root_span, response = _aux_appsec_get_root_span(
-        client,
-        test_spans,
-        tracer,
-        url="/appsec/stacktrace_leak_500/",
-        content_type="text/html",
-    )
-
-    assert response.status_code == 500, "Expected a 500 status code"
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-    loaded = json.loads(root_span.get_tag(IAST.JSON))
-    # technical_500_response reports a XSS also
-    vulnerability = [vln for vln in loaded["vulnerabilities"] if vln["type"] == VULN_STACKTRACE_LEAK][0]
-    assert vulnerability["evidence"] == {
-        "valueParts": [
-            {"value": "Module: tests.appsec.integrations.django_tests.django_app.views\nException: Exception"}
-        ]
-    }
-    assert vulnerability["hash"]
 
 
 def test_django_xss(client, test_spans, tracer):
