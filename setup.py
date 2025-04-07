@@ -729,6 +729,11 @@ setup(
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
                 ),
+                Extension(
+                    "ddtrace.internal.telemetry.metrics_namespaces",
+                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                    language="c",
+                ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",
                     sources=["ddtrace/profiling/collector/stack.pyx"],
