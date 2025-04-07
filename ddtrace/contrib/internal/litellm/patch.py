@@ -16,7 +16,7 @@ config._add("litellm", {})
 
 def get_version() -> str:
     version_module = getattr(litellm, "_version", None)
-    return getattr(version_module, "version", "") if version_module else ""
+    return getattr(version_module, "version", "")
 
 
 @with_traced_module
