@@ -1,6 +1,7 @@
 # distutils: language = c++
 # cython: language_level=3
 
+import platform
 from typing import Dict
 from typing import Optional
 from typing import Union
@@ -10,13 +11,12 @@ from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
 import ddtrace
-import platform
-from .._types import StringType
-from ..util import sanitize_string
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.datadog.profiling._types import StringType
+from ddtrace.internal.datadog.profiling.util import sanitize_string
+from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.profiling.code_provenance import json_str_to_export
 from ddtrace.settings._agent import config as agent_config
 
@@ -319,6 +319,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
     if value > INT64_MAX:
         return INT64_MAX
     return value
+
 
 # Public API
 def config(
