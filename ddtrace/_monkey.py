@@ -109,7 +109,6 @@ PATCH_MODULES = {
     "coverage": False,
     "selenium": True,
     "valkey": True,
-    "openai_agents": True,
 }
 
 
@@ -159,7 +158,6 @@ _MODULES_FOR_CONTRIB = {
         "langgraph",
         "langgraph.graph",
     ),
-    "openai_agents": ("agents",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
