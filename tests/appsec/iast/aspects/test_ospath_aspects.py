@@ -1,6 +1,9 @@
 import os
+from pathlib import PosixPath
 import sys
 
+from hypothesis import given
+from hypothesis.strategies import text
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -178,7 +181,63 @@ def test_ospathjoin_last_slash_tainted():
 
 def test_ospathjoin_wrong_arg():
     with pytest.raises(TypeError):
+        _ = os.path.join("root", 42, "foobar")
+
+    with pytest.raises(TypeError):
+        _ = os.path.join(("a", "b"))
+
+    with pytest.raises(TypeError):
         _ = ospathjoin_aspect("root", 42, "foobar")
+
+    with pytest.raises(TypeError):
+        _ = ospathjoin_aspect(("a", "b"))
+
+
+@given(text())
+def test_ospathbasename_no_exceptions(string_):
+    assert os.path.basename(PosixPath(string_)) == ospathbasename_aspect(PosixPath(string_))
+    assert os.path.basename(string_) == ospathbasename_aspect(string_)
+
+
+@given(text())
+def test_ospathdirname_no_exceptions(string_):
+    assert os.path.dirname(PosixPath(string_)) == ospathdirname_aspect(PosixPath(string_))
+    assert os.path.dirname(string_) == ospathdirname_aspect(string_)
+
+
+@given(text())
+def test_ospathjoin_no_exceptions(string_):
+    assert os.path.join(PosixPath(string_), string_) == ospathjoin_aspect(PosixPath(string_), string_)
+
+
+@given(text())
+def test_ospathnormcase_no_exceptions(string_):
+    assert os.path.normcase(PosixPath(string_)) == ospathnormcase_aspect(PosixPath(string_))
+    assert os.path.normcase(string_) == ospathnormcase_aspect(string_)
+
+
+@given(text())
+def test_ospathsplit_no_exceptions(string_):
+    assert os.path.split(PosixPath(string_)) == ospathsplit_aspect(PosixPath(string_))
+    assert os.path.split(string_) == ospathsplit_aspect(string_)
+
+
+@given(text())
+def test_ospathsplitdrive_no_exceptions(string_):
+    assert os.path.splitdrive(PosixPath(string_)) == ospathsplitdrive_aspect(PosixPath(string_))
+    assert os.path.splitdrive(string_) == ospathsplitdrive_aspect(string_)
+
+
+@given(text())
+def test_ospathsplitext_no_exceptions(string_):
+    assert os.path.splitext(PosixPath(string_)) == ospathsplitext_aspect(PosixPath(string_))
+    assert os.path.splitext(string_) == ospathsplitext_aspect(string_)
+
+
+@given(text())
+def test_ospathsplitroot_no_exceptions(string_):
+    assert os.path.splitroot(PosixPath(string_)) == ospathsplitroot_aspect(PosixPath(string_))
+    assert os.path.splitroot(string_) == ospathsplitroot_aspect(string_)
 
 
 def test_ospathjoin_bytes_nottainted():
