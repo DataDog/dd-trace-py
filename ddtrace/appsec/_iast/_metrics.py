@@ -4,11 +4,11 @@ from typing import Dict
 from typing import Text
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
+from ddtrace.appsec._iast._utils import _request_tainted
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -105,37 +105,11 @@ def _set_metric_iast_executed_sink(vulnerability_type):
     )
 
 
-def _request_tainted():
-    from ._taint_tracking import num_objects_tainted
-
-    return num_objects_tainted()
-
-
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_request_tainted():
     total_objects_tainted = _request_tainted()
     if total_objects_tainted > 0:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
-
-
-def _set_span_tag_iast_request_tainted(span):
-    total_objects_tainted = _request_tainted()
-
-    if total_objects_tainted > 0:
-        span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
-
-
-def _set_span_tag_iast_executed_sink(span):
-    data = get_iast_span_metrics()
-
-    if data is not None:
-        for key, value in data.items():
-            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK) or key.startswith(
-                IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE
-            ):
-                span.set_tag(key, value)
-
-    reset_iast_span_metrics()
 
 
 def _metric_key_as_snake_case(key):
@@ -147,22 +121,3 @@ def _metric_key_as_snake_case(key):
         key = origin_to_str(key)
     key = key.replace(".", "_")
     return key.lower()
-
-
-def increment_iast_span_metric(prefix: str, metric_key: str, counter: int = 1) -> None:
-    data = get_iast_span_metrics()
-    full_key = prefix + "." + _metric_key_as_snake_case(metric_key)
-    result = data.get(full_key, 0)
-    data[full_key] = result + counter
-
-
-def get_iast_span_metrics() -> Dict:
-    from ddtrace.appsec._iast._iast_request_context import _get_iast_context
-
-    env = _get_iast_context()
-    return env.iast_span_metrics if env else dict()
-
-
-def reset_iast_span_metrics() -> None:
-    metrics = get_iast_span_metrics()
-    metrics.clear()
