@@ -27,20 +27,20 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite3_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.utils import asm_context
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
 def _assert_instrumented_sink(telemetry_writer, vuln_type):
-    metrics_result = telemetry_writer._namespace._metrics_data
+    metrics_result = telemetry_writer._namespace.flush()
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
-    assert [metric.name for metric in generate_metrics.values()] == ["instrumented.sink"]
-    assert [metric._tags for metric in generate_metrics.values()] == [(("vulnerability_type", vuln_type),)]
-    assert [metric._points[0][1] for metric in generate_metrics.values()] == [1]
-    assert [metric.metric_type for metric in generate_metrics.values()] == ["count"]
+    assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
+    assert [metric["tags"] for metric in generate_metrics] == [[f"vulnerability_type:{vuln_type.lower()}"]]
+    assert [metric["points"][0][1] for metric in generate_metrics] == [1]
+    assert [metric["type"] for metric in generate_metrics] == ["count"]
 
 
 @pytest.mark.parametrize(
@@ -82,14 +82,14 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
             for _ in range(0, num_vulnerabilities):
                 m.digest()
 
-        metrics_result = telemetry_writer._namespace._metrics_data
+        metrics_result = telemetry_writer._namespace.flush()
 
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value].values()
+    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric for metric in generate_metrics if metric._tags[0] == ("vulnerability_type", "WEAK_HASH")]
-    assert [metric._tags for metric in filtered_metrics] == [(("vulnerability_type", "WEAK_HASH"),)]
+    filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
+    assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 2
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
@@ -138,11 +138,11 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
-    metrics_result = telemetry_writer._namespace._metrics_data
+    metrics_result = telemetry_writer._namespace.flush()
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
     assert filtered_metrics == ["instrumented.propagation"]
 
 
@@ -161,12 +161,12 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
                 source_origin=OriginType.PARAMETER,
             )
 
-    metrics_result = telemetry_writer._namespace._metrics_data
+    metrics_result = telemetry_writer._namespace.flush()
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric.name for metric in generate_metrics.values() if metric.name != "executed.sink"]
+    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
     assert filtered_metrics == ["executed.source", "request.tainted"]
     assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
@@ -223,26 +223,24 @@ def test_django_instrumented_metrics(telemetry_writer):
     with override_global_config(dict(_iast_enabled=True, _iast_debug=True)):
         _on_django_patch()
 
-    metrics_result = telemetry_writer._namespace._metrics_data
-    metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
+    metrics_result = telemetry_writer._namespace.flush()
+    metrics_source_tags_result = [metric["tags"][0] for metric in metrics_result["generate-metrics"]["iast"]]
 
     assert len(metrics_source_tags_result) == 9
-    assert origin_to_str(OriginType.HEADER_NAME) in metrics_source_tags_result
-    assert origin_to_str(OriginType.HEADER) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PATH_PARAMETER) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PATH) in metrics_source_tags_result
-    assert origin_to_str(OriginType.COOKIE) in metrics_source_tags_result
-    assert origin_to_str(OriginType.COOKIE_NAME) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PARAMETER) in metrics_source_tags_result
-    assert origin_to_str(OriginType.PARAMETER_NAME) in metrics_source_tags_result
-    assert origin_to_str(OriginType.BODY) in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.HEADER)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.PATH_PARAMETER)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.PATH)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.COOKIE)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.COOKIE_NAME)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.PARAMETER)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.PARAMETER_NAME)}" in metrics_source_tags_result
+    assert f"source_type:{origin_to_str(OriginType.BODY)}" in metrics_source_tags_result
 
 
 def test_django_instrumented_metrics_iast_disabled(telemetry_writer):
     with override_global_config(dict(_iast_enabled=False)):
         _on_django_patch()
 
-    metrics_result = telemetry_writer._namespace._metrics_data
-    metrics_source_tags_result = [metric._tags[0][1] for metric in metrics_result["generate-metrics"]["iast"].values()]
-
-    assert len(metrics_source_tags_result) == 0
+    metrics_result = telemetry_writer._namespace.flush()
+    assert "iast" not in metrics_result["generate-metrics"]
