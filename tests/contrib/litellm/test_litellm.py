@@ -1,6 +1,5 @@
 import pytest
 
-from tests.conftest import snapshot_context
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
 
