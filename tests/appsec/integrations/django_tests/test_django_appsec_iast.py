@@ -104,8 +104,8 @@ def test_django_weak_hash_span_metrics(client, test_spans, tracer):
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_weak_hash_span_metrics_disabled(client, test_spans_iast_disabled, tracer):
-    root_span, _ = _aux_appsec_get_root_span(client, test_spans_iast_disabled, tracer, url="/appsec/weak-hash/")
+def test_django_weak_hash_span_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
+    root_span, _ = _aux_appsec_get_root_span(client, iast_spans_with_zero_sampling, tracer, url="/appsec/weak-hash/")
     assert root_span.get_metric(IAST.ENABLED) == 0.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") is None
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
@@ -214,10 +214,10 @@ def test_django_sqli_http_request_parameter_metrics(client, test_spans, tracer):
 
 @pytest.mark.django_db()
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_sqli_http_request_parameter_metrics_disabled(client, test_spans_iast_disabled, tracer):
+def test_django_sqli_http_request_parameter_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
-        test_spans_iast_disabled,
+        iast_spans_with_zero_sampling,
         tracer,
         payload=urlencode({"SELECT": "unused"}),
         content_type="application/x-www-form-urlencoded",
@@ -869,11 +869,11 @@ def test_django_command_injection_span_metrics(client, test_spans, tracer):
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-def test_django_command_injection_span_metrics_disabled(client, test_spans_iast_disabled, tracer):
+def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
     patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
         client,
-        test_spans_iast_disabled,
+        iast_spans_with_zero_sampling,
         tracer,
         url="/appsec/command-injection/",
         payload="master",
