@@ -43,6 +43,7 @@ if(WIN32)
     add_library(
         dd_wrapper SHARED
         src/code_provenance.cpp
+        src/code_provenance_interface.cpp
         src/ddup_interface.cpp
         src/profile.cpp
         src/sample.cpp
@@ -62,6 +63,7 @@ else()
     add_library(
         dd_wrapper SHARED
         src/code_provenance.cpp
+        src/code_provenance_interface.cpp
         src/crashtracker.cpp
         src/crashtracker_interface.cpp
         src/ddup_interface.cpp

@@ -86,11 +86,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_drop_sample(Sample *sample)
 
 
-cdef extern from "code_provenance.hpp" namespace "Datadog":
-    cdef cppclass CodeProvenance:
-        @staticmethod
-        CodeProvenance& get_instance()
-        void set_json_str(string_view json_str)
+cdef extern from "code_provenance_interface.hpp":
+    void code_provenance_set_json_str(string_view json_str)
 
 
 # Create wrappers for cython
@@ -129,7 +126,7 @@ cdef call_code_provenance_set_json_str(str json_str):
     cdef Py_ssize_t json_str_size
     json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
     if json_str_data != NULL:
-        CodeProvenance.get_instance().set_json_str(string_view(json_str_data, json_str_size))
+        code_provenance_set_json_str(string_view(json_str_data, json_str_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
