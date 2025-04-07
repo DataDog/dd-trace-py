@@ -86,7 +86,7 @@ def _iast_report_code_injection(code_string: Text):
     try:
         if asm_config.is_iast_request_enabled:
             if isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
-                if CodeInjection.is_valid_tainted(code_string):
+                if CodeInjection.is_tainted_pyobject(code_string):
                     CodeInjection.report(evidence_value=code_string)
 
             # Reports Span Metrics

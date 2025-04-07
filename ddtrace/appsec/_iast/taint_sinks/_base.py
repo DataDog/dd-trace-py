@@ -189,27 +189,25 @@ class VulnerabilityBase(Operation):
                 cls.increment_quota()
 
     @classmethod
-    def is_valid_tainted(cls, string_to_check: Text) -> bool:
-        """Check if a string is tainted and not marked as secure for the current vulnerability type.
+    def is_tainted_pyobject(cls, string_to_check: Text) -> bool:
+        """Check if a string contains tainted ranges that are not marked as secure.
 
-        This method performs two main checks:
-        1. Verifies if the string has any taint ranges (indicating it contains user-controlled data)
-        2. Ensures none of these taint ranges have been marked as secure for the current vulnerability type
+        A string is considered tainted when:
+        1. It has one or more taint ranges (indicating user-controlled data)
+        2. At least one of these ranges is NOT marked as secure with the current vulnerability type's secure mark
+           (cls.secure_mark)
 
-        A string is considered valid for vulnerability detection if:
-        - It has taint ranges (indicating user input)
-        - None of those ranges have been marked as secure for the current vulnerability type
-        - The string is not None or empty
+        The method returns True if ANY range in the string lacks the secure mark of the current vulnerability class.
+        This means the string could be vulnerable to the specific type of attack this class checks for.
 
         Args:
-            string_to_check (Text): The string to check for taint and secure marks
+            string_to_check (Text): The string to check for taint ranges and secure marks
 
         Returns:
-            bool: True if the string is tainted and not marked as secure, False otherwise
+            bool: True if any range lacks the current vulnerability type's secure mark, False otherwise
         """
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
-        for _range in ranges:
-            if not _range.has_secure_mark(cls.secure_mark):
-                return True
-        return True
+        if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
+            return True
+        return False

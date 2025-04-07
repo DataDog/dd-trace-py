@@ -51,7 +51,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     if report_ssrf:
         if asm_config.is_iast_request_enabled:
             try:
-                if SSRF.has_quota() and SSRF.is_valid_tainted(report_ssrf):
+                if SSRF.has_quota() and SSRF.is_tainted_pyobject(report_ssrf):
                     SSRF.report(evidence_value=report_ssrf)
 
                 # Reports Span Metrics

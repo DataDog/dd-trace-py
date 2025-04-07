@@ -100,7 +100,7 @@ def _iast_jinja2_xss(wrapped, instance, args, kwargs):
 def _iast_report_xss(code_string: Text):
     try:
         if asm_config.is_iast_request_enabled:
-            if XSS.has_quota() and XSS.is_valid_tainted(code_string):
+            if XSS.has_quota() and XSS.is_tainted_pyobject(code_string):
                 XSS.report(evidence_value=code_string)
 
             # Reports Span Metrics
