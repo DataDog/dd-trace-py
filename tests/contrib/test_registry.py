@@ -320,8 +320,9 @@ def test_external_packages_have_version_fields(registry_data: list[dict]):
     for entry in registry_data:
         name = entry.get("integration_name", "UNKNOWN_ENTRY")
         is_external = entry.get("is_external_package")
+        is_deprecated = entry.get("is_deprecated", False)
 
-        if is_external:  # Only check external packages
+        if is_external and not is_deprecated:  # Only check external packages that are not deprecated
             for field in expected_version_fields:
                 if field not in entry:
                     errors.append(f"External integration '{name}' is missing the required field '{field}'.")

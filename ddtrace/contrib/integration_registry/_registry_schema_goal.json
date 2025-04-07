@@ -41,6 +41,10 @@
              "description": "True if this integration exists as a key in ddtrace._monkey.PATCH_MODULES.",
              "type": "boolean"
           },
+          "is_deprecated": {
+            "description": "True if this integration is deprecated and will be removed in a future release.",
+            "type": "boolean"
+          },
           "patched_by_default": {
              "description": "Optional: Default patch status (True, False, CONFIG_*, DYNAMIC(*), MISSING*). Generally present only if is_patchable=true or status is MISSING.",
              "oneOf": [

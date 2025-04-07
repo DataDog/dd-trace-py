@@ -82,6 +82,7 @@ integrations:
   dependency_name:
   - aioredis
   is_patchable: true
+  is_deprecated: true
   patched_by_default: true
   instrumented_modules:
   - aioredis
