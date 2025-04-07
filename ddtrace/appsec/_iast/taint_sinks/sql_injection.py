@@ -8,10 +8,8 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_utils import DBAPI_PREFIXES
-from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
+from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
@@ -49,14 +47,3 @@ def check_and_report_sqli(
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in check_and_report_sqli. {e}")
     return reported
-
-
-def check_tainted_dbapi_args(args, kwargs, integration_name, method):
-    if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-        return len(args) and args[0] and is_pyobject_tainted(args[0])
-
-    return False
-
-
-def supported_dbapi_integration(integration_name):
-    return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
