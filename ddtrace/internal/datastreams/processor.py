@@ -119,7 +119,7 @@ class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
     def __init__(
-        self, agent_url: Optional[str], interval: Optional[float] = None, timeout: float = 1.0, retry_attempts: int = 3
+        self, agent_url: Optional[str] = None, interval: Optional[float] = None, timeout: float = 1.0, retry_attempts: int = 3
     ):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
