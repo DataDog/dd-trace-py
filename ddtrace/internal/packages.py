@@ -17,7 +17,7 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Tuple[str, ...])])
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Optional[t.Tuple[str]])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
@@ -69,6 +69,14 @@ class TrieNode:
 
         return result
 
+
+def get_py_files(dist):
+    """ "Retrieve .py files in distribution"""
+    files = dist.files or []
+    py_files = [file for file in files if file.name.endswith(".py") and not file.name.startswith("__editable__")]
+    return py_files
+
+
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
@@ -80,23 +88,25 @@ def get_distributions():
     names_to_versions = {}
     trie = TrieNode()
     for dist in importlib_metadata.distributions():
+        # NOTE: if you ever want to use any field in the metadata, you must
+        # access it using below metadata object, otherwise we'd be parsing the
+        # metadata file again which would increase the runtime of this function
+        # significantly
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
             names_to_versions[name] = version
-        paths = []
-        if dist.files is not None:
-            paths = [f for f in dist.files if f.name.endswith(".py")]
+        paths = get_py_files(dist)
         for path in paths:
-            trie.insert(list(path.parts), dist.metadata["name"])
+            trie.insert(path.parts, name)
     trie.collapse()
 
-    library_to_paths = trie.collect_library_paths()
+    paths = trie.collect_library_paths(purelib_path)
 
     pkgs = set()
     for name, version in names_to_versions.items():
-        dist_paths = tuple(library_to_paths.get(name, []))
+        dist_paths = tuple(paths.get(name, []))
         pkgs.add(Distribution(paths=dist_paths, name=name, version=version))
 
     return pkgs
@@ -247,7 +257,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
 
         for dist in metadata.distributions():
             if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
+                d = Distribution(name=dist.metadata["name"], version=dist.version, paths=None)
                 for f in dist.files:
                     root = f.parts[0]
                     if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
