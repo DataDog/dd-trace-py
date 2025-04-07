@@ -285,7 +285,9 @@ def main():
     with mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=TestVisibilityAPISettings(
-            require_git=False, early_flake_detection=EarlyFlakeDetectionSettings(True)
+            require_git=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(True),
+            known_tests_enabled=True,
         ),
     ):
         ext_api.enable_test_visibility()

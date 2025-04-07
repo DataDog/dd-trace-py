@@ -53,9 +53,9 @@ class DDWaf(WAF):
         obfuscation_parameter_value_regexp: bytes,
     ):
         # avoid circular import
-        from ddtrace.appsec._metrics import _set_waf_error_log
+        from ddtrace.appsec import _metrics
 
-        self.report_error = _set_waf_error_log
+        self.report_error = _metrics._set_waf_error_log
         config = ddwaf_config(
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
@@ -78,6 +78,7 @@ class DDWaf(WAF):
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
+        _metrics.ddwaf_version = version()
 
     @property
     def required_data(self) -> List[str]:
@@ -161,7 +162,7 @@ class DDWaf(WAF):
         ephemeral_data: DDWafRulesType = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
-        start = time.time()
+        start = time.monotonic()
         if not ctx:
             LOGGER.debug("DDWaf.run: dry run. no context created.")
             return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
@@ -173,7 +174,6 @@ class DDWaf(WAF):
         error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
-            self.report_error(f"appsec.waf.request::error::{error}", self._cached_version)
         if error == DDWAF_ERR_INTERNAL:
             # result is not valid
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
@@ -182,7 +182,7 @@ class DDWaf(WAF):
             result.events.struct,
             result.actions.struct,
             result.total_runtime / 1e3,
-            (time.time() - start) * 1e6,
+            (time.monotonic() - start) * 1e6,
             result.timeout,
             observator,
             result.derivatives.struct,
