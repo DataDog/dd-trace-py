@@ -17,7 +17,7 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Optional[t.Tuple[str]])])
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Optional[t.Tuple[str, ...]])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
@@ -54,14 +54,14 @@ class TrieNode:
         _collapse(self)
 
     def collect_library_paths(
-        self, current_path: Path = Path(), result: t.Optional[t.Dict[str, t.Set[str]]] = None
-    ) -> t.Dict[str, t.Set[str]]:
+        self, current_path: Path = Path(), result: t.Optional[t.Dict[str, t.List[str]]] = None
+    ) -> t.Dict[str, t.List[str]]:
         """Returns: {library: set of collapsed path prefixes as string paths}"""
         if result is None:
-            result = collections.defaultdict(set)
+            result = collections.defaultdict(list)
 
         if self.library:
-            result[self.library].add(str(current_path))
+            result[self.library].append(str(current_path))
             return result
 
         for part, child in self.children.items():
@@ -102,12 +102,12 @@ def get_distributions():
             trie.insert(path.parts, name)
     trie.collapse()
 
-    paths = trie.collect_library_paths(purelib_path)
+    library_to_paths: t.Dict[str, t.List[str]] = trie.collect_library_paths(purelib_path)
 
     pkgs = set()
     for name, version in names_to_versions.items():
-        dist_paths = tuple(paths.get(name, []))
-        pkgs.add(Distribution(paths=dist_paths, name=name, version=version))
+        paths = library_to_paths.get(name)
+        pkgs.add(Distribution(paths=tuple(paths) if paths else None, name=name, version=version))
 
     return pkgs
 
