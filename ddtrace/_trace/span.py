@@ -55,7 +55,6 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import _JSONType
 
 
-
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 

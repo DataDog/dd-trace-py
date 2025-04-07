@@ -31,7 +31,8 @@ class TraceMiddleware(object):
             tracer=self.tracer,
             distributed_headers=headers,
             distributed_headers_config=config.falcon,
-            headers_case_sensitive=True,        ) as ctx:
+            headers_case_sensitive=True,
+        ) as ctx:
             req_span = ctx.span
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.falcon))
