@@ -70,6 +70,12 @@
         "auto-instrumented": true
     },
     {
+        "integration": "aws_lambda",
+        "minimum_tracer_supported": "6.105.0",
+        "max_tracer_supported": "6.105.0",
+        "auto-instrumented": true
+    },
+    {
         "integration": "azure_functions",
         "minimum_tracer_supported": "1.21.3",
         "max_tracer_supported": "1.21.3",
