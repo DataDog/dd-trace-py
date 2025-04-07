@@ -48,10 +48,9 @@ module_dependency_mapping = {
     "aws_lambda": "datadog-lambda",
 }
 
-# map lockfile dependency => module name
 dependency_module_mapping = {v: k for k, v in module_dependency_mapping.items()}
 
-supported_versions = []  # list of dicts
+supported_versions = []
 pinned_packages = set()
 
 
@@ -74,7 +73,7 @@ def parse_args():
     usage: python scripts/freshvenvs.py <output> OR <generate>
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["output", "generate"], help="Output mode")
+    parser.add_argument("mode", choices=["output", "generate"], help="mode: output or generate")
     return parser.parse_args()
 
 def _get_integrated_modules() -> typing.Set[str]:
@@ -244,7 +243,6 @@ def output_outdated_packages(all_required_packages, envs, bounds):
     Output a list of package names that can be updated.
     """
     outdated_packages = []
-    print(bounds)
 
     for package in all_required_packages:
         earliest, latest = _get_version_extremes(package)
@@ -258,7 +256,6 @@ def output_outdated_packages(all_required_packages, envs, bounds):
 
 
     for package in all_required_packages:
-        print(package)
         ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
         if not ordered:
             continue
