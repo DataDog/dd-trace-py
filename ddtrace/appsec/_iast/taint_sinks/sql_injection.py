@@ -15,6 +15,7 @@ from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.settings.asm import config as asm_config
 
 
 @oce.register
@@ -39,10 +40,14 @@ def check_and_report_sqli(
     """
     reported = False
     try:
-        if check_tainted_dbapi_args(args, kwargs, integration_name, method):
-            SqlInjection.report(evidence_value=args[0], dialect=integration_name)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
-        _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
+        if asm_config.is_iast_request_enabled:
+            if SqlInjection.has_quota() and check_tainted_dbapi_args(args, kwargs, integration_name, method):
+                SqlInjection.report(evidence_value=args[0], dialect=integration_name)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in check_and_report_sqli. {e}")
     return reported

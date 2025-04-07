@@ -48,11 +48,14 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         return
 
     if report_ssrf:
-        _set_metric_iast_executed_sink(SSRF.vulnerability_type)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
-        if asm_config.is_iast_request_enabled and SSRF.has_quota():
+        if asm_config.is_iast_request_enabled:
             try:
-                if is_pyobject_tainted(report_ssrf):
+                if SSRF.has_quota() and is_pyobject_tainted(report_ssrf):
                     SSRF.report(evidence_value=report_ssrf)
+
+                # Reports Span Metrics
+                _set_metric_iast_executed_sink(SSRF.vulnerability_type)
+                # Report Telemetry Metrics
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
             except Exception as e:
                 iast_error(f"propagation::sink_point::Error in _iast_report_ssrf. {e}")

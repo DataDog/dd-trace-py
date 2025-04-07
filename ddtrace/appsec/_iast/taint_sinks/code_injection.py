@@ -2,8 +2,10 @@ import inspect
 from typing import Text
 
 from ddtrace.appsec._common_module_patches import try_unwrap
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
@@ -79,8 +81,14 @@ class CodeInjection(VulnerabilityBase):
 
 
 def _iast_report_code_injection(code_string: Text):
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
-    _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
-    if asm_config.is_iast_request_enabled and CodeInjection.has_quota():
-        if is_pyobject_tainted(code_string):
-            CodeInjection.report(evidence_value=code_string)
+    reported = False
+    try:
+        if asm_config.is_iast_request_enabled:
+            if isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
+                if is_pyobject_tainted(code_string):
+                    CodeInjection.report(evidence_value=code_string)
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CodeInjection.vulnerability_type)
+            _set_metric_iast_executed_sink(CodeInjection.vulnerability_type)
+    except Exception as e:
+        iast_error(f"propagation::sink_point::Error in _iast_report_code_injection. {e}")
+    return reported
