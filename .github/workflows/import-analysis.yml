@@ -122,6 +122,12 @@ jobs:
       - name: "Analyze imports on base branch"
         run: python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
 
+      - name: "Upload cycle artifacts"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cycles
+          path: cycles-*.json
+
       - name: "Compare import cycles"
         run: python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
 
