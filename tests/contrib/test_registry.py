@@ -219,7 +219,7 @@ def test_dependency_name_only_if_external(registry_data: list[dict]):
                 f"Integration '{name}' has 'is_external_package: false' but contains a 'dependency_name' field."
             )
         # Check that external packages have a defined dependency_name
-        elif is_external is True and not has_deps:
+        elif is_external and not has_deps:
             errors.append(
                 f"Integration '{name}' has 'is_external_package: true' but is missing 'dependency_name' field."
             )
@@ -241,7 +241,7 @@ def test_version_fields_only_if_external(registry_data: list[dict]):
                     errors.append(
                         f"Integration '{name}' has 'is_external_package: false' but contains a '{field}' field."
                     )
-        elif is_external is True:
+        elif is_external:
             # Check min/max format (should be parsable or N/A)
             for field in ["tested_version_min", "tested_version_max"]:
                 if field in entry:
@@ -321,7 +321,7 @@ def test_external_packages_have_version_fields(registry_data: list[dict]):
         name = entry.get("integration_name", "UNKNOWN_ENTRY")
         is_external = entry.get("is_external_package")
 
-        if is_external is True:  # Only check external packages
+        if is_external:  # Only check external packages
             for field in expected_version_fields:
                 if field not in entry:
                     errors.append(f"External integration '{name}' is missing the required field '{field}'.")
