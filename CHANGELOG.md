@@ -4,6 +4,23 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.6
+
+
+### Bug Fixes
+
+- ASM: Fixed a NotImplementedError that occurred when trying to deepcopy wrapped builtin functions (like <span class="title-ref">open</span>) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the <span class="title-ref">\_\_deepcopy\_\_</span> method.
+- LLM Observability: fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+- profiling: This fix resolves an issue where the Lock profiler would throw an `AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'`.
+- pylibmc: fixes an issue where using `Client(server=[url])` would throw the error `__init__() got multiple values for argument 'servers'`
+
+### Other Changes
+
+- library: Ensure that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi]() .
+
+
+---
+
 ## 3.2.2
 ### Bug Fixes
 
