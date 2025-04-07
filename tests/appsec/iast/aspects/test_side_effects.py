@@ -5,7 +5,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_rang
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils_side_effects import MagicMethodsException
 
 

@@ -32,6 +32,8 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.appsec._utils import Binding_error
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
@@ -279,7 +281,7 @@ class AppSecSpanProcessor(SpanProcessor):
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
-    ) -> Optional["ddwaf.DDWaf_result"]:
+    ) -> Optional[DDWaf_result]:
         """
         Call the `WAF` with the given parameters. If `custom_data_names` is specified as
         a list of `(WAF_NAME, WAF_STR)` tuples specifying what values of the `WAF_DATA_NAMES`
@@ -334,9 +336,13 @@ class AppSecSpanProcessor(SpanProcessor):
         if not data and not ephemeral_data:
             return None
 
-        waf_results = self._ddwaf.run(
-            ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
-        )
+        try:
+            waf_results = self._ddwaf.run(
+                ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
+            )
+        except Exception:
+            log.debug("appsec::processor::waf::run", exc_info=True)
+            waf_results = Binding_error
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
         root_span = span._local_root or span
@@ -373,27 +379,27 @@ class AppSecSpanProcessor(SpanProcessor):
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
 
-        _asm_request_context.set_waf_telemetry_results(
-            self._ddwaf.info.version,
-            bool(waf_results.data),
-            bool(blocked),
-            waf_results.timeout,
-            rule_type,
-            waf_results.runtime,
-            waf_results.total_runtime,
-            waf_results.truncation,
-        )
         if blocked:
             _asm_request_context.set_blocked(blocked)
 
+        allowed = True
         if waf_results.data or blocked:
-            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
-            # events
+            # We run the rate limiter only if there is an attack,
+            # its goal is to limit the number of collected asm events
             allowed = self._rate_limiter.is_allowed()
-            if not allowed:
-                # TODO: add metric collection to keep an eye (when it's name is clarified)
-                return waf_results
 
+        _asm_request_context.set_waf_telemetry_results(
+            self._ddwaf.info.version,
+            bool(blocked),
+            waf_results,
+            rule_type,
+            not allowed,
+        )
+
+        if not allowed:
+            return waf_results
+
+        if waf_results.data or blocked:
             for id_tag, kind in [
                 (SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, "request"),
                 (SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, "response"),

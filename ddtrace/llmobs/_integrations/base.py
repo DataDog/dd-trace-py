@@ -30,11 +30,6 @@ class BaseLLMIntegration:
         )
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
-    @property
-    def span_linking_enabled(self) -> bool:
-        return config._llmobs_auto_span_linking_enabled
-
-    @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled
