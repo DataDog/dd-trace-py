@@ -12,9 +12,9 @@ from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-from tests.llmobs._utils import TestLLMObsSpanWriter
 
 
 DATADOG_SITE = "datad0g.com"

@@ -141,12 +141,6 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
-        """Enqueue an event to be sent to LLM Observability.
-        This method can be overridden by child classes to handle specific event types.
-        """
-        self._enqueue(event)
-
     def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
         """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         event_size = len(safe_json(event))
@@ -162,7 +156,7 @@ class BaseLLMObsWriter(PeriodicService):
                 logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
                 self.periodic()
             if self.EVENT_TYPE == "span":
-                telemetry.record_span_event_size(event, event_size)
+                telemetry.record_span_event_size(event, event_size)  # type: ignore[arg-type]
             self._buffer.append(event)
 
     def _encode(self, payload, num_events):
@@ -234,7 +228,7 @@ class BaseLLMObsWriter(PeriodicService):
         """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 
-    def recreate(self) -> "BaseLLMObsWriter":
+    def recreate(self):
         return self.__class__(
             site=self._site,
             api_key=self._api_key,
@@ -259,14 +253,18 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
-        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless=is_agentless)
-        self._buffer = []
+        super(LLMObsEvalMetricWriter, self).__init__(
+            site, api_key, interval, timeout, is_agentless=is_agentless, _agentless_url=_agentless_url
+        )
         if self._agentless:
             self._intake = _agentless_url or AGENTLESS_EVAL_BASE_URL
             self._endpoint = AGENTLESS_EVAL_ENDPOINT
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_EVAL_SUBDOMAIN_HEADER_VALUE
             self._endpoint = EVP_PROXY_EVAL_ENDPOINT
+
+    def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
+        self._enqueue(event)
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
@@ -286,7 +284,9 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
-        super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
+        super(LLMObsSpanWriter, self).__init__(
+            site, api_key, interval, timeout, is_agentless=is_agentless, _agentless_url=_agentless_url
+        )
         if self._agentless:
             self._intake = _agentless_url or AGENTLESS_SPAN_BASE_URL
             self._endpoint = AGENTLESS_SPAN_ENDPOINT
