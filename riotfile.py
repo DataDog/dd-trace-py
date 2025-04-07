@@ -2554,7 +2554,7 @@ venv = Venv(
         Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "litellm": latest,
                 "vcrpy": latest,
