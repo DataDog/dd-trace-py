@@ -674,7 +674,7 @@ def _start_test_module_span(instance) -> ddtrace.trace.Span:
     test_session_span = _extract_session_span()
     test_module_name = _extract_module_name_from_module(instance)
     resource_name = _generate_module_resource(test_module_name)
-    test_module_span = tracer._start_span(
+    test_module_span = tracer.start_span(
         MODULE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
@@ -718,7 +718,7 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
     test_module_span = _extract_module_span(test_module_path)
     test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_suite_resource(test_suite_name)
-    test_suite_span = tracer._start_span(
+    test_suite_span = tracer.start_span(
         SUITE_OPERATION_NAME,
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
@@ -754,7 +754,7 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
     test_method_object = _extract_test_method_object(instance)
     test_suite_name = _extract_suite_name_from_test_method(instance)
     resource_name = _generate_test_resource(test_suite_name, test_name)
-    span = tracer._start_span(
+    span = tracer.start_span(
         ddtrace.config.unittest.operation_name,
         service=_CIVisibility._instance._service,
         resource=resource_name,

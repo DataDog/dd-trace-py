@@ -299,7 +299,7 @@ def _start_test_module_span(item):
         span_target_item = pytest_module_item
 
     test_session_span = _extract_span(item.session)
-    test_module_span = _CIVisibility._instance.tracer._start_span(
+    test_module_span = _CIVisibility._instance.tracer.start_span(
         "pytest.test_module",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
@@ -354,7 +354,7 @@ def _start_test_suite_span(item, test_module_span, should_enable_coverage=False)
     if parent_span is None:
         parent_span = test_session_span
 
-    test_suite_span = _CIVisibility._instance.tracer._start_span(
+    test_suite_span = _CIVisibility._instance.tracer.start_span(
         "pytest.test_suite",
         service=_CIVisibility._instance._service,
         span_type=SpanTypes.TEST,
@@ -654,7 +654,7 @@ def pytest_runtest_protocol(item, nextitem):
         test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
         test_session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
 
-    with _CIVisibility._instance.tracer._start_span(
+    with _CIVisibility._instance.tracer.start_span(
         ddtrace.config.pytest.operation_name,
         service=_CIVisibility._instance._service,
         resource=item.nodeid,

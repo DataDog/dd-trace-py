@@ -180,7 +180,7 @@ class TestVisibilityItemBase(abc.ABC):
         # Test items do not use a parent, and are instead their own trace's root span
         parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
 
-        self._span = self._tracer._start_span(
+        self._span = self._tracer.start_span(
             self._operation_name,
             resource=self._resource if self._resource else self._operation_name,
             child_of=parent_span,
@@ -376,7 +376,7 @@ class TestVisibilityItemBase(abc.ABC):
                 raise CIVisibilityDataError(error_msg)
             return
         self._telemetry_record_event_created()
-        self._start_span()
+        self.start_span()
 
     def is_started(self) -> bool:
         return self._span is not None
