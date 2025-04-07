@@ -1,7 +1,6 @@
 import time
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
@@ -129,7 +128,10 @@ def record_dropped_payload(num_events: int, event_type: str, error: str):
         name = LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS
     tags = [("error", error)]
     telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS, name=name, value=num_events, tags=tuple(tags),
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=name,
+        value=num_events,
+        tags=tuple(tags),
     )
 
 

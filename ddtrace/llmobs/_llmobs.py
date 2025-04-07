@@ -33,7 +33,8 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -103,13 +104,15 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=config._llmobs_agentless_enabled,
-            _agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
+            _agentless_url="%s.%s" % (AGENTLESS_SPAN_BASE_URL, config._dd_site),
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             site=config._dd_site,
             api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=config._llmobs_agentless_enabled,
+            _agentless_url="%s.%s" % (AGENTLESS_EVAL_BASE_URL, config._dd_site),
         )
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),

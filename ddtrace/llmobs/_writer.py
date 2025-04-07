@@ -13,24 +13,25 @@ except ImportError:
 import http.client as httplib
 
 import ddtrace
-from ddtrace import config
 from ddtrace.internal import forksafe
-from ddtrace.internal import service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_ENDPOINT
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
+from ddtrace.llmobs._constants import EVP_EVAL_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
-from ddtrace.llmobs._constants import EVP_PROXY_AGENT_ENDPOINT
+from ddtrace.llmobs._constants import EVP_PROXY_EVAL_ENDPOINT
+from ddtrace.llmobs._constants import EVP_PROXY_SPAN_ENDPOINT
+from ddtrace.llmobs._constants import EVP_SPAN_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_VALUE
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -74,7 +75,15 @@ class BaseLLMObsWriter(PeriodicService):
     RETRY_ATTEMPTS = 3
     EVENT_TYPE = ""
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True) -> None:
+    def __init__(
+        self,
+        site: str,
+        api_key: str,
+        interval: float,
+        timeout: float,
+        is_agentless: bool = True,
+        _agentless_url: str = "",
+    ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
@@ -86,16 +95,15 @@ class BaseLLMObsWriter(PeriodicService):
         self._intake = ""  # type: str
         self._headers = {"Content-Type": "application/json"}
         self._agentless = is_agentless
+        self._agentless_url = _agentless_url
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
-            self._intake = "api.{}".format(self._site)
         else:
-            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_VALUE
-            self._intake = agent_config.trace_agent_url.split("//")[-1]
+            self._intake = agent_config.trace_agent_url
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2,
+            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
             until=lambda result: isinstance(result, httplib.HTTPResponse),
         )(self._send_payload)
 
@@ -104,10 +112,21 @@ class BaseLLMObsWriter(PeriodicService):
         logger.debug("started %r to %r", self.__class__.__name__, self._url)
         atexit.register(self.on_shutdown)
 
+    def stop(self, timeout=None):
+        super(BaseLLMObsWriter, self).stop(timeout=timeout)
+        logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
+
     def on_shutdown(self):
         self.periodic()
 
+    def enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
+        """Enqueue an event to be sent to LLM Observability.
+        This method can be overridden by child classes to handle specific event types.
+        """
+        self._enqueue(event)
+
     def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]) -> None:
+        """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         event_size = len(safe_json(event))
 
         with self._lock:
@@ -190,6 +209,7 @@ class BaseLLMObsWriter(PeriodicService):
         return "{}{}".format(self._intake, self._endpoint)
 
     def _data(self, events: List[Any]) -> Dict[str, Any]:
+        """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 
     def recreate(self) -> "BaseLLMObsWriter":
@@ -198,53 +218,59 @@ class BaseLLMObsWriter(PeriodicService):
             api_key=self._api_key,
             interval=self._interval,
             timeout=self._timeout,
+            is_agentless=self._agentless,
+            _agentless_url=self._agentless_url,
         )
 
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
-    """Writer to the Datadog LLMObs Custom Eval Metrics Endpoint."""
+    """Writes Evaluation metric events to the Datadog LLMObs Evals Endpoint."""
+
     EVENT_TYPE = "evaluation_metric"
 
-    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
-        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless=True)
+    def __init__(
+        self,
+        site: str,
+        api_key: str,
+        interval: float,
+        timeout: float,
+        is_agentless: bool = True,
+        _agentless_url: str = "",
+    ) -> None:
+        super(LLMObsEvalMetricWriter, self).__init__(site, api_key, interval, timeout, is_agentless=is_agentless)
         self._buffer = []
-        self._endpoint = AGENTLESS_EVAL_ENDPOINT
-
-
-    def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
-        self._enqueue(event)
+        if self._agentless:
+            self._intake = _agentless_url or AGENTLESS_EVAL_BASE_URL
+            self._endpoint = AGENTLESS_EVAL_ENDPOINT
+        else:
+            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_EVAL_SUBDOMAIN_HEADER_VALUE
+            self._endpoint = EVP_PROXY_EVAL_ENDPOINT
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
-    """Writer to the Datadog LLMObs Span Endpoint via Agent EvP Proxy."""
+    """Writes Span events to the Datadog LLMObs Span Endpoint."""
 
     EVENT_TYPE = "span"
 
     def __init__(
-        self, site: str, api_key: str, interval: float, timeout: float, is_agentless: bool = True, _agentless_url: str = ""
+        self,
+        site: str,
+        api_key: str,
+        interval: float,
+        timeout: float,
+        is_agentless: bool = True,
+        _agentless_url: str = "",
     ) -> None:
         super(LLMObsSpanWriter, self).__init__(site, api_key, interval, timeout, is_agentless)
-        self.agentless_url = _agentless_url
-        if is_agentless:
-            if not _agentless_url:
-                raise ValueError("_agentless_url is required for agentless mode")
-            self._intake = _agentless_url or AGENTLESS_BASE_URL
+        if self._agentless:
+            self._intake = _agentless_url or AGENTLESS_SPAN_BASE_URL
             self._endpoint = AGENTLESS_SPAN_ENDPOINT
         else:
-            self._intake = agent_config.trace_agent_url
-            self._endpoint = EVP_PROXY_AGENT_ENDPOINT
-
-    def start(self, *args, **kwargs):
-        super(LLMObsSpanWriter, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__, self._url)
-        atexit.register(self.on_shutdown)
-
-    def stop(self, timeout=None):
-        if self.status != service.ServiceStatus.STOPPED:
-            super(LLMObsSpanWriter, self).stop(timeout=timeout)
+            self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SPAN_SUBDOMAIN_HEADER_VALUE
+            self._endpoint = EVP_PROXY_SPAN_ENDPOINT
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
@@ -260,16 +286,6 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
 
     def _data(self, events: List[LLMObsSpanEvent]) -> Dict[str, Any]:
         return {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
-
-    def recreate(self) -> "LLMObsSpanWriter":
-        return self.__class__(
-            site=self._site,
-            api_key=self._api_key,
-            interval=self._interval,
-            timeout=self._timeout,
-            is_agentless=config._llmobs_agentless_enabled,
-            _agentless_url=self.agentless_url,
-        )
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
