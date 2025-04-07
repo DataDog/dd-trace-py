@@ -187,9 +187,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
     assert "llmobs_parent_id:{}".format(last_llmobs_span.span_id) in request_headers.get("tracestate")
 
 
-def test_activate_distributed_headers_propagate_simple(
-    ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app
-):
+def test_activate_distributed_headers_propagate_simple(ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app):
     """Test that the correct LLMObs parent ID is propagated in the headers in a simple distributed scenario.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a LLMObs span.
