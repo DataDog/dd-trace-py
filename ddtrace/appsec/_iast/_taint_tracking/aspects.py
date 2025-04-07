@@ -1298,7 +1298,7 @@ def ospathsplitdrive_aspect(*args: Any, **kwargs: Any) -> Any:
 
 
 def ospathsplitext_aspect(*args: Any, **kwargs: Any) -> Any:
-    if not all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
         try:
             return _aspect_ospathsplitext(*args, **kwargs)
         except Exception as e:
