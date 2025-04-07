@@ -2763,7 +2763,8 @@ venv = Venv(
                 "PyYAML": latest,
                 "jsonschema": latest,
             },
-            pys=select_pys(min_version="3.8"),
+            # we only need to run this on one version of Python
+            pys=select_pys(min_version="3.13", max_version="3.13"),
         ),
         Venv(
             name="profile",
