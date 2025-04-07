@@ -23,9 +23,6 @@ components:
   crewai:
     - ddtrace/contrib/_crewai.py
     - ddtrace/contrib/internal/crewai/*
-  openai_agents:
-    - ddtrace/contrib/_openai_agents.py
-    - ddtrace/contrib/internal/openai_agents/*
 suites:
   anthropic:
     parallelism: 2
@@ -128,17 +125,5 @@ suites:
       - '@llmobs'
       - tests/contrib/crewai/*
       - tests/snapshots/tests.contrib.crewai.*
-    runner: riot
-    snapshot: true
-  openai_agents:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@openai_agents'
-      - '@llmobs'
-      - tests/contrib/openai_agents/*
-      - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
