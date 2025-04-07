@@ -37,10 +37,14 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
+from ._listener import iast_listen
 from ._overhead_control_engine import OverheadControl
 
 
 log = get_logger(__name__)
+
+_IAST_TO_BE_LOADED = True
+_iast_propagation_enabled = False
 
 oce = OverheadControl()
 
@@ -77,9 +81,6 @@ def ddtrace_iast_flask_patch():
     module.__dict__.update(new_module.__dict__)
     # executing the compiled code in the new module environment
     exec(compiled_code, module.__dict__)  # nosec B102
-
-
-_iast_propagation_enabled = False
 
 
 def enable_iast_propagation():
@@ -141,3 +142,11 @@ __all__ = [
     "enable_iast_propagation",
     "disable_iast_propagation",
 ]
+
+
+def load_iast():
+    """Lazily load the iast module listeners."""
+    global _IAST_TO_BE_LOADED
+    if _IAST_TO_BE_LOADED:
+        iast_listen()
+        _IAST_TO_BE_LOADED = False
