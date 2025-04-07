@@ -11,7 +11,7 @@ import pytest
 from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
-from ddtrace.llmobs._writer import LLMObsSpanWriter
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -197,19 +197,6 @@ def llmobs_env():
     }
 
 
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._events = []
-
-    def enqueue(self, event):
-        self._events.append(event)
-        super().enqueue(event)
-
-    def events(self):
-        return self._events
-
-
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
@@ -300,7 +287,7 @@ def llmobs(
 
 @pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events()
+    return llmobs_span_writer.events
 
 
 @pytest.fixture
