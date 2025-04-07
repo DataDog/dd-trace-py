@@ -190,7 +190,6 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
-        "openai_agents",
     }
 )
 
