@@ -85,6 +85,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
     std::string_view json_str = CodeProvenance::get_instance().get_json_str();
 
+    std::cout << "json_str: " << json_str << std::endl;
+
     if (!json_str.empty()) {
         to_compress_files.reserve(1);
         to_compress_files.push_back({
