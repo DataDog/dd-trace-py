@@ -8,7 +8,6 @@ import time
 import mock
 import pytest
 
-from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter

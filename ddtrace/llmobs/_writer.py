@@ -18,7 +18,6 @@ from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
@@ -237,7 +236,7 @@ class BaseLLMObsWriter(PeriodicService):
     def _url(self) -> str:
         return "{}{}".format(self._intake, self._endpoint)
 
-    def _data(self, events: List[Any]) -> Dict[str, Any]:
+    def _data(self, events):
         """Return payload containing events to be encoded and submitted to LLM Observability."""
         raise NotImplementedError
 

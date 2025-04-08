@@ -1,8 +1,8 @@
-import pytest
 import os
 import time
 
 import mock
+import pytest
 
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
@@ -62,15 +62,9 @@ def test_truncating_oversized_events(mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call(
-                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724
-            ),
-            mock.call(
-                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464
-            ),
-            mock.call(
-                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445
-            ),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445),
         ]
     )
 
@@ -93,14 +87,16 @@ def test_send_chat_completion_event(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_completion_bad_api_key(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(DATADOG_SITE, "<bad-api-key>", 1, 1, is_agentless=True, _agentless_url=INTAKE_URL)
+    llmobs_span_writer = LLMObsSpanWriter(
+        DATADOG_SITE, "<bad-api-key>", 1, 1, is_agentless=True, _agentless_url=INTAKE_URL
+    )
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.error.assert_called_with(
-        'failed to send %d LLMObs %s events to %s, got response code %d, status: %s',
+        "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
-        'span',
-        'https://llmobs-intake.datad0g.com/api/v2/llmobs',
+        "span",
+        "https://llmobs-intake.datad0g.com/api/v2/llmobs",
         403,
         b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
     )
@@ -108,7 +104,9 @@ def test_send_completion_bad_api_key(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_timed_events(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(DATADOG_SITE, DD_API_KEY, 0.01, 1, is_agentless=True, _agentless_url=INTAKE_URL)
+    llmobs_span_writer = LLMObsSpanWriter(
+        DATADOG_SITE, DD_API_KEY, 0.01, 1, is_agentless=True, _agentless_url=INTAKE_URL
+    )
     llmobs_span_writer.start()
     mock_writer_logs.reset_mock()
 

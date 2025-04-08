@@ -1,9 +1,7 @@
 import json
+
 import pytest
 
-import mock
-
-import ddtrace
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
