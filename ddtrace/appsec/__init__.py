@@ -4,7 +4,6 @@ from ddtrace.internal import core
 
 
 _APPSEC_TO_BE_LOADED = True
-_IAST_TO_BE_LOADED = True
 
 
 def load_appsec():
@@ -15,16 +14,6 @@ def load_appsec():
     if _APPSEC_TO_BE_LOADED:
         asm_listen()
         _APPSEC_TO_BE_LOADED = False
-
-
-def load_iast():
-    """Lazily load the iast module listeners."""
-    from ddtrace.appsec._iast._listener import iast_listen
-
-    global _IAST_TO_BE_LOADED
-    if _IAST_TO_BE_LOADED:
-        iast_listen()
-        _IAST_TO_BE_LOADED = False
 
 
 def load_common_appsec_modules():
