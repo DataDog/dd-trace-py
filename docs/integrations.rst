@@ -325,7 +325,7 @@ OpenAI
 .. automodule:: ddtrace.contrib._openai
 
 
-.. _openai_agents:
+.. _openai-agents:
 
 OpenAI Agents
 ^^^^^^^^^^^^^
