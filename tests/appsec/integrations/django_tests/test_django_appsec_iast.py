@@ -889,6 +889,22 @@ def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_command_injection_secure_mark(client, test_spans, tracer):
+    patch_common_modules()
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/command-injection/secure-mark/",
+        payload="master",
+        content_type="application/json",
+    )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,

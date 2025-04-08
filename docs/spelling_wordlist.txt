@@ -316,3 +316,4 @@ Wrapt
 wsgi
 xfail
 yaaredis
+openai-agents

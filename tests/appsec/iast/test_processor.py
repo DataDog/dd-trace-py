@@ -3,8 +3,8 @@ import json
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP

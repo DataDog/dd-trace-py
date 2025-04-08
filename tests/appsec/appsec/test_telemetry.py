@@ -32,34 +32,35 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
     assert (
         len(generate_metrics) == 3 + is_updated
-    ), f"Expected {3 + is_updated} generate_metrics, got {[m.name for m in generate_metrics.values()]}"
-    for _metric_id, metric in generate_metrics.items():
-        if metric.name == "waf.requests":
-            assert ("rule_triggered", str(is_rule_triggered).lower()) in metric._tags
-            assert ("request_blocked", str(is_blocked_request).lower()) in metric._tags
-            # assert metric._tags["request_truncated"] is False
-            assert ("waf_timeout", "false") in metric._tags
-            assert ("waf_version", version()) in metric._tags
-            assert any("event_rules_version" in k for k, v in metric._tags)
-        elif metric.name == "waf.init":
-            assert len(metric._points) == 1
-            assert ("waf_version", version()) in metric._tags
-            assert ("success", "true") in metric._tags
-            assert any("event_rules_version" in k for k, v in metric._tags)
-            assert len(metric._tags) == 3
-        elif metric.name == "waf.updates":
-            assert len(metric._points) == 1
-            assert ("waf_version", version()) in metric._tags
-            assert ("success", "true") in metric._tags
-            assert any("event_rules_version" in k for k, v in metric._tags)
-            assert len(metric._tags) == 3
+    ), f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
+    for metric in generate_metrics:
+        metric_name = metric["metric"]
+        if metric_name == "waf.requests":
+            assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
+            assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
+            # assert not any(tag.startswith("request_truncated") for tag in metric.["tags"])
+            assert "waf_timeout:false" in metric["tags"]
+            assert f"waf_version:{version()}" in metric["tags"]
+            assert any("event_rules_version:" in t for t in metric["tags"])
+        elif metric_name == "waf.init":
+            assert len(metric["points"]) == 1
+            assert f"waf_version:{version()}" in metric["tags"]
+            assert "success:true" in metric["tags"]
+            assert any("event_rules_version" in t for t in metric["tags"])
+            assert len(metric["tags"]) == 3
+        elif metric_name == "waf.updates":
+            assert len(metric["points"]) == 1
+            assert f"waf_version:{version()}" in metric["tags"]
+            assert "success:true" in metric["tags"]
+            assert any("event_rules_version" in t for t in metric["tags"])
+            assert len(metric["tags"]) == 3
             metric_update += 1
-        elif metric.name == "api_security.missing_route":
-            assert len(metric._points) == 1
-            assert ("framework", "test") in metric._tags or ("framework", "flask") in metric._tags, metric._tags
-            assert len(metric._tags) == 1
+        elif metric_name == "api_security.missing_route":
+            assert len(metric["points"]) == 1
+            assert "framework:test" in metric["tags"] or "framework:flask" in metric["tags"], metric["tags"]
+            assert len(metric["tags"]) == 1
         else:
-            pytest.fail("Unexpected generate_metrics {}".format(metric.name))
+            pytest.fail("Unexpected generate_metrics {}".format(metric_name))
     assert metric_update == is_updated
 
 
@@ -67,16 +68,16 @@ def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_bl
     distributions_metrics = metrics_result[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]
 
     assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
-    for _metric_id, metric in distributions_metrics.items():
-        if metric.name in ["waf.duration", "waf.duration_ext"]:
-            assert len(metric._points) >= 1
-            assert type(metric._points[0]) is float
-            assert metric._tags["rule_triggered"] == str(is_rule_triggered).lower()
-            assert metric._tags["request_blocked"] == str(is_blocked_request).lower()
-            assert len(metric._tags["waf_version"]) > 0
-            assert len(metric._tags["event_rules_version"]) > 0
+    for metric in distributions_metrics:
+        if metric["metric"] in ["waf.duration", "waf.duration_ext"]:
+            assert len(metric["points"]) >= 1
+            assert isinstance(metric["points"][0], float)
+            assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
+            assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
+            assert f"waf_version:{version()}" in metric["tags"]
+            assert any("event_rules_version" in t for t in metric["tags"])
         else:
-            pytest.fail("Unexpected distributions_metrics {}".format(metric.name))
+            pytest.fail("Unexpected distributions_metrics {}".format(metric["metric"]))
 
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
@@ -88,9 +89,9 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 span,
                 rules.Config(),
             )
-    metrics_data = telemetry_writer._namespace._metrics_data
-    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
-    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION][TELEMETRY_NAMESPACE.APPSEC.value]) == 0
+    metrics_data = telemetry_writer._namespace.flush()
+    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS]) == 0
+    assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION]) == 0
 
 
 def test_metrics_when_appsec_runs(telemetry_writer, tracer):
@@ -100,21 +101,21 @@ def test_metrics_when_appsec_runs(telemetry_writer, tracer):
             span,
             rules.Config(),
         )
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data)
+    _assert_generate_metrics(telemetry_writer._namespace.flush())
 
 
 def test_metrics_when_appsec_attack(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config(), request_cookies={"attack": "1' or '1' = '1'"})
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True)
+    _assert_generate_metrics(telemetry_writer._namespace.flush(), is_rule_triggered=True)
 
 
 def test_metrics_when_appsec_block(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config())
-    _assert_generate_metrics(telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=True)
+    _assert_generate_metrics(telemetry_writer._namespace.flush(), is_rule_triggered=True, is_blocked_request=True)
 
 
 def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
@@ -133,7 +134,7 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
         )
         set_http_meta(span, rules.Config(), request_headers={"User-Agent": "Arachni/v1.5.1"})
     _assert_generate_metrics(
-        telemetry_writer._namespace._metrics_data, is_rule_triggered=True, is_blocked_request=False, is_updated=1
+        telemetry_writer._namespace.flush(), is_rule_triggered=True, is_blocked_request=False, is_updated=1
     )
 
 
@@ -173,14 +174,14 @@ def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
     list_metrics_logs = list(telemetry_writer._logs)
     assert len(list_metrics_logs) == 0
 
-    generate_metrics = telemetry_writer._namespace._metrics_data[TELEMETRY_TYPE_GENERATE_METRICS][
+    generate_metrics = telemetry_writer._namespace.flush()[TELEMETRY_TYPE_GENERATE_METRICS][
         TELEMETRY_NAMESPACE.APPSEC.value
     ]
 
     timeout_found = False
-    for _metric_id, metric in generate_metrics.items():
-        if metric.name == "waf.requests":
-            assert ("waf_timeout", "true") in metric._tags
+    for metric in generate_metrics:
+        if metric["metric"] == "waf.requests":
+            assert "waf_timeout:true" in metric["tags"]
             timeout_found = True
     assert timeout_found
 
@@ -215,16 +216,16 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             list_telemetry_logs = list(telemetry_writer._logs)
             assert len(list_telemetry_logs) == 0
             assert span.get_tag("_dd.appsec.waf.error") == "-3"
-            list_telemetry_metrics = list(
-                telemetry_writer._namespace._metrics_data.get("generate-metrics", {}).get("appsec", {}).values()
+            metrics_result = telemetry_writer._namespace.flush()
+            list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
+                TELEMETRY_NAMESPACE.APPSEC.value, {}
             )
-            error_metrics = [m for m in list_telemetry_metrics if m.name == "waf.error"]
+            error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
-            assert error_metrics[0]._tags == (
-                ("waf_version", version()),
-                ("event_rules_version", mock.ANY),
-                ("waf_error", "-3"),
-            )
+            assert len(error_metrics[0]["tags"]) == 3
+            assert f"waf_version:{version()}" in error_metrics[0]["tags"]
+            assert "waf_error:-3" in error_metrics[0]["tags"]
+            assert any(tag.startswith("event_rules_version:") for tag in error_metrics[0]["tags"])
 
 
 def test_log_metric_error_ddwaf_update_deduplication(telemetry_writer):
