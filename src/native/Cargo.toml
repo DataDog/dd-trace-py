@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [profile.release]
+strip = true
 codegen-units = 1
 opt-level = "z"
+lto = true
 
 [dependencies]
 pyo3 = { version = "0.24.0", features = ["extension-module", "abi3-py38", "anyhow"] }
@@ -27,3 +29,4 @@ crate-type = ["cdylib"]
 # Use git binary from the system instead of the built-in git client
 # "Setting this to true can be helpful if you have special authentication requirements that Cargo does not support."
 git-fetch-with-cli = true
+
