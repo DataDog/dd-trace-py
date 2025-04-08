@@ -15,7 +15,7 @@ log = get_logger(__name__)
 @dataclass(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
     def __post_init__(self) -> None:
-        from ddtrace.appsec import load_iast
+        from . import load_iast
 
         load_iast()
 

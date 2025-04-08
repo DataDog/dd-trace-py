@@ -1,5 +1,4 @@
 import abc
-import os
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -11,7 +10,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
@@ -31,12 +29,6 @@ class BaseLLMIntegration:
             sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
         )
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
-
-    @property
-    def span_linking_enabled(self) -> bool:
-        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false")) or asbool(
-            os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false")
-        )
 
     @property
     def llmobs_enabled(self) -> bool:
@@ -59,14 +51,15 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
+        span_name = kwargs.get("span_name")
         span = pin.tracer.trace(
-            "%s.request" % self._integration_name,
+            span_name or "%s.request" % self._integration_name,
             resource=operation_id,
             service=int_service(pin, self.integration_config),
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
