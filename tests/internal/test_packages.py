@@ -1,9 +1,8 @@
 import pytest
 
 from ddtrace.internal.packages import _third_party_packages
-from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.packages import filename_to_package
-
+from ddtrace.internal.packages import get_distributions
 
 
 def test_get_distributions():

@@ -85,7 +85,6 @@ def parse_importlib_metadata():
         namespaces[root] = False
         return False
 
-
     _DISTRIBUTIONS = {}
     _PACKAGE_DISTRIBUTIONS = defaultdict(list)
     _ROOT_TO_PACKAGE = {}
@@ -128,6 +127,7 @@ def get_distribution(name: str) -> t.Optional[Distribution]:
 def get_distributions():
     parse_importlib_metadata()
     return set(_DISTRIBUTIONS.values()) if _DISTRIBUTIONS else set()
+
 
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
