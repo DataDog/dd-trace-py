@@ -165,8 +165,9 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
-            distributed_headers_config=config.asgi,
             distributed_headers=headers,
+            integration_config=config.asgi,
+            activate_distributed_headers=True,
             pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)

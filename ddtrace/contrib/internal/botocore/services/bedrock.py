@@ -115,6 +115,32 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
+class TracedBotocoreConverseStream(wrapt.ObjectProxy):
+    """
+    This class wraps the stream response returned by converse_stream.
+    """
+
+    def __init__(self, wrapped, ctx: core.ExecutionContext):
+        super().__init__(wrapped)
+        self._stream_chunks = []
+        self._execution_ctx = ctx
+
+    def __iter__(self):
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                self._stream_chunks.append(chunk)
+                yield chunk
+        except Exception:
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
+            exception_raised = True
+            raise
+        finally:
+            if exception_raised:
+                return
+            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, self._stream_chunks])
+
+
 def safe_token_count(token_count) -> Optional[int]:
     """
     Converse api returns integer token counts, while invoke api returns string token counts.
@@ -151,7 +177,7 @@ def _set_llmobs_usage(
 def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
-        for converse.
+        for converse and converse_stream.
     """
     messages = params.get("messages", [])
     inference_config = params.get("inferenceConfig", {})
@@ -372,7 +398,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
     request_params = (
         _extract_request_params_for_converse(ctx["params"])
-        if ctx["resource"] == "Converse"
+        if ctx["resource"] in ("Converse", "ConverseStream")
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
@@ -423,6 +449,10 @@ def handle_bedrock_response(
 
     if ctx["resource"] == "Converse":
         core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        return result
+    if ctx["resource"] == "ConverseStream":
+        if "stream" in result:
+            result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
         return result
 
     body = result["body"]

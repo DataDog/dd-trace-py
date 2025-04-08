@@ -191,7 +191,18 @@ def _disable_ci_visibility():
         telemetry_writer.add_integration_error_log("encountered error during disable_ci_visibility", e)
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_load_initial_conftests(early_config, parser, args):
+    """Perform early initialization of the Test Optimization plugin.
+
+    This has to happen early enough that `sys.stderr` has not been redirected by pytest, so that logging is configured
+    properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
+    """
+    _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
+    yield
+
+
+def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     """Performs the bare-minimum to determine whether or ModuleCodeCollector should be enabled
 
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if

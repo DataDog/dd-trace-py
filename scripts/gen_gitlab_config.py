@@ -23,6 +23,7 @@ class JobSpec:
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
+    allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
 
@@ -96,6 +97,9 @@ class JobSpec:
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
 
+        if self.allow_failure:
+            lines.append("  allow_failure: true")
+
         return "\n".join(lines)
 
 
@@ -115,21 +119,11 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
-    # Exclude the suites that are run in CircleCI. These likely don't run in
-    # GitLab yet.
-    with YAML() as yaml:
-        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
-        circleci_jobs = set(circleci_config["jobs"].keys())
-
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
-                LOGGER.debug("Skipping CircleCI suite %s", suite)
-                continue
-
             jobspec = JobSpec(suite, **suites[suite])
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
@@ -310,7 +304,7 @@ build_base_venvs:
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    # Re-use job artifacts between runs if no native source files have been changed
+    # Reuse job artifacts between runs if no native source files have been changed
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
       paths:
         - .riot/venv_*
@@ -341,7 +335,6 @@ from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
 from time import monotonic_ns as time  # noqa
 
-from ruamel.yaml import YAML  # noqa
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)
