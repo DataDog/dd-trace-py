@@ -52,10 +52,10 @@ def check_and_report_sqli(
                     SqlInjection.report(evidence_value=args[0], dialect=integration_name)
                     reported = True
 
-            # Reports Span Metrics
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
-            # Report Telemetry Metrics
-            _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
+                # Reports Span Metrics
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SqlInjection.vulnerability_type)
+                # Report Telemetry Metrics
+                _set_metric_iast_executed_sink(SqlInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in check_and_report_sqli. {e}")
     return reported
