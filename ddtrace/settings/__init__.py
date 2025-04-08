@@ -1,6 +1,5 @@
-from ..vendor.debtcollector import deprecate
-
 from .._hooks import Hooks
+from ..vendor.debtcollector import deprecate
 from .exceptions import ConfigException
 from .http import HttpConfig
 from .integration import IntegrationConfig
