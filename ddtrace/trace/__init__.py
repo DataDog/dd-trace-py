@@ -4,10 +4,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
+from ddtrace._trace.tracer import tracer  # a global tracer instance with integration settings
 
-
-# a global tracer instance with integration settings
-tracer = Tracer()
 
 __all__ = [
     "BaseContextProvider",

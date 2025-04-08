@@ -5,7 +5,8 @@ from typing import Optional  # noqa:F401
 
 import wrapt
 
-import ddtrace
+from ddtrace import tracer
+from ddtrace.settings._config import config
 
 from ..internal.logger import get_logger
 
@@ -41,7 +42,7 @@ class Pin(object):
     ):
         # type: (...) -> None
         self.tags = tags
-        self._tracer = ddtrace.tracer
+        self._tracer = tracer
         self._target = None  # type: Optional[int]
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
@@ -183,7 +184,7 @@ class Pin(object):
             # set the target reference; any get_from, clones and retarget the new PIN
             self._target = id(obj)
             if self.service:
-                ddtrace.config._add_extra_service(self.service)
+                config._add_extra_service(self.service)
             return setattr(obj, pin_name, self)
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)

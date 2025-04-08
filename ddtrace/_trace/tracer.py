@@ -1043,3 +1043,7 @@ class Tracer(object):
                 from ddtrace.contrib.internal.logging.patch import unpatch
 
                 unpatch()
+
+
+# Instantiate the global tracer
+tracer = Tracer()
