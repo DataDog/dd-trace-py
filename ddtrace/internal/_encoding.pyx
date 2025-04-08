@@ -23,6 +23,7 @@ from ..constants import _ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
+from .._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ..settings._agent import config as agent_config
 
 
@@ -135,7 +136,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
 
     if PyBytesLike_Check(text):
         L = len(text)
-        if L > ITEM_LIMIT:
+        if L > MAX_SPAN_META_VALUE_LEN:
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
         ret = msgpack_pack_raw(pk, L)
         if ret == 0:
@@ -144,13 +145,13 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
 
     if PyUnicode_Check(text):
         IF PY_MAJOR_VERSION >= 3:
-            ret = msgpack_pack_unicode(pk, text, ITEM_LIMIT)
+            ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
             if ret == -2:
                 raise ValueError("unicode string is too large")
         ELSE:
             text = PyUnicode_AsEncodedString(text, "utf-8", NULL)
             L = len(text)
-            if L > ITEM_LIMIT:
+            if L > MAX_SPAN_META_VALUE_LEN:
                 raise ValueError("unicode string is too large")
             ret = msgpack_pack_raw(pk, L)
             if ret == 0:
@@ -226,7 +227,6 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
-    cdef int _max_string_length
     cdef int _sp_len
     cdef stdint.uint32_t _sp_id
     cdef object _lock
@@ -238,7 +238,6 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
-        self._max_string_length = int(0.1*max_size)
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
         self._lock = threading.RLock()
@@ -254,9 +253,9 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
-        if len(string) > self._max_string_length:
+        if len(string) > self.MAX_SPAN_META_VALUE_LEN:
             string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
-                len(string), self._max_string_length
+                len(string), self.MAX_SPAN_META_VALUE_LEN
             )
 
         if self.pk.length + len(string) > self.max_size:
