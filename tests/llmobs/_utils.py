@@ -594,6 +594,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -676,6 +677,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -707,6 +709,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -762,6 +765,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
