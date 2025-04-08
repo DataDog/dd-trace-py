@@ -218,6 +218,7 @@ def _root_module(path: Path) -> str:
 
 
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, str]]:
+    parse_importlib_metadata()
     return _ROOT_TO_PACKAGE if _ROOT_TO_PACKAGE else {}
 
 
