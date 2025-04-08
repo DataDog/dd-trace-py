@@ -43,3 +43,8 @@ def http_get_function_name_decorator(req: func.HttpRequest) -> func.HttpResponse
 @app.route(route="httpgetfunctionnamenodecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
+
+
+@app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
+def timer(timer: func.TimerRequest) -> None:
+    pass
