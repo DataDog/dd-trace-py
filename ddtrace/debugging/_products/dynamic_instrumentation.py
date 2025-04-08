@@ -26,6 +26,11 @@ def start():
         _start()
 
 
+def before_fork():
+    # We need to make sure that each process shares the same RC data connector
+    import ddtrace.debugging._probe.remoteconfig  # noqa
+
+
 def restart(join=False):
     # Nothing to do
     pass
