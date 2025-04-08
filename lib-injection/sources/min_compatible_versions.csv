@@ -67,7 +67,6 @@ flask-caching,~=1.10.0
 flask-openapi3,0
 gevent,~=20.12.0
 google-ai-generativelanguage,0
-google-auth,0
 google-generativeai,0
 googleapis-common-protos,0
 graphene,~=3.0.0

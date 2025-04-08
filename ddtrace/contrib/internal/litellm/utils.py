@@ -12,11 +12,6 @@ from ddtrace.llmobs._integrations.utils import (
 log = get_logger(__name__)
 
 
-def tag_request(span, kwargs):
-    if "metadata" in kwargs and "headers" in kwargs["metadata"] and "host" in kwargs["metadata"]["headers"]:
-        span.set_tag_str("litellm.request.host", kwargs["metadata"]["headers"]["host"])
-
-
 class BaseTracedLiteLLMStream:
     def __init__(self, generator, integration, span, args, kwargs, is_completion=False):
         n = kwargs.get("n", 1) or 1

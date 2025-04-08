@@ -181,8 +181,6 @@ class TestLLMObsLiteLLM:
         )
 
     def test_completion_integrations_enabled(self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
-        if stream:
-            pytest.skip("Streamed Open AI requests will lead to unfinished spans; therefore, skip them for now")
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
             LLMObs.disable()
 
