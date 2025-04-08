@@ -44,9 +44,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = span.get_tag("litellm.request.model")
+        # get resolved model name and provider
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
-        # response format will match Open AI
+        # use Open AI helpers since response format will match Open AI
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         else:

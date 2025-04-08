@@ -262,7 +262,3 @@ class TestLLMObsLiteLLM:
 
         # client side requests made to the proxy are not submitted to LLMObs
         assert mock_llmobs_writer.enqueue.call_count == 0
-
-    
-
- 
