@@ -27,7 +27,6 @@ def mock_tracer():
 
 @pytest.fixture
 def langgraph(monkeypatch, mock_tracer):
-    monkeypatch.setenv("_DD_TRACE_LANGGRAPH_ENABLED", "true")
     patch()
     import langgraph
 
