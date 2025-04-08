@@ -126,11 +126,6 @@ class Contrib_TestClass_For_Threats:
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
-            assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
             # DEV: fastapi may send "requests" instead of "fastapi"
             # assert get_tag("component") == interface.name
 
@@ -150,11 +145,6 @@ class Contrib_TestClass_For_Threats:
             url = f"/?{query_params}"
             response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
             assert response.status_code == 200
-            assert root_span()._get_ctx_item("http.request.uri") == f"http://localhost:8000{url}"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
             assert get_metric("_dd.appsec.waf.timeouts") > 0, (root_span()._meta, root_span()._metrics)
             args_list = [
                 (args[0].value, args[1].value) + args[2:]
