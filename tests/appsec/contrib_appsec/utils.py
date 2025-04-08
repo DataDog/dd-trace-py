@@ -11,15 +11,29 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+# patching asm_request_context to observe waf data internals
+
+_init_finalize = _asm_request_context.finalize_asm_env
+_addresses_store = []
+
+
+def finalize_wrapper(env):
+    _addresses_store.append(env.waf_addresses)
+    _init_finalize(env)
+
+
+_asm_request_context.finalize_asm_env = finalize_wrapper
 
 
 class Interface:
@@ -169,11 +183,12 @@ class Contrib_TestClass_For_Threats:
         assert (span_priority == 2) if asm_enabled and priority else (span_priority < 2)
 
     def test_querystrings(self, interface: Interface, root_span):
+        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/?a=1&b&c=d")
             assert self.status(response) == 200
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            query = _addresses_store[0].get("http.request.query")
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
@@ -181,11 +196,12 @@ class Contrib_TestClass_For_Threats:
             ]
 
     def test_no_querystrings(self, interface: Interface, root_span):
+        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
-            assert not core.get_item("http.request.query", span=root_span())
+            assert not _addresses_store[0].get("http.request.query")
 
     def test_truncation_tags(self, interface: Interface, get_metric):
         with override_global_config(dict(_asm_enabled=True)):
@@ -260,15 +276,16 @@ class Contrib_TestClass_For_Threats:
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
     def test_request_cookies(self, interface: Interface, root_span, asm_enabled, cookies, attack):
+        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
             if asm_enabled:
-                cookies_parsed = dict(core.get_item("http.request.cookies", span=root_span()))
+                cookies_parsed = _addresses_store[0].get("http.request.cookies")
                 assert cookies_parsed == cookies
             else:
-                assert core.get_item("http.request.cookies", span=root_span()) is None
+                assert not _addresses_store
             triggers = get_triggers(root_span())
             if asm_enabled and attack:
                 assert triggers is not None, "no appsec struct in root span"
@@ -301,13 +318,14 @@ class Contrib_TestClass_For_Threats:
         payload_struct,
         attack,
     ):
+        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
             payload = encode_payload(payload_struct)
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
 
-            body = core.get_item("http.request.body", span=root_span())
+            body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
                 assert body in [
                     payload_struct,
@@ -347,11 +365,12 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_request_path_params(self, interface: Interface, root_span, asm_enabled):
+        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            path_params = core.get_item("http.request.path_params", span=root_span())
+            path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
                 assert path_params["param_str"] == "abc"
                 assert int(path_params["param_int"]) == 137
