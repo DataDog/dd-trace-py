@@ -77,7 +77,8 @@ def trace_tween_factory(handler, registry):
                 tags={},
                 tracer=tracer,
                 distributed_headers=request.headers,
-                distributed_headers_config=config.pyramid,
+                integration_config=config.pyramid,
+                activate_distributed_headers=True,
                 headers_case_sensitive=True,
             ) as ctx, ctx.span as req_span:
                 ctx.set_item("req_span", req_span)

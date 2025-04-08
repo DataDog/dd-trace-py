@@ -6,6 +6,8 @@ from typing import Iterable
 
 # 3p
 import pymongo
+from pymongo.message import _GetMore
+from pymongo.message import _Query
 from wrapt import ObjectProxy
 
 # project
@@ -19,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import mongo as mongox
 from ddtrace.ext import net as netx
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
@@ -160,6 +163,7 @@ def _trace_server_run_operation_and_with_response(func, args, kwargs):
     if span is None:
         return func(*args, **kwargs)
     with span:
+        span, args, kwargs = _dbm_dispatch(span, args, kwargs)
         result = func(*args, **kwargs)
         if result:
             if hasattr(result, "address"):
@@ -221,7 +225,9 @@ def _trace_socket_command(func, args, kwargs):
         return func(*args, **kwargs)
 
     cmd.db = dbname
-    with _trace_cmd(cmd, socket_instance, socket_instance.address):
+    with _trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+        # dispatch DBM
+        s, args, kwargs = _dbm_dispatch(s, args, kwargs)
         return func(*args, **kwargs)
 
 
@@ -332,3 +338,59 @@ def set_query_rowcount(docs, span):
     if cursor:
         rowcount = sum([len(documents) for batch_key, documents in cursor.items() if BATCH_PARTIAL_KEY in batch_key])
         span.set_metric(db.ROWCOUNT, rowcount)
+
+
+def _dbm_dispatch(span, args, kwargs):
+    # dispatch DBM
+    result = core.dispatch_with_results("pymongo.execute", (config.pymongo, span, args, kwargs)).result
+    if result:
+        span, args, kwargs = result.value
+    return span, args, kwargs
+
+
+def _dbm_comment_injector(dbm_comment, command):
+    try:
+        if VERSION < (3, 9):
+            log.debug("DBM propagation not supported for PyMongo versions < 3.9")
+            return command
+
+        if dbm_comment is not None:
+            dbm_comment = dbm_comment.strip()
+        if isinstance(command, _Query):
+            if _is_query(command):
+                if "$query" not in command.spec:
+                    command.spec = {"$query": command.spec}
+                command.spec = _dbm_comment_injector(dbm_comment, command.spec)
+        elif isinstance(command, _GetMore):
+            if hasattr(command, "comment"):
+                command.comment = _dbm_merge_comment(command.comment, dbm_comment)
+        else:
+            comment_exists = False
+            for comment_key in ("comment", "$comment"):
+                if comment_key in command:
+                    command[comment_key] = _dbm_merge_comment(command[comment_key], dbm_comment)
+                    comment_exists = True
+            if not comment_exists:
+                command["comment"] = dbm_comment
+        return command
+    except (TypeError, ValueError):
+        log.warning(
+            "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
+            "To disable this feature please set the following environment variable: "
+            "DD_DBM_PROPAGATION_MODE=disabled",
+            type(command),
+        )
+    return command
+
+
+def _dbm_merge_comment(existing_comment, dbm_comment):
+    if existing_comment is None:
+        return dbm_comment
+    if isinstance(existing_comment, str):
+        return existing_comment + "," + dbm_comment
+    elif isinstance(existing_comment, list):
+        existing_comment.append(dbm_comment)
+        return existing_comment
+    # if existing_comment is not a string or list
+    # do not inject dbm comment
+    return existing_comment

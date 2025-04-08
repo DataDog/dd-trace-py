@@ -30,7 +30,8 @@ class TraceMiddleware(object):
             tags={},
             tracer=self.tracer,
             distributed_headers=headers,
-            distributed_headers_config=config.falcon,
+            integration_config=config.falcon,
+            activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span

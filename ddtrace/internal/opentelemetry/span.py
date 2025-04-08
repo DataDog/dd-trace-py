@@ -145,14 +145,14 @@ class Span(OtelSpan):
             ddtracer.sample(self._ddspan._local_root or self._ddspan)
 
         if self._ddspan.context.sampling_priority is None:
-            tf = TraceFlags.DEFAULT
+            tf = TraceFlags.get_default()
             log.warning(
                 "Span context is missing a sampling decision, defaulting to unsampled: %s", str(self._ddspan.context)
             )
         elif self._ddspan.context.sampling_priority > 0:
-            tf = TraceFlags.SAMPLED
+            tf = TraceFlags(TraceFlags.SAMPLED)
         else:
-            tf = TraceFlags.DEFAULT
+            tf = TraceFlags.get_default()
 
         # Evaluate the tracestate header after the sampling decision has been made
         ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)

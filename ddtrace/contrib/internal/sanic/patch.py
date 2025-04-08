@@ -208,7 +208,8 @@ def _create_sanic_request_span(request):
         tags={},
         pin=pin,
         distributed_headers=headers,
-        distributed_headers_config=config.sanic,
+        integration_config=config.sanic,
+        activate_distributed_headers=True,
         headers_case_sensitive=True,
     ) as ctx:
         req_span = ctx.span

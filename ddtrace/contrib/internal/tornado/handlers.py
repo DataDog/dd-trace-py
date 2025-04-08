@@ -36,7 +36,8 @@ def execute(func, handler, args, kwargs):
             tags={},
             tracer=tracer,
             distributed_headers=handler.request.headers,
-            distributed_headers_config=config.tornado,
+            integration_config=config.tornado,
+            activate_distributed_headers=True,
             distributed_headers_config_override=distributed_tracing,
             headers_case_sensitive=True,
         ) as ctx:

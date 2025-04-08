@@ -333,7 +333,7 @@ def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
             "type": span.get_tag("error.type"),
         }
         if error.locations:
-            locations = [f"{loc.formatted['line']}:{loc.formatted['column']}" for loc in error.locations]
+            locations = [f"{loc.line}:{loc.column}" for loc in error.locations]
             attributes["locations"] = locations
 
         if error.__traceback__:

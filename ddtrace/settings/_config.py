@@ -106,6 +106,7 @@ INTEGRATION_CONFIGS = frozenset(
         "unittest",
         "falcon",
         "langgraph",
+        "litellm",
         "aioredis",
         "test_visibility",
         "redis",
@@ -169,6 +170,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "crewai",
         "logging",
         "cassandra",
         "boto",
@@ -190,6 +192,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
+        "openai_agents",
     }
 )
 
@@ -580,10 +583,7 @@ class Config(object):
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
         if x_datadog_tags_max_length < 0:
             log.warning(
-                (
-                    "Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values allowed"
-                ),
+                ("Invalid value %r provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, only non-negative values allowed"),
                 x_datadog_tags_max_length,
             )
             x_datadog_tags_max_length = 0
@@ -643,8 +643,7 @@ class Config(object):
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
-        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", False, asbool)
-        self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
+        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
@@ -804,66 +803,6 @@ class Config(object):
         # type: (str) -> str
         return self._config[item].source()
 
-    def _handle_remoteconfig(self, data_list, test_tracer=None):
-        # data_list is a list of Payload objects
-        # type: (Any, Any) -> None
-
-        if len(data_list) == 0:
-            log.warning("unexpected number of RC payloads")
-            return
-        data = [payload.content for payload in data_list]
-
-        # Check if 'lib_config' is a key in the dictionary since other items can be sent in the payload
-        config = None
-        for config_item in data:
-            if isinstance(config_item, Dict):
-                if "lib_config" in config_item:
-                    config = config_item
-                    break
-
-        # If no data is submitted then the RC config has been deleted. Revert the settings.
-        base_rc_config = {n: None for n in self._config}
-
-        if config and "lib_config" in config:
-            lib_config = config["lib_config"]
-            if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
-                global_sampling_rate = lib_config.get("tracing_sampling_rate")
-                trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
-                # returns None if no rules
-                trace_sampling_rules = self._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
-                if trace_sampling_rules:
-                    base_rc_config["_trace_sampling_rules"] = trace_sampling_rules  # type: ignore[assignment]
-
-            if "log_injection_enabled" in lib_config:
-                base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
-
-            if "tracing_tags" in lib_config:
-                tags = lib_config["tracing_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_tags"])
-                base_rc_config["tags"] = tags
-
-            if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-                base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])  # type: ignore[assignment]
-
-            if "tracing_header_tags" in lib_config:
-                tags = lib_config["tracing_header_tags"]
-                if tags:
-                    tags = self._format_tags(lib_config["tracing_header_tags"])
-                base_rc_config["_trace_http_header_tags"] = tags
-        self._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
-        # called unconditionally to handle the case where header tags have been unset
-        self._handle_remoteconfig_header_tags(base_rc_config)
-
-    def _handle_remoteconfig_header_tags(self, base_rc_config):
-        """Implements precedence order between remoteconfig header tags from code, env, and RC"""
-        header_tags_conf = self._config["_trace_http_header_tags"]
-        env_headers = header_tags_conf._env_value or {}
-        code_headers = header_tags_conf._code_value or {}
-        non_rc_header_tags = {**code_headers, **env_headers}
-        selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-        self._http = HttpConfig(header_tags=selected_header_tags)
-
     def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
         if not tags:
             return {}
@@ -938,3 +877,6 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+config = Config()

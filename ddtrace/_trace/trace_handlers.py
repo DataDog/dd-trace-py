@@ -105,14 +105,15 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
+    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
-    distributed_headers_config = ctx.get_item("distributed_headers_config")
-    if distributed_headers_config:
+    integration_config = ctx.get_item("integration_config")
+    if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
-            int_config=distributed_headers_config,
+            int_config=integration_config,
             request_headers=ctx["distributed_headers"],
             override=ctx.get_item("distributed_headers_config_override"),
         )
@@ -122,7 +123,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, distributed_headers_config))
+        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
@@ -189,7 +190,7 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_headers_config):
+def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_config):
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
@@ -199,7 +200,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, distributed_h
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
 
     # Inferred Proxy Spans
-    if distributed_headers_config and headers is not None:
+    if integration_config and headers is not None:
         create_inferred_proxy_span_if_headers_exist(
             ctx,
             headers=headers,
@@ -487,7 +488,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
     span = ctx.span
     after_request_tags(ctx["pin"], span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["distributed_headers_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
@@ -500,7 +501,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["distributed_headers_config"],
+        ctx["integration_config"],
         method=request.method,
         query=query,
         raw_uri=uri,
@@ -856,6 +857,11 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
     )
 
 
+def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger):
+    span = ctx.get_item("trigger_span")
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -909,6 +915,7 @@ def listen():
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
+    core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -961,6 +968,7 @@ def listen():
         "rq.job.perform",
         "rq.job.fetch_many",
         "azure.functions.patched_route_request",
+        "azure.functions.patched_timer",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
