@@ -468,6 +468,8 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
         message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
     return message
+
+
 class OaiSpanAdapter:
     """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
     This is to consolidate the code where we access oai library types which provides a clear starting point for

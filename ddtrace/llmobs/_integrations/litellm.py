@@ -85,6 +85,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
         # model provider is unknown until request completes; therefore, this is a best effort attempt to check if model provider is Open AI or Azure
-        if ("gpt" in model_lower or "openai" in model_lower or "azure" in model_lower) and not stream and "openai" in ddtrace._monkey._get_patched_modules():
+        if (
+            ("gpt" in model_lower or "openai" in model_lower or "azure" in model_lower)
+            and not stream
+            and "openai" in ddtrace._monkey._get_patched_modules()
+        ):
             return False
         return True

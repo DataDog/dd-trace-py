@@ -69,6 +69,7 @@ def mock_tracer(litellm, ddtrace_global_config):
 def request_vcr():
     return get_request_vcr()
 
+
 @pytest.fixture
 def request_vcr_include_localhost():
     return get_request_vcr(ignore_localhost=False)

@@ -44,7 +44,6 @@ def test_litellm_completion(litellm, snapshot_context, request_vcr, stream, n):
                     pass
 
 
-
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, stream, n):
     with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"]):
@@ -59,7 +58,8 @@ async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, strea
             if stream:
                 async for _ in resp:
                     pass
-            
+
+
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_text_completion(litellm, snapshot_context, request_vcr, stream, n):
     with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"]):

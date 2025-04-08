@@ -61,7 +61,6 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-    
 
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
@@ -85,7 +84,7 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                 self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
             )
             self._dd_span.finish()
-    
+
     async def __anext__(self):
         try:
             chunk = await self._generator.__anext__()

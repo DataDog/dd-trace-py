@@ -39,7 +39,9 @@ def consume_stream(resp, n, is_completion=False):
     token_metrics = {}
     role = None
     for chunk in resp:
-        output_messages, token_metrics, role = extract_output_from_chunk(chunk, output_messages, token_metrics, role, is_completion)
+        output_messages, token_metrics, role = extract_output_from_chunk(
+            chunk, output_messages, token_metrics, role, is_completion
+        )
     output_messages = parse_tool_calls(output_messages)
     return output_messages, token_metrics
 
@@ -49,7 +51,9 @@ async def async_consume_stream(resp, n, is_completion=False):
     token_metrics = {}
     role = None
     async for chunk in resp:
-        output_messages, token_metrics, role = extract_output_from_chunk(chunk, output_messages, token_metrics, role, is_completion)
+        output_messages, token_metrics, role = extract_output_from_chunk(
+            chunk, output_messages, token_metrics, role, is_completion
+        )
     output_messages = parse_tool_calls(output_messages)
     return output_messages, token_metrics
 
@@ -68,9 +72,16 @@ def extract_output_from_chunk(chunk, output_messages, token_metrics, role, is_co
                 while tool_call.index >= len(output_messages[choice.index]["tool_calls"]):
                     output_messages[choice.index]["tool_calls"].append({})
                 arguments = output_messages[choice.index]["tool_calls"][tool_call.index].get("arguments", "")
-                output_messages[choice.index]["tool_calls"][tool_call.index]["name"] = output_messages[choice.index]["tool_calls"][tool_call.index].get("name", None) or tool_call.function.name
-                output_messages[choice.index]["tool_calls"][tool_call.index]["arguments"] = arguments + tool_call.function.arguments
-                output_messages[choice.index]["tool_calls"][tool_call.index]["tool_id"] = output_messages[choice.index]["tool_calls"][tool_call.index].get("tool_id", None) or tool_call.id
+                output_messages[choice.index]["tool_calls"][tool_call.index]["name"] = (
+                    output_messages[choice.index]["tool_calls"][tool_call.index].get("name", None)
+                    or tool_call.function.name
+                )
+                output_messages[choice.index]["tool_calls"][tool_call.index]["arguments"] = (
+                    arguments + tool_call.function.arguments
+                )
+                output_messages[choice.index]["tool_calls"][tool_call.index]["tool_id"] = (
+                    output_messages[choice.index]["tool_calls"][tool_call.index].get("tool_id", None) or tool_call.id
+                )
                 output_messages[choice.index]["tool_calls"][tool_call.index]["type"] = tool_call.type
 
     if "usage" in chunk and chunk["usage"]:
@@ -108,12 +119,14 @@ def parse_response(resp, is_completion=False):
         if tool_calls:
             message["tool_calls"] = []
             for tool_call in tool_calls:
-                message["tool_calls"].append({
-                    "name": tool_call["function"]["name"],
-                    "arguments": json.loads(tool_call["function"]["arguments"]),
-                    "tool_id": tool_call["id"],
-                    "type": tool_call["type"]
-                })
+                message["tool_calls"].append(
+                    {
+                        "name": tool_call["function"]["name"],
+                        "arguments": json.loads(tool_call["function"]["arguments"]),
+                        "tool_id": tool_call["id"],
+                        "type": tool_call["type"],
+                    }
+                )
         output_messages.append(message)
     token_metrics = {
         "input_tokens": resp.usage.prompt_tokens,
@@ -121,6 +134,7 @@ def parse_response(resp, is_completion=False):
         "total_tokens": resp.usage.total_tokens,
     }
     return output_messages, token_metrics
+
 
 tools = [
     {

@@ -8,7 +8,15 @@ from tests.utils import DummyTracer
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _dd_api_key="<not-a-real-key>")]
+    "ddtrace_global_config",
+    [
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _dd_api_key="<not-a-real-key>",
+        )
+    ],
 )
 @pytest.mark.parametrize(
     "stream,n,include_usage",
@@ -54,9 +62,13 @@ class TestLLMObsLiteLLM:
             )
         )
 
-    def test_completion_with_tools(self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
+    def test_completion_with_tools(
+        self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage
+    ):
         if stream and n > 1:
-            pytest.skip("Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977")
+            pytest.skip(
+                "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
+            )
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage, tools=True)):
             messages = [{"content": "What is the weather like in San Francisco, CA?", "role": "user"}]
             resp = litellm.completion(
@@ -72,7 +84,7 @@ class TestLLMObsLiteLLM:
                 output_messages, token_metrics = consume_stream(resp, n)
             else:
                 output_messages, token_metrics = parse_response(resp)
-        
+
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -82,7 +94,12 @@ class TestLLMObsLiteLLM:
                 model_provider="openai",
                 input_messages=messages,
                 output_messages=output_messages,
-                metadata={"stream": stream, "n": n, "stream_options": {"include_usage": include_usage}, "tool_choice": "auto"},
+                metadata={
+                    "stream": stream,
+                    "n": n,
+                    "stream_options": {"include_usage": include_usage},
+                    "tool_choice": "auto",
+                },
                 token_metrics=token_metrics,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
             )
@@ -180,7 +197,9 @@ class TestLLMObsLiteLLM:
             )
         )
 
-    def test_completion_integrations_enabled(self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
+    def test_completion_integrations_enabled(
+        self, litellm, request_vcr, mock_llmobs_writer, mock_tracer, stream, n, include_usage
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
             LLMObs.disable()
 
@@ -205,20 +224,14 @@ class TestLLMObsLiteLLM:
                 output_messages, token_metrics = consume_stream(resp, n)
             else:
                 output_messages, token_metrics = parse_response(resp)
-            
+
             LLMObs.disable()
 
         spans = mock_tracer.pop_traces()
         # if streaming, grab the LiteLLM request, otherwise, grab the OpenAI request
         if stream:
             span = spans[0][0]
-            metadata = {
-                "stream": stream,
-                "n": n,
-                "stream_options": {
-                    "include_usage": include_usage
-                }
-            }
+            metadata = {"stream": stream, "n": n, "stream_options": {"include_usage": include_usage}}
             model_name = "gpt-3.5-turbo"
         else:
             span = spans[0][1]
@@ -228,25 +241,25 @@ class TestLLMObsLiteLLM:
                 "n": n,
                 "extra_body": {},
                 "timeout": 600.0,
-                "extra_headers": {
-                    "X-Stainless-Raw-Response": "true"
-                }
+                "extra_headers": {"X-Stainless-Raw-Response": "true"},
             }
             model_name = "gpt-3.5-turbo-0125"
         assert mock_llmobs_writer.enqueue.call_count == 1
         expected_event = _expected_llmobs_llm_span_event(
-                span,
-                model_name=model_name,
-                model_provider="openai",
-                input_messages=messages,
-                output_messages=output_messages,
-                metadata=metadata,
-                token_metrics=token_metrics,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
-            )
+            span,
+            model_name=model_name,
+            model_provider="openai",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata=metadata,
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
         mock_llmobs_writer.enqueue.assert_called_with(expected_event)
-    
-    def test_completion_proxy(self, litellm, request_vcr_include_localhost, mock_llmobs_writer, mock_tracer, stream, n, include_usage):
+
+    def test_completion_proxy(
+        self, litellm, request_vcr_include_localhost, mock_llmobs_writer, mock_tracer, stream, n, include_usage
+    ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, include_usage, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
