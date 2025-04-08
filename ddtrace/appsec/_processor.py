@@ -38,7 +38,6 @@ from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -435,11 +434,11 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
                 # Force to set respond headers at the end
-                headers_res = core.get_item(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, span=span)
+                headers_res = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
                 if headers_res:
                     _set_headers(span, headers_res, kind="response")
 
-                headers_req = core.get_item(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, span=span)
+                headers_req = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES)
                 if headers_req:
                     _set_headers(span, headers_req, kind="request", only_asm_enabled=False)
 
