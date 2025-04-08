@@ -67,27 +67,6 @@ def mock_llmobs_submit_evaluation():
 
 
 @pytest.fixture
-def mock_http_writer_send_payload_response():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._send_payload",
-        return_value=Response(status=200, body="{}"),
-    ):
-        yield
-
-
-@pytest.fixture
-def mock_http_writer_put_response_forbidden():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._put",
-        return_value=Response(
-            status=403,
-            reason=b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
-        ),
-    ):
-        yield
-
-
-@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
@@ -281,6 +260,7 @@ def llmobs(
     with override_global_config(global_config):
         llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._llmobs_span_writer.start()
         yield llmobs_service
     llmobs_service.disable()
 

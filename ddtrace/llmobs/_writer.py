@@ -19,6 +19,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -109,6 +110,7 @@ class BaseLLMObsWriter(PeriodicService):
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
         self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
+        self._buffer_size = 0
         self._buffer_limit = 1000
         self._timeout = timeout  # type: float
         self._api_key = api_key or ""  # type: str
@@ -152,12 +154,13 @@ class BaseLLMObsWriter(PeriodicService):
                 )
                 telemetry.record_dropped_payload(1, event_type=self.EVENT_TYPE, error="buffer_full")
                 return
-            if len(self._buffer) + event_size > EVP_PAYLOAD_SIZE_LIMIT:
+            if self._buffer_size + event_size > EVP_PAYLOAD_SIZE_LIMIT:
                 logger.debug("manually flushing buffer because queueing next event will exceed EVP payload limit")
                 self.periodic()
             if self.EVENT_TYPE == "span":
                 telemetry.record_span_event_size(event, event_size)  # type: ignore[arg-type]
             self._buffer.append(event)
+            self._buffer_size += event_size
 
     def _encode(self, payload, num_events):
         try:
@@ -175,6 +178,7 @@ class BaseLLMObsWriter(PeriodicService):
                 return
             events = self._buffer
             self._buffer = []
+            self._buffer_size = 0
 
         if self._agentless and not self._headers.get("DD-API-KEY"):
             logger.warning(
@@ -195,7 +199,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake, self._timeout)
+        conn = self._get_connection()
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -219,6 +223,15 @@ class BaseLLMObsWriter(PeriodicService):
             raise
         finally:
             conn.close()
+
+    def _get_connection(self):
+        """Return the connection to the LLM Observability endpoint."""
+        parsed = verify_url(self._intake)
+        if parsed.scheme == "https":
+            return httplib.HTTPSConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
+        elif parsed.scheme == "http":
+            return httplib.HTTPConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
+        raise ConnectionError("Unable to connect, invalid URL: %s", self._intake)
 
     @property
     def _url(self) -> str:
@@ -306,8 +319,11 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         telemetry.record_span_event_raw_size(event, raw_event_size)
         self._enqueue(event)
 
-    def _data(self, events: List[LLMObsSpanEvent]) -> Dict[str, Any]:
-        return {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": events}
+    def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
+        return [
+            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            for event in events
+        ]
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
