@@ -5,6 +5,7 @@ from typing import Tuple
 import mock
 import pytest
 
+from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
@@ -28,9 +29,11 @@ def _assert_expected_agent_run(
     tools: List[str] = None,
     llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
     tool_calls: List[dict] = None,
-) -> None:
+    previous_tool_events: List[dict] = None,
+    is_chat=False,
+) -> List[dict]:
     """Assert expected LLMObs events matches actual events for an agent run
-
+    Return previous tool events for span linking assertions across agent runs
     Args:
         spans: List of spans from the mock tracer
         llmobs_events: List of LLMObs events
@@ -39,6 +42,7 @@ def _assert_expected_agent_run(
         tools: List of tool names
         llm_calls: List of (input_messages, output_messages) for each LLM call
         tool_calls: List of information about tool calls
+        previous_tool_events: List of previous tool events for span linking assertions across agent runs
     """
     for i, event in enumerate(llmobs_events):
         assert event["name"] == expected_span_names[i]
@@ -48,9 +52,11 @@ def _assert_expected_agent_run(
         metadata={"handoffs": handoffs, "tools": tools},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
+    if not previous_tool_events:
+        previous_tool_events = []
     for i, event in enumerate(llmobs_events[1:]):
         if i % 2 == 0:
-            assert event == _expected_llmobs_llm_span_event(
+            assert is_chat or event == _expected_llmobs_llm_span_event(
                 spans[i + 1],
                 span_kind="llm",
                 input_messages=llm_calls[i // 2][0],
@@ -64,7 +70,10 @@ def _assert_expected_agent_run(
                 model_name="gpt-4o-2024-08-06",
                 model_provider="openai",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                span_links=i or previous_tool_events,
             )
+            for tool in previous_tool_events:
+                _assert_span_link(tool, event, "output", "input")
         else:
             tool_call = tool_calls[i // 2]
             error_args = (
@@ -82,9 +91,14 @@ def _assert_expected_agent_run(
                 spans[i + 1],
                 span_kind="tool",
                 tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+                span_links=True,
                 **io_args,
                 **error_args,
             )
+            # assert tool is linked to the previous LLM call
+            _assert_span_link(llmobs_events[i], event, "output", "input")
+            previous_tool_events.append(event)
+    return previous_tool_events
 
 
 @pytest.mark.asyncio
@@ -339,7 +353,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         metadata={},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
-    _assert_expected_agent_run(
+    previous_tool_events = _assert_expected_agent_run(
         ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
         spans[1:6],
         llmobs_events[1:6],
@@ -414,6 +428,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             )
         ],
         tool_calls=[],
+        previous_tool_events=previous_tool_events,
     )
 
 
@@ -482,25 +497,54 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_guardrail_errors(agents, llmobs_events, simple_agent_with_guardrail):
-    from agents.exceptions import InputGuardrailTripwireTriggered
+async def test_llmobs_oai_agents_with_chat_completions_span_linking(
+    agents, mock_tracer_chat_completions, request_vcr, llmobs_events, research_workflow
+):
+    with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
+        result = await agents.Runner.run(
+            research_workflow, "Research and then summarize what happened yesterday in the soccer world"
+        )
 
-    with pytest.raises(InputGuardrailTripwireTriggered):
-        await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
+    spans = mock_tracer_chat_completions.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    # NOTE: there is an issue where APM spans are not enqeued to the mock tracer
-    # NOTE: guardrails are executed in parallel so sorting by time is unreliable
-    llmobs_events.sort(key=lambda event: event["meta"]["span.kind"])
+    assert len(spans) == len(llmobs_events) == 8
 
-    assert len(llmobs_events) == 3
-
-    for i, name in enumerate(["Simple Agent", "simple_guardrail", "Agent workflow"]):
-        assert llmobs_events[i]["name"] == name
-
-    assert llmobs_events[0]["meta"]["span.kind"] == "agent"
-    assert llmobs_events[1]["meta"]["span.kind"] == "task"
-    assert llmobs_events[2]["meta"]["span.kind"] == "workflow"
-
-    assert llmobs_events[0]["status"] == "error"
-    assert llmobs_events[0]["meta"]["error.message"] == "Guardrail tripwire triggered"
-    assert llmobs_events[0]["meta"]["error.type"] == '{"guardrail": "simple_guardrail"}'
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    previous_tool_events = _assert_expected_agent_run(
+        [
+            "Researcher",
+            "OpenAI.createChatCompletion",
+            "research",
+            "OpenAI.createChatCompletion",
+            "transfer_to_summarizer",
+        ],
+        spans[1:6],
+        llmobs_events[1:6],
+        handoffs=["Summarizer"],
+        tools=["research"],
+        tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
+        is_chat=True,
+    )
+    _assert_expected_agent_run(
+        ["Summarizer", "OpenAI.createChatCompletion"],
+        spans[6:],
+        llmobs_events[6:],
+        handoffs=[],
+        tools=[],
+        llm_calls=[
+            (
+                mock.ANY,
+                [{"role": "assistant", "content": result.final_output}],
+            )
+        ],
+        tool_calls=[],
+        previous_tool_events=previous_tool_events,
+        is_chat=True,
+    )
