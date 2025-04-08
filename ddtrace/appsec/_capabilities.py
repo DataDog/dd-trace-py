@@ -2,7 +2,7 @@ import base64
 import enum
 from typing import Optional
 
-from ddtrace import config
+from ddtrace.settings._config import config
 from ddtrace._trace import tracer
 from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
