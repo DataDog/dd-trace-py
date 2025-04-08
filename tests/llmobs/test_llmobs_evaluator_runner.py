@@ -30,9 +30,12 @@ def test_evaluator_runner_start(mock_evaluator_logs, active_evaluator_runner):
     mock_evaluator_logs.debug.assert_has_calls([mock.call("started %r", "EvaluatorRunner")])
 
 
-def test_evaluator_runner_buffer_limit(mock_evaluator_logs, active_evaluator_runner):
+def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
+    evaluator_runner = EvaluatorRunner(interval=1, llmobs_service=mock.MagicMock())
+    evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=mock.MagicMock()))
+    evaluator_runner.start()
     for _ in range(1001):
-        active_evaluator_runner.enqueue({}, DUMMY_SPAN)
+        evaluator_runner.enqueue({}, DUMMY_SPAN)
     mock_evaluator_logs.warning.assert_called_with(
         "%r event buffer full (limit is %d), dropping event", "EvaluatorRunner", 1000
     )
