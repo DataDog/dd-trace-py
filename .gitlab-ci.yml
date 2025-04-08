@@ -13,6 +13,7 @@ variables:
 default:
   interruptible: true
 
+# trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
