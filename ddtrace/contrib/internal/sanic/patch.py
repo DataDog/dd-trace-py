@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
 
@@ -101,8 +102,8 @@ def _get_path(request):
     for key, value in match_info.items():
         try:
             value = str(value)
-        except Exception:
-            log.debug("Failed to convert path parameter value to string", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Failed to convert path parameter value to string", e)
             continue
         path = path.replace(value, f"<{key}>")
     return path

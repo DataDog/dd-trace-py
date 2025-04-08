@@ -14,6 +14,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
@@ -131,5 +132,5 @@ def _wrap_send(func, instance, args, kwargs):
                     status_code=status,
                     query=_extract_query_string(url),
                 )
-            except Exception:
-                log.debug("requests: error adding tags", exc_info=True)
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("requests: error adding tags", e)

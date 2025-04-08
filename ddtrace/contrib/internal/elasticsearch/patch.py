@@ -20,6 +20,7 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
 
@@ -224,8 +225,8 @@ def _get_perform_request_coro(transport):
                 took = data.get("took")
                 if took:
                     span.set_metric(metadata.TOOK, int(took))
-            except Exception:
-                log.debug("Unexpected exception", exc_info=True)
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("Unexpected exception", e)
 
             if status:
                 span.set_tag(http.STATUS_CODE, status)

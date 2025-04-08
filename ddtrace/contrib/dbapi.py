@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
@@ -333,8 +334,8 @@ def _get_vendor(conn):
     """
     try:
         name = _get_module_name(conn)
-    except Exception:
-        log.debug("couldn't parse module name", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("couldn't parse module name", e)
         name = "sql"
     return sql.normalize_vendor(name)
 

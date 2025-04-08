@@ -18,6 +18,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
@@ -71,8 +72,8 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
                 span.finish()
                 delattr(instance, "_datadog_span")
-        except Exception:
-            log.debug("error applying request tags", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("error applying request tags", e)
 
 
 def _call_asm_wrap(func, instance, *args, **kwargs):
@@ -112,8 +113,8 @@ def _wrap_request(func, instance, args, kwargs):
             else:
                 headers = kwargs.setdefault("headers", {})
             HTTPPropagator.inject(span.context, headers)
-    except Exception:
-        log.debug("error configuring request", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("error configuring request", e)
         span = getattr(instance, "_datadog_span", None)
         if span:
             span.finish()
@@ -169,8 +170,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
         # set analytics sample rate
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
-    except Exception:
-        log.debug("error applying request tags", exc_info=True)
+    except Exception as e:
+        telemetry_writer.add_integration_error_log("error applying request tags", e)
 
         # Close the span to prevent memory leaks.
         span = getattr(instance, "_datadog_span", None)

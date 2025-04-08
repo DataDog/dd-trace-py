@@ -21,6 +21,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -154,9 +155,9 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             # handle as a response
             _handle_response(self._span, rpc_error)
             raise
-        except Exception:
+        except Exception as e:
             # DEV: added for safety though should not be reached since wrapped response
-            log.debug("unexpected non-grpc exception raised, closing open span", exc_info=True)
+            telemetry_writer.add_integration_error_log("unexpected non-grpc exception raised, closing open span", e)
             self._span.set_traceback()
             self._span.finish()
             raise

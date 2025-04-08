@@ -23,6 +23,7 @@ from ddtrace.ext import user as _user
 from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
@@ -144,9 +145,9 @@ def get_request_uri(request):
                 port = str(request.META["SERVER_PORT"])
                 if port != ("443" if request.is_secure() else "80"):
                     host = "".join((host, ":", port))
-        except Exception:
+        except Exception as e:
             # This really shouldn't ever happen, but lets guard here just in case
-            log.debug("Failed to build Django request host", exc_info=True)
+            telemetry_writer.add_integration_error_log("Failed to build Django request host", e)
             host = "unknown"
 
     # If request scheme is missing, possible in case where wsgi.url_scheme
@@ -235,12 +236,10 @@ def _set_resolver_tags(pin, span, request):
         # Normalize all 404 requests into a single resource name
         # DEV: This is for potential cardinality issues
         resource = " ".join((request.method, "404"))
-    except Exception:
-        log.debug(
-            "Failed to resolve request path %r with path info %r",
-            request,
-            getattr(request, "path_info", "not-set"),
-            exc_info=True,
+    except Exception as e:
+        telemetry_writer.add_integration_error_log(
+            "Failed to resolve request path %r with path info %r" % (request, getattr(request, "path_info", "not-set")),
+            e,
         )
     finally:
         # Only update the resource name if it was not explicitly set
@@ -281,8 +280,8 @@ def _extract_body(request):
                 req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
-        except Exception:
-            log.debug("Failed to parse request body", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Failed to parse request body", e)
         return req_body
 
 
@@ -295,8 +294,8 @@ def _remake_body(request):
             if unread_body.seekable():
                 unread_body.seek(0)
                 request.META["wsgi.input"] = unread_body
-        except Exception:
-            log.debug("Failed to remake Django request body", exc_info=True)
+        except Exception as e:
+            telemetry_writer.add_integration_error_log("Failed to remake Django request body", e)
 
 
 def _get_request_headers(request):
@@ -339,8 +338,8 @@ def _after_request_tags(pin, span: Span, request, response):
                     username = getattr(user, "username", None)
                     if username:
                         span.set_tag_str("django.user.name", username)
-            except Exception:
-                log.debug("Error retrieving authentication information for user", exc_info=True)
+            except Exception as e:
+                telemetry_writer.add_integration_error_log("Error retrieving authentication information for user", e)
 
         # DEV: Resolve the view and resource name at the end of the request in case
         #      urlconf changes at any point during the request
