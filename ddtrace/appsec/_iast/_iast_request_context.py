@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional
 
@@ -19,7 +20,10 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Span
+
+
+if TYPE_CHECKING:
+    from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -40,7 +44,7 @@ def start_iast_context():
         core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
 
 
-def end_iast_context(span: Optional[Span] = None):
+def end_iast_context(span: Optional["Span"] = None):
     env = _get_iast_env()
     if env is not None and env.span is span:
         finalize_iast_env(env)
@@ -99,7 +103,7 @@ def _move_iast_data_to_root_span():
     return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
 
-def _create_and_attach_iast_report_to_span(req_span: Span, existing_data: Optional[str], merge: bool = False):
+def _create_and_attach_iast_report_to_span(req_span: "Span", existing_data: Optional[str], merge: bool = False):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
         previous_data = IastSpanReporter()
