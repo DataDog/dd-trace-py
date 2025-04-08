@@ -16,7 +16,7 @@ The LiteLLM integration is enabled automatically when you use
 
 Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LiteLLM integration::
 
-    from ddtrace import config, patch
+    from ddtrace import patch
 
     patch(litellm=True)
 
@@ -41,7 +41,7 @@ To configure the LiteLLM integration on a per-instance basis use the
 ``Pin`` API::
 
     import litellm
-    from ddtrace import Pin, config
+    from ddtrace import Pin
 
     Pin.override(litellm, service="my-litellm-service")
 """  # noqa: E501

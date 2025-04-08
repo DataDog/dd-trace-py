@@ -8,7 +8,7 @@ from tests.utils import DummyTracer
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _dd_api_key="<not-a-real-key>")]
 )
 @pytest.mark.parametrize(
     "stream,n,include_usage",

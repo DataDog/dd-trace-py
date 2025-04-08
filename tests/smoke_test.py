@@ -75,22 +75,16 @@ if __name__ == "__main__":
     # Profiling smoke test
     print("Running profiling smoke test...")
     profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
-    if sys.version_info >= (3, 13, 0):
-        print("Skipping profiling smoke test for Python 3.13+ as it's not supported yet")
-    elif (
-        # echion doesn't work on Windows
-        platform.system() == "Windows"
-        # libdatadog x86_64-apple-darwin has not yet been integrated to dd-trace-py
-        or (platform.system() == "Darwin" and platform.machine() == "x86_64")
-        # echion only works with 3.8+
-        or sys.version_info < (3, 8, 0)
-    ):
+    # echion doesn't work on Windows
+    if platform.system() == "Windows":
         orig_env = os.environ.copy()
         copied_env = copy.deepcopy(orig_env)
         copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
         if platform.system() == "Windows":
             # Memory profiler crashes on Windows
             copied_env["DD_PROFILING_MEMORY_ENABLED"] = "False"
+            # Enable libdd exporter
+            copied_env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
         result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
         assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
             result.stdout,

@@ -18,7 +18,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        self.tracer._configure(api_version="v0.4")
+        self.tracer._recreate()
 
     def test_telemetry_metrics_block(self):
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
@@ -29,7 +29,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.text == BLOCKED_RESPONSE_JSON
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=True,
         )
@@ -45,7 +45,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert query == {"attack": "1' or '1' = '1'"}
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=False,
         )

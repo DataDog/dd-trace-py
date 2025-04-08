@@ -1,15 +1,18 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from itertools import chain
 import sys
 import typing as t
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.uwsgi import check_uwsgi
 from ddtrace.internal.uwsgi import uWSGIConfigError
 from ddtrace.internal.uwsgi import uWSGIMasterProcess
+from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
@@ -50,6 +53,7 @@ class ProductManager:
     def __init__(self) -> None:
         self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
 
+        self._failed: t.Set[str] = set()
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
@@ -59,7 +63,12 @@ class ProductManager:
                 product: Product = product_plugin.load()
             except Exception:
                 log.exception("Failed to load product plugin '%s'", name)
+                self._failed.add(name)
                 continue
+
+            # Report configuration via telemetry
+            if isinstance(config := getattr(product, "config", None), DDConfig):
+                report_configuration(config)
 
             log.debug("Product plugin '%s' loaded successfully", name)
 
@@ -71,7 +80,9 @@ class ProductManager:
         g = defaultdict(list)  # Graph of dependencies
         f: t.Dict[str, set] = {}  # Remaining dependencies for each product
 
-        for name, product in self.__products__.items():
+        # Include failed products in the graph to avoid reporting false circular
+        # dependencies when a product fails to load
+        for name, product in chain(self.__products__.items(), ((p, None) for p in self._failed)):
             product_requires = getattr(product, "requires", [])
             if not product_requires:
                 q.append(name)

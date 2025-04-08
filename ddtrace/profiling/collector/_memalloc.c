@@ -260,21 +260,21 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
-        PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %lu]", TRACEBACK_MAX_NFRAME);
+        PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %u]", TRACEBACK_MAX_NFRAME);
         return NULL;
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
     if (max_events < 1 || max_events > TRACEBACK_ARRAY_MAX_COUNT) {
-        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", TRACEBACK_ARRAY_MAX_COUNT);
+        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %u]", TRACEBACK_ARRAY_MAX_COUNT);
         return NULL;
     }
 
     global_memalloc_ctx.max_events = (uint16_t)max_events;
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
-        PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %lu]", MAX_HEAP_SAMPLE_SIZE);
+        PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
         return NULL;
     }
 

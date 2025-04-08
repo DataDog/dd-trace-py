@@ -1,6 +1,5 @@
 import os
 import sys
-from importlib.metadata import version
 
 import litellm
 
@@ -26,23 +25,8 @@ config._add(
 
 
 def get_version() -> str:
-    try:
-        return version("litellm")
-    except Exception:
-        return ""
-
-
-def _create_span(litellm, pin, func, instance, args, kwargs):
-    """Helper function to create and configure a traced span."""
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    integration = litellm._datadog_integration
-    span = integration.trace(
-        pin,
-        "litellm.%s" % func.__name__,
-        model=model,
-        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
-    )
-    return span
+    version_module = getattr(litellm, "_version", None)
+    return getattr(version_module, "version", "")
 
 
 @with_traced_module
@@ -67,9 +51,18 @@ async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
 
 def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
-    span = _create_span(litellm, pin, func, instance, args, kwargs)
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = None
+    if "host" in kwargs.get("metadata", {}).get("headers", {}):
+        host = kwargs["metadata"]["headers"]["host"]
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
+    )
     stream = kwargs.get("stream", False)
-    tag_request(span, kwargs)
     resp = None
     try:
         resp = func(*args, **kwargs)
@@ -91,9 +84,18 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
 
 async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
-    span = _create_span(litellm, pin, func, instance, args, kwargs)
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = None
+    if "host" in kwargs.get("metadata", {}).get("headers", {}):
+        host = kwargs["metadata"]["headers"]["host"]
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
+    )
     stream = kwargs.get("stream", False)
-    tag_request(span, kwargs)
     resp = None
     try:
         resp = await func(*args, **kwargs)

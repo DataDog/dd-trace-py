@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: ``agentless_enabled`` and `DD_LLMOBS_AGENTLESS_ENABLED`` now defaults to ``None``, and will be determined automatically based on the presence of a compatible Datadog agent. ``agentless_enabled`` and `DD_LLMOBS_AGENTLESS_ENABLED`` can still be set explicitly to ``True`` or ``False``, but is now optional for agentless users.
