@@ -31,6 +31,12 @@ class Sampler
     // One-time setup of echion
     void one_time_setup();
 
+    // Internal perf counters
+    uint64_t process_count = 0;
+    uint64_t sampler_thread_count = 0;
+
+    void adapt_sampling_interval(double overhead);
+
   public:
     // Singleton instance
     static Sampler& get();

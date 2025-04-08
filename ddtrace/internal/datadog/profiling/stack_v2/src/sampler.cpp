@@ -13,6 +13,7 @@ using namespace Datadog;
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 
 struct ThreadArgs
@@ -54,13 +55,81 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
     }
     return thread_id;
 }
+#elif defined(__MACH__)
+#include <mach/mach.h>
 #endif
+
+void
+Sampler::adapt_sampling_interval(double overhead)
+{
+#if defined(__linux__)
+    struct timespec ts;
+
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
+    uint64_t new_process_count = ts.tv_sec * 1e9 + ts.tv_nsec;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    uint64_t new_sampler_thread_count = ts.tv_sec * 1e9 + ts.tv_nsec;
+#elif defined(__MACH__)
+    task_thread_times_info_data_t task_info_data;
+    mach_msg_type_number_t task_info_count = TASK_THREAD_TIMES_INFO_COUNT;
+
+    if (task_info(
+          mach_task_self(), TASK_THREAD_TIMES_INFO, reinterpret_cast<task_info_t>(&task_info_data), &task_info_count) !=
+        KERN_SUCCESS) {
+        return;
+    }
+
+    auto new_process_count =
+      static_cast<uint64_t>(task_info_data.user_time.seconds * 1e6 + task_info_data.user_time.microseconds +
+                            task_info_data.system_time.seconds * 1e6 + task_info_data.system_time.microseconds);
+
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+
+    thread_port_t thread = mach_thread_self();
+    int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kr != KERN_SUCCESS) {
+        return;
+    }
+
+    // add system and user time
+    auto new_sampler_thread_count =
+      static_cast<uint64_t>(info.user_time.seconds * 1e6 + info.user_time.microseconds +
+                            info.system_time.seconds * 1e6 + info.system_time.microseconds);
+#endif
+    auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
+    auto process_delta = static_cast<double>(new_process_count - process_count - sampler_thread_delta);
+
+    auto current_interval = static_cast<double>(sample_interval_us.load());
+
+    // We assume that every sampling operation contributes a fixed amount of
+    // overhead, while the application consumes an average amount of CPU over
+    // time. With:
+    //    s - sampler time
+    //    p - process time
+    //    o - overhead threshold
+    //    I - interval
+    //    I'- interval after adjustment
+    // we use the following formula to adapt the sampling interval
+    //    I' = I * [(s / p) / o]
+    // As the value could be small when the process is idle, we use a lower
+    // bound of the sampling interval to avoid CPU spikes from the sampler.
+    auto new_interval = static_cast<microsecond_t>(sampler_thread_delta / process_delta / overhead * current_interval);
+
+    sample_interval_us.store(new_interval > g_default_sampling_period_us ? new_interval : g_default_sampling_period_us);
+
+    // Update the counters for the next iteration
+    process_count = new_process_count;
+    sampler_thread_count = new_sampler_thread_count;
+}
 
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     using namespace std::chrono;
     auto sample_time_prev = steady_clock::now();
+    auto interval_adjust_time_prev = sample_time_prev;
 
     while (seq_num == thread_seq_num.load()) {
         auto sample_time_now = steady_clock::now();
@@ -73,6 +142,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 thread.sample(interp->id, tstate, wall_time_us);
             });
         });
+
+        // Adjust the sampling interval at most every second
+        if (sample_time_now - interval_adjust_time_prev > milliseconds(1000)) {
+            adapt_sampling_interval(0.01); // 1% overhead
+            interval_adjust_time_prev = sample_time_now;
+        }
 
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {
