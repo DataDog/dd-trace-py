@@ -119,7 +119,7 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     requested_model = get_argument_value(args, kwargs, 0, "model", None)
     integration = litellm._datadog_integration
     model, custom_llm_provider, dynamic_api_key, api_base = func(*args, **kwargs)
-    # Store the provider information in the integration
+    # store the model name and provider in the integration
     integration._model_map[requested_model] = (model, custom_llm_provider)
     return model, custom_llm_provider, dynamic_api_key, api_base
 

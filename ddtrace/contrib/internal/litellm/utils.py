@@ -49,6 +49,23 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 )
             self._dd_span.finish()
 
+    def __next__(self):
+        try:
+            chunk = self._generator.__next__()
+            _loop_handler(chunk, self._streamed_chunks)
+            return chunk
+        except StopIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
+    
+
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
     async def __aenter__(self):
@@ -74,6 +91,22 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
+    
+    async def __anext__(self):
+        try:
+            chunk = await self._generator.__anext__()
+            _loop_handler(chunk, self._streamed_chunks)
+            return chunk
+        except StopAsyncIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
 
 
 def _loop_handler(chunk, streamed_chunks):
