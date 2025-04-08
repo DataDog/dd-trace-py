@@ -204,9 +204,7 @@ def safe_json(obj, ensure_ascii=True):
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = span._get_ctx_item(SPAN_LINKS)
-    if current_span_links is None:
-        current_span_links = []
+    current_span_links = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
         {
             "span_id": span_id,
