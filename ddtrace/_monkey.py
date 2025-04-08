@@ -105,6 +105,7 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "anthropic": True,
+    "crewai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
