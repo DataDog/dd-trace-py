@@ -111,20 +111,28 @@ def parse_importlib_metadata():
                 _ROOT_TO_PACKAGE[root] = name
 
 
+def get_distribution(name: str) -> t.Optional[Distribution]:
+    parse_importlib_metadata()
+    return _DISTRIBUTIONS.get(name, None) if _DISTRIBUTIONS else None
+
+
 @callonce
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
+    parse_importlib_metadata()
     return set(_DISTRIBUTIONS.values()) if _DISTRIBUTIONS else set()
 
 
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
+    parse_importlib_metadata()
     return _PACKAGE_DISTRIBUTIONS if _PACKAGE_DISTRIBUTIONS else {}
 
 
 @cached(maxsize=1024)
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
+    parse_importlib_metadata()
     if not module_name:
         return None
 
@@ -159,6 +167,7 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
+    parse_importlib_metadata()
     if not _DISTRIBUTIONS:
         return ""
 
@@ -225,6 +234,7 @@ def _third_party_packages() -> set:
 
 @cached(maxsize=16384)
 def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution]:
+    parse_importlib_metadata()
     mapping = _package_for_root_module_mapping()
     if not mapping or not _DISTRIBUTIONS:
         return None
@@ -288,10 +298,10 @@ def _(path: str) -> bool:
 
 @cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
+    parse_importlib_metadata()
     """Determine if a distribution is available in the current environment."""
     if not _DISTRIBUTIONS:
         return False
-
     return name in _DISTRIBUTIONS
 
 
