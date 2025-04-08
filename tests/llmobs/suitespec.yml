@@ -116,6 +116,7 @@ suites:
       - '@llmobs'
       - tests/contrib/openai/*
       - tests/snapshots/tests.contrib.openai.*
+    pattern: ^openai$
     runner: riot
     snapshot: true
   langgraph:
