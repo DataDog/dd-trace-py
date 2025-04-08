@@ -808,3 +808,4 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 
     def enqueue(self, event):
         self.events.append(event)
+        super().enqueue(event)

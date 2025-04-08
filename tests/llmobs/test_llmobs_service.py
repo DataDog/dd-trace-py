@@ -28,8 +28,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
-from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
-from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -57,7 +55,7 @@ def test_service_enable_proxy():
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is False
         assert run_llmobs_trace_filter(dummy_tracer) is not None
         llmobs_service.disable()
 
@@ -70,7 +68,7 @@ def test_enable_agentless():
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is True
         assert run_llmobs_trace_filter(dummy_tracer) is not None
 
         llmobs_service.disable()
@@ -83,7 +81,7 @@ def test_enable_agent_proxy_when_agent_is_available(agent):
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is False
 
         llmobs_service.disable()
 
@@ -95,7 +93,7 @@ def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is True
 
         llmobs_service.disable()
 
@@ -107,7 +105,7 @@ def test_enable_agentless_when_agent_is_not_available(no_agent):
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is True
 
         llmobs_service.disable()
 
@@ -119,7 +117,7 @@ def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is True
 
         llmobs_service.disable()
 

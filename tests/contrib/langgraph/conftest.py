@@ -44,7 +44,8 @@ def default_global_config():
 @pytest.fixture
 def llmobs_span_writer():
     agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, DATADOG_SITE)
-    yield TestLLMObsSpanWriter(is_agentless=True, _agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    api_key = "<not-a-real-key>"
+    yield TestLLMObsSpanWriter(DATADOG_SITE, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
 
 
 @pytest.fixture

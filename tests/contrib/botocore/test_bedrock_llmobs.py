@@ -27,6 +27,9 @@ from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
+DATADOG_SITE = "datad0g.com"
+
+
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr()
@@ -86,8 +89,9 @@ def bedrock_client_proxy(boto3):
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, _agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, DATADOG_SITE)
+    api_key = "<not-a-real-key>"
+    yield TestLLMObsSpanWriter(DATADOG_SITE, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
 
 
 @pytest.fixture

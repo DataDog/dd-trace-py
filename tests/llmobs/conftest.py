@@ -200,9 +200,9 @@ def llmobs_env():
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
-    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, _agentless_url=url)
-    sw._headers["DD-API-KEY"] = "<test-key>"
-    yield sw
+    site = "datad0g.com"
+    api_key = "<test-key>"
+    yield TestLLMObsSpanWriter(site, api_key, 1.0, 1.0, is_agentless=True, _agentless_url=url)
 
 
 class LLMObsServer(BaseHTTPRequestHandler):
