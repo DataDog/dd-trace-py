@@ -33,12 +33,12 @@ import os
 import sys
 import types
 
-import ddtrace.appsec._iast._overhead_control_engine
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from ._listener import iast_listen
+from ._overhead_control_engine import oce
 
 
 log = get_logger(__name__)
@@ -113,7 +113,7 @@ def _iast_pytest_activation():
     asm_config._iast_max_vulnerabilities_per_requests = 1000
     asm_config._iast_max_concurrent_requests = 1000
     enable_iast_propagation()
-    ddtrace.appsec._iast._overhead_control_engine.oce.reconfigure()
+    oce.reconfigure()
 
 
 def disable_iast_propagation():
