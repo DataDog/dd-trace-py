@@ -10,6 +10,10 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 from urllib.parse import urlparse
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.internal import core
+from ddtrace.internal.utils.formats import format_trace_id
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
@@ -310,6 +314,9 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
+        tool_call_id = m.get("tool_call_id")
+        if tool_call_id:
+            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
     parameters = {
         k: v
@@ -358,13 +365,28 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
             continue
         tool_calls = _get_attr(choice_message, "tool_calls", []) or []
         for tool_call in tool_calls:
+            tool_args = getattr(tool_call.function, "arguments", "")
+            tool_name = getattr(tool_call.function, "name", "")
+            tool_id = getattr(tool_call, "id", "")
             tool_call_info = {
-                "name": getattr(tool_call.function, "name", ""),
-                "arguments": json.loads(getattr(tool_call.function, "arguments", "")),
-                "tool_id": getattr(tool_call, "id", ""),
-                "type": getattr(tool_call, "type", ""),
+                "name": tool_name,
+                "arguments": json.loads(tool_args),
+                "tool_id": tool_id,
+                "type": "function",
             }
             tool_calls_info.append(tool_call_info)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    tool_args,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
         if tool_calls_info:
             output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
             continue
