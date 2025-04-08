@@ -7,9 +7,9 @@ from typing import Tuple
 
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import tracer
 
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
@@ -96,15 +96,14 @@ class VulnerabilityBase(Operation):
 
         report = get_iast_reporter()
         span_id = 0
-        if tracer and hasattr(tracer, "current_root_span"):
-            span = tracer.current_root_span()
-            if span:
-                span_id = span.span_id
-                # Mark the span as kept to avoid being dropped by the agent.
-                #
-                # It is important to do it as soon as the vulnerability is reported
-                # to ensure that any downstream propagation performed has the new priority.
-                _asm_manual_keep(span)
+        span = core.get_root_span()
+        if span:
+            span_id = span.span_id
+            # Mark the span as kept to avoid being dropped by the agent.
+            #
+            # It is important to do it as soon as the vulnerability is reported
+            # to ensure that any downstream propagation performed has the new priority.
+            _asm_manual_keep(span)
 
         vulnerability = Vulnerability(
             type=vulnerability_type,

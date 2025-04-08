@@ -2,7 +2,9 @@ import base64
 import enum
 from typing import Optional
 
-import ddtrace
+from ddtrace import config
+from ddtrace._trace import tracer
+from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -59,13 +61,13 @@ def _asm_feature_is_required() -> bool:
     return (_FEATURE_REQUIRED & flags) != 0
 
 
-def _rc_capabilities(test_tracer: Optional[ddtrace.trace.Tracer] = None) -> Flags:
-    tracer = ddtrace.tracer if test_tracer is None else test_tracer
+def _rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> Flags:
+    tracer = core.tracer if test_tracer is None else test_tracer
     value = Flags(0)
-    if ddtrace.config._remote_config_enabled:
+    if config._remote_config_enabled:
         if asm_config._asm_can_be_enabled:
             value |= Flags.ASM_ACTIVATION
-        if tracer._appsec_processor and asm_config._asm_static_rule_file is None:
+        if tracer._appsec_processor and asm_config._asm_static_rule_file is None:  # type: ignore
             value |= _ALL_ASM_BLOCKING
             if asm_config._ep_enabled:
                 value |= _ALL_RASP
@@ -74,7 +76,7 @@ def _rc_capabilities(test_tracer: Optional[ddtrace.trace.Tracer] = None) -> Flag
     return value
 
 
-def _appsec_rc_capabilities(test_tracer: Optional[ddtrace.trace.Tracer] = None) -> str:
+def _appsec_rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> str:
     r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation
