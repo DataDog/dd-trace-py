@@ -5,10 +5,10 @@ from ddtrace.appsec._constants import TELEMETRY_DEBUG_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str

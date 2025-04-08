@@ -11,9 +11,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
-from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
+from .._overhead_control_engine import oce
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper

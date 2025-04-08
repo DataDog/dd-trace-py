@@ -12,6 +12,9 @@ components:
   langchain:
     - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
+  litellm:
+    - ddtrace/contrib/_litellm.py
+    - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
   openai:
@@ -23,6 +26,9 @@ components:
   crewai:
     - ddtrace/contrib/_crewai.py
     - ddtrace/contrib/internal/crewai/*
+  openai_agents:
+    - ddtrace/contrib/_openai_agents.py
+    - ddtrace/contrib/internal/openai_agents/*
 suites:
   anthropic:
     parallelism: 2
@@ -78,6 +84,18 @@ suites:
       - tests/snapshots/tests.contrib.langchain.*
     runner: riot
     snapshot: true
+  litellm:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@litellm'
+      - '@llmobs'
+      - tests/contrib/litellm/*
+      - tests/snapshots/tests.contrib.litellm.*
+    runner: riot
+    snapshot: true
   llmobs:
     paths:
       - '@bootstrap'
@@ -125,5 +143,17 @@ suites:
       - '@llmobs'
       - tests/contrib/crewai/*
       - tests/snapshots/tests.contrib.crewai.*
+    runner: riot
+    snapshot: true
+  openai_agents:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@openai_agents'
+      - '@llmobs'
+      - tests/contrib/openai_agents/*
+      - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
