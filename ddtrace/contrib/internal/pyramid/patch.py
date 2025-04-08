@@ -54,8 +54,6 @@ def traced_init(wrapped, instance, args, kwargs):
     analytics_enabled = _get_config("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", default=old_analytics_enabled)
     if analytics_enabled is not None:
         analytics_enabled = asbool(analytics_enabled)
-    # TODO: why is analytics sample rate a string or a bool here?
-    old_analytics_sample_rate = _get_config("DD_PYRAMID_ANALYTICS_SAMPLE_RATE", default=True)
     analytics_sample_rate = _get_config("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE")
 
     trace_settings = {
