@@ -106,6 +106,7 @@ INTEGRATION_CONFIGS = frozenset(
         "unittest",
         "falcon",
         "langgraph",
+        "litellm",
         "aioredis",
         "test_visibility",
         "redis",
@@ -190,6 +191,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
+        "openai_agents",
     }
 )
 
@@ -643,7 +645,6 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
-        self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False

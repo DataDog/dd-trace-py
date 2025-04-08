@@ -178,7 +178,6 @@ def _set_waf_request_metrics(*_args):
                 TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
             rasp = result.rasp
-            print(f"{rasp=} {rasp.blocked=}")
             if rasp.sum_eval:
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
                     for rule_type, value in getattr(rasp, t).items():
