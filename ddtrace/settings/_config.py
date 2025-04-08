@@ -17,7 +17,6 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
-from .._trace.pin import Pin
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -676,19 +675,6 @@ class Config(object):
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
-
-    def _get_from(self, obj):
-        """Retrieves the configuration for the given object.
-        Any object that has an attached `Pin` must have a configuration
-        and if a wrong object is given, an empty `dict` is returned
-        for safety reasons.
-        """
-        pin = Pin.get_from(obj)
-        if pin is None:
-            log.debug("No configuration found for %s", obj)
-            return {}
-
-        return pin._config
 
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
