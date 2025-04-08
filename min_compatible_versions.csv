@@ -113,6 +113,7 @@ mysql-connector-python,==8.0.5
 mysqlclient,~=2.0
 numexpr,==2.8.5
 openai,==1.30.3
+openai-agents,0
 "openai[embeddings,datalib]",==1.0.0
 opensearch-py,0
 opensearch-py[async],0
