@@ -106,6 +106,7 @@ INTEGRATION_CONFIGS = frozenset(
         "unittest",
         "falcon",
         "langgraph",
+        "litellm",
         "aioredis",
         "test_visibility",
         "redis",
@@ -169,6 +170,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "crewai",
         "logging",
         "cassandra",
         "boto",
@@ -190,6 +192,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
+        "openai_agents",
     }
 )
 

@@ -76,6 +76,7 @@ def mock_writer_logs():
 def mock_evaluator_logs():
     with mock.patch("ddtrace.llmobs._evaluators.runner.logger") as m:
         yield m
+        m.reset_mock()
 
 
 @pytest.fixture
