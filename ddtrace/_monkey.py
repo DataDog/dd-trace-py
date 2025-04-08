@@ -53,6 +53,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": True,
+    "litellm": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -109,6 +110,7 @@ PATCH_MODULES = {
     "coverage": False,
     "selenium": True,
     "valkey": True,
+    "openai_agents": True,
 }
 
 
@@ -158,6 +160,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph",
         "langgraph.graph",
     ),
+    "openai_agents": ("agents",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
