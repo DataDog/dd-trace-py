@@ -12,6 +12,9 @@ components:
   langchain:
     - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
+  litellm:
+    - ddtrace/contrib/_litellm.py
+    - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
   openai:
@@ -76,6 +79,18 @@ suites:
       - '@llmobs'
       - tests/contrib/langchain/*
       - tests/snapshots/tests.contrib.langchain.*
+    runner: riot
+    snapshot: true
+  litellm:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@litellm'
+      - '@llmobs'
+      - tests/contrib/litellm/*
+      - tests/snapshots/tests.contrib.litellm.*
     runner: riot
     snapshot: true
   llmobs:

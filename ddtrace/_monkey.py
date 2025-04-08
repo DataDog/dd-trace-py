@@ -53,6 +53,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": False,
+    "litellm": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
