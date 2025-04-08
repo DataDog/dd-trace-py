@@ -5,7 +5,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CMDI
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal.logger import get_logger
@@ -42,6 +42,7 @@ def unpatch() -> None:
 @oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
+    secure_mark = VulnerabilityType.COMMAND_INJECTION
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
@@ -54,10 +55,10 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
 
                 if isinstance(shell_args, (list, tuple)):
                     for arg in shell_args:
-                        if is_pyobject_tainted(arg):
+                        if CommandInjection.is_tainted_pyobject(arg):
                             report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
                             break
-                elif is_pyobject_tainted(shell_args):
+                elif CommandInjection.is_tainted_pyobject(shell_args):
                     report_cmdi = shell_args
 
                 if report_cmdi:
