@@ -19,7 +19,7 @@ jobs:
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
       - name: Run cargo build
-        run: cargo build
+        run: cargo build --release
         working-directory: ${{ matrix.extension }}
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
