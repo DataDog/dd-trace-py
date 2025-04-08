@@ -283,7 +283,10 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == 200
             if asm_enabled:
                 cookies_parsed = _addresses_store[0].get("http.request.cookies")
-                assert cookies_parsed == cookies
+                # required for flask that is sending a ImmutableMultiDict
+                if isinstance(cookies_parsed, dict):
+                    cookies_parsed = dict(cookies_parsed)
+                assert cookies_parsed == cookies, f"cookies={cookies_parsed}, expected={cookies}"
             else:
                 assert not _addresses_store
             triggers = get_triggers(root_span())
