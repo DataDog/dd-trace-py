@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
-from ddtrace import config
 from ddtrace.appsec import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -53,6 +53,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": False,
+    "litellm": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -88,10 +89,10 @@ PATCH_MODULES = {
     "falcon": True,
     "pyramid": True,
     # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config._logs_injection,  # type: ignore
-    "logging": config._logs_injection,  # type: ignore
-    "loguru": config._logs_injection,  # type: ignore
-    "structlog": config._logs_injection,  # type: ignore
+    "logbook": config._logs_injection,
+    "logging": config._logs_injection,
+    "loguru": config._logs_injection,
+    "structlog": config._logs_injection,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -109,6 +110,7 @@ PATCH_MODULES = {
     "coverage": False,
     "selenium": True,
     "valkey": True,
+    "openai_agents": True,
 }
 
 
@@ -158,6 +160,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph",
         "langgraph.graph",
     ),
+    "openai_agents": ("agents",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

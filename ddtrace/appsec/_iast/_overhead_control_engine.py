@@ -125,3 +125,6 @@ class OverheadControl(object):
     def vulnerabilities_reset_quota(self):
         for k in self._vulnerabilities:
             k.reset()
+
+
+oce = OverheadControl()
