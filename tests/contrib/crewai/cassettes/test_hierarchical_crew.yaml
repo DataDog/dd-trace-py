@@ -1,0 +1,1369 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Task Execution Planner.
+      Planner agent for crew planning\nYour personal goal is: Your goal is to create
+      an extremely detailed, step-by-step plan based on the tasks and tools available
+      to each agent so that they can perform the tasks in an exemplary manner\nTo
+      give my best complete final answer to the task respond using the exact following
+      format:\n\nThought: I now can give a great answer\nFinal Answer: Your final
+      answer must be the great and the most complete as possible, it must be outcome
+      described.\n\nI MUST use these formats, my job depends on it!"}, {"role": "user",
+      "content": "\nCurrent Task: Based on these tasks summary: \n                Task
+      Number 1 - Analyze the given dataset and calculate the average age of participants.
+      Ages: [10, 12, 14, 16, 18]\n                \"task_description\": Analyze the
+      given dataset and calculate the average age of participants. Ages: [10, 12,
+      14, 16, 18]\n                \"task_expected_output\": A complete sentence showing
+      the question and the answer.\n                \"agent\": None\n                \"agent_goal\":
+      None\n                \"task_tools\": []\n                \"agent_tools\": \"agent
+      has no tools\" \n                Task Number 2 - Given the average age of participants,
+      recommend a fun activity for the group.\n                \"task_description\":
+      Given the average age of participants, recommend a fun activity for the group.\n                \"task_expected_output\":
+      Blog post with 3 bullet points of recommended activities.\n                \"agent\":
+      None\n                \"agent_goal\": None\n                \"task_tools\":
+      []\n                \"agent_tools\": \"agent has no tools\" \n Create the most
+      descriptive plan based on the tasks descriptions, tools available, and agents''
+      goals for them to execute their goals with perfection.\n\nThis is the expected
+      criteria for your final answer: Step by step plan on how the agents can execute
+      their tasks using the available tools with mastery\nyou MUST return the actual
+      complete content as the final answer, not a summary.\nEnsure your final answer
+      contains only the content in the following format: {\n  \"list_of_plans_per_task\":
+      List[{\n  \"task\": str,\n  \"plan\": str\n}]\n}\n\nEnsure the final output
+      does not include any code block markers like ```json or ```python.\n\nBegin!
+      This is VERY important to you, use the tools available and give your best Final
+      Answer, your job depends on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop":
+      ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2552'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFXfb9s2EH7PX3HQS1dM1qzUTlwDfeiSrus2rF2Xl6IOjDN1klhTJEue
+        nLhF/vfhqPhHu7SbAcuwPt7Hu+8+8j6fAGS6yuaQqRZZdd6Mfr64fPPu17fvPnF8Of296v6cXF5s
+        3v5VX2x+++N1lkuEW30gxbuoQrnOG2Lt7ACrQMgkrOX55PR0WpazWQI6V5GRsMbzaOJGnbZ6dDo+
+        nYzG56Nydh/dOq0oZnN4fwIA8Dk9JU9b0W02h3G+e9NRjNhQNt8vAsiCM/Imwxh1ZLSc5QdQOctk
+        U+qvwLobUGih0RsChEbSBrTxhgLAwv6iLRp4nv7P4fPCAiwyoyMvXb30Bm1cegpLxrheSLayAIZ1
+        8llkO2SRPbdotp8IuKW0m4UKGSPJdhUoNKo3yAOOGwrYEMjX1eAxsFbao+VYLLL8QC8pDPRlAS+R
+        WwqJYEftauGIc3hfjnMoT3MoJzmUZzmUs+sCTgv4u+8AjRm2bSgCu4aEZw7lGH6E8lQeE3mcyWMG
+        z+B8XMCTAi5cbzkF2r5bUfg61TlctRQIMBBMB3KRjqoCJgVc6o2uhnLZMRqIfbfLF1bbI+BhdmD3
+        sGpzOB/DTzCFZ1BOCphKojZy6BUDwr1RCSKJDZSEIsvmHQb9SQRoCT72FMXMqTeJO1mggBe3KPH7
+        6Dk8uvp+w0BH0W9LGCI4UxWPFtnQwLv8O3Z5mSzyH2bIIZByXUe2AoS6t4CK9UbzFmo3OKEJrvff
+        Mc0Vrgf19lpWxzvmcNNq1R4XkWxz1Wq7Bly5no/31RQh9ppxZSilgEMCkng5GUn8yJkqJv+8pUgY
+        VJtEjmRIiZsCEZBtsNG2SQg2NELvg/NBS6sPW81hBFeEHUTvAkOFW/iBiqbIYYVxTbwSY7sA0SlF
+        ATpk1VJ8XMAILuSgpzMfOA4nMGDNEW5cWMfW+R2TR21Z2yaHy1fvwAcn197A8brnykmN1YYs94GO
+        M2j1WgpwATY6ah6KAez6SB1ZljauH6eDkFKRy2dlXAPeRRblOhwuhpug7+09SLNvOIo/I2gLq94Y
+        YvBOy/2wt6irv0RErRciLEkQ73WTU7mmhyWTFqb22gpqzZZilMrf7DzIiUsK+5aM7IBufaAYQQ2a
+        a94WKZUPbiuh7kEZ6dYbF0Q2i+ll8nPQxkRI0nylZbE/VfJzvbB3x3d+oLqPKHPH9sYcAWit40FK
+        ub+v75G7/XwxrvHBreJXoVmtrY7tMhBGZ2WWRHY+S+jdCcB1mmP9F6Mp88F1npfs1pS2mzx9OvBl
+        h/F5QJ9Mz+/RdA0egNn0LH+AcFkRozbxaBRmClVL1SH0MDexr7Q7Ak6Oyv53Og9xD6Vr2/wf+gOg
+        FHmmaukDVVp9WfJhWSA5Z99atpc5JZxFChutaMmagrSiohp7Mwz9LG4jU7estW0o+KCHyV/75Xmt
+        qrPx07OzWXZyd/IPAAAA//8DAPo2lH0HCQAA
+    headers:
+      CF-RAY:
+      - 921ffd096a446c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:50 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        path=/; expires=Mon, 17-Mar-25 23:09:50 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1967'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999395'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_378a89cf03b7af0e4be7b7c23f27be5b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Crew Manager. You
+      are a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible.\nYou
+      ONLY have access to the following tools, and should NEVER make up tools that
+      are not listed here:\n\nTool Name: Delegate work to coworker\nTool Arguments:
+      {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
+      {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
+      {''description'': ''The role/name of the coworker to delegate to'', ''type'':
+      ''str''}}\nTool Description: Delegate a specific task to one of the following
+      coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be
+      the coworker, the task you want them to do, and ALL necessary context to execute
+      the task, they know nothing about the task, so share absolutely everything you
+      know, don''t reference things but instead explain them.\nTool Name: Ask question
+      to coworker\nTool Arguments: {''question'': {''description'': ''The question
+      to ask'', ''type'': ''str''}, ''context'': {''description'': ''The context for
+      the question'', ''type'': ''str''}, ''coworker'': {''description'': ''The role/name
+      of the coworker to ask'', ''type'': ''str''}}\nTool Description: Ask a specific
+      question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe
+      input to this tool should be the coworker, the question you have for them, and
+      ALL necessary context to ask the question properly, they know nothing about
+      the question, so share absolutely everything you know, don''t reference things
+      but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Delegate work to coworker, Ask question to coworker], just the name,
+      exactly as it''s written.\nAction Input: the input to the action, just a simple
+      JSON object, enclosed in curly braces, using \" to wrap keys and values.\nObservation:
+      the result of the action\n```\n\nOnce all necessary information is gathered,
+      return the following format:\n\n```\nThought: I now know the final answer\nFinal
+      Answer: the final answer to the original input question\n```"}, {"role": "user",
+      "content": "\nCurrent Task: Analyze the given dataset and calculate the average
+      age of participants. Ages: [10, 12, 14, 16, 18]1. Gather the dataset of ages:
+      [10, 12, 14, 16, 18]. 2. Sum all the ages together: 10 + 12 + 14 + 16 + 18 =
+      70. 3. Count the number of participants: There are 5 ages listed. 4. Divide
+      the total sum of ages by the total number of participants to calculate the average:
+      70 / 5 = 14. 5. Construct a complete sentence that summarizes the question and
+      the answer. Example sentence: ''The average age of participants is 14 years
+      old.''\n\nThis is the expected criteria for your final answer: A complete sentence
+      showing the question and the answer.\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nBegin! This is VERY important to you,
+      use the tools available and give your best Final Answer, your job depends on
+      it!\n\nThought:"}], "model": "gpt-4o", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3507'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFTBbtswDL3nKwidnSJOk3r1pejWS3bYiqI7DHORqhJta5FFT6LbBUX/
+        fZCd1MnaATvECPT4qMdHUs8TAGG0yEGoWrJqWjv9+Onq+uHL1XW2upHfvqibLP36Uf/6/vnr2eYs
+        E0lk0MNPVLxnnShqWotsyA2w8igZY9Y0W8znyzQ9T3ugIY020qqWpwuazmfzxXT2YTo72xFrMgqD
+        yOHHBADguf9GiU7jb5HDLNmfNBiCrFDkr0EAwpONJ0KGYAJLxyIZQUWO0fWq7+/vC3dbU1fVnMMK
+        Qk2d1aDIlcY3wDWCfEQvK4T4U9KqzspYIDxsQYaNcVUfdb3lmhxcSZZw6aTdBgYmeJTWaMnYx0R3
+        Ou7ZJ4W7VPFPDpdhA786DH1SJlD0RH6Dfh8BK9d2nMNzIfZhhcihEJ+kgy11/xRLJbTSs1GmlY4D
+        PNXohqAKA0iP8COdJZDOE0gXCaRnCaQf7i5g9VomajAMMkBJ1tJTyKE0PnD0qWsa1GM2JqiQIZsl
+        8cyBos5F+vJIQgLSadDm0WjUkM2ih8s9V7q/1aeLE1gF4NoEUOQ9Kr4oRALF0MHfPPhwWyOwDBsw
+        4cjyZnvULyrfOPRkuB70t54GUTK868rJ/t5db/qL3+l5IV4K1w/V4cB5LLsg47y7ztoDQDpHw0D0
+        o363Q15eh9tS1Xp6CH9RRWmcCfXaowzk4iAHplb06MsE4K5fou5oL0TrqWl5zbTB/rosy4Z8Ylzb
+        EU2XpzuUiaUdgfPT3e4dJ1xrZGlsONhDoaSqUY/UcWllpw0dAJODst/KeS/3ULpx1f+kHwGlsGXU
+        69ajNuq45DHMY3zW/hX2anMvWAT0j0bhmg362AqNpezs8OKIsA2Mzbo0rkLfejM8O2W7LtV5meps
+        droUk5fJHwAAAP//AwDitIXHfwUAAA==
+    headers:
+      CF-RAY:
+      - 921ffd174b9a6c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:52 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1283'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '50000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '49999'
+      x-ratelimit-remaining-tokens:
+      - '149999146'
+      x-ratelimit-reset-requests:
+      - 1ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_6f6fd5da8cef8c99391a89625fcc0e79
+    status:
+      code: 200
+      message: OK
+- request:
+    body: !!binary |
+      CvcNCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSzg0KEgoQY3Jld2FpLnRl
+      bGVtZXRyeRKmCwoQOg7hjZghLYRglqvYa02PuRIIl+K422kcAgAqDENyZXcgQ3JlYXRlZDABOchp
+      8KU5uC0YQViT+qU5uC0YShsKDmNyZXdhaV92ZXJzaW9uEgkKBzAuMTA1LjBKGgoOcHl0aG9uX3Zl
+      cnNpb24SCAoGMy4xMC41Si4KCGNyZXdfa2V5EiIKIDk5MzQ2YzkwZGQ0Yzc5NzBkYWM0ZjlhNGM0
+      ZjFiYTM5SjEKB2NyZXdfaWQSJgokODgyNGY3MmEtMjQ3Ni00MGVmLTgyMjQtYTgzM2IxODg3OWIx
+      Sh4KDGNyZXdfcHJvY2VzcxIOCgxoaWVyYXJjaGljYWxKEQoLY3Jld19tZW1vcnkSAhAAShoKFGNy
+      ZXdfbnVtYmVyX29mX3Rhc2tzEgIYAkobChVjcmV3X251bWJlcl9vZl9hZ2VudHMSAhgCSqwFCgtj
+      cmV3X2FnZW50cxKcBQqZBVt7ImtleSI6ICIwMThhMTVmODM0MDBiNmNkMmM5ODk1N2Y2ZjNhODFm
+      NSIsICJpZCI6ICI4MTE2ZTE5NS01ZmJlLTRhODItYjZhYy1kYmJiMDVlMDg4NzIiLCAicm9sZSI6
+      ICJQeXRob24gRGF0YSBBbmFseXN0IiwgInZlcmJvc2U/IjogZmFsc2UsICJtYXhfaXRlciI6IDI1
+      LCAibWF4X3JwbSI6IG51bGwsICJmdW5jdGlvbl9jYWxsaW5nX2xsbSI6ICIiLCAibGxtIjogImdw
+      dC00by1taW5pIiwgImRlbGVnYXRpb25fZW5hYmxlZD8iOiBmYWxzZSwgImFsbG93X2NvZGVfZXhl
+      Y3V0aW9uPyI6IGZhbHNlLCAibWF4X3JldHJ5X2xpbWl0IjogMiwgInRvb2xzX25hbWVzIjogWyJh
+      dmVyYWdlIGNhbGN1bGF0b3IiXX0sIHsia2V5IjogImZmODkwNGQ2N2I2MzAxNmJiOTUwM2RhMmE5
+      Mzc4ZGM5IiwgImlkIjogIjFiZDVjZWNjLTM0MzQtNDk0NC1iMzM3LTQ3NGZkMGVlNDhjOCIsICJy
+      b2xlIjogIlRvdXIgR3VpZGUiLCAidmVyYm9zZT8iOiBmYWxzZSwgIm1heF9pdGVyIjogMjUsICJt
+      YXhfcnBtIjogbnVsbCwgImZ1bmN0aW9uX2NhbGxpbmdfbGxtIjogIiIsICJsbG0iOiAiZ3B0LTRv
+      LW1pbmkiLCAiZGVsZWdhdGlvbl9lbmFibGVkPyI6IGZhbHNlLCAiYWxsb3dfY29kZV9leGVjdXRp
+      b24/IjogZmFsc2UsICJtYXhfcmV0cnlfbGltaXQiOiAyLCAidG9vbHNfbmFtZXMiOiBbXX1dSqQD
+      CgpjcmV3X3Rhc2tzEpUDCpIDW3sia2V5IjogIjIzNzVlZjIzNGY1OTQ3MzAyODk0ZmRmOGY2NGZk
+      Y2Q4IiwgImlkIjogImEwODdlMDYzLTVmNzktNGFmZi04Y2IzLTJiYTllNzVlMzQwYSIsICJhc3lu
+      Y19leGVjdXRpb24/IjogZmFsc2UsICJodW1hbl9pbnB1dD8iOiBmYWxzZSwgImFnZW50X3JvbGUi
+      OiAiTm9uZSIsICJhZ2VudF9rZXkiOiBudWxsLCAidG9vbHNfbmFtZXMiOiBbXX0sIHsia2V5Ijog
+      IjRmODVmODZiZDA0YTU2OThjMWQzMjgxZDcxNjEwMjg4IiwgImlkIjogImJiYmYzOWRmLTg5YzAt
+      NDUyMi05YzMxLWRhNWNhZWYxZTBhMyIsICJhc3luY19leGVjdXRpb24/IjogZmFsc2UsICJodW1h
+      bl9pbnB1dD8iOiBmYWxzZSwgImFnZW50X3JvbGUiOiAiTm9uZSIsICJhZ2VudF9rZXkiOiBudWxs
+      LCAidG9vbHNfbmFtZXMiOiBbXX1degIYAYUBAAEAABKOAgoQYfX80mGT8oxpJ1HQ1/sIExIIYPhE
+      6bqAtx4qDFRhc2sgQ3JlYXRlZDABOYgXci46uC0YQbA0cy46uC0YSi4KCGNyZXdfa2V5EiIKIDk5
+      MzQ2YzkwZGQ0Yzc5NzBkYWM0ZjlhNGM0ZjFiYTM5SjEKB2NyZXdfaWQSJgokODgyNGY3MmEtMjQ3
+      Ni00MGVmLTgyMjQtYTgzM2IxODg3OWIxSi4KCHRhc2tfa2V5EiIKIDIzNzVlZjIzNGY1OTQ3MzAy
+      ODk0ZmRmOGY2NGZkY2Q4SjEKB3Rhc2tfaWQSJgokYTA4N2UwNjMtNWY3OS00YWZmLThjYjMtMmJh
+      OWU3NWUzNDBhegIYAYUBAAEAAA==
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1786'
+      Content-Type:
+      - application/x-protobuf
+      User-Agent:
+      - OTel-OTLP-Exporter-Python/1.31.0
+    method: POST
+    uri: https://telemetry.crewai.com:4319/v1/traces
+  response:
+    body:
+      string: "\n\0"
+    headers:
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/x-protobuf
+      Date:
+      - Mon, 17 Mar 2025 22:39:52 GMT
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Average Calculator], just the name, exactly as it''s written.\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Can you
+      confirm the average age of participants when the ages are [10, 12, 14, 16, 18]?
+      I calculated it as follows: first I summed the ages to get 70, then counted
+      5 participants, and divided 70 by 5 to get an average age of 14. Is this correct?\n\nThis
+      is the expected criteria for your final answer: Your best answer to your coworker
+      asking you this, accounting for the context shared.\nyou MUST return the actual
+      complete content as the final answer, not a summary.\n\nThis is the context
+      you''re working with:\nThe task is to validate my calculation of the average
+      age with ages provided as [10, 12, 14, 16, 18].\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1919'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFPLbtswELz7KxY8y4GluorjW5oihXsogrboIXUgMORKZkpxCXKVBwL/
+        e0H5IblNgR6kw87O7GOWrxMAYbRYglAbyar1dvrh6uONun7yT4vbL9+uP/24eaaH27Yuvpa1/Syy
+        xKD7B1R8YJ0par1FNuR2sAooGZNqfj4vivd5flH0QEsabaI1nqdzmrbGmWkxK+bT2fk0X+zZGzIK
+        o1jCzwkAwGv/T306jc9iCbPsEGkxRtmgWB6TAEQgmyJCxmgiS8ciG0BFjtH1ra/AIWpgAkWuNqEF
+        3iDIRwyyQUgf1X3Iy8BGGS8dR+iicc0uHOjRaNQpNZ7B9w2CklZ1VqZNwAt1oxTvUYYIikJAxRnc
+        dwwreDLWHkl4Un+ow0Q2dYkudgFBKtUFqV7O1m7tLlWqtYTLPetqr0XhgMHK+Y6X8LoW6DgYjOu0
+        2XyWQV5kkM8zyMsM8sXddryngHUXZfLKddaOAOkccT9h79DdHtkePbHU+ED38Q+qqI0zcVMFlJFc
+        2n9k8qJHtxOAu9777sRO4QO1niumX9iXm8+KnZ4YTm5Ay3wPMrG0I1b5LntDr9LI0tg4uh6hpNqg
+        HqjDqclOGxoBk9HUf3fzlvZucuOa/5EfAKXQM+rKB9RGnU48pAVML/Jfacct9w2LiOHRKKzYYEhO
+        aKxlZ3fvRMSXyNhWtXENBh/M7rHUvjqvlS5nF2W5EJPt5DcAAAD//wMAkN7FjjoEAAA=
+    headers:
+      CF-RAY:
+      - 921ffd2048a06c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:53 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '571'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999544'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_3e28074e9e6557cd32e3ab90c1281e79
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Average Calculator], just the name, exactly as it''s written.\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Can you
+      confirm the average age of participants when the ages are [10, 12, 14, 16, 18]?
+      I calculated it as follows: first I summed the ages to get 70, then counted
+      5 participants, and divided 70 by 5 to get an average age of 14. Is this correct?\n\nThis
+      is the expected criteria for your final answer: Your best answer to your coworker
+      asking you this, accounting for the context shared.\nyou MUST return the actual
+      complete content as the final answer, not a summary.\n\nThis is the context
+      you''re working with:\nThe task is to validate my calculation of the average
+      age with ages provided as [10, 12, 14, 16, 18].\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}, {"role": "assistant", "content": "I need to confirm the
+      average age of the participants using the provided ages. The calculation you
+      provided appears correct, but I will calculate the average using the tool to
+      ensure accuracy.\n\nAction: Average Calculator\nAction Input: {\"entries\":
+      [10, 12, 14, 16, 18]}\nObservation: 14.0"}], "model": "gpt-4o-mini", "stop":
+      ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2249'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4xTTW+cMBC9768Y+QwrYMl+cEu7StVDlahNq1bZFTj2AG6MjWyz2yja/16Z/YC0
+        qdQDljxv3njem+FlAkAEJxkQVlPHmlaG796v7/i35frz9W61n91+Serb7+bTh+eb7u7rmgSeoR9/
+        InNn1pTpppXohFZHmBmkDn3VeJEmyVUcr2Y90GiO0tOq1oWpDhuhRJhESRpGizBenti1FgwtyeBh
+        AgDw0p++T8XxF8kgCs6RBq2lFZLskgRAjJY+Qqi1wjqqHAkGkGnlUPWtF0WxUfe17qraZfARlN7D
+        kz9cjVAKRSVQZfdoNuqmv133twx+6M4Ao5J1knrRoMueQ3doaIXgP11CnIKwwLQxyNwU7kcZZ0KF
+        Fh7iKIA4CSBOA4jnAcTLrSd6tcghTqfRdKOKohjLMFh2lnorVSflCKBKadd31Ru4PSGHi2VSV63R
+        j/YPKimFErbODVKrlbfHOt2SHj1MALb9aLpXbpPW6KZ1udNP2D+XLmbHemTYiAG9Sk+g047KUTxZ
+        BG/Uyzk6KqQdDZcwymrkA3XYBNpxoUfAZKT6727eqn1ULlT1P+UHgDFsHfK8NcgFe614SDPof5h/
+        pV1c7hsmFs1OMMydQOMnwbGknTyuMbHP1mGTl0JVaFojjrtctvmiZHwerebzJZkcJr8BAAD//wMA
+        jgT3fdkDAAA=
+    headers:
+      CF-RAY:
+      - 921ffd25081d6c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:53 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '466'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999470'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_ee05c79a506a30244f37b69519ae4d91
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Crew Manager. You
+      are a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible.\nYou
+      ONLY have access to the following tools, and should NEVER make up tools that
+      are not listed here:\n\nTool Name: Delegate work to coworker\nTool Arguments:
+      {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
+      {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
+      {''description'': ''The role/name of the coworker to delegate to'', ''type'':
+      ''str''}}\nTool Description: Delegate a specific task to one of the following
+      coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be
+      the coworker, the task you want them to do, and ALL necessary context to execute
+      the task, they know nothing about the task, so share absolutely everything you
+      know, don''t reference things but instead explain them.\nTool Name: Ask question
+      to coworker\nTool Arguments: {''question'': {''description'': ''The question
+      to ask'', ''type'': ''str''}, ''context'': {''description'': ''The context for
+      the question'', ''type'': ''str''}, ''coworker'': {''description'': ''The role/name
+      of the coworker to ask'', ''type'': ''str''}}\nTool Description: Ask a specific
+      question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe
+      input to this tool should be the coworker, the question you have for them, and
+      ALL necessary context to ask the question properly, they know nothing about
+      the question, so share absolutely everything you know, don''t reference things
+      but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Delegate work to coworker, Ask question to coworker], just the name,
+      exactly as it''s written.\nAction Input: the input to the action, just a simple
+      JSON object, enclosed in curly braces, using \" to wrap keys and values.\nObservation:
+      the result of the action\n```\n\nOnce all necessary information is gathered,
+      return the following format:\n\n```\nThought: I now know the final answer\nFinal
+      Answer: the final answer to the original input question\n```"}, {"role": "user",
+      "content": "\nCurrent Task: Analyze the given dataset and calculate the average
+      age of participants. Ages: [10, 12, 14, 16, 18]1. Gather the dataset of ages:
+      [10, 12, 14, 16, 18]. 2. Sum all the ages together: 10 + 12 + 14 + 16 + 18 =
+      70. 3. Count the number of participants: There are 5 ages listed. 4. Divide
+      the total sum of ages by the total number of participants to calculate the average:
+      70 / 5 = 14. 5. Construct a complete sentence that summarizes the question and
+      the answer. Example sentence: ''The average age of participants is 14 years
+      old.''\n\nThis is the expected criteria for your final answer: A complete sentence
+      showing the question and the answer.\nyou MUST return the actual complete content
+      as the final answer, not a summary.\n\nBegin! This is VERY important to you,
+      use the tools available and give your best Final Answer, your job depends on
+      it!\n\nThought:"}, {"role": "assistant", "content": "```\nThought: I should
+      confirm the average age calculation by asking the Python Data Analyst to validate
+      the computation.\nAction: Ask question to coworker\nAction Input: {\"question\":
+      \"Can you confirm the average age of participants when the ages are [10, 12,
+      14, 16, 18]? I calculated it as follows: first I summed the ages to get 70,
+      then counted 5 participants, and divided 70 by 5 to get an average age of 14.
+      Is this correct?\", \"context\": \"The task is to validate my calculation of
+      the average age with ages provided as [10, 12, 14, 16, 18].\", \"coworker\":
+      \"Python Data Analyst\"}\n```\n\nObservation: Your calculation of the average
+      age of 14 is correct. The average of the ages [10, 12, 14, 16, 18] is indeed
+      14.0."}], "model": "gpt-4o", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4276'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFLBbtswDL37Kwid48B2k6bxbeswYLdhLbABS2GrEm1rkSVBottmRf59
+        kJPG6doBO0iA+Pie+Eg+JwBMSVYCEx0n0Tudfrz+9FV+2+7ydvdDNNc3y+/d04DCdTdXvzM2iwx7
+        /wsFvbDmwvZOIylrDrDwyAmjar5aFMUyz9cXI9BbiTrSWkfpwqZFVizS7CrNLo/EziqBgZXwMwEA
+        eB7vWKKR+MRKyGYvkR5D4C2y8pQEwLzVMcJ4CCoQN8RmEyisITRj1XVdb8xtZ4e2oxK+gLGPsI0X
+        dQiNMlwDN+ER/XxjPo/PD+OzhNsOgT+g5y1CPLYBxz0poRw3FEAFyBewQ+4DWC3nG1PX9XkVHpsh
+        8NgEM2h9BnBjLPHYxNH/3RHZnxxr2zpv78NfVNYoo0JXeeTBmugukHVsRPcJwN3Y2eFVs5jztndU
+        kd3i+N16tTzosWmWE1pcHkGyxPUUz7Msn70jWEkkrnQ4Gw4TXHQoJ+40ST5IZc+A5Mz223Le0z5Y
+        V6b9H/kJEAIdoaycR6nEa8tTmse46/9KO7V5LJgF9A9KYEUKfRyFxIYP+rCGLOwCYV81yrTonVeH
+        XWxc1Yh1k8tVdrFkyT75AwAA//8DAFE0a82UAwAA
+    headers:
+      CF-RAY:
+      - 921ffd28fcee6c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:54 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '392'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '50000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '49999'
+      x-ratelimit-remaining-tokens:
+      - '149998967'
+      x-ratelimit-reset-requests:
+      - 1ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_8211928db0408dc79b72df8983a2e6c5
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Crew Manager. You
+      are a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible.\nYou
+      ONLY have access to the following tools, and should NEVER make up tools that
+      are not listed here:\n\nTool Name: Delegate work to coworker\nTool Arguments:
+      {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
+      {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
+      {''description'': ''The role/name of the coworker to delegate to'', ''type'':
+      ''str''}}\nTool Description: Delegate a specific task to one of the following
+      coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be
+      the coworker, the task you want them to do, and ALL necessary context to execute
+      the task, they know nothing about the task, so share absolutely everything you
+      know, don''t reference things but instead explain them.\nTool Name: Ask question
+      to coworker\nTool Arguments: {''question'': {''description'': ''The question
+      to ask'', ''type'': ''str''}, ''context'': {''description'': ''The context for
+      the question'', ''type'': ''str''}, ''coworker'': {''description'': ''The role/name
+      of the coworker to ask'', ''type'': ''str''}}\nTool Description: Ask a specific
+      question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe
+      input to this tool should be the coworker, the question you have for them, and
+      ALL necessary context to ask the question properly, they know nothing about
+      the question, so share absolutely everything you know, don''t reference things
+      but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Delegate work to coworker, Ask question to coworker], just the name,
+      exactly as it''s written.\nAction Input: the input to the action, just a simple
+      JSON object, enclosed in curly braces, using \" to wrap keys and values.\nObservation:
+      the result of the action\n```\n\nOnce all necessary information is gathered,
+      return the following format:\n\n```\nThought: I now know the final answer\nFinal
+      Answer: the final answer to the original input question\n```"}, {"role": "user",
+      "content": "\nCurrent Task: Given the average age of participants, recommend
+      a fun activity for the group.1. Take the calculated average age, which is 14
+      years. 2. Think about fun activities suitable for a group of 14-year-olds. 3.
+      Research and select three engaging and age-appropriate activities: - Team sport
+      day (e.g., basketball or soccer matches). - Creative arts and crafts workshop
+      (e.g., painting, DIY projects). - Outdoor adventure day (e.g., hiking or visiting
+      an amusement park). 4. Create a blog post format and write the three recommendations
+      in bullet points. Example of bullet points: - Engage in team sports like basketball
+      or soccer for fun and fitness. - Participate in an arts and crafts workshop
+      to express creativity. - Enjoy an outdoor adventure day exploring nature or
+      thrills at an amusement park.\n\nThis is the expected criteria for your final
+      answer: Blog post with 3 bullet points of recommended activities.\nyou MUST
+      return the actual complete content as the final answer, not a summary.\n\nThis
+      is the context you''re working with:\nThe average age of participants is 14
+      years old.\n\nBegin! This is VERY important to you, use the tools available
+      and give your best Final Answer, your job depends on it!\n\nThought:"}], "model":
+      "gpt-4o", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3870'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFRNbxs5DL37VxA624En6yaNL0XSAIsAXaTABuihUziyxJlRohFViXIa
+        BPnvhTS2x067ix48gPlI6vHx42UCIIwWSxCqk6x6b2dXH68/I/EtXl9+vvp0dvXl+vYfZa8v/w3V
+        w62Y5ghaP6DiXdSJot5bZENugFVAyZizVueL09N3VXWxKEBPGm0Oaz3PFjQ7nZ8uZvP3s/nZNrAj
+        ozCKJXydAAC8lG+m6DT+EEuYT3eWHmOULYrl3glABLLZImSMJrJ0LKYjqMgxusL6/v6+dncdpbbj
+        JdwRBFTU9+g0NMmBVGw2hg1GaCiAhDZQ8kANVIvZM8owI6vjFG7gyVgLDlGDcT4xNIF64A7hjlKA
+        v5PRCEyALqaABTjILQMCula2xrUgnQbZ4kx6H8gHIxlPdg/I+FiIcIcmjFxlVjwCOYjJsFxbfMuc
+        OxNz1qGAk9pdqhyzhMv4CN8TxvwvE1T0ROERw84DbnI5S3ipxc6tFkuoxZdOciEeqcdBLKcPqhjf
+        33P6HwmBc7onBCUdGKds0gjGgYS1pRY8Rf4Ad8eqxY6S1bDGt3IVJqqAxm3IbhCip8BxCjJwHOAg
+        m2ygxJoyL71BxylgtgWQ7hmIOwwjeyUZWwrPJ7WYQj0M0Q8exCjMNhiywvlHTWnxUKqJUC0glxqB
+        rJ6W959wmBYmaEzu+FhXkUJ6j9Jm+Lh12TLO6LFCe2bbFg7U9vNXi9falYE/XIaATYoy76JL1h4A
+        0jniYbLyGn7bIq/7xbPU+kDr+CZUNMaZ2K0CykguL1lk8qKgrxOAb2XB09HOCh+o97xiesTy3Pv5
+        xZBPjCdlRKuzaosysbQjcHG+vQvHCVcaWRobD26EUFJ1qMfQ8aDIpA0dAJODsn+l87vcQ+nGtX+S
+        fgSUQs+oVz6gNuq45NEtYD65/+W2l7kQFhHDxihcscGQW6GxkckO11DE58jYrxrjWgw+mOEkNn7V
+        qIum0ufzv96JyevkJwAAAP//AwBMvnBiGwYAAA==
+    headers:
+      CF-RAY:
+      - 921ffd2d2aa26c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:55 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1448'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '50000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '49999'
+      x-ratelimit-remaining-tokens:
+      - '149999057'
+      x-ratelimit-reset-requests:
+      - 1ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_6ef78175ec5d67777aae406eb22ad09f
+    status:
+      code: 200
+      message: OK
+- request:
+    body: !!binary |
+      CoYFCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkS3QQKEgoQY3Jld2FpLnRl
+      bGVtZXRyeRKWAQoQq8JWH0U5YELtdzyUOL3SnBIIn11/PaBz+qYqClRvb2wgVXNhZ2UwATlIDCGx
+      OrgtGEEIi1qxOrgtGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwNS4wSiEKCXRvb2xfbmFtZRIU
+      ChJBdmVyYWdlIENhbGN1bGF0b3JKDgoIYXR0ZW1wdHMSAhgBegIYAYUBAAEAABKcAQoQPaG2n+JQ
+      dXUj5jKbPwFZ4BIIzjyIfAIISzcqClRvb2wgVXNhZ2UwATlYEZbWOrgtGEEIKMXWOrgtGEobCg5j
+      cmV3YWlfdmVyc2lvbhIJCgcwLjEwNS4wSicKCXRvb2xfbmFtZRIaChhBc2sgcXVlc3Rpb24gdG8g
+      Y293b3JrZXJKDgoIYXR0ZW1wdHMSAhgBegIYAYUBAAEAABKOAgoQfAAUldEdkmxctox6LONAkhII
+      i2RNsGfVCTEqDFRhc2sgQ3JlYXRlZDABOUBVv/46uC0YQXgQwv46uC0YSi4KCGNyZXdfa2V5EiIK
+      IDk5MzQ2YzkwZGQ0Yzc5NzBkYWM0ZjlhNGM0ZjFiYTM5SjEKB2NyZXdfaWQSJgokODgyNGY3MmEt
+      MjQ3Ni00MGVmLTgyMjQtYTgzM2IxODg3OWIxSi4KCHRhc2tfa2V5EiIKIDRmODVmODZiZDA0YTU2
+      OThjMWQzMjgxZDcxNjEwMjg4SjEKB3Rhc2tfaWQSJgokYmJiZjM5ZGYtODljMC00NTIyLTljMzEt
+      ZGE1Y2FlZjFlMGEzegIYAYUBAAEAAA==
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '649'
+      Content-Type:
+      - application/x-protobuf
+      User-Agent:
+      - OTel-OTLP-Exporter-Python/1.31.0
+    method: POST
+    uri: https://telemetry.crewai.com:4319/v1/traces
+  response:
+    body:
+      string: "\n\0"
+    headers:
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/x-protobuf
+      Date:
+      - Mon, 17 Mar 2025 22:39:57 GMT
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Tour Guide. You are
+      a tour guide with a passion for finding the best activities for groups of people.\nYour
+      personal goal is: Recommend fun activities for a group of humans.\nTo give my
+      best complete final answer to the task respond using the exact following format:\n\nThought:
+      I now can give a great answer\nFinal Answer: Your final answer must be the great
+      and the most complete as possible, it must be outcome described.\n\nI MUST use
+      these formats, my job depends on it!"}, {"role": "user", "content": "\nCurrent
+      Task: What are some fun and engaging activities suitable for a group of 14-year-olds
+      that we can include in a blog post? The activities should be age-appropriate
+      and could involve sports, arts and crafts, outdoor adventures, or any other
+      suitable category.\n\nThis is the expected criteria for your final answer: Your
+      best answer to your coworker asking you this, accounting for the context shared.\nyou
+      MUST return the actual complete content as the final answer, not a summary.\n\nThis
+      is the context you''re working with:\nThe average age of the group is 14 years
+      old, and we need to find activities that appeal to this age group to recommend
+      in a blog post.\n\nBegin! This is VERY important to you, use the tools available
+      and give your best Final Answer, your job depends on it!\n\nThought:"}], "model":
+      "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1421'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        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
+        AAD//wMATcXOD5YQAAA=
+    headers:
+      CF-RAY:
+      - 921ffd376a726c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:39:59 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '3527'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999664'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_4712ebf1116222895605b4c3356d7917
+    status:
+      code: 200
+      message: OK
+- request:
+    body: !!binary |
+      CtwBCiQKIgoMc2VydmljZS5uYW1lEhIKEGNyZXdBSS10ZWxlbWV0cnkSswEKEgoQY3Jld2FpLnRl
+      bGVtZXRyeRKcAQoQFHiddfP+0/vtwYsiK+e8vxIIa8GlkWy8C5MqClRvb2wgVXNhZ2UwATmopUhD
+      PLgtGEGAe15DPLgtGEobCg5jcmV3YWlfdmVyc2lvbhIJCgcwLjEwNS4wSicKCXRvb2xfbmFtZRIa
+      ChhBc2sgcXVlc3Rpb24gdG8gY293b3JrZXJKDgoIYXR0ZW1wdHMSAhgBegIYAYUBAAEAAA==
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '223'
+      Content-Type:
+      - application/x-protobuf
+      User-Agent:
+      - OTel-OTLP-Exporter-Python/1.31.0
+    method: POST
+    uri: https://telemetry.crewai.com:4319/v1/traces
+  response:
+    body:
+      string: "\n\0"
+    headers:
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/x-protobuf
+      Date:
+      - Mon, 17 Mar 2025 22:40:02 GMT
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Crew Manager. You
+      are a seasoned manager with a knack for getting the best out of your team.\nYou
+      are also known for your ability to delegate work to the right people, and to
+      ask the right questions to get the best out of your team.\nEven though you don''t
+      perform tasks by yourself, you have a lot of experience in the field, which
+      allows you to properly evaluate the work of your team members.\nYour personal
+      goal is: Manage the team to complete the task in the best way possible.\nYou
+      ONLY have access to the following tools, and should NEVER make up tools that
+      are not listed here:\n\nTool Name: Delegate work to coworker\nTool Arguments:
+      {''task'': {''description'': ''The task to delegate'', ''type'': ''str''}, ''context'':
+      {''description'': ''The context for the task'', ''type'': ''str''}, ''coworker'':
+      {''description'': ''The role/name of the coworker to delegate to'', ''type'':
+      ''str''}}\nTool Description: Delegate a specific task to one of the following
+      coworkers: Python Data Analyst, Tour Guide\nThe input to this tool should be
+      the coworker, the task you want them to do, and ALL necessary context to execute
+      the task, they know nothing about the task, so share absolutely everything you
+      know, don''t reference things but instead explain them.\nTool Name: Ask question
+      to coworker\nTool Arguments: {''question'': {''description'': ''The question
+      to ask'', ''type'': ''str''}, ''context'': {''description'': ''The context for
+      the question'', ''type'': ''str''}, ''coworker'': {''description'': ''The role/name
+      of the coworker to ask'', ''type'': ''str''}}\nTool Description: Ask a specific
+      question to one of the following coworkers: Python Data Analyst, Tour Guide\nThe
+      input to this tool should be the coworker, the question you have for them, and
+      ALL necessary context to ask the question properly, they know nothing about
+      the question, so share absolutely everything you know, don''t reference things
+      but instead explain them.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Delegate work to coworker, Ask question to coworker], just the name,
+      exactly as it''s written.\nAction Input: the input to the action, just a simple
+      JSON object, enclosed in curly braces, using \" to wrap keys and values.\nObservation:
+      the result of the action\n```\n\nOnce all necessary information is gathered,
+      return the following format:\n\n```\nThought: I now know the final answer\nFinal
+      Answer: the final answer to the original input question\n```"}, {"role": "user",
+      "content": "\nCurrent Task: Given the average age of participants, recommend
+      a fun activity for the group.1. Take the calculated average age, which is 14
+      years. 2. Think about fun activities suitable for a group of 14-year-olds. 3.
+      Research and select three engaging and age-appropriate activities: - Team sport
+      day (e.g., basketball or soccer matches). - Creative arts and crafts workshop
+      (e.g., painting, DIY projects). - Outdoor adventure day (e.g., hiking or visiting
+      an amusement park). 4. Create a blog post format and write the three recommendations
+      in bullet points. Example of bullet points: - Engage in team sports like basketball
+      or soccer for fun and fitness. - Participate in an arts and crafts workshop
+      to express creativity. - Enjoy an outdoor adventure day exploring nature or
+      thrills at an amusement park.\n\nThis is the expected criteria for your final
+      answer: Blog post with 3 bullet points of recommended activities.\nyou MUST
+      return the actual complete content as the final answer, not a summary.\n\nThis
+      is the context you''re working with:\nThe average age of participants is 14
+      years old.\n\nBegin! This is VERY important to you, use the tools available
+      and give your best Final Answer, your job depends on it!\n\nThought:"}, {"role":
+      "assistant", "content": "```\nThought: To recommend fun activities for a group
+      of 14-year-olds, I will need input from the Tour Guide to ensure the activities
+      are engaging and age-appropriate. I will ask for their recommendations on suitable
+      activities for this age group.\nAction: Ask question to coworker\nAction Input:
+      {\"question\": \"What are some fun and engaging activities suitable for a group
+      of 14-year-olds that we can include in a blog post? The activities should be
+      age-appropriate and could involve sports, arts and crafts, outdoor adventures,
+      or any other suitable category.\", \"context\": \"The average age of the group
+      is 14 years old, and we need to find activities that appeal to this age group
+      to recommend in a blog post.\", \"coworker\": \"Tour Guide\"}\n```\n\nObservation:
+      Here\u2019s a collection of engaging activities suitable for 14-year-olds that
+      can be featured in your blog post, encompassing sports, arts, crafts, and outdoor
+      adventures to ensure a memorable experience for the group:\n\n1. **Outdoor Scavenger
+      Hunt**: Organize a scavenger hunt in a local park or a spacious outdoor area.
+      Create a list of items for teams to find, such as certain types of leaves, rocks,
+      or even specific landmarks or features. This activity encourages teamwork, problem-solving,
+      and physical activity while being incredibly fun and competitive.\n\n2. **Sports
+      Day**: Arrange a mini sports day with various games like soccer, basketball,
+      or ultimate frisbee. Incorporate fun relay races and obstacle courses. Divide
+      the group into teams, and perhaps offer medals or trophies for friendly competition.
+      It promotes physical fitness and encourages camaraderie.\n\n3. **Art and Craft
+      Workshop**: Set up a creative arts and crafts session where participants can
+      make friendship bracelets, custom t-shirts, or paint canvases. Provide plenty
+      of materials and some guidance but allow room for creativity. This activity
+      is not only fun, but it also gives them a sense of achievement with tangible
+      results to take home.\n\n4. **Beach or Pool Day**: If you\u2019re near a beach
+      or have access to a pool, organize a day filled with games like water volleyball,
+      poolside quizzes, and inflatable obstacle courses. Bring some beach or poolside
+      snacks and enjoy a relaxing day soaking up the sun.\n\n5. **Outdoor Movie Night**:
+      Host an outdoor movie night in someone''s backyard or a community space. Create
+      a comfy atmosphere with blankets and cushions, and let the group vote on movies
+      to watch. Serve popcorn and snacks for a complete cinema experience under the
+      stars.\n\n6. **Cooking Competition**: Organize a friendly cooking competition
+      where groups work together to create different dishes using a limited set of
+      ingredients. Provide an array of toppings and decorations for cupcakes or cookies.
+      Not only is this activity creative, but it also teaches valuable skills while
+      fostering teamwork.\n\n7. **Escape Room Challenge**: Consider booking an escape
+      room experience where groups work together to solve puzzles and escape within
+      a set time limit. This activity boosts cooperation, critical thinking, and communication
+      skills while providing an adrenaline rush.\n\n8. **Nature Hike with Photography**:
+      Plan a hike in a nearby nature preserve or park and encourage the group to take
+      photos along the way. You can set up themes like \"best nature shot\" or \u201cmost
+      creative picture.\" After the hike, host a mini photo exhibit showcasing everyone''s
+      favorites.\n\n9. **DIY Tie-Dye Party**: Provide shirts, socks, or bags that
+      the group can tie-dye. Share different tying techniques and colors to use, allowing
+      creativity to shine through. This hands-on activity results in unique, personal
+      items that everyone can cherish.\n\n10. **Game Night**: Organize an indoor game
+      night featuring board games, card games, or video games. Set up a tournament
+      style format for some games, and provide snacks and drinks to keep the atmosphere
+      lively. It\u2019s a great way to bond and enjoy friendly competition in a relaxed
+      setting.\n\nThese activities are designed to be engaging and age-appropriate
+      for 14-year-olds and will foster interaction among the group while allowing
+      everyone to have a blast!"}], "model": "gpt-4o", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '8081'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=_3TLERofQrBQFxhOGrs7SQk2oHvCCp6oI.GYjNcNqkY-1742251190-1.0.1.1-.JuBs_S9hRwCDeIZXgNWTfA3nHElfFLzH7cgY.Q0pvWtgXPGBM7yJnnD9TOIgdiKonR4wIIVd5rIsQ_6NYUq5hJgiNT76naRASjYKgMnjOg;
+        _cfuvid=a_jmRy42y91tbC.O0UGOPLAVlXfg2wuptKl_tVNd3aY-1742251190810-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFZNbxtHDL37V7B7SQtIgu04TuKbkzgfbYG4SIAUqAObmuXuMprlTGe4
+        kjdB/nvBWdlS0hToRQdxyEc+PpL75QCg4ro6g8p1qK6Pfv7s+YvL1evfhvNff3+7ebXxT4aL4dPx
+        5UX75+n5H9XMPMLyEzm981q40EdPykEms0uEShb16PHJ8fGjo+PDw2LoQ03e3Nqo85MwPz48Ppkf
+        Ppkfnm4du8COcnUGfx0AAHwpv5ai1HRbnUEJU/7pKWdsqTq7fwRQpeDtnwpz5qwoWs12RhdESUrW
+        Nzc3V/K+C0Pb6Rl8YO1AO4IWtaNENbA0IfVoFc3gDTgUkLCBqS5AWPrQQgxZwYIiC0sL2iUiSORC
+        35PUVAM65TUrU4Y8sOLSEzQhwdHJfCRM8+DrvLiSlyzo4VzyhtIZXMmVPLP4lyHrGVzcOlYLf74L
+        ZjEQXg4yb9h7quEFjrCxKvYjW6DXlAgw0Ta5BkUxK7v91DQASR7sIdQ4QjN4D6GBZhBAqYEsA+pJ
+        dAvcpjBEe7GP9hN86MjoMybHB4mARQPkGJLm2USdIY4zsCD1mkSHRDMolD/IkENP2lml9keBojWl
+        MQgtrJQ5XMinMALCe8Ie3pXAVvnZlQBcSIutYQJCz8Jb4KkgQh2SRW6xpwyeVwQ5OEdpBkvMK9Il
+        el8SG7xyb01uEucl0QKe3zXd85r8CKh9yLHkWChvEpPUfgSbAlI20eQdcQabyOMICR3lBbzvON/R
+        P4IEhSB+hGUIWTPEbszs0EPDKpQzLAcF9DlA1kTSakeSQQn7TUirAuOwx4Q1JSbAPhQl0tSkLXGv
+        SKcyeL1N+ty4MefnCRvNhcK3qUXhzwQogHd2V+xgYLkLETal8IhJ2XFE0VymYxBPmMsUcdprNixH
+        6HFlJEw85Y4jLI0KT6YLZZrXI4HOc8dFKSFBRJZCnENZYzbWLlNYc21tWGNi0tH0Z41KjH5K1ZNu
+        8bnHlgWnTqRBYMO+XsAbfZABi643OBbd38ZkJO8lbJEUVwRd6A0uUspB0PNnqiEyOTJkTLrl9vxO
+        yTZitlCMvreD1iEkeOdwTdJSgteDaGH50hu99pi9txrD9m2+f9sNopOSfTApREwro0Ww4GAiNEIo
+        Ypp0mdVysiGddoPJo8x1w1JvNRKL78+0aBczGIT/Hgg84ZryDFJwq4l5j1L3mFb5l++F6kK/ZKG8
+        P7p0S8lxtiHeCnJW0LImVGrZgQ301H0begG67dhjwtJduo0mWnHTgL/vKNP+YrLyyl7SAPGu/wJk
+        a6DsUsMabFW3pNN2LeNeoMYfr6kZhKahxNspiZQacgpL9ChTa8vi+HZhGc592Ysrubm52T8siZoh
+        o901GbzfM6BI0EmGdtI+bi1f74+YD21MYZm/c60aFs7ddSLMQexgZQ2xKtavBwAfy7Ecvrl/VUyh
+        j3qtYUUF7uj04eMpYLW7zzvzw8OnW6sGRb/n9/TkdPaDkNc1KbLPexe3cug6qne+u/OMQ81hz3Cw
+        V/i/8/lR7Kl4lvb/hN8ZnKOoVF/HRDW7b2vePUtkHzD/9eye6JJwlSmt2dG1MiVrRk0NDn76tqjy
+        mJX664ZtdGPi6QOjideNe9oc1Y8PHz6qDr4e/AMAAP//AwCOrHoKaQkAAA==
+    headers:
+      CF-RAY:
+      - 921ffd4f2a7c6c71-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 22:40:02 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2507'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '50000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '49999'
+      x-ratelimit-remaining-tokens:
+      - '149998026'
+      x-ratelimit-reset-requests:
+      - 1ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_5c3697e22d540b91a097bfacb4f30f8c
+    status:
+      code: 200
+      message: OK
+version: 1
