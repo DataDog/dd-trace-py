@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
@@ -30,6 +31,9 @@ _ROOT_TO_PACKAGE: t.Optional[t.Dict[str, str]] = None
 
 
 def parse_git_metadata(project_urls: t.List[str]) -> t.Tuple[str, str]:
+    if not project_urls:
+        return "", ""
+
     source_code_link = ""
     for val in project_urls:
         capt_val = val.split(", ")
@@ -80,6 +84,11 @@ def parse_importlib_metadata():
 
         namespaces[root] = False
         return False
+
+
+    _DISTRIBUTIONS = {}
+    _PACKAGE_DISTRIBUTIONS = defaultdict(list)
+    _ROOT_TO_PACKAGE = {}
 
     for dist in importlib_metadata.distributions():
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
