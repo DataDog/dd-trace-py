@@ -12,6 +12,9 @@ components:
   langchain:
     - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
+  litellm:
+    - ddtrace/contrib/_litellm.py
+    - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
   openai:
@@ -20,9 +23,12 @@ components:
   langgraph:
     - ddtrace/contrib/_langgraph.py
     - ddtrace/contrib/internal/langgraph/*
+  openai_agents:
+    - ddtrace/contrib/_openai_agents.py
+    - ddtrace/contrib/internal/openai_agents/*
 suites:
   anthropic:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -36,6 +42,7 @@ suites:
     runner: riot
     snapshot: true
   google_generativeai:
+    parallelism: 1
     paths:
     - '@bootstrap'
     - '@core'
@@ -48,6 +55,7 @@ suites:
     runner: riot
     snapshot: true
   vertexai:
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -73,6 +81,18 @@ suites:
       - tests/snapshots/tests.contrib.langchain.*
     runner: riot
     snapshot: true
+  litellm:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@litellm'
+      - '@llmobs'
+      - tests/contrib/litellm/*
+      - tests/snapshots/tests.contrib.litellm.*
+    runner: riot
+    snapshot: true
   llmobs:
     paths:
       - '@bootstrap'
@@ -96,7 +116,7 @@ suites:
     runner: riot
     snapshot: true
   langgraph:
-    parallelism: 3
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -106,5 +126,17 @@ suites:
       - '@requests'
       - '@llmobs'
       - tests/contrib/langgraph/*
+    runner: riot
+    snapshot: true
+  openai_agents:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@openai_agents'
+      - '@llmobs'
+      - tests/contrib/openai_agents/*
+      - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true

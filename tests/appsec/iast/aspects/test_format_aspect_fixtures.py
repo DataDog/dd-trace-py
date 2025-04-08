@@ -15,7 +15,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_rang
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 
@@ -250,7 +250,7 @@ def test_propagate_ranges_with_no_context(caplog):
 
     ranges_result = get_tainted_ranges(result_2)
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
     assert len(ranges_result) == 0
 
 

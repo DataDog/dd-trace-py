@@ -15,7 +15,7 @@ from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ABORT_REASON
 from ddtrace.internal.ci_visibility.constants import TEST_EFD_ENABLED
-from ddtrace.internal.ci_visibility.constants import TEST_SESSION_QUARANTINE_ENABLED
+from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_ENABLED
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished
@@ -73,7 +73,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
             self.set_tag(TEST_EFD_ABORT_REASON, "faulty")
 
     def _set_test_management_tags(self):
-        self.set_tag(TEST_SESSION_QUARANTINE_ENABLED, True)
+        self.set_tag(TEST_MANAGEMENT_ENABLED, True)
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set session-level tags based in ITR enablement status"""
@@ -185,5 +185,18 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
                     if _test.is_quarantined():
                         continue
                     if _test.atr_has_retries() and _test.atr_get_final_status() == TestStatus.FAIL:
+                        return True
+        return False
+
+    def attempt_to_fix_has_failed_tests(self):
+        if not self._session_settings.test_management_settings.enabled:
+            return False
+
+        for _module in self._children.values():
+            for _suite in _module._children.values():
+                for _test in _suite._children.values():
+                    if _test.is_quarantined() or _test.is_disabled():
+                        continue
+                    if _test.is_attempt_to_fix() and _test.attempt_to_fix_get_final_status() == TestStatus.FAIL:
                         return True
         return False

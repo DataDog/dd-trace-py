@@ -712,7 +712,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
-        tracer._configure(enabled=False)
+        tracer.enabled = False
 
         db = client.testdb
         db.drop_collection("teams")

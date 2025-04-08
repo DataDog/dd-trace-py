@@ -80,7 +80,10 @@ def resolve_fail(root, info):
     return undefined_var.property
 
 
-@snapshot(ignores=["meta.error.stack", "meta.events"])
+@snapshot(
+    ignores=["meta.error.stack", "meta.events"],
+    variants={"2.x": graphql_version >= (3, 0), "3.x": graphql_version < (3, 0)},
+)
 def test_graphql_fail(enable_graphql_resolvers):
     query = """
     query {
@@ -193,6 +196,18 @@ def test_graphql_execute_sync_with_middlware_manager(
         res2 = graphql.execution.execute_sync(test_schema, ast, middleware=middleware_manager)
         assert res1.data == {"hello": "friend"}
         assert res2.data == {"hello": "friend"}
+
+
+@snapshot(ignores=["meta.error.stack", "meta.events"])
+def test_regression_graphql_error_locations_none():
+    """
+    Ensure GraphQLError with `locations=None` does not cause patching issues.
+    """
+    error = graphql.GraphQLError(message="Test error with no locations")
+    error.locations = None
+    result = graphql.ExecutionResult(data=None, errors=[error])
+
+    assert result.errors[0].locations is None
 
 
 @pytest.mark.snapshot

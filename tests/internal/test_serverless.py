@@ -88,6 +88,8 @@ standard_blocklist = [
     "logging.handlers",
     "multiprocessing",
     "importlib_metadata",
+    "ddtrace._trace.utils_botocore.span_pointers",
+    "ddtrace._trace.utils_botocore.span_tags",
     # These modules must not be imported because their source files are
     # specifically removed from the serverless python layer.
     # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile

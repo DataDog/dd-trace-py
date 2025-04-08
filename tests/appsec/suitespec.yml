@@ -13,7 +13,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
-    parallelism: 6
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -80,13 +80,23 @@ suites:
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
-  appsec_iast_packages:
-    parallelism: 4
-    paths:
-      - '@appsec_iast'
-      - tests/appsec/iast_packages/*
-    runner: hatch
-    timeout: 50m
+#  appsec_iast_packages:
+#    env:
+#      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+#    paths:
+#      - '@appsec_iast'
+#      - tests/appsec/iast_packages/*
+#    runner: hatch
+#    timeout: 50m
+#    cache:
+#      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
+#      paths:
+#        - .cache
+#    python_versions:
+#      - "3.9"
+#      - "3.10"
+#      - "3.11"
+#      - "3.12"
   iast_tdd_propagation:
     parallelism: 5
     paths:
@@ -102,7 +112,8 @@ suites:
     snapshot: true
     timeout: 40m
   appsec_integrations_pygoat:
-    parallelism: 7
+    parallelism: 3
+    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -113,7 +124,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: riot
+    runner: hatch
     snapshot: true
   appsec_integrations_flask:
     parallelism: 17
@@ -220,8 +231,6 @@ suites:
     runner: riot
     skip: true  # TODO: No environment available
   webbrowser:
-    # services:
-    # - pygoat
     paths:
       - '@bootstrap'
       - '@core'

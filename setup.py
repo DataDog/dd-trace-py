@@ -1,4 +1,5 @@
 import atexit
+import fnmatch
 import hashlib
 import os
 import platform
@@ -78,15 +79,11 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.22.0"
+LIBDDWAF_VERSION = "1.24.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
-
-# Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
-if CURRENT_OS == "Darwin":
-    os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "10.14")
 
 
 def interpose_sccache():
@@ -109,14 +106,14 @@ def interpose_sccache():
         )
         if cc_path:
             os.environ["DD_CC_OLD"] = cc_path
-            os.environ["CC"] = str(HERE / "scripts" / "cc_wrapper.sh")
+            os.environ["CC"] = str(sccache_path) + " " + str(cc_path)
 
         cxx_path = next(
             (shutil.which(cmd) for cmd in [os.getenv("CXX", ""), "c++", "g++", "clang++"] if shutil.which(cmd)), None
         )
         if cxx_path:
             os.environ["DD_CXX_OLD"] = cxx_path
-            os.environ["CXX"] = str(HERE / "scripts" / "cxx_wrapper.sh")
+            os.environ["CXX"] = str(sccache_path) + " " + str(cxx_path)
 
 
 def verify_checksum_from_file(sha256_filename, filename):
@@ -415,7 +412,7 @@ class CMakeBuild(build_ext):
             cmake_args += [
                 "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
             ]
-        if CURRENT_OS == "Darwin" and sys.version_info >= (3, 8, 0):
+        if CURRENT_OS == "Darwin":
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures
             # This is currently specific to IAST and requires cmakefile support
@@ -424,6 +421,8 @@ class CMakeBuild(build_ext):
                 cmake_args += [
                     "-DBUILD_MACOS=ON",
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
+                    # Set macOS SDK default deployment target to 10.14 for C++17 support (if unset, may default to 10.9)
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.14",
                 ]
 
         if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
@@ -531,6 +530,28 @@ def check_rust_toolchain():
         raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
+DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "").split(",") if _.strip()]
+DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
+
+
+def filter_extensions(extensions):
+    # type: (list[Extension]) -> list[Extension]
+    if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
+        return extensions
+
+    filtered: list[Extension] = []
+    for ext in extensions:
+        if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
+            print(f"INFO: Excluding extension {ext.name}")
+            continue
+        elif DD_BUILD_EXT_INCLUDES and not any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_INCLUDES):
+            print(f"INFO: Excluding extension {ext.name}")
+            continue
+        print(f"INFO: Including extension {ext.name}")
+        filtered.append(ext)
+    return filtered
+
+
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
@@ -612,21 +633,28 @@ if not IS_PYSTON:
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
                 extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._ast.iastpatch",
+                sources=[
+                    "ddtrace/appsec/_iast/_ast/iastpatch.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
         ext_modules.append(
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
     if (
-        platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
-    ) and is_64_bit_python():
+        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
+    ) or CURRENT_OS == "Windows":
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -635,6 +663,7 @@ if not IS_PYSTON:
             )
         )
 
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
@@ -643,14 +672,14 @@ if not IS_PYSTON:
             )
         )
 
-        if sys.version_info < (3, 13):
-            ext_modules.append(
-                CMakeExtension(
-                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                    source_dir=STACK_V2_DIR,
-                    optional=False,
-                ),
-            )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
+
 
 else:
     ext_modules = []
@@ -679,57 +708,65 @@ setup(
         "clean": CleanLibraries,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=ext_modules
+    ext_modules=filter_extensions(ext_modules)
     + cythonize(
-        [
-            Cython.Distutils.Extension(
-                "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.internal._tagset",
-                sources=["ddtrace/internal/_tagset.pyx"],
-                language="c",
-            ),
-            Extension(
-                "ddtrace.internal._encoding",
-                ["ddtrace/internal/_encoding.pyx"],
-                include_dirs=["."],
-                libraries=encoding_libraries,
-                define_macros=encoding_macros,
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
-                language="c",
-                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying toolchain and
-                # emit the right flags, but as a compromise we assume Windows implies MSVC and everything else is on a
-                # GNU-like toolchain
-                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling._threading",
-                sources=["ddtrace/profiling/_threading.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._task",
-                sources=["ddtrace/profiling/collector/_task.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.exporter.pprof",
-                sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                language="c",
-            ),
-        ],
+        filter_extensions(
+            [
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._rand",
+                    sources=["ddtrace/internal/_rand.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.internal._tagset",
+                    sources=["ddtrace/internal/_tagset.pyx"],
+                    language="c",
+                ),
+                Extension(
+                    "ddtrace.internal._encoding",
+                    ["ddtrace/internal/_encoding.pyx"],
+                    include_dirs=["."],
+                    libraries=encoding_libraries,
+                    define_macros=encoding_macros,
+                ),
+                Extension(
+                    "ddtrace.internal.telemetry.metrics_namespaces",
+                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector.stack",
+                    sources=["ddtrace/profiling/collector/stack.pyx"],
+                    language="c",
+                    # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
+                    # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
+                    # everything else is on a GNU-like toolchain
+                    extra_compile_args=extra_compile_args
+                    + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._traceback",
+                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling._threading",
+                    sources=["ddtrace/profiling/_threading.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.collector._task",
+                    sources=["ddtrace/profiling/collector/_task.pyx"],
+                    language="c",
+                ),
+                Cython.Distutils.Extension(
+                    "ddtrace.profiling.exporter.pprof",
+                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                    language="c",
+                ),
+            ]
+        ),
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
@@ -740,14 +777,16 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("psutil"),
-    rust_extensions=[
-        RustExtension(
-            "ddtrace.internal.native._native",
-            path="src/native/Cargo.toml",
-            py_limited_api="auto",
-            binding=Binding.PyO3,
-            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-        ),
-    ],
+    + filter_extensions(get_exts_for("psutil")),
+    rust_extensions=filter_extensions(
+        [
+            RustExtension(
+                "ddtrace.internal.native._native",
+                path="src/native/Cargo.toml",
+                py_limited_api="auto",
+                binding=Binding.PyO3,
+                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+            ),
+        ]
+    ),
 )

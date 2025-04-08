@@ -10,9 +10,9 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 logger = get_logger(__name__)
@@ -445,7 +445,7 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
-_report_telemetry(config)
+report_configuration(config)
 
 # If during processing we discover that the configuration was injected, we need to do a few things
 # - Mark it as such

@@ -23,8 +23,8 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
@@ -252,6 +252,43 @@ class TestHeaders(object):
         )
         assert span.get_tag("http.response.headers.content-type") == "some;value"
 
+    @pytest.mark.parametrize(
+        "headers,expected_hostname,case_sensitive",
+        [
+            (
+                {"referer": "https://example.com/path?query=1"},
+                "example.com",
+                False,
+            ),
+            (
+                {"referer": "https://example.com:8080/path?query=1"},
+                "example.com",
+                False,
+            ),
+            (
+                {"Referer": "https://example.com/path?query=1"},
+                "example.com",
+                True,
+            ),
+            (
+                {"other-header": "value"},
+                None,
+                False,
+            ),
+            (
+                {"referer": "not-a-valid-url"},
+                None,
+                False,
+            ),
+        ],
+    )
+    def test_referrer_hostname_extraction(self, span, integration_config, headers, expected_hostname, case_sensitive):
+        """Test that referrer hostname is correctly extracted from referer header"""
+        trace_utils.set_http_meta(
+            span, integration_config, request_headers=headers, headers_are_case_sensitive=case_sensitive
+        )
+        assert span.get_tag("http.referrer_hostname") == expected_hostname
+
 
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
@@ -309,7 +346,11 @@ def test_ext_service(int_config, pin, config_val, default, expected):
 
 @pytest.mark.subprocess(
     parametrize={
-        "DD_TRACE_HEADER_TAGS": ["header1 header2 header3:third-header", "header1,header2,header3:third-header"]
+        "DD_TRACE_HEADER_TAGS": [
+            "header1 header2 header3:third-header",
+            "header1,header2,header3:third-header",
+            "header1, header2, header3:third-header",
+        ]
     }
 )
 def test_set_http_meta_with_http_header_tags_config():

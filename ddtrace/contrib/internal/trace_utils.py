@@ -17,17 +17,16 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
+from urllib import parse
 
 import wrapt
 
-from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.compat import parse
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -36,6 +35,7 @@ from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -169,6 +169,30 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 
         if user_agent:
             return user_agent
+    return ""
+
+
+def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False):
+    # type: (Mapping[str, str], bool) -> str
+    """Get referrer host from request headers
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    :param headers_are_case_sensitive: Whether the headers are case sensitive
+    :type headers_are_case_sensitive: bool
+    :return: The referrer host if found, empty string otherwise
+    :rtype: str
+    """
+    if headers_are_case_sensitive:
+        referrer = _get_header_value_case_insensitive(headers, http.REFERER_HEADER)
+    else:
+        referrer = headers.get(http.REFERER_HEADER)
+    if referrer:
+        try:
+            parsed_url = parse.urlparse(referrer)
+            if parsed_url.hostname:
+                return parsed_url.hostname
+        except (ValueError, AttributeError):
+            return ""
     return ""
 
 
@@ -500,6 +524,11 @@ def set_http_meta(
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
             span.set_tag_str(http.USER_AGENT, user_agent)
+
+        # Extract referrer host if referer header is present
+        referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
+        if referrer_host:
+            span.set_tag_str(http.REFERRER_HOSTNAME, referrer_host)
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution

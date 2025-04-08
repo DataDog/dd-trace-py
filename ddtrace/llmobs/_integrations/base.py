@@ -1,5 +1,4 @@
 import abc
-import os
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -11,9 +10,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
@@ -27,21 +24,11 @@ class BaseLLMIntegration:
     _integration_name = "baseLLM"
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
-        # FIXME: this currently does not consider if the tracer is configured to
-        # use a different hostname. eg. tracer.configure(host="new-hostname")
-        # Ideally the metrics client should live on the tracer or some other core
-        # object that is strongly linked with configuration.
         self.integration_config = integration_config
         self._span_pc_sampler = RateSampler(
             sample_rate=getattr(integration_config, "span_prompt_completion_sample_rate", 1.0)
         )
         self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
-
-    @property
-    def span_linking_enabled(self) -> bool:
-        return asbool(os.getenv("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", "false")) or asbool(
-            os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false")
-        )
 
     @property
     def llmobs_enabled(self) -> bool:
@@ -64,14 +51,15 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
         Eventually those should also be internal service spans once peer.service is implemented.
         """
+        span_name = kwargs.get("span_name")
         span = pin.tracer.trace(
-            "%s.request" % self._integration_name,
+            span_name or "%s.request" % self._integration_name,
             resource=operation_id,
             service=int_service(pin, self.integration_config),
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
@@ -79,16 +67,8 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
-        if submit_to_llmobs and self.llmobs_enabled:
-            telemetry_writer.add_count_metric(
-                namespace=TELEMETRY_NAMESPACE.MLOBS,
-                name="span.start",
-                value=1,
-                tags=(
-                    ("integration", self._integration_name),
-                    ("autoinstrumented", "true"),
-                ),
-            )
+        if self.llmobs_enabled:
+            span._set_ctx_item(INTEGRATION, self._integration_name)
         return span
 
     def trunc(self, text: str) -> str:

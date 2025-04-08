@@ -6,6 +6,7 @@ from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
@@ -50,6 +51,7 @@ def _check_positions_contained(needle, container):
 
 class VulnerabilityBase(Operation):
     vulnerability_type = ""
+    secure_mark = 0
 
     @classmethod
     def wrap(cls, func: Callable) -> Callable:
@@ -60,7 +62,7 @@ class VulnerabilityBase(Operation):
             if not asm_config.is_iast_request_enabled:
                 if _is_iast_debug_enabled():
                     log.debug(
-                        "[IAST] VulnerabilityBase.wrapper. No request quota or this vulnerability "
+                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
                         "is outside the context"
                     )
                 return wrapped(*args, **kwargs)
@@ -87,7 +89,7 @@ class VulnerabilityBase(Operation):
         if not asm_config.is_iast_request_enabled:
             if _is_iast_debug_enabled():
                 log.debug(
-                    "[IAST] VulnerabilityBase._prepare_report. "
+                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
                     "No request quota or this vulnerability is outside the context"
                 )
             return False
@@ -186,3 +188,27 @@ class VulnerabilityBase(Operation):
             # we need to restore the quota
             if not result:
                 cls.increment_quota()
+
+    @classmethod
+    def is_tainted_pyobject(cls, string_to_check: Text) -> bool:
+        """Check if a string contains tainted ranges that are not marked as secure.
+
+        A string is considered tainted when:
+        1. It has one or more taint ranges (indicating user-controlled data)
+        2. At least one of these ranges is NOT marked as secure with the current vulnerability type's secure mark
+           (cls.secure_mark)
+
+        The method returns True if ANY range in the string lacks the secure mark of the current vulnerability class.
+        This means the string could be vulnerable to the specific type of attack this class checks for.
+
+        Args:
+            string_to_check (Text): The string to check for taint ranges and secure marks
+
+        Returns:
+            bool: True if any range lacks the current vulnerability type's secure mark, False otherwise
+        """
+        if len(ranges := get_ranges(string_to_check)) == 0:
+            return False
+        if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
+            return True
+        return False
