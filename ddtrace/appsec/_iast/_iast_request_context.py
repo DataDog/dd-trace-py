@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional
 
@@ -6,10 +7,10 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
@@ -40,7 +41,7 @@ def start_iast_context():
         core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
 
 
-def end_iast_context(span: Optional[Span] = None):
+def end_iast_context(span: Optional["Span"] = None):
     env = _get_iast_env()
     if env is not None and env.span is span:
         finalize_iast_env(env)
@@ -99,7 +100,7 @@ def _move_iast_data_to_root_span():
     return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
 
-def _create_and_attach_iast_report_to_span(req_span: Span, existing_data: Optional[str], merge: bool = False):
+def _create_and_attach_iast_report_to_span(req_span: "Span", existing_data: Optional[str], merge: bool = False):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
         previous_data = IastSpanReporter()
