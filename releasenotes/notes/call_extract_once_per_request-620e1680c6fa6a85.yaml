@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: This performance fix resolves an issue where Django, Flask, Cherrypy, wsgi, 
+    asgi, pyramid, molten, falcon, tornado, aiohttp, bottle, rq, and sanic integrations
+    were unnecessarily running code to activate distributed tracing headers multiple times per request.
+    This is fixed by only activating distributed tracing headers once per request.

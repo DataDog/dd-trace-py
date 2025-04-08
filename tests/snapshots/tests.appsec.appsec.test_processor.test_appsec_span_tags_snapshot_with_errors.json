@@ -10,7 +10,7 @@
     "meta": {
       "_dd.appsec.event_rules.errors": "{\"missing key 'conditions'\": [\"crs-913-110\"], \"missing key 'tags'\": [\"crs-942-100\"]}",
       "_dd.appsec.event_rules.version": "5.5.5",
-      "_dd.appsec.waf.version": "1.24.0",
+      "_dd.appsec.waf.version": "1.24.1",
       "_dd.base_service": "tests.appsec.appsec",
       "_dd.p.dm": "-0",
       "_dd.runtime_family": "python",

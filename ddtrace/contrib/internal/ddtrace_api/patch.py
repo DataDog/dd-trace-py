@@ -11,6 +11,8 @@ import ddtrace_api
 
 import ddtrace
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
@@ -73,6 +75,9 @@ def _call_on_real_instance(
     retval_from_impl = getattr(_STUB_TO_REAL[operand_stub], method_name)(*args, **kwargs)
     if retval_from_api is not None:
         _STUB_TO_REAL[retval_from_api] = retval_from_impl
+    # NB cardinality is limited by the size of the API exposed by ddtrace-api
+    metric_name = f"{operand_stub.__class__.__name__}.{method_name}"
+    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.DD_TRACE_API, name=metric_name, value=1)
 
 
 def get_version() -> str:
