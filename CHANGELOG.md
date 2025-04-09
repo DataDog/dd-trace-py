@@ -7,6 +7,11 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 ## 3.4.1
 
 
+### Bug Fixes
+
+  - Code Security: Fixed an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+
 
 ---
 
