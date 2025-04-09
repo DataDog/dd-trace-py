@@ -2,7 +2,6 @@ from typing import Any
 
 import bm
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import end_iast_context
 from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
@@ -12,6 +11,13 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
+
+
+try:
+    from ddtrace.appsec._iast._overhead_control_engine import oce
+except ImportError:
+    # legacy import
+    from ddtrace.appsec._iast import oce
 
 
 TAINT_ORIGIN = Source(name="sample_name", value="sample_value", origin=OriginType.PARAMETER)

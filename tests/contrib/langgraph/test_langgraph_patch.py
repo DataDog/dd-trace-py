@@ -9,9 +9,6 @@ from tests.contrib.patch import PatchTestCase
 from tests.utils import call_program
 
 
-os.environ["_DD_TRACE_LANGGRAPH_ENABLED"] = "true"
-
-
 class TestLangGraphPatch(PatchTestCase.Base):
     __integration_name__ = "langgraph"
     __module_name__ = "langgraph"
