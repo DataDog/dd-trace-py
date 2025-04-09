@@ -82,6 +82,11 @@ benchmarks-pr-comment:
 
 check-big-regressions:
   stage: report
+  rules:
+    # Run and warn on release branches, but don't fail the pipeline
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      allow_failure: true
+    - allow_failure: false
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE
