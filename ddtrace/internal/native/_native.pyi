@@ -119,6 +119,14 @@ class TraceExporter:
         """
         ...
 
+    def shutdown(self, timeout_ns: int) -> None:
+        """
+        Shutdown the TraceExporter, releasing any resources and ensuring all pending traces are sent.
+        This method should be called before the application exits to ensure proper cleanup.
+        :param timeout_ns: The maximum time to wait for shutdown in nanoseconds.
+        """
+        ...
+
 class TraceExporterBuilder:
     """
     TraceExporterBuilder is a class responsible for building a TraceExporter.
@@ -204,6 +212,13 @@ class TraceExporterBuilder:
         """
         Set the language interpreter vendor of the TraceExporter.
         :param vendor: The vendor of the language interpreter.
+        """
+        ...
+
+    def set_test_session_token(self, token: str) -> TraceExporterBuilder:
+        """
+        Set the test session token for the TraceExporter.
+        :param token: The test session token to use for authentication.
         """
         ...
 

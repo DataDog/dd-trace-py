@@ -103,6 +103,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_test_session_token(mut slf: PyRefMut<'_, Self>, token: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_test_session_token(token);
+        Ok(slf.into())
+    }
+
     fn set_input_format(mut slf: PyRefMut<'_, Self>, input_format: &str) -> PyResult<Py<Self>> {
         let input_format = match input_format {
             "v0.4" => Ok(TraceExporterInputFormat::V04),
@@ -142,6 +147,7 @@ impl TraceExporterBuilderPy {
         slf.try_as_mut()?.enable_telemetry(Some(TelemetryConfig {
             heartbeat,
             runtime_id: Some(runtime_id),
+            debug_enabled: true,
         }));
         Ok(slf.into())
     }
@@ -151,12 +157,13 @@ impl TraceExporterBuilderPy {
     /// The builder shouldn't be used
     fn build(&mut self) -> PyResult<TraceExporterPy> {
         Ok(TraceExporterPy {
-            inner: self
-                .builder
-                .take()
-                .ok_or(PyValueError::new_err("Builder has already been consumed"))?
-                .build()
-                .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
+            inner: Some(
+                self.builder
+                    .take()
+                    .ok_or(PyValueError::new_err("Builder has already been consumed"))?
+                    .build()
+                    .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
+            ),
         })
     }
 
@@ -168,7 +175,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: TraceExporter,
+    inner: Option<TraceExporter>,
 }
 
 #[pymethods]
@@ -181,7 +188,14 @@ impl TraceExporterPy {
         py.allow_threads(move || {
             let slice: &[u8] = &data;
             let slice: &'static [u8] = unsafe { std::mem::transmute(slice) };
-            match self.inner.send(Bytes::from_static(slice), trace_count) {
+            match self
+                .inner
+                .as_ref()
+                .ok_or(PyValueError::new_err(
+                    "TraceExporter has already been consumed",
+                ))?
+                .send(Bytes::from_static(slice), trace_count)
+            {
                 Ok(res) => Ok(res.body),
                 Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
             }
@@ -190,6 +204,20 @@ impl TraceExporterPy {
 
     fn debug(&self) -> String {
         format!("{:?}", self.inner)
+    }
+
+    fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
+        match self
+            .inner
+            .take()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .shutdown(Some(Duration::from_nanos(timeout_ns)))
+        {
+            Ok(_) => Ok(()),
+            Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
+        }
     }
 }
 

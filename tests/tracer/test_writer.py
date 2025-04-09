@@ -10,6 +10,7 @@ import threading
 import time
 
 import mock
+from ddtrace.internal.writer.writer import NativeWriter
 import msgpack
 import pytest
 
@@ -622,7 +623,7 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_timeout_connect(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, 2019))
@@ -632,7 +633,7 @@ def test_flush_connection_timeout_connect(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
@@ -642,7 +643,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
@@ -660,7 +661,7 @@ def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://dne:1234")
@@ -823,7 +824,7 @@ def test_writer_api_version_selection(
                 pytest.fail("Raised RuntimeError when it was not expected")
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_trace_writer_connection_reuse": False}):
@@ -835,7 +836,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
             assert writer._reuse_connections
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_writer_reuse_connections(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is not reused
@@ -847,7 +848,7 @@ def test_writer_reuse_connections(writer_class):
         assert writer._conn is None
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_writer_reuse_connections_false(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is reused

@@ -642,6 +642,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         api_version: Optional[str] = None,
         report_metrics: bool = True,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
+        test_session_token: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -680,14 +681,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        bucket_size_ns = int(stats_interval * 1e9)  # type: int
-
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._timeout = timeout
+        self._test_session_token = test_session_token
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
@@ -697,8 +696,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         self._sync_mode = sync_mode
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
-        # TODO: Handle build error
-        # TODO: Set all configuration
+        self._exporter = self._create_exporter()
+
+    def _create_exporter(self) -> native.TraceExporter:
+        """
+        Create a new TraceExporter with the current configuration.
+        :return: A configured TraceExporter instance.
+        """
+        # Shutdown the existing exporter if it exists
+        if hasattr(self, '_exporter') and self._exporter is not None:
+            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+
+        stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        bucket_size_ns = int(stats_interval * 1e9)  # type: int
+
         builder = (
             native.TraceExporterBuilder()
             .set_url(self.agent_url)
@@ -710,9 +721,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
         )
-        if compute_stats_enabled:
+        if self._test_session_token is not None:
+            builder.set_test_session_token(self._test_session_token)
+        if self._compute_stats_enabled:
             builder.enable_stats(bucket_size_ns)
-        self._exporter = builder.build()
+        return builder.build()
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        """
+        Set the test session token and recreate the writer with the new configuration.
+        :param token: The test session token to use for authentication.
+        """
+        self._test_session_token = token
+        self._exporter = self._create_exporter()
 
     def recreate(self):
         return self.__class__(
@@ -727,6 +748,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             api_version=self._api_version,
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
+            test_session_token=self._test_session_token,
         )
 
     def _downgrade(self, response, client):
@@ -934,4 +956,4 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         try:
             self.periodic()
         finally:
-            pass
+            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout

@@ -33,7 +33,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
 from ddtrace.trace import Context
@@ -598,11 +598,11 @@ def test_tracer_url_default():
 def test_tracer_shutdown_no_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
-        with mock.patch.object(AgentWriter, "join") as mock_join:
+    with mock.patch.object(NativeWriter, "stop") as mock_stop:
+        with mock.patch.object(NativeWriter, "join") as mock_join:
             t.shutdown()
 
     mock_stop.assert_called()
@@ -613,10 +613,10 @@ def test_tracer_shutdown_no_timeout():
 def test_tracer_shutdown_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+    with mock.patch.object(NativeWriter, "stop") as mock_stop:
         with t.trace("something"):
             pass
 
@@ -630,12 +630,12 @@ def test_tracer_shutdown_timeout():
 def test_tracer_shutdown():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer as t
 
     t.shutdown()
 
-    with mock.patch.object(AgentWriter, "write") as mock_write:
+    with mock.patch.object(NativeWriter, "write") as mock_write:
         with t.trace("something"):
             pass
 
@@ -848,7 +848,7 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(global_tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(global_tracer._span_aggregator.writer, NativeWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1881,14 +1881,14 @@ def test_detect_agent_config_with_lambda_extension():
 
     with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
         import ddtrace
-        from ddtrace.internal.writer import AgentWriter
+        from ddtrace.internal.writer import NativeWriter
         from ddtrace.trace import tracer
 
         assert ddtrace.internal.serverless.in_aws_lambda()
 
         assert ddtrace.internal.serverless.has_aws_lambda_agent_extension()
 
-        assert isinstance(tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(tracer._span_aggregator.writer, NativeWriter)
         assert tracer._span_aggregator.writer._sync_mode
 
 
