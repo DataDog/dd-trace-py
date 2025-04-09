@@ -1,3 +1,7 @@
+import importlib
+import sys
+import warnings
+
 import pytest
 
 from ddtrace.settings._config import Config
@@ -173,3 +177,29 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
+
+def test_settings_deprecation():
+    import ddtrace.settings
+
+    deprecated_names = [
+        "ConfigException",
+        "HttpConfig",
+        "Hooks",
+        "IntegrationConfig",
+    ]
+
+    assert set(deprecated_names) == set(ddtrace.settings.__all__)
+
+    for name in deprecated_names:
+        with warnings.catch_warnings(record=True) as warns:
+            warnings.simplefilter("always")
+
+            delattr(ddtrace.settings, name)
+            getattr(ddtrace.settings, name)
+
+            assert len(warns) == 1
+            warn = warns[0]
+            assert issubclass(warn.category, DeprecationWarning)
+            assert f"ddtrace.settings.{name} is deprecated" in str(warn.message)
+            assert "4.0.0" in str(warn.message)  # TODO: update the version

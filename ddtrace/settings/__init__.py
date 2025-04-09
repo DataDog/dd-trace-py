@@ -12,7 +12,13 @@ __all__ = [
     "IntegrationConfig",
 ]
 
-_deprecated_names = __all__
+# Create a mapping of deprecated names to their values
+_deprecated_names = {
+    "ConfigException": ConfigException,
+    "HttpConfig": HttpConfig,
+    "Hooks": Hooks,
+    "IntegrationConfig": IntegrationConfig,
+}
 
 
 def __getattr__(name):
@@ -22,4 +28,8 @@ def __getattr__(name):
             removal_version="4.0.0",  # TODO: update this to the correct version
         )
         return _deprecated_names[name]
-    raise AttributeError("'%s' has no attribute '%s'", __name__, name)
+    raise AttributeError("'%s' has no attribute '%s'" % (__name__, name))
+
+
+def __dir__():
+    return list(__all__)
