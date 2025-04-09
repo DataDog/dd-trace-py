@@ -140,6 +140,7 @@ class Contrib_TestClass_For_Threats:
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
+            assert get_tag("http.response.headers.content-length")
             # DEV: fastapi may send "requests" instead of "fastapi"
             # assert get_tag("component") == interface.name
 

@@ -287,6 +287,8 @@ def set_waf_address(address: str, value: Any) -> None:
         set_value(_WAF_ADDRESSES, address, waf_value)
     else:
         set_value(_WAF_ADDRESSES, address, value)
+    if address in (SPAN_DATA_NAMES.REQUEST_HTTP_IP, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE):
+        core.set_item(address, value)
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:

@@ -27,9 +27,7 @@ _addresses_store = []
 
 
 def finalize_wrapper(env):
-    print(f"Finalizing ASM env: {env}", file=sys.stderr, flush=True)
     _addresses_store.append(env.waf_addresses)
-    print(f"Addresses store: {_addresses_store}", file=sys.stderr, flush=True)
     _init_finalize(env)
 
 
