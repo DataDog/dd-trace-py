@@ -400,8 +400,6 @@ python = ["3.9", "3.10", "3.11", "3.12"]
 ## ASM iast_tdd_propagation
 
 [envs.iast_tdd_propagation]
-dev-mode = false
-#skip-install = true
 template = "iast_tdd_propagation"
 dependencies = [
     "pytest",

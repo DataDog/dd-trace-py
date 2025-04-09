@@ -128,6 +128,68 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_threats_flask",
+            command="python -m pytest tests/appsec/contrib_appsec/test_flask.py",
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "wrapt": latest,
+                "envier": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"MarkupSafe": "~=1.1", "Werkzeug": latest, "flask": "~=1.1"},
+                    venvs=[
+                        Venv(
+                            env={"DD_IAST_ENABLED": "0"},
+                        ),
+                        Venv(
+                            env={"DD_IAST_ENABLED": "1"},
+                        ),
+                    ],
+                ),
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"MarkupSafe": latest, "Werkzeug": "<3.0", "flask": "==2.1.3"},
+                    venvs=[
+                        Venv(
+                            env={"DD_IAST_ENABLED": "0"},
+                        ),
+                        Venv(
+                            env={"DD_IAST_ENABLED": "1"},
+                        ),
+                    ],
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={"MarkupSafe": latest, "Werkzeug": latest, "flask": "~=2.3"},
+                    venvs=[
+                        Venv(
+                            env={"DD_IAST_ENABLED": "0"},
+                        ),
+                        Venv(
+                            env={"DD_IAST_ENABLED": "1"},
+                        ),
+                    ],
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={"MarkupSafe": latest, "Werkzeug": latest, "flask": "~=3.0"},
+                    venvs=[
+                        Venv(
+                            env={"DD_IAST_ENABLED": "0"},
+                        ),
+                        Venv(
+                            env={"DD_IAST_ENABLED": "1"},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
