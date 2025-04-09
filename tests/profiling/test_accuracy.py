@@ -46,7 +46,7 @@ def spend_cpu_3():
         pass
 
 
-# We allow 5% error:
+# We allow 7% error:
 TOLERANCE = 0.07
 
 
