@@ -35,6 +35,7 @@ cherrypy,>=17
 cohere,==5.4.0
 confluent-kafka,~=1.9.2
 coverage,0
+crewai,0
 cryptography,<39
 daphne,0
 databases,0
@@ -94,6 +95,7 @@ langchain-core,==0.1.52
 langchain-openai,==0.1.6
 langchain-pinecone,==0.1.0
 langgraph,~=0.2.60
+litellm,0
 logbook,~=1.0.0
 loguru,~=0.4.0
 lxml,0

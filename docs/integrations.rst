@@ -125,6 +125,13 @@ Consul
 .. automodule:: ddtrace.contrib._consul
 
 
+.. _crewai:
+
+CrewAI
+^^^^^^
+.. automodule:: ddtrace.contrib._crewai
+
+
 .. _datadog_lambda:
 
 Datadog Lambda
@@ -325,7 +332,7 @@ OpenAI
 .. automodule:: ddtrace.contrib._openai
 
 
-.. _openai_agents:
+.. _openai-agents:
 
 OpenAI Agents
 ^^^^^^^^^^^^^

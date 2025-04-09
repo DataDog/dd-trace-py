@@ -922,6 +922,25 @@ class PytestTestCase(PytestTestCaseBase):
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
 
+    def test_pytest_will_report_codeowners_when_called_from_subdirectory(self):
+        self.testdir.mkdir(".github")
+        self.testdir.makefile("", **{".github/CODEOWNERS": "* @default-team"})
+
+        subdir = self.testdir.mkdir("subdir")
+        test_file_content = """
+        import pytest
+
+        def test_foo():
+            assert 1 == 1
+        """
+        self.testdir.makepyfile(**{"subdir/test_foo": test_file_content})
+
+        subdir.chdir()
+        self.inline_run("--ddtrace", "test_foo.py")
+        spans = self.pop_spans()
+        [test_span] = [span for span in spans if span.get_tag("type") == "test"]
+        assert json.loads(test_span.get_tag(test.CODEOWNERS)) == ["@default-team"]
+
     def test_pytest_session(self):
         """Test that running pytest will generate a test session span."""
         self.inline_run("--ddtrace")
