@@ -3,8 +3,6 @@ import time
 
 import pytest
 
-from tests.utils import flaky
-
 
 def spend_1():
     time.sleep(1)
