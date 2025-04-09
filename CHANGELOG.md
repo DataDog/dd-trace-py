@@ -3,6 +3,23 @@
 Changelogs for versions not listed here can be found at https://github.com/DataDog/dd-trace-py/releases
 
 ---
+## 3.3.2
+
+### Bug Fixes
+- Lib-Injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.
+  - Resolves an issue with anthropic LLM spans where multiple system prompts caused missing input messages.
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+
+### Other Changes
+- library: Ensures that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our advanced_usage [docs](https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi) .
+
+
+---
 
 ## 3.4.1
 
