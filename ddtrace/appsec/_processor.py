@@ -365,5 +365,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
+            _asm_request_context.call_waf_callback_no_instrumentation()
             self._ddwaf._at_request_end()
             _asm_request_context.end_context(span)

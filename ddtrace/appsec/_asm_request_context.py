@@ -357,6 +357,16 @@ def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) ->
         return None
 
 
+def call_waf_callback_no_instrumentation() -> None:
+    """call the waf once if it was not already called"""
+    if asm_config._asm_enabled:
+        env = _get_asm_context()
+        if env and env.telemetry.total_duration == 0.0:
+            callback = env.callbacks.get(_WAF_CALL)
+            if callback:
+                callback()
+
+
 def set_ip(ip: Optional[str]) -> None:
     if ip is not None:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP, ip)
