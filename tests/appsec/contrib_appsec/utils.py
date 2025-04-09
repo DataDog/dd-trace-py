@@ -1697,11 +1697,13 @@ def test_tracer():
     tracer = DummyTracer()
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer
+    core.tracer = tracer
 
     # Yield to our test
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer
+    core.tracer = original_tracer
 
 
 @contextmanager

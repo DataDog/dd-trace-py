@@ -1,6 +1,7 @@
 from .anthropic import AnthropicIntegration
 from .base import BaseLLMIntegration
 from .bedrock import BedrockIntegration
+from .crewai import CrewAIIntegration
 from .gemini import GeminiIntegration
 from .langchain import LangChainIntegration
 from .litellm import LiteLLMIntegration
@@ -12,6 +13,7 @@ __all__ = [
     "AnthropicIntegration",
     "BaseLLMIntegration",
     "BedrockIntegration",
+    "CrewAIIntegration",
     "GeminiIntegration",
     "LangChainIntegration",
     "LiteLLMIntegration",

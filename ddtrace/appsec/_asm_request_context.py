@@ -11,6 +11,7 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
@@ -23,7 +24,6 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 import ddtrace.internal.logger as ddlogger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Span
 
 
 logger = ddlogger.get_logger(__name__)
@@ -64,10 +64,7 @@ GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
 def report_error_on_span(error: str, message: str) -> None:
     span = getattr(_get_asm_context(), "span", None) or core.get_span()
     if not span:
-        # failsafe
-        from ddtrace import tracer
-
-        root_span = tracer.current_root_span()
+        root_span = core.get_root_span()
     else:
         root_span = span._local_root or span
     if not root_span:
@@ -84,16 +81,14 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace.trace import tracer
-
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
-        context_span = span or core.get_span() or tracer.current_span()
+        context_span = span or core.get_root_span()
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
-            context_span = tracer.trace("sdk.request")
+            raise TypeError("ASM_Environment requires a span")
         self.span: Span = context_span
         if self.span.name.endswith(".request"):
             self.framework = self.span.name[:-8]
@@ -195,15 +190,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
     from ddtrace.appsec._metrics import ddwaf_version
 
     # Make sure we find a root span to attach the triggers to
-    if env.span is None:
-        from ddtrace.trace import tracer
-
-        current_span = tracer.current_span()
-        if current_span is None:
-            return
-        root_span = current_span._local_root or current_span
-    else:
-        root_span = env.span._local_root or env.span
+    root_span = env.span._local_root or env.span
     if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:

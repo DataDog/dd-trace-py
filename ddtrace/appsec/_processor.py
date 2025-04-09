@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import weakref
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -37,13 +38,13 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import has_triggers
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
+from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -110,8 +111,6 @@ _COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
 def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
-    from ddtrace.contrib.internal.trace_utils import _normalize_tag_name
-
     for k in headers:
         if isinstance(k, tuple):
             key, value = k
