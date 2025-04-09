@@ -835,9 +835,9 @@ def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescri
     )
 
 
-def _set_azure_function_tags(span, azure_functions_config, function_name, trigger):
+def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind=SpanKind.INTERNAL):
     span.set_tag_str(COMPONENT, azure_functions_config.integration_name)
-    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+    span.set_tag_str(SPAN_KIND, span_kind)
     span.set_tag_str("aas.function.name", function_name)  # codespell:ignore
     span.set_tag_str("aas.function.trigger", trigger)  # codespell:ignore
 
@@ -860,7 +860,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
     span = ctx.get_item("req_span")
-    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
         azure_functions_config,
