@@ -91,6 +91,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
+    "crewai": "crewai",
     "openai_agents": "openai_agents",
 }
 
