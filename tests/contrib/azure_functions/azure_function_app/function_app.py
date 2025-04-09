@@ -48,3 +48,8 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
 @app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
 def timer(timer: func.TimerRequest) -> None:
     pass
+
+
+@app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_SETTING")
+def test_function(msg: func.ServiceBusMessage):
+    pass

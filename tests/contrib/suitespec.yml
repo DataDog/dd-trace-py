@@ -417,6 +417,8 @@ suites:
     snapshot: true
     services:
       - azurite
+      - azureservicebus
+      - azuresqledge
   botocore:
     parallelism: 11
     paths:

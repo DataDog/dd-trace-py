@@ -123,3 +123,9 @@
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite
+  azureservicebus:
+    name: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    alias: azureservicebus
+  azuresqledge:
+    name: mcr.microsoft.com/azure-sql-edge:latest
+    alias: azuresqledge
