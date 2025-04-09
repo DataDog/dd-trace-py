@@ -29,6 +29,25 @@ def get_version() -> str:
 
 
 @with_traced_module
+async def traced_run_endpoint_function(litellm, pin, func, instance, args, kwargs):
+    name = getattr(getattr(kwargs.get("dependant", None), "call", None), "__name__", "")
+    if name != "chat_completion":
+        return await func(*args, **kwargs)
+    integration = litellm._datadog_integration
+    span = integration.trace(
+        pin,
+        "chat_completion",
+        submit_to_llmobs=False,
+    )
+    try:
+        return await func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+
+@with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_completion(litellm, pin, func, instance, args, kwargs, False)
 
@@ -140,6 +159,7 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "litellm.main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("fastapi.routing", "run_endpoint_function", traced_run_endpoint_function(litellm))
 
 
 def unpatch():
