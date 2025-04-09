@@ -168,8 +168,11 @@ class LangChainIntegration(BaseLLMIntegration):
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chat":
-            # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
-            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
+            # langchain-openai will call a beta client if "response_format" is passed in the kwargs
+            # and streaming is not used, which we do not trace for the openai integration
+            is_workflow = is_workflow and not (
+                llmobs_integration == "openai" and ("response_format" in kwargs) and not kwargs.get("streaming", False)
+            )
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
