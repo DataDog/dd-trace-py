@@ -4,6 +4,19 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.2.3
+
+
+### Bug Fixes
+
+  - lib-injection: Avoid zombie process from telemetry sender on startup.
+  - internal: Fixes an issue where trimming a traceback to attach it to the span could result in the loss of the most recent frames.
+  - Code Security: Fixed an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+  - LLM Observability: fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+
+---
+
 ## 3.2.2
 ### Bug Fixes
 
