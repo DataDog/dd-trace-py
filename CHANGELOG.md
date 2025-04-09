@@ -4,6 +4,34 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 2.21.6
+
+### Bug Fixes
+
+- Code Security
+  - Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+
+---
+
+## 3.2.3
+
+### Bug Fixes
+- Code Security
+  - Fixes an issue with PosixPath handling in path operations that could cause errors during taint tracking. This fix improves stability and slightly reduces import times.
+
+- Lib-injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+- Tracing  
+  - internal: Fixes an issue where trimming a traceback to attach it to the span could result in the loss of the most recent frames.
+
+
+---
+
 ## 3.3.3
 
 
