@@ -3,6 +3,57 @@
 Changelogs for versions not listed here can be found at https://github.com/DataDog/dd-trace-py/releases
 
 ---
+
+## 3.2.1
+
+### Bug Fixes
+
+- Library Injection
+    - Fix for release script causing lib injection OCI images to not get published.
+
+
+---
+
+## 3.3.1
+
+### Bug Fixes
+
+- ASM
+  - Fixes a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like `open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+
+- CI Visibility
+  - Resolves an issue where JUnit XML output would not count tests retried by Early Flake Detection, Auto Test Retries, and Attempt-to-Fix.
+
+- Lib-Injection
+  - Avoids zombie process from telemetry sender on startup.
+
+- LLM Observability
+  - Resolves an issue where large spans traced within a short time interval were dropped despite being under the 1 MB limit.
+
+---
+
+## 2.21.5
+
+### Bug Fixes
+
+- ASM
+  - Fixes a `NotImplementedError` that occurred when trying to deepcopy wrapped builtin functions (like`open`) while ASM or IAST were enabled. The error was caused by the wrapper not implementing the `__deepcopy__` method.
+
+- LLM Observability
+  - Fixes an issue where LLMObs could not be enabled in a forked process when setting `agentless_enabled=True` or `DD_LLMOBS_AGENTLESS_ENABLED=true`.
+
+- Profiling
+  - Resolves an issue where the Lock profiler would throw an `AttributeError: '_ProfiledThreadingLock' object has no attribute '_self_acquired_at'`.
+
+- Tracing
+  - `pylibmc`: Fixes an issue where using `Client(server=[url])` would throw the error `__init__() got multiple values for argument 'servers'`
+
+### Other Changes
+- library: Ensures that the SSI is not used for uWSGI applications. For enablement instructions, refer to the following our [advanced_usage docs](https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi).
+
+
+---
+
 ## 3.3.2
 
 ### Bug Fixes
