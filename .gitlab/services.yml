@@ -127,13 +127,13 @@
     name: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
     alias: azureservicebus
     variables:
-      - SQL_SERVER: sqledge
-      - MSSQL_SA_PASSWORD: "Localtestpass1!"
-      - ACCEPT_EULA: Y
-      - SQL_WAIT_INTERVA: 15
+      SQL_SERVER: sqledge
+      MSSQL_SA_PASSWORD: "Localtestpass1!"
+      ACCEPT_EULA: Y
+      SQL_WAIT_INTERVAL: 15
   azuresqledge:
     name: mcr.microsoft.com/azure-sql-edge:latest
     alias: azuresqledge
     variables:
-      - ACCEPT_EULA: Y
-      - MSSQL_SA_PASSWORD: "Localtestpass1!"
+      ACCEPT_EULA: Y
+      MSSQL_SA_PASSWORD: "Localtestpass1!"
