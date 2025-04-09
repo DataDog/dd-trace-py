@@ -220,6 +220,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: riot
+    snapshot: true
   urllib:
     paths:
       - '@bootstrap'
