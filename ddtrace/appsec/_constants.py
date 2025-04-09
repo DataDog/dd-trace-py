@@ -116,6 +116,8 @@ class APPSEC(metaclass=Constant_Class):
     RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
     WAF_ERROR: Literal["_dd.appsec.waf.error"] = "_dd.appsec.waf.error"
     RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
+    ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
+    ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
 
 
 TELEMETRY_OFF_NAME = "OFF"

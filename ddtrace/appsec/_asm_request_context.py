@@ -11,6 +11,7 @@ from typing import Set
 from typing import Union
 from urllib import parse
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
@@ -23,7 +24,6 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 import ddtrace.internal.logger as ddlogger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Span
 
 
 logger = ddlogger.get_logger(__name__)
@@ -61,6 +61,18 @@ _BLOCK_CALL: Literal["block"] = "block"
 GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
 
 
+def report_error_on_span(error: str, message: str) -> None:
+    span = getattr(_get_asm_context(), "span", None) or core.get_span()
+    if not span:
+        root_span = core.get_root_span()
+    else:
+        root_span = span._local_root or span
+    if not root_span:
+        return
+    root_span.set_tag_str(APPSEC.ERROR_TYPE, error)
+    root_span.set_tag_str(APPSEC.ERROR_MESSAGE, message)
+
+
 class ASM_Environment:
     """
     an object of this class contains all asm data (waf and telemetry)
@@ -69,16 +81,14 @@ class ASM_Environment:
     """
 
     def __init__(self, span: Optional[Span] = None):
-        from ddtrace.trace import tracer
-
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
         # add several layers of fallbacks to get a span, but normal span should be the first or the second one
-        context_span = span or core.get_span() or tracer.current_span()
+        context_span = span or core.get_root_span()
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
-            context_span = tracer.trace("sdk.request")
+            raise TypeError("ASM_Environment requires a span")
         self.span: Span = context_span
         if self.span.name.endswith(".request"):
             self.framework = self.span.name[:-8]
@@ -93,6 +103,7 @@ class ASM_Environment:
         self.waf_triggers: List[Dict[str, Any]] = []
         self.blocked: Optional[Dict[str, Any]] = None
         self.finalized: bool = False
+        self.api_security_reported: int = 0
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -176,18 +187,10 @@ def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
-    from ddtrace.appsec._metrics import DDWAF_VERSION
+    from ddtrace.appsec._metrics import ddwaf_version
 
     # Make sure we find a root span to attach the triggers to
-    if env.span is None:
-        from ddtrace.trace import tracer
-
-        current_span = tracer.current_span()
-        if current_span is None:
-            return
-        root_span = current_span._local_root or current_span
-    else:
-        root_span = env.span._local_root or env.span
+    root_span = env.span._local_root or env.span
     if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:
@@ -201,7 +204,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    root_span.set_tag_str(APPSEC.WAF_VERSION, DDWAF_VERSION)
+    root_span.set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
     if telemetry_results.total_duration:
         update_span_metrics(root_span, APPSEC.WAF_DURATION, telemetry_results.duration)
         telemetry_results.duration = 0.0
@@ -344,6 +347,7 @@ def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) ->
         return callback(custom_data, **kwargs)
     else:
         logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+        report_error_on_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
         return None
 
 
@@ -420,7 +424,7 @@ def asm_request_context_set(
 
 
 def set_waf_telemetry_results(
-    rules_version: Optional[str],
+    rules_version: str,
     is_blocked: bool,
     waf_results: DDWaf_result,
     rule_type: Optional[str],
@@ -434,11 +438,14 @@ def set_waf_telemetry_results(
     from ddtrace.appsec._metrics import _report_waf_truncations
 
     result.rate_limited |= is_sampled
-    if waf_results.return_code:
+    if waf_results.return_code < 0:
         if result.error:
             result.error = max(result.error, waf_results.return_code)
         else:
             result.error = waf_results.return_code
+        from ddtrace.appsec._metrics import _report_waf_run_error
+
+        _report_waf_run_error(waf_results.return_code, rules_version, rule_type)
     _report_waf_truncations(waf_results.truncation)
     for key in ["container_size", "container_depth", "string_length"]:
         res = getattr(waf_results.truncation, key)
@@ -449,16 +456,18 @@ def set_waf_telemetry_results(
         result.triggered |= is_triggered
         result.blocked |= is_blocked
         result.timeout += waf_results.timeout
-        if rules_version is not None:
+        if rules_version:
             result.version = rules_version
         result.duration += waf_results.runtime
         result.total_duration += waf_results.total_runtime
     else:
         # Exploit Prevention telemetry
+        result.rasp.blocked |= is_blocked
         result.rasp.sum_eval += 1
         result.rasp.eval[rule_type] += 1
         result.rasp.match[rule_type] += int(is_triggered)
         result.rasp.timeout[rule_type] += int(waf_results.timeout)
+        result.rasp.durations[rule_type] += waf_results.runtime
         result.rasp.duration += waf_results.runtime
         result.rasp.total_duration += waf_results.total_runtime
 
