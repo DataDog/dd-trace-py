@@ -1,11 +1,11 @@
 from typing import Callable
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
@@ -21,6 +21,7 @@ log = get_logger(__name__)
 @oce.register
 class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
+    secure_mark = VulnerabilityType.SSRF
 
 
 _FUNC_TO_URL_ARGUMENT = {
@@ -50,7 +51,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
     if report_ssrf:
         if asm_config.is_iast_request_enabled:
             try:
-                if SSRF.has_quota() and is_pyobject_tainted(report_ssrf):
+                if SSRF.has_quota() and SSRF.is_tainted_pyobject(report_ssrf):
                     SSRF.report(evidence_value=report_ssrf)
 
                 # Reports Span Metrics

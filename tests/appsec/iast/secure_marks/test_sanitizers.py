@@ -1,6 +1,4 @@
 """Tests for IAST secure marks sanitizers."""
-
-
 from unittest import mock
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
