@@ -38,7 +38,8 @@ def dfs(v: str, visited: t.Set[str], stack: t.List[str], cycles: dict[frozenset,
 def analyze(args):
     dfs("ddtrace", set(), [], cycles := {})
 
-    args.output.write_text(json.dumps(list(cycles.values())))
+    res = ",\n".join(json.dumps(lst) for lst in sorted(cycles.values(), key=len))
+    args.output.write_text(f"[\n{res}\n]")
 
     if cycles:
         print(f"Detected {len(cycles)} circular imports.")

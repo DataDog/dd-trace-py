@@ -71,7 +71,8 @@ TEST_F(SecureMarksTest, AllVulnerabilityTypes)
     EXPECT_TRUE(taint_range.has_secure_mark(VulnerabilityType::XSS));
 }
 
-TEST(TaintRange, IdempotentSecureMarks) {
+TEST(TaintRange, IdempotentSecureMarks)
+{
     // Create a taint range and add SQL_INJECTION mark
     TaintRange taint_range;
     taint_range.add_secure_mark(VulnerabilityType::SQL_INJECTION);
