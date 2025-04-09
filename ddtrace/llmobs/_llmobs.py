@@ -92,6 +92,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "vertexai": "vertexai",
     "langgraph": "langgraph",
     "litellm": "litellm",
+    "crewai": "crewai",
     "openai_agents": "openai_agents",
 }
 
