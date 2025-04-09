@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "servicebusqueue",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67f5ce7900000000",
+      "aas.function.name": "servicebusqueue",
+      "aas.function.trigger": "ServiceBusQueue",
+      "component": "azure_functions",
+      "language": "python",
+      "runtime-id": "8fe000084d604f418842aafdbce18881",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 11003
+    },
+    "duration": 181500,
+    "start": 1744162425656707668
+  }]]

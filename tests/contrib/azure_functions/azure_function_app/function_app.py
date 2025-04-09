@@ -50,6 +50,7 @@ def timer(timer: func.TimerRequest) -> None:
     pass
 
 
+@app.function_name(name="servicebusqueue")
 @app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_SETTING")
 def test_function(msg: func.ServiceBusMessage):
     pass

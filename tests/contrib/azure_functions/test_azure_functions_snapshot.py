@@ -96,9 +96,9 @@ def test_timer(azure_functions_client: Client) -> None:
 def test_service_bus_queue(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post(
-            "/admin/functions/service_bus_queue_trigger",
+            "/admin/functions/servicebusqueue",
             headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
-            data=json.dumps({"input": None}),
+            data=json.dumps({"input": '{"msg": "test message"}'}),
         ).status_code
         == 202
     )
