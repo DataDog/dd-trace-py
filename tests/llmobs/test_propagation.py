@@ -205,6 +205,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
         headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
         headers = LLMObs.inject_distributed_headers(headers, span=child_span)
+        assert root_span._get_ctx_item("_ml_obs.tags") == { "ml-proxy": "custom" }
 
 print(json.dumps(headers))
         """
