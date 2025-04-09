@@ -869,6 +869,11 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
     )
 
 
+def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger):
+    span = ctx.get_item("trigger_span")
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -922,6 +927,7 @@ def listen():
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
+    core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -974,6 +980,7 @@ def listen():
         "rq.job.perform",
         "rq.job.fetch_many",
         "azure.functions.patched_route_request",
+        "azure.functions.patched_timer",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
