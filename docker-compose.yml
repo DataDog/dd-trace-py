@@ -151,21 +151,6 @@ services:
       - "127.0.0.1:10000:10000"
       - "127.0.0.1:10001:10001"
       - "127.0.0.1:10002:10002"
-  azureservicebus:
-    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
-    ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:5300:5300"
-    environment:
-      - SQL_SERVER=sqledge
-      - MSSQL_SA_PASSWORD="Localtestpass1!"
-      - ACCEPT_EULA=Y
-      - SQL_WAIT_INTERVAL=15
-  azuresqledge:
-    image: mcr.microsoft.com/azure-sql-edge:latest
-    environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD="Localtestpass1!"
 
   testrunner:
     # DEV uncomment to test local changes to the Dockerfile
