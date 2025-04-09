@@ -4,8 +4,11 @@ Common tests to aspects, like ensuring that they don't break when receiving extr
 """
 import os
 
+from hypothesis import given
+from hypothesis.strategies import one_of
 import pytest
 
+from tests.appsec.iast.aspects.aspect_utils import string_strategies
 import tests.appsec.iast.fixtures.aspects.callees
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
@@ -46,6 +49,16 @@ patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", ".")[0:
 # This import needs to be done after the file is created (previous line)
 # pylint: disable=[wrong-import-position],[no-name-in-module]
 from tests.appsec.iast.fixtures.aspects import unpatched_callers  # type: ignore[attr-defined] # noqa: E402
+
+
+@given(one_of(string_strategies))
+def test_aspect_patched_result_hypothesis(text_input):
+    """
+    Test that the result of the patched aspect call is the same as the unpatched one
+    using Hypothesis-generated inputs.
+    """
+    for aspect in [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))]:
+        assert getattr(patched_callers, aspect)(text_input) == getattr(unpatched_callers, aspect)(text_input)
 
 
 @pytest.mark.parametrize("aspect", [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))])

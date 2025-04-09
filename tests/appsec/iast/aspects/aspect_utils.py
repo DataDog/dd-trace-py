@@ -1,10 +1,13 @@
-# -*- encoding: utf-8 -*-
 import re
-from typing import Any  # noqa:F401
-from typing import List  # noqa:F401
-from typing import NamedTuple  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
+from typing import Any
+from typing import List
+from typing import NamedTuple
+from typing import Optional
+from typing import Text
+
+from hypothesis.strategies import binary
+from hypothesis.strategies import builds
+from hypothesis.strategies import text
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
@@ -13,6 +16,28 @@ from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
+
+
+class CustomStr(str):
+    pass
+
+
+class CustomBytes(bytes):
+    pass
+
+
+class CustomBytearray(bytearray):
+    pass
+
+
+string_strategies: List[Any] = [
+    text(),  # regular str
+    binary(),  # regular bytes
+    builds(bytearray, binary()),  # regular bytearray
+    builds(CustomStr, text()),  # custom str subclass
+    builds(CustomBytes, binary()),  # custom bytes subclass
+    builds(CustomBytearray, binary()),  # custom bytearray subclass
+]
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -26,18 +51,16 @@ TAINT_FORMAT_CAPTURE_BYTES = rb"\:\+-(?:\<(?P<inputid>[0-9a-zA-Z\-]+)\>)?(.+?)(?
 TAINT_FORMAT_PATTERN_BYTES = re.compile(TAINT_FORMAT_CAPTURE_BYTES, re.MULTILINE | re.DOTALL)
 
 
-def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str) -> Any
+def create_taint_range_with_format(text_input: Any, fn_origin: str = "") -> Any:
     is_bytes = isinstance(text_input, (bytes, bytearray))
     taint_format_capture = TAINT_FORMAT_CAPTURE_BYTES if is_bytes else TAINT_FORMAT_CAPTURE
     taint_format_pattern = TAINT_FORMAT_PATTERN_BYTES if is_bytes else TAINT_FORMAT_PATTERN
 
-    text_output = re.sub(  # type: ignore
-        taint_format_capture, r"\2", text_input, flags=re.MULTILINE | re.DOTALL
-    )  # type: Any
+    text_output: Any = re.sub(taint_format_capture, r"\2", text_input, flags=re.MULTILINE | re.DOTALL)
     if isinstance(text_input, bytearray):
-        text_output = bytearray(text_output)  # type: ignore
+        text_output = bytearray(text_output)
 
-    ranges_ = []  # type: List[TaintRange]
+    ranges_: List[TaintRange] = []
     acc_input_id = 0
     for i, match in enumerate(taint_format_pattern.finditer(text_input)):  # type: ignore[attr-defined]
         match_start = match.start() - (i * 6) - acc_input_id
@@ -63,24 +86,23 @@ def create_taint_range_with_format(text_input, fn_origin=""):  # type: (Any, str
 
     taint_pyobject_with_ranges(
         text_output,
-        ranges_,
+        tuple(ranges_),
     )
     return text_output
 
 
-class BaseReplacement(object):
-    def _to_tainted_string_with_origin(self, text):
-        # type: (Text) -> Text
+class BaseReplacement:
+    def _to_tainted_string_with_origin(self, text: Text) -> Text:
         if not isinstance(text, (str, bytes, bytearray)):
             return text
 
         # CAVEAT: the sequences ":+-" and "-+:" can be escaped with  "::++--" and "--+*::"
         elements = re.split(r"(\:\+-<[0-9a-zA-Z\-]+>|<[0-9a-zA-Z\-]+>-\+\:)", text)
 
-        ranges = []  # type: List[TaintRange]
+        ranges: List[TaintRange] = []
         ranges_append = ranges.append
         new_text = text.__class__()
-        context = None  # type: Optional[EscapeContext]
+        context: Optional[EscapeContext] = None
         for index, element in enumerate(elements):
             if index % 2 == 0:
                 element = element.replace("::++--", ":+-")
@@ -112,11 +134,11 @@ class BaseReplacement(object):
 
     def _assert_format_result(
         self,
-        taint_escaped_template,  # type: Text
-        taint_escaped_parameter,  # type: Any
-        expected_result,  # type: Text
-        escaped_expected_result,  # type: Text
-    ):  # type: (...) -> None
+        taint_escaped_template: Text,
+        taint_escaped_parameter: Any,
+        expected_result: Text,
+        escaped_expected_result: Text,
+    ) -> None:
         template = self._to_tainted_string_with_origin(taint_escaped_template)
         parameter = self._to_tainted_string_with_origin(taint_escaped_parameter)
         result = mod.do_format_with_positional_parameter(template, parameter)

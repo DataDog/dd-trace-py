@@ -1,3 +1,4 @@
+from pathlib import PosixPath
 from unittest import mock
 
 import pytest
@@ -155,3 +156,170 @@ def test_checked_tainted_args(iast_context_defaults):
     assert not check_and_report_sqli(
         args=(tainted_arg, untainted_arg), kwargs=None, integration_name="psycopg", method=cursor.execute
     )
+
+
+@pytest.mark.parametrize(
+    "args,integration_name,expected_result",
+    (
+        (
+            [
+                "nobody expects the spanish inquisition",
+            ],
+            "sqlite",
+            True,
+        ),
+        (
+            [
+                "gallahad the pure",
+            ],
+            "sqlite",
+            True,
+        ),
+        (
+            [
+                b"gallahad the pure",
+            ],
+            "sqlite",
+            True,
+        ),
+        (
+            [
+                bytearray(b"gallahad the pure"),
+            ],
+            "sqlite",
+            True,
+        ),
+        (
+            [
+                "gallahad the pure" * 100,
+            ],
+            "sqlite",
+            True,
+        ),
+    ),
+)
+def test_check_and_report_sqli_metrics(args, integration_name, expected_result, iast_context_defaults):
+    cursor = mock.Mock()
+    cursor.execute.__name__ = "execute"
+
+    args[0] = taint_pyobject(
+        args[0], source_name="request_body", source_value=args[0], source_origin=OriginType.PARAMETER
+    )
+
+    with mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
+    ) as mock_increment, mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
+    ) as mock_set_metric:
+        # Call with tainted argument that should trigger metrics
+        result = check_and_report_sqli(args=args, kwargs={}, integration_name=integration_name, method=cursor.execute)
+
+        assert result is expected_result
+        mock_increment.assert_called_once()
+        mock_set_metric.assert_called_once_with(VULN_SQL_INJECTION)
+
+
+@pytest.mark.parametrize(
+    "args,integration_name",
+    (
+        ((PosixPath("imnotastring"),), "sqlite"),
+        (("",), "sqlite"),
+        (
+            [
+                "nobody expects the spanish inquisition",
+            ],
+            "sqlite1000",
+        ),
+        (
+            [
+                "gallahad the pure",
+            ],
+            "database1000",
+        ),
+        (
+            [
+                bytearray(b"gallahad the pure"),
+            ],
+            "sqlite",
+        ),
+    ),
+)
+def test_check_and_report_sqli_no_metrics(args, integration_name, iast_context_defaults):
+    cursor = mock.Mock()
+    cursor.execute.__name__ = "execute"
+
+    with mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
+    ) as mock_increment, mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
+    ) as mock_set_metric:
+        # Call with untainted argument that should not trigger metrics
+        result = check_and_report_sqli(args=args, kwargs={}, integration_name=integration_name, method=cursor.execute)
+
+        assert result is False
+        mock_increment.assert_not_called()
+        mock_set_metric.assert_not_called()
+
+
+class CustomStr(str):
+    pass
+
+
+class CustomBytes(bytes):
+    pass
+
+
+class CustomBytearray(bytearray):
+    pass
+
+
+STRING_TYPES = [
+    # str types
+    ("regular string", str),
+    ("", str),  # empty string
+    (" " * 100, str),  # long string
+    (CustomStr("custom string"), CustomStr),
+    # bytes types
+    (b"regular bytes", bytes),
+    (b"", bytes),  # empty bytes
+    (b" " * 100, bytes),  # long bytes
+    (CustomBytes(b"custom bytes"), CustomBytes),
+    # bytearray types
+    (bytearray(b"regular bytearray"), bytearray),
+    (bytearray(), bytearray),  # empty bytearray
+    (bytearray(b" " * 100), bytearray),  # long bytearray
+    (CustomBytearray(b"custom bytearray"), CustomBytearray),
+    # path types
+    (PosixPath("posix path"), PosixPath),
+]
+
+
+@pytest.mark.parametrize("value,type_", STRING_TYPES)
+def test_check_and_report_sqli_string_types(value, type_, iast_context_defaults):
+    cursor = mock.Mock()
+    cursor.execute.__name__ = "execute"
+
+    # Taint the value
+    tainted_value = taint_pyobject(
+        value, source_name="request_body", source_value=str(value), source_origin=OriginType.PARAMETER
+    )
+
+    with mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
+    ) as mock_increment, mock.patch(
+        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
+    ) as mock_set_metric:
+        result = check_and_report_sqli(
+            args=(tainted_value,), kwargs={}, integration_name="sqlite", method=cursor.execute
+        )
+
+        # For string-like types, we expect True and metrics to be called
+        if isinstance(value, (str, bytes, bytearray)):
+            assert result is True
+            mock_increment.assert_called_once()
+            mock_set_metric.assert_called_once_with(VULN_SQL_INJECTION)
+        else:
+            # For other types (like PosixPath), we expect False and no metrics
+            assert result is False
+            mock_increment.assert_not_called()
+            mock_set_metric.assert_not_called()

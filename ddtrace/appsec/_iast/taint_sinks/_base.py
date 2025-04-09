@@ -77,10 +77,10 @@ class VulnerabilityBase(Operation):
     @taint_sink_deduplication
     def _prepare_report(
         cls,
-        vulnerability_type,
-        evidence,
-        file_name,
-        line_number,
+        vulnerability_type: Text,
+        evidence: Evidence,
+        file_name: Optional[Text],
+        line_number: int,
         function_name: Text = "",
         class_name: Text = "",
         *args,
@@ -157,6 +157,8 @@ class VulnerabilityBase(Operation):
         **kwargs,
     ):
         if isinstance(evidence_value, (str, bytes, bytearray)):
+            if isinstance(evidence_value, bytearray):
+                evidence_value = evidence_value.decode("utf-8")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
             log.debug("Unexpected evidence_value type: %s", type(evidence_value))

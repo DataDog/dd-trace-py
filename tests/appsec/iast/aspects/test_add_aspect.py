@@ -1,5 +1,10 @@
 import logging
+from pathlib import Path
+from pathlib import PosixPath
 
+from hypothesis import given
+from hypothesis.strategies import from_type
+from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -11,6 +16,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tain
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from tests.appsec.iast.aspects.aspect_utils import string_strategies
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.utils import override_env
@@ -32,6 +38,30 @@ from tests.utils import override_global_config
 )
 def test_add_aspect_successful(obj1, obj2):
     assert ddtrace_aspects.add_aspect(obj1, obj2) == obj1 + obj2
+
+
+@given(one_of(string_strategies))
+def test_add_aspect_text_successful(text):
+    assert ddtrace_aspects.add_aspect(text, text) == text + text
+
+
+@given(from_type(int))
+def test_add_aspect_int_successful(text):
+    assert ddtrace_aspects.add_aspect(text, text) == text + text
+
+
+@given(from_type(Path))
+def test_add_aspect_path_error(path):
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.add_aspect(path, path)
+    assert str(exc_info.value) == "unsupported operand type(s) for +: 'PosixPath' and 'PosixPath'"
+
+
+@given(from_type(PosixPath))
+def test_add_aspect_posixpath_error(posixpath):
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.add_aspect(posixpath, posixpath)
+    assert str(exc_info.value) == "unsupported operand type(s) for +: 'PosixPath' and 'PosixPath'"
 
 
 @pytest.mark.parametrize(
