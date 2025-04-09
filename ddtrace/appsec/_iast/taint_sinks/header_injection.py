@@ -6,6 +6,8 @@ from wrapt.importer import when_imported
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._metrics import increment_iast_span_metric
@@ -18,7 +20,6 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-from .._logs import iast_instrumentation_wrapt_debug_log
 from ._base import VulnerabilityBase
 
 
@@ -122,19 +123,23 @@ def _process_header(headers_args):
     header_name, header_value = headers_args
     if header_name is None:
         return
+    try:
+        for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
+            header_name_lower = header_name.lower()
+            if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
+                return
 
-    for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
-        header_name_lower = header_name.lower()
-        if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
-            return
+        if asm_config.is_iast_request_enabled:
+            if HeaderInjection.has_quota() and (is_pyobject_tainted(header_name) or is_pyobject_tainted(header_value)):
+                header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
+                HeaderInjection.report(evidence_value=header_evidence)
 
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
-    _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
-
-    if asm_config.is_iast_request_enabled and HeaderInjection.has_quota():
-        if is_pyobject_tainted(header_name) or is_pyobject_tainted(header_value):
-            header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
-            HeaderInjection.report(evidence_value=header_evidence)
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
+    except Exception as e:
+        iast_error(f"propagation::sink_point::Error in _iast_report_header_injection. {e}")
 
 
 def _iast_report_header_injection(headers_or_args) -> None:
