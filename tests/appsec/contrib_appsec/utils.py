@@ -1694,6 +1694,8 @@ class Contrib_TestClass_For_Threats:
 
 @contextmanager
 def test_tracer():
+    from ddtrace.internal import core
+
     tracer = DummyTracer()
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer

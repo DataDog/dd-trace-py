@@ -19,6 +19,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
+from tests.appsec.utils import get_waf_addresses
 from tests.appsec.utils import is_blocked
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -205,7 +206,7 @@ def test_ip_block(tracer):
             rules.Config(),
         )
     assert get_triggers(span)
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span)
 
 
@@ -217,7 +218,7 @@ def test_ip_not_block(tracer, ip):
             rules.Config(),
         )
 
-    assert core.get_item("http.request.remote_ip", span) == ip
+    assert get_waf_addresses("http.request.remote_ip") == ip
     assert is_blocked(span) is False
 
 
@@ -249,7 +250,7 @@ def test_ip_update_rules_and_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span1) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
 
 
@@ -281,7 +282,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
 
 
