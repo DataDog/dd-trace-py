@@ -184,8 +184,12 @@ benchmarks-pr-comment:
 check-big-regressions:
   stage: report
   rules:
-    # Run and warn on release branches, but don't fail the pipeline
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    # Run and warn on releases, but don't fail the pipeline
+    #   v2.10.0
+    #   v2.10.1
+    #   v2.10.0rc0
+    #   v2.10.0rc5
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
       allow_failure: true
     - allow_failure: false
   when: always
