@@ -372,5 +372,5 @@ def get_span() -> Optional["Span"]:
 def get_root_span() -> Optional["Span"]:
     span = get_span()
     if span is None:
-        return tracer.current_root_span()  # type: ignore
+        return None if tracer is None else tracer.current_root_span()  # type: ignore
     return span._local_root or span

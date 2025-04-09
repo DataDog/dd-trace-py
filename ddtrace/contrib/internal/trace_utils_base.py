@@ -8,13 +8,11 @@ NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 
 @cached()
-def _normalized_header_name(header_name):
-    # type: (str) -> str
+def _normalized_header_name(header_name: str) -> str:
     return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
 
 
-def _normalize_tag_name(request_or_response, header_name):
-    # type: (str, str) -> str
+def _normalize_tag_name(request_or_response: str, header_name: str) -> str:
     """
     Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
     'http.request.headers.content_type'. Rules applied actual header name are:
