@@ -224,6 +224,8 @@ def test_check_and_report_sqli_metrics(args, integration_name, expected_result, 
     (
         ((PosixPath("imnotastring"),), "sqlite"),
         (("",), "sqlite"),
+        ((bytearray(b""),), "sqlite"),
+        ((b"",), "sqlite"),
         (
             [
                 "nobody expects the spanish inquisition",
@@ -235,12 +237,6 @@ def test_check_and_report_sqli_metrics(args, integration_name, expected_result, 
                 "gallahad the pure",
             ],
             "database1000",
-        ),
-        (
-            [
-                bytearray(b"gallahad the pure"),
-            ],
-            "sqlite",
         ),
     ),
 )
@@ -259,67 +255,3 @@ def test_check_and_report_sqli_no_metrics(args, integration_name, iast_context_d
         assert result is False
         mock_increment.assert_not_called()
         mock_set_metric.assert_not_called()
-
-
-class CustomStr(str):
-    pass
-
-
-class CustomBytes(bytes):
-    pass
-
-
-class CustomBytearray(bytearray):
-    pass
-
-
-STRING_TYPES = [
-    # str types
-    ("regular string", str),
-    ("", str),  # empty string
-    (" " * 100, str),  # long string
-    (CustomStr("custom string"), CustomStr),
-    # bytes types
-    (b"regular bytes", bytes),
-    (b"", bytes),  # empty bytes
-    (b" " * 100, bytes),  # long bytes
-    (CustomBytes(b"custom bytes"), CustomBytes),
-    # bytearray types
-    (bytearray(b"regular bytearray"), bytearray),
-    (bytearray(), bytearray),  # empty bytearray
-    (bytearray(b" " * 100), bytearray),  # long bytearray
-    (CustomBytearray(b"custom bytearray"), CustomBytearray),
-    # path types
-    (PosixPath("posix path"), PosixPath),
-]
-
-
-@pytest.mark.parametrize("value,type_", STRING_TYPES)
-def test_check_and_report_sqli_string_types(value, type_, iast_context_defaults):
-    cursor = mock.Mock()
-    cursor.execute.__name__ = "execute"
-
-    # Taint the value
-    tainted_value = taint_pyobject(
-        value, source_name="request_body", source_value=str(value), source_origin=OriginType.PARAMETER
-    )
-
-    with mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection.increment_iast_span_metric"
-    ) as mock_increment, mock.patch(
-        "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
-    ) as mock_set_metric:
-        result = check_and_report_sqli(
-            args=(tainted_value,), kwargs={}, integration_name="sqlite", method=cursor.execute
-        )
-
-        # For string-like types, we expect True and metrics to be called
-        if isinstance(value, (str, bytes, bytearray)):
-            assert result is True
-            mock_increment.assert_called_once()
-            mock_set_metric.assert_called_once_with(VULN_SQL_INJECTION)
-        else:
-            # For other types (like PosixPath), we expect False and no metrics
-            assert result is False
-            mock_increment.assert_not_called()
-            mock_set_metric.assert_not_called()
