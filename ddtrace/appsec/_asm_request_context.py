@@ -361,7 +361,7 @@ def call_waf_callback_no_instrumentation() -> None:
     """call the waf once if it was not already called"""
     if asm_config._asm_enabled:
         env = _get_asm_context()
-        if env and env.telemetry.total_duration == 0.0:
+        if env and not env.telemetry.triggered:
             callback = env.callbacks.get(_WAF_CALL)
             if callback:
                 callback()
