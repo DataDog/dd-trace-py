@@ -15,7 +15,7 @@
       "component": "azure_functions",
       "language": "python",
       "runtime-id": "8fe000084d604f418842aafdbce18881",
-      "span.kind": "server"
+      "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1,
