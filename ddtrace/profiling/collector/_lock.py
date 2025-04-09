@@ -11,7 +11,6 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -20,9 +19,6 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
-
-
-LOG = get_logger(__name__)
 
 
 class LockEventBase(event.StackBasedEvent):
@@ -170,8 +166,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                     self._self_recorder.push_event(event)
-            except Exception as e:
-                LOG.debug("Failed to record a lock acquire event: %s", e)
+            except Exception:
                 pass  # nosec
 
     def acquire(self, *args, **kwargs):
@@ -195,7 +190,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
         except AttributeError:
-            LOG.debug("Failed to delete _self_acquired_at")
+            # We just ignore the error, if the attribute is not found.
+            pass
         try:
             return inner_func(*args, **kwargs)
         finally:
