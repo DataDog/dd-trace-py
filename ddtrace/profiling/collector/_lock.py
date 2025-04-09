@@ -195,7 +195,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
         except AttributeError:
-            LOG.debug("Failed to delete _self_acquired_at")
+            # We just ignore the error, if the attribute is not found.
+            pass
         try:
             return inner_func(*args, **kwargs)
         finally:
