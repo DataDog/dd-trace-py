@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
@@ -29,8 +30,6 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
@@ -76,12 +75,6 @@ IP_PATTERNS = (
 )
 
 
-@cached()
-def _normalized_header_name(header_name):
-    # type: (str) -> str
-    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
-
-
 def _get_header_value_case_insensitive(headers, keyname):
     # type: (Mapping[str, str], str) -> Optional[str]
     """
@@ -98,31 +91,6 @@ def _get_header_value_case_insensitive(headers, keyname):
             return value
 
     return None
-
-
-def _normalize_tag_name(request_or_response, header_name):
-    # type: (str, str) -> str
-    """
-    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
-    'http.request.headers.content_type'. Rules applied actual header name are:
-    - any letter is converted to lowercase
-    - any digit is left unchanged
-    - any block of any length of different ASCII chars is converted to a single underscore '_'
-    :param request_or_response: The context of the headers: request|response
-    :param header_name: The header's name
-    :type header_name: str
-    :rtype: str
-    """
-    # Looking at:
-    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
-    #   - https://tools.ietf.org/html/rfc6648
-    # and for consistency with other language integrations seems safe to assume the following algorithm for header
-    # names normalization:
-    #   - any letter is converted to lowercase
-    #   - any digit is left unchanged
-    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
@@ -534,7 +502,7 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if asm_config._asm_enabled or config._retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.get_item("http.request.remote_ip", span=span)
+            request_ip = core.get_item("http.request.remote_ip")
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env

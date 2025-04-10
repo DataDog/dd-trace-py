@@ -52,7 +52,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
-    "langgraph": False,
+    "langgraph": True,
     "litellm": True,
     "mongoengine": True,
     "mysql": True,
@@ -105,12 +105,14 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "anthropic": True,
+    "crewai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "protobuf": config._data_streams_enabled,
 }
 
 

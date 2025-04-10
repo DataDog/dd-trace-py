@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional
 
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -20,10 +21,6 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
-
-
-if TYPE_CHECKING:
-    from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
