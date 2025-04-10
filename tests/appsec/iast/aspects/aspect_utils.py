@@ -3,7 +3,7 @@ from typing import Any
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Text
+from typing import Union
 
 from hypothesis.strategies import binary
 from hypothesis.strategies import builds
@@ -16,6 +16,9 @@ from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
+
+
+TEXT_TYPE = Union[str, bytes, bytearray]
 
 
 class CustomStr(str):
@@ -92,7 +95,7 @@ def create_taint_range_with_format(text_input: Any, fn_origin: str = "") -> Any:
 
 
 class BaseReplacement:
-    def _to_tainted_string_with_origin(self, text: Text) -> Text:
+    def _to_tainted_string_with_origin(self, text: TEXT_TYPE) -> TEXT_TYPE:
         if not isinstance(text, (str, bytes, bytearray)):
             return text
 
@@ -134,10 +137,10 @@ class BaseReplacement:
 
     def _assert_format_result(
         self,
-        taint_escaped_template: Text,
+        taint_escaped_template: TEXT_TYPE,
         taint_escaped_parameter: Any,
-        expected_result: Text,
-        escaped_expected_result: Text,
+        expected_result: TEXT_TYPE,
+        escaped_expected_result: TEXT_TYPE,
     ) -> None:
         template = self._to_tainted_string_with_origin(taint_escaped_template)
         parameter = self._to_tainted_string_with_origin(taint_escaped_parameter)
