@@ -3,6 +3,7 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
+from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -17,66 +18,12 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("paths", t.Optional[t.Tuple[str, ...]])])
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
-class TrieNode:
-    def __init__(self) -> None:
-        self.children: t.Dict[str, "TrieNode"] = collections.defaultdict(TrieNode)
-        self.library: t.Optional[str] = None
-
-    def insert(self, path_parts: t.List[str], library: str) -> None:
-        node = self
-        for part in path_parts:
-            node = node.children[part]
-        node.library = library
-
-    def collapse(self) -> None:
-        def _collapse(node: "TrieNode") -> t.Optional[str]:
-            if not node.children:
-                return node.library
-
-            child_libs = []
-            for child in node.children.values():
-                lib = _collapse(child)
-                child_libs.append(lib)
-
-            unique_libs = set(child_libs)
-            if len(unique_libs) == 1 and list(unique_libs)[0] is not None:
-                node.children.clear()
-                node.library = unique_libs.pop()
-                return node.library
-
-            return None
-
-        _collapse(self)
-
-    def collect_library_paths(
-        self, current_path: Path = Path(), result: t.Optional[t.Dict[str, t.List[str]]] = None
-    ) -> t.Dict[str, t.List[str]]:
-        """Returns: {library: set of collapsed path prefixes as string paths}"""
-        if result is None:
-            result = collections.defaultdict(list)
-
-        if self.library:
-            result[self.library].append(str(current_path))
-            return result
-
-        for part, child in self.children.items():
-            child.collect_library_paths(current_path / part, result)
-
-        return result
-
-
-def get_py_files(dist):
-    """ "Retrieve .py files in distribution"""
-    files = dist.files or []
-    py_files = [file for file in files if file.name.endswith(".py") and not file.name.startswith("__editable__")]
-    return py_files
-
-
+@callonce
 def get_distributions():
     # type: () -> t.Set[Distribution]
     """returns the name and version of all distributions in a python path"""
@@ -85,29 +32,17 @@ def get_distributions():
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    names_to_versions = {}
-    trie = TrieNode()
+    pkgs = set()
     for dist in importlib_metadata.distributions():
-        # NOTE: if you ever want to use any field in the metadata, you must
-        # access it using below metadata object, otherwise we'd be parsing the
-        # metadata file again which would increase the runtime of this function
-        # significantly
+        # Get the root path of all files in a distribution
+        path = str(dist.locate_file(""))
+        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
+        # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            names_to_versions[name] = version
-        paths = get_py_files(dist)
-        for path in paths:
-            trie.insert(path.parts, name)
-    trie.collapse()
-
-    library_to_paths: t.Dict[str, t.List[str]] = trie.collect_library_paths(purelib_path)
-
-    pkgs = set()
-    for name, version in names_to_versions.items():
-        paths = library_to_paths.get(name)
-        pkgs.add(Distribution(paths=tuple(paths) if paths else None, name=name, version=version))
+            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
 
     return pkgs
 
@@ -257,7 +192,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
 
         for dist in metadata.distributions():
             if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, paths=None)
+                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
                 for f in dist.files:
                     root = f.parts[0]
                     if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
