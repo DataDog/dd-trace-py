@@ -179,6 +179,7 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
+@pytest.mark.subprocess(err=b"expected deprecation warning")
 def test_settings_deprecation():
     import ddtrace.settings
 
