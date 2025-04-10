@@ -1,9 +1,9 @@
 import json
 import platform
 import sysconfig
-from typing import List
+import typing as t
 
-from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.packages import _package_for_root_module_mapping
 
 
 class Library:
@@ -13,7 +13,7 @@ class Library:
         kind: str,
         name: str,
         version: str,
-        paths: List[str],
+        paths: t.List[str],
     ):
         self.kind = kind
         self.name = name
@@ -36,9 +36,23 @@ class CodeProvenance:
             )
         )
 
-        for dist in get_distributions():
-            if dist.paths:
-                self.libraries.append(Library(kind="library", name=dist.name, version=dist.version, paths=dist.paths))
+        module_to_distribution = _package_for_root_module_mapping()
+
+        libraries: t.Dict[str, Library] = {}
+
+        for module, dist in module_to_distribution.items():
+            name = dist.name
+            # special case for __pycache__/filename.cpython-3xx.pyc -> filename.py
+            if module.startswith("__pycache__/"):
+                module = module[len("__pycache__/") :].split(".")[0] + ".py"
+
+            lib = libraries.get(name)
+            if lib is None:
+                lib = Library(kind="library", name=name, version=dist.version, paths=[])
+                libraries[name] = lib
+            lib.paths.append(module)
+
+        self.libraries.extend(libraries.values())
 
     def to_dict(self):
         return {"v1": [lib.to_dict() for lib in self.libraries]}
