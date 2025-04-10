@@ -11,7 +11,6 @@ from typing import Union
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
-import ddtrace
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -77,8 +76,8 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_lfi_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_lfi_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -129,8 +128,8 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_ssrf_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -173,8 +172,8 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_ssrf_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -209,8 +208,8 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_shi_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_shi_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -240,8 +239,8 @@ def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_cmdi_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_cmdi_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -285,8 +284,8 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_sqli_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_sqli_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback

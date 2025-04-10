@@ -5,6 +5,7 @@ import os.path
 import mock
 import pytest
 
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -19,6 +20,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
+from tests.appsec.utils import get_waf_addresses
 from tests.appsec.utils import is_blocked
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -75,10 +77,10 @@ def test_ddwaf_ctx(tracer):
     with asm_context(tracer=tracer, config=config_good_rules) as span:
         processor = AppSecSpanProcessor()
         processor.on_span_start(span)
-        ctx = processor._span_to_waf_ctx.get(span)
+        ctx = _asm_request_context._get_asm_context()
         assert ctx
         processor.on_span_finish(span)
-        assert span not in processor._span_to_waf_ctx
+        assert _asm_request_context._get_asm_context() is None
 
 
 @pytest.mark.parametrize("rule, _exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
@@ -155,6 +157,8 @@ def test_headers_collection(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -183,6 +187,8 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -205,7 +211,7 @@ def test_ip_block(tracer):
             rules.Config(),
         )
     assert get_triggers(span)
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span)
 
 
@@ -217,7 +223,7 @@ def test_ip_not_block(tracer, ip):
             rules.Config(),
         )
 
-    assert core.get_item("http.request.remote_ip", span) == ip
+    assert get_waf_addresses("http.request.remote_ip") == ip
     assert is_blocked(span) is False
 
 
@@ -249,7 +255,7 @@ def test_ip_update_rules_and_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span1) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
 
 
@@ -281,7 +287,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
 
 
@@ -296,6 +302,9 @@ def test_ip_update_rules_expired_no_block(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.base_service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -314,6 +323,9 @@ def test_appsec_span_tags_snapshot(tracer):
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
         "meta._dd.appsec.event_rules.errors",
+        "service",
+        "meta._dd.base_service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
