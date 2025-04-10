@@ -1,14 +1,10 @@
-from typing import Any
-
 import bm
 
 from ddtrace.appsec._iast._iast_request_context import end_iast_context
 from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import Source
-from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 
@@ -18,11 +14,6 @@ try:
 except ImportError:
     # legacy import
     from ddtrace.appsec._iast import oce
-
-
-TAINT_ORIGIN = Source(name="sample_name", value="sample_value", origin=OriginType.PARAMETER)
-
-CHECK_RANGES = [TaintRange(0, 3, TAINT_ORIGIN), TaintRange(21, 3, TAINT_ORIGIN), TaintRange(41, 3, TAINT_ORIGIN)]
 
 
 def _start_iast_context_and_oce():
@@ -35,10 +26,6 @@ def _start_iast_context_and_oce():
 def _end_iast_context_and_oce():
     end_iast_context()
     oce.release_request()
-
-
-def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> None:
-    set_ranges(pyobject, tuple(ranges))
 
 
 def normal_function(internal_loop, tainted):
@@ -69,10 +56,10 @@ def aspect_function(internal_loop, tainted):
 
 
 def new_request(enable_propagation):
-    tainted = b"my_string".decode("ascii")
+    tainted = b"my_string"
 
     if enable_propagation:
-        taint_pyobject_with_ranges(tainted, (CHECK_RANGES[0],))
+        tainted = taint_pyobject(tainted, source_name="path", source_value=tainted, source_origin=OriginType.PATH)
     return tainted
 
 
