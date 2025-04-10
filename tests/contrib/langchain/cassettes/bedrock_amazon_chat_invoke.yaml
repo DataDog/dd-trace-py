@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: '{"inputText": "\n\nUser: summarize the plot to the lord of the rings in
+      a dozen words\n\nBot:", "textGenerationConfig": {"max_tokens": 50, "temperature":
+      0}}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '157'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC41MSBtZC9Cb3RvY29yZSMxLjM0LjUxIHVhLzIuMCBvcy9tYWNvcyMyMy42LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9y
+        ZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjUx
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTA0MDlUMjAyNDI3Wg==
+      X-Amz-Security-Token:
+      - !!binary |
+        dGVzdGluZw==
+      amz-sdk-invocation-id:
+      - !!binary |
+        NzU5NTkzY2YtZmUzZC00MjZmLWFmNDUtZjM1ZWQ3NDNkMDBm
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke
+  response:
+    body:
+      string: '{"message":"The security token included in the request is invalid."}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '68'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 09 Apr 2025 20:24:27 GMT
+      x-amzn-ErrorType:
+      - UnrecognizedClientException:http://internal.amazon.com/coral/com.amazon.coral.service/
+      x-amzn-RequestId:
+      - a78618d9-33f5-47a6-9c1b-8c71ca239b26
+    status:
+      code: 403
+      message: Forbidden
+version: 1

@@ -125,7 +125,12 @@ class LangChainIntegration(BaseLLMIntegration):
 
         spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
-        setattr(parent_instance, "_datadog_spans", spans)
+
+        try:
+            setattr(parent_instance, "_datadog_spans", spans)
+        except Exception as e:
+            parent_instance.__dict__["_datadog_spans"] = spans
+        
 
     def _llmobs_set_tags(
         self,

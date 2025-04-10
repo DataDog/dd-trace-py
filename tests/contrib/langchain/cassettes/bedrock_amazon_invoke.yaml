@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: '{"inputText": "can you explain what Datadog is to someone not in the tech
+      industry?", "textGenerationConfig": {"temperature": 0, "topP": 0.9, "stopSequences":
+      [], "maxTokens": 50}}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '180'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC41MSBtZC9Cb3RvY29yZSMxLjM0LjUxIHVhLzIuMCBvcy9tYWNvcyMyMy42LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9y
+        ZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjUx
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTA0MDlUMjAyNDEyWg==
+      X-Amz-Security-Token:
+      - !!binary |
+        dGVzdGluZw==
+      amz-sdk-invocation-id:
+      - !!binary |
+        MDQyNzQxYzQtNTc2MC00ODI1LThmNTItODBhNWZhNTQ0MmY5
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke
+  response:
+    body:
+      string: '{"message":"The security token included in the request is invalid."}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '68'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 09 Apr 2025 20:24:12 GMT
+      x-amzn-ErrorType:
+      - UnrecognizedClientException:http://internal.amazon.com/coral/com.amazon.coral.service/
+      x-amzn-RequestId:
+      - 99173314-64cf-44fc-bde9-b7b1fb0fbd50
+    status:
+      code: 403
+      message: Forbidden
+version: 1
