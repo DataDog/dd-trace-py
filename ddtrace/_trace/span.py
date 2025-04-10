@@ -15,13 +15,13 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace import config
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
@@ -53,7 +53,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.settings._config import _JSONType
+from ddtrace.settings._config import config
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -63,16 +63,16 @@ class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
     def __init__(
-        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ):
         self.name: str = name
-        if attributes is None:
-            self.attributes = {}
-        else:
-            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
+        self.attributes: dict = attributes if attributes else {}
 
     def __dict__(self):
         d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
@@ -88,6 +88,12 @@ class SpanEvent:
 
         attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+
+    def __iter__(self):
+        yield "name", self.name
+        yield "time_unix_nano", self.time_unix_nano
+        if self.attributes:
+            yield "attributes", self.attributes
 
 
 log = get_logger(__name__)
@@ -180,7 +186,6 @@ class Span(object):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
-
         self.name = name
         self.service = service
         self._resource = [resource or name]
@@ -496,7 +501,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
         self._events.append(SpanEvent(name, attributes, timestamp))
 
@@ -587,7 +592,6 @@ class Span(object):
             return
 
         self.error = 1
-
         tb = self._get_traceback(exc_type, exc_val, exc_tb, limit=limit)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
@@ -614,7 +618,7 @@ class Span(object):
     def record_exception(
         self,
         exception: BaseException,
-        attributes: Optional[Dict[str, _JSONType]] = None,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
         timestamp: Optional[int] = None,
         escaped=False,
     ) -> None:
@@ -809,13 +813,13 @@ class Span(object):
             self.name,
         )
 
+    @property
+    def _is_top_level(self) -> bool:
+        """Return whether the span is a "top level" span.
 
-def _is_top_level(span: Span) -> bool:
-    """Return whether the span is a "top level" span.
-
-    Top level meaning the root of the trace or a child span
-    whose service is different from its parent.
-    """
-    return (span._local_root is span) or (
-        span._parent is not None and span._parent.service != span.service and span.service is not None
-    )
+        Top level meaning the root of the trace or a child span
+        whose service is different from its parent.
+        """
+        return (self._local_root is self) or (
+            self._parent is not None and self._parent.service != self.service and self.service is not None
+        )
