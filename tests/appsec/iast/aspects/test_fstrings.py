@@ -1,6 +1,7 @@
 from hypothesis import given
 from hypothesis.strategies import builds
 from hypothesis.strategies import integers
+from hypothesis.strategies import sampled_from
 from hypothesis.strategies import text
 import pytest
 
@@ -55,15 +56,42 @@ def test_fstring_fill_spaces_tainted(text):
     assert is_pyobject_tainted(result)
 
 
-@given(integers())
-def test_fstring_fill_spaces_integers(text):
+@given(
+    integers(),
+    sampled_from(
+        [
+            "<8s",
+            "<1s",
+        ]
+    ),
+)
+def test_fstring_fill_spaces_integers_unkwow_format(text, spec):
     with pytest.raises(ValueError) as excinfo:
-        f"{text:<8s}bar"
+        f"{text:{spec}}bar"
     assert str(excinfo.value) == "Unknown format code 's' for object of type 'int'"
 
     with pytest.raises(ValueError) as excinfo:
-        mod_py3.do_fmt_value(text)
+        mod_py3.do_fmt_value(text, spec)
     assert str(excinfo.value) == "Unknown format code 's' for object of type 'int'"
+
+
+@given(
+    integers(),
+    sampled_from(
+        [
+            "!s",
+            "!s",
+        ]
+    ),
+)
+def test_fstring_fill_spaces_integers_invalid_format(text, spec):
+    with pytest.raises(ValueError) as excinfo:
+        f"{text:{spec}}bar"
+    assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
+
+    with pytest.raises(ValueError) as excinfo:
+        mod_py3.do_fmt_value(text, spec)
+    assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
 
 
 @given(non_empty_text)
@@ -94,15 +122,31 @@ def test_int_fstring_zero_padding_integers(integers_to_test):
     assert result == f"{integers_to_test:05d}"
 
 
-@given(text())
-def test_int_fstring_zero_padding_text(text):
+@given(
+    text(),
+    sampled_from(
+        [
+            "d",  # decimal integer
+            "f",  # float
+            "e",  # scientific notation
+            "g",  # general format
+            "b",  # binary
+            "o",  # octal
+            "x",  # hexadecimal
+            "X",  # uppercase hexadecimal
+            "n",  # number with locale
+        ]
+    ),
+)
+def test_int_fstring_zero_padding_text(text, spec):
+    print(f"{text}: {spec}")
     with pytest.raises(ValueError) as excinfo:
-        f"{text:05d}"
-    assert str(excinfo.value) == "Unknown format code 'd' for object of type 'str'"
+        f"{text:{spec}}"
+    assert str(excinfo.value) == f"Unknown format code '{spec}' for object of type 'str'"
 
     with pytest.raises(ValueError) as excinfo:
-        mod_py3.do_zero_padding_fstring(text)
-    assert str(excinfo.value) == "Unknown format code 'd' for object of type 'str'"
+        mod_py3.do_zero_padding_fstring(text, spec)
+    assert str(excinfo.value) == f"Unknown format code '{spec}' for object of type 'str'"
 
 
 class TestOperatorsReplacement(BaseReplacement):
