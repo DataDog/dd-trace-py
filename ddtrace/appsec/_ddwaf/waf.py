@@ -29,6 +29,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
+from ddtrace.appsec._metrics import Metrics
 
 
 LOGGER = get_logger(__name__)
@@ -51,7 +52,7 @@ class DDWaf(WAF):
         ruleset_map: Dict[str, Any],
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
-        metrics,
+        metrics: Metrics,
     ):
         # avoid circular import
 
