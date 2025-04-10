@@ -408,6 +408,29 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="freezegun",
+            command="pytest {cmdargs} tests/contrib/freezegun",
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="3.10",
+                    pkgs={
+                        "freezegun": ["~=1.3.0", "~=1.5.0"],
+                    },
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "freezegun": ["~=1.3.0", "~=1.5.0"],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[
