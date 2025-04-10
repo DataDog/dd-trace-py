@@ -8,7 +8,7 @@
     {
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.9.1",
-        "max_tracer_supported": "3.11.13",
+        "max_tracer_supported": "3.11.16",
         "auto-instrumented": true
     },
     {
@@ -91,7 +91,7 @@
     {
         "integration": "botocore",
         "minimum_tracer_supported": "1.20.106",
-        "max_tracer_supported": "1.37.5",
+        "max_tracer_supported": "1.37.26",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -132,6 +132,12 @@
         "auto-instrumented": false
     },
     {
+        "integration": "crewai",
+        "minimum_tracer_supported": "0.108.0",
+        "max_tracer_supported": "0.108.0",
+        "auto-instrumented": true
+    },
+    {
         "integration": "django",
         "minimum_tracer_supported": "2.2.1",
         "max_tracer_supported": "5.1.4",
@@ -166,7 +172,7 @@
     {
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.115.8",
+        "max_tracer_supported": "0.115.11",
         "auto-instrumented": true
     },
     {
@@ -202,7 +208,7 @@
     {
         "integration": "grpc",
         "minimum_tracer_supported": "1.34.1",
-        "max_tracer_supported": "1.68.1",
+        "max_tracer_supported": "1.71.0",
         "auto-instrumented": true
     },
     {
@@ -214,7 +220,7 @@
     {
         "integration": "jinja2",
         "minimum_tracer_supported": "2.10.3",
-        "max_tracer_supported": "3.1.5",
+        "max_tracer_supported": "3.1.6",
         "auto-instrumented": true
     },
     {
@@ -240,7 +246,13 @@
         "minimum_tracer_supported": "0.2.60",
         "max_tracer_supported": "0.2.61",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
+    },
+    {
+        "integration": "litellm",
+        "minimum_tracer_supported": "1.60.2",
+        "max_tracer_supported": "1.65.1",
+        "auto-instrumented": true
     },
     {
         "integration": "logbook",
@@ -281,7 +293,7 @@
     {
         "integration": "mysql",
         "minimum_tracer_supported": "8.0.5",
-        "max_tracer_supported": "9.1.0",
+        "max_tracer_supported": "9.2.0",
         "auto-instrumented": true
     },
     {
@@ -293,7 +305,13 @@
     {
         "integration": "openai",
         "minimum_tracer_supported": "1.30.3",
-        "max_tracer_supported": "1.65.3",
+        "max_tracer_supported": "1.70.0",
+        "auto-instrumented": true
+    },
+    {
+        "integration": "openai_agents",
+        "minimum_tracer_supported": "0.0.8",
+        "max_tracer_supported": "0.0.8",
         "auto-instrumented": true
     },
     {
@@ -402,7 +420,7 @@
     {
         "integration": "sqlalchemy",
         "minimum_tracer_supported": "1.2.19",
-        "max_tracer_supported": "2.0.38",
+        "max_tracer_supported": "2.0.40",
         "auto-instrumented": false
     },
     {
@@ -414,7 +432,7 @@
     {
         "integration": "starlette",
         "minimum_tracer_supported": "0.13.6",
-        "max_tracer_supported": "0.44.0",
+        "max_tracer_supported": "0.46.1",
         "auto-instrumented": true
     },
     {

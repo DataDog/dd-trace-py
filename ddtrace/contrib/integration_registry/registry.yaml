@@ -3,1269 +3,590 @@ integrations:
   is_external_package: true
   dependency_name:
   - aiobotocore
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - aiobotocore
   tested_version_min: 1.4.2
   tested_version_max: 2.16.0
-  tested_versions_list:
-  - 1.4.2
-  - 2.0.1
-  - 2.3.1
-  - 2.13.3
-  - 2.16.0
 
 - integration_name: aiohttp
   is_external_package: true
   dependency_name:
   - aiohttp
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - aiohttp
   tested_version_min: 3.9.1
-  tested_version_max: 3.11.13
-  tested_versions_list:
-  - 3.9.1
-  - 3.9.5
-  - 3.10.5
-  - 3.10.9
-  - 3.10.11
-  - 3.11.11
-  - 3.11.12
-  - 3.11.13
+  tested_version_max: 3.11.16
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
   dependency_name:
   - aiohttp_jinja2
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - aiohttp_jinja2
   tested_version_min: 1.5.1
   tested_version_max: 1.6.0
-  tested_versions_list:
-  - 1.5.1
-  - 1.6.0
 
 - integration_name: aiomysql
   is_external_package: true
   dependency_name:
   - aiomysql
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - aiomysql
   tested_version_min: 0.1.1
   tested_version_max: 0.2.0
-  tested_versions_list:
-  - 0.1.1
-  - 0.2.0
 
 - integration_name: aiopg
   is_external_package: true
   dependency_name:
   - aiopg
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - aiopg
   tested_version_min: 1.4.0
   tested_version_max: 1.4.0
-  tested_versions_list:
-  - 1.4.0
 
 - integration_name: aioredis
   is_external_package: true
   dependency_name:
   - aioredis
-  is_patchable: true
-  is_deprecated: true
-  patched_by_default: true
-  instrumented_modules:
-  - aioredis
+  is_tested: false
 
 - integration_name: algoliasearch
   is_external_package: true
   dependency_name:
   - algoliasearch
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - algoliasearch
   tested_version_min: 2.6.3
   tested_version_max: 2.6.3
-  tested_versions_list:
-  - 2.6.3
 
 - integration_name: anthropic
   is_external_package: true
   dependency_name:
   - anthropic
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - anthropic
   tested_version_min: 0.26.0
-  tested_version_max: 0.45.2
-  tested_versions_list:
-  - 0.26.0
-  - 0.40.0
-  - 0.45.2
+  tested_version_max: 0.49.0
 
 - integration_name: aredis
   is_external_package: true
   dependency_name:
   - aredis
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - aredis
   tested_version_min: 1.1.8
   tested_version_max: 1.1.8
-  tested_versions_list:
-  - 1.1.8
 
 - integration_name: asgi
   is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
 
 - integration_name: asyncio
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - asyncio
 
 - integration_name: asyncpg
   is_external_package: true
   dependency_name:
   - asyncpg
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - asyncpg
   tested_version_min: 0.23.0
   tested_version_max: 0.30.0
-  tested_versions_list:
-  - 0.23.0
-  - 0.24.0
-  - 0.30.0
 
 - integration_name: avro
   is_external_package: true
   dependency_name:
   - avro
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - avro
   tested_version_min: 1.12.0
   tested_version_max: 1.12.0
-  tested_versions_list:
-  - 1.12.0
 
 - integration_name: aws_lambda
   is_external_package: true
   dependency_name:
-  - datadog_lambda
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - datadog_lambda
+  - aws_lambda
   tested_version_min: 6.105.0
   tested_version_max: 6.105.0
-  tested_versions_list:
-  - 6.105.0
 
 - integration_name: azure_functions
   is_external_package: true
   dependency_name:
   - azure-functions
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - azure.functions
   tested_version_min: 1.21.3
   tested_version_max: 1.21.3
-  tested_versions_list:
-  - 1.21.3
 
 - integration_name: boto
   is_external_package: true
   dependency_name:
   - boto
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - boto
   tested_version_min: 2.49.0
   tested_version_max: 2.49.0
-  tested_versions_list:
-  - 2.49.0
 
 - integration_name: botocore
   is_external_package: true
   dependency_name:
   - botocore
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - botocore
   tested_version_min: 1.20.106
-  tested_version_max: 1.37.5
-  tested_versions_list:
-  - 1.20.106
-  - 1.22.8
-  - 1.24.21
-  - 1.34.6
-  - 1.34.49
-  - 1.34.51
-  - 1.34.162
-  - 1.35.45
-  - 1.35.62
-  - 1.35.65
-  - 1.35.78
-  - 1.35.81
-  - 1.36.9
-  - 1.36.13
-  - 1.36.17
-  - 1.36.19
-  - 1.36.25
-  - 1.37.5
+  tested_version_max: 1.37.26
 
 - integration_name: bottle
   is_external_package: true
   dependency_name:
   - bottle
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - bottle
   tested_version_min: 0.12.25
   tested_version_max: 0.13.2
-  tested_versions_list:
-  - 0.12.25
-  - 0.13.2
 
 - integration_name: cassandra
   is_external_package: true
   dependency_name:
   - cassandra-driver
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - cassandra.cluster
   tested_version_min: 3.24.0
   tested_version_max: 3.29.2
-  tested_versions_list:
-  - 3.24.0
-  - 3.28.0
-  - 3.29.2
 
 - integration_name: celery
   is_external_package: true
   dependency_name:
   - celery
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - celery
   tested_version_min: 5.3.6
   tested_version_max: 5.4.0
-  tested_versions_list:
-  - 5.3.6
-  - 5.4.0
 
 - integration_name: cherrypy
   is_external_package: true
   dependency_name:
   - cherrypy
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
   tested_version_min: 17.4.2
   tested_version_max: 18.10.0
-  tested_versions_list:
-  - 17.4.2
-  - 18.10.0
 
 - integration_name: consul
   is_external_package: true
   dependency_name:
   - python-consul
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - consul
   tested_version_min: 1.1.0
   tested_version_max: 1.1.0
-  tested_versions_list:
-  - 1.1.0
 
 - integration_name: coverage
-  is_external_package: false
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
+  is_external_package: true
+  dependency_name:
   - coverage
+  tested_version_min: 7.4.4
+  tested_version_max: 7.4.4
+
+- integration_name: crewai
+  is_external_package: true
+  dependency_name:
+  - crewai
+  tested_version_min: 0.108.0
+  tested_version_max: 0.108.0
 
 - integration_name: ddtrace_api
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - ddtrace_api
 
 - integration_name: django
   is_external_package: true
   dependency_name:
   - django
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - django
   tested_version_min: 2.2.1
   tested_version_max: 5.1.4
-  tested_versions_list:
-  - 2.2.1
-  - 2.2.28
-  - 3.2.25
-  - 4.2.14
-  - 4.2.16
-  - 4.2.17
-  - 5.1.4
 
 - integration_name: dogpile_cache
   is_external_package: true
   dependency_name:
   - dogpile.cache
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - dogpile.cache
   tested_version_min: 0.9.2
   tested_version_max: 1.3.3
-  tested_versions_list:
-  - 0.9.2
-  - 1.3.0
-  - 1.3.3
 
 - integration_name: dramatiq
   is_external_package: true
   dependency_name:
   - dramatiq
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - dramatiq
   tested_version_min: 1.17.0
   tested_version_max: 1.17.0
-  tested_versions_list:
-  - 1.17.0
 
 - integration_name: elasticsearch
   is_external_package: true
   dependency_name:
-  - elastic_transport
   - elasticsearch
-  - elasticsearch1
-  - elasticsearch2
-  - elasticsearch5
-  - elasticsearch6
-  - elasticsearch7
-  - opensearchpy
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - elastic_transport
-  - elasticsearch
-  - elasticsearch1
-  - elasticsearch2
-  - elasticsearch5
-  - elasticsearch6
-  - elasticsearch7
-  - opensearchpy
-  tested_version_min: 1.10.0
+  tested_version_min: 7.13.4
   tested_version_max: 8.17.0
-  tested_versions_list:
-  - 1.10.0
-  - 2.5.1
-  - 5.5.6
-  - 6.8.2
-  - 7.13.4
-  - 7.17.9
-  - 7.17.12
-  - 8.0.1
-  - 8.11.0
-  - 8.11.1
-  - 8.15.0
-  - 8.15.1
-  - 8.17.0
 
 - integration_name: falcon
   is_external_package: true
   dependency_name:
   - falcon
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - falcon
   tested_version_min: 3.0.1
   tested_version_max: 4.0.2
-  tested_versions_list:
-  - 3.0.1
-  - 3.1.3
-  - 4.0.2
 
 - integration_name: fastapi
   is_external_package: true
   dependency_name:
   - fastapi
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - fastapi
   tested_version_min: 0.64.0
-  tested_version_max: 0.115.8
-  tested_versions_list:
-  - 0.64.0
-  - 0.86.0
-  - 0.90.1
-  - 0.115.5
-  - 0.115.6
-  - 0.115.8
+  tested_version_max: 0.115.11
 
 - integration_name: flask
   is_external_package: true
   dependency_name:
   - flask
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - flask
   tested_version_min: 0.12.5
   tested_version_max: 3.1.0
-  tested_versions_list:
-  - 0.12.5
-  - 1.1.4
-  - 2.1.3
-  - 2.3.3
-  - 3.0.2
-  - 3.0.3
-  - 3.1.0
 
 - integration_name: flask_cache
   is_external_package: true
   dependency_name:
   - flask_cache
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
-  tested_version_min: 0.13.1
-  tested_version_max: 0.13.1
-  tested_versions_list:
-  - 0.13.1
+  tested_version_min: 1.10.1
+  tested_version_max: 2.3.0
 
 - integration_name: freezegun
-  is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
+  is_external_package: true
+  dependency_name:
   - freezegun
+  is_tested: false
 
 - integration_name: futures
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - concurrent.futures.thread
 
 - integration_name: gevent
   is_external_package: true
   dependency_name:
   - gevent
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - gevent
   tested_version_min: 20.12.1
   tested_version_max: 24.11.1
-  tested_versions_list:
-  - 20.12.1
-  - 21.1.2
-  - 21.12.0
-  - 22.10.2
-  - 23.9.1
-  - 24.2.1
-  - 24.11.1
 
 - integration_name: google_generativeai
   is_external_package: true
   dependency_name:
   - google-generativeai
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - google.generativeai
   tested_version_min: 0.8.3
   tested_version_max: 0.8.3
-  tested_versions_list:
-  - 0.8.3
 
 - integration_name: graphql
   is_external_package: true
   dependency_name:
   - graphql-core
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - graphql
   tested_version_min: 3.1.7
   tested_version_max: 3.2.6
-  tested_versions_list:
-  - 3.1.7
-  - 3.2.3
-  - 3.2.4
-  - 3.2.5
-  - 3.2.6
 
 - integration_name: grpc
   is_external_package: true
   dependency_name:
   - grpcio
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - grpc
   tested_version_min: 1.34.1
-  tested_version_max: 1.68.1
-  tested_versions_list:
-  - 1.34.1
-  - 1.42.0
-  - 1.49.1
-  - 1.59.5
-  - 1.66.1
-  - 1.66.2
-  - 1.68.0
-  - 1.68.1
+  tested_version_max: 1.71.0
 
 - integration_name: httplib
   is_external_package: false
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - http.client
 
 - integration_name: httpx
   is_external_package: true
   dependency_name:
   - httpx
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - httpx
   tested_version_min: 0.15.4
   tested_version_max: 0.28.1
-  tested_versions_list:
-  - 0.15.4
-  - 0.17.1
-  - 0.23.3
-  - 0.26.0
-  - 0.27.0
-  - 0.27.2
-  - 0.28.0
-  - 0.28.1
 
 - integration_name: jinja2
   is_external_package: true
   dependency_name:
   - jinja2
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - jinja2
   tested_version_min: 2.10.3
-  tested_version_max: 3.1.5
-  tested_versions_list:
-  - 2.10.3
-  - 2.11.3
-  - 3.0.3
-  - 3.1.2
-  - 3.1.3
-  - 3.1.4
-  - 3.1.5
+  tested_version_max: 3.1.6
 
 - integration_name: kafka
   is_external_package: true
   dependency_name:
   - confluent-kafka
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - confluent_kafka
   tested_version_min: 1.9.2
   tested_version_max: 2.6.2
-  tested_versions_list:
-  - 1.9.2
-  - 2.3.0
-  - 2.4.0
-  - 2.6.2
 
 - integration_name: kombu
   is_external_package: true
   dependency_name:
   - kombu
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - kombu
   tested_version_min: 4.2.2.post1
   tested_version_max: 5.4.2
-  tested_versions_list:
-  - 4.2.2.post1
-  - 4.6.11
-  - 5.0.2
-  - 5.2.4
-  - 5.3.4
-  - 5.4.2
 
 - integration_name: langchain
   is_external_package: true
   dependency_name:
   - langchain
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - langchain
   tested_version_min: 0.1.20
   tested_version_max: 0.3.18
-  tested_versions_list:
-  - 0.1.20
-  - 0.2.0
-  - 0.2.17
-  - 0.3.17
-  - 0.3.18
 
 - integration_name: langgraph
   is_external_package: true
   dependency_name:
   - langgraph
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - langgraph
-  - langgraph.graph
   tested_version_min: 0.2.60
   tested_version_max: 0.2.61
-  tested_versions_list:
-  - 0.2.60
-  - 0.2.61
+
+- integration_name: litellm
+  is_external_package: true
+  dependency_name:
+  - litellm
+  tested_version_min: 1.60.2
+  tested_version_max: 1.65.1
 
 - integration_name: logbook
   is_external_package: true
   dependency_name:
   - logbook
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - logbook
   tested_version_min: 1.0.0
-  tested_version_max: 1.7.0.post0
-  tested_versions_list:
-  - 1.0.0
-  - 1.7.0.post0
+  tested_version_max: 1.8.1
 
 - integration_name: logging
   is_external_package: false
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - logging
 
 - integration_name: loguru
   is_external_package: true
   dependency_name:
   - loguru
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - loguru
   tested_version_min: 0.4.1
   tested_version_max: 0.7.2
-  tested_versions_list:
-  - 0.4.1
-  - 0.7.2
 
 - integration_name: mako
   is_external_package: true
   dependency_name:
   - mako
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - mako
   tested_version_min: 1.1.6
   tested_version_max: 1.3.8
-  tested_versions_list:
-  - 1.1.6
-  - 1.3.2
-  - 1.3.8
 
 - integration_name: mariadb
   is_external_package: true
   dependency_name:
   - mariadb
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - mariadb
   tested_version_min: 1.0.11
   tested_version_max: 1.1.11
-  tested_versions_list:
-  - 1.0.11
-  - 1.1.10
-  - 1.1.11
 
 - integration_name: molten
   is_external_package: true
   dependency_name:
   - molten
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - molten
   tested_version_min: 1.0.2
   tested_version_max: 1.0.2
-  tested_versions_list:
-  - 1.0.2
 
 - integration_name: mongoengine
   is_external_package: true
   dependency_name:
   - mongoengine
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - mongoengine
   tested_version_min: 0.29.1
   tested_version_max: 0.29.1
-  tested_versions_list:
-  - 0.29.1
 
 - integration_name: mysql
   is_external_package: true
   dependency_name:
   - mysql-connector-python
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - mysql
   tested_version_min: 8.0.5
-  tested_version_max: 9.1.0
-  tested_versions_list:
-  - 8.0.5
-  - 8.0.33
-  - 8.2.0
-  - 9.0.0
-  - 9.1.0
+  tested_version_max: 9.2.0
 
 - integration_name: mysqldb
   is_external_package: true
   dependency_name:
   - mysqlclient
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - MySQLdb
   tested_version_min: 2.2.1
   tested_version_max: 2.2.6
-  tested_versions_list:
-  - 2.2.1
-  - 2.2.6
 
 - integration_name: openai
   is_external_package: true
   dependency_name:
   - openai
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - openai
   tested_version_min: 1.30.3
-  tested_version_max: 1.65.3
-  tested_versions_list:
-  - 1.30.3
-  - 1.60.0
-  - 1.61.0
-  - 1.61.1
-  - 1.65.3
+  tested_version_max: 1.70.0
+
+- integration_name: openai_agents
+  is_external_package: true
+  dependency_name:
+  - openai-agents
+  tested_version_min: 0.0.8
+  tested_version_max: 0.0.8
 
 - integration_name: protobuf
   is_external_package: true
   dependency_name:
   - protobuf
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - protobuf
   tested_version_min: 3.19.0
-  tested_version_max: 6.30.1
-  tested_versions_list:
-  - 3.19.0
-  - 3.20.3
-  - 4.21.12
-  - 4.22.0
-  - 4.25.1
-  - 5.28.0
-  - 5.28.2
-  - 5.28.3
-  - 5.29.1
-  - 5.29.3
-  - 6.30.0
-  - 6.30.1
+  tested_version_max: 6.30.2
 
 - integration_name: psycopg
   is_external_package: true
   dependency_name:
   - psycopg
-  - psycopg2
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - psycopg
-  - psycopg2
   tested_version_min: 3.2.1
   tested_version_max: 3.2.3
-  tested_versions_list:
-  - 3.2.1
-  - 3.2.3
 
 - integration_name: pylibmc
   is_external_package: true
   dependency_name:
   - pylibmc
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pylibmc
   tested_version_min: 1.6.3
   tested_version_max: 1.6.3
-  tested_versions_list:
-  - 1.6.3
 
 - integration_name: pymemcache
   is_external_package: true
   dependency_name:
   - pymemcache
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pymemcache
   tested_version_min: 3.4.4
   tested_version_max: 4.0.0
-  tested_versions_list:
-  - 3.4.4
-  - 3.5.2
-  - 4.0.0
 
 - integration_name: pymongo
   is_external_package: true
   dependency_name:
   - pymongo
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pymongo
   tested_version_min: 3.8.0
   tested_version_max: 4.10.1
-  tested_versions_list:
-  - 3.8.0
-  - 3.9.0
-  - 3.12.3
-  - 3.13.0
-  - 4.8.0
-  - 4.10.1
 
 - integration_name: pymysql
   is_external_package: true
   dependency_name:
   - pymysql
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pymysql
   tested_version_min: 0.10.1
   tested_version_max: 1.1.1
-  tested_versions_list:
-  - 0.10.1
-  - 1.1.0
-  - 1.1.1
 
 - integration_name: pynamodb
   is_external_package: true
   dependency_name:
   - pynamodb
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pynamodb
   tested_version_min: 5.5.1
   tested_version_max: 5.5.1
-  tested_versions_list:
-  - 5.5.1
 
 - integration_name: pyodbc
   is_external_package: true
   dependency_name:
   - pyodbc
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pyodbc
   tested_version_min: 4.0.39
   tested_version_max: 5.2.0
-  tested_versions_list:
-  - 4.0.39
-  - 5.2.0
 
 - integration_name: pyramid
   is_external_package: true
   dependency_name:
   - pyramid
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - pyramid
   tested_version_min: 1.10.8
   tested_version_max: 2.0.2
-  tested_versions_list:
-  - 1.10.8
-  - 2.0.2
 
 - integration_name: pytest
-  is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
+  is_external_package: true
+  dependency_name:
+  - pytest
+  tested_version_min: 4.6.11
+  tested_version_max: 8.3.5
 
 - integration_name: pytest_bdd
-  is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
+  is_external_package: true
+  dependency_name:
+  - pytest_bdd
+  tested_version_min: 4.1.0
+  tested_version_max: 6.0.1
 
 - integration_name: pytest_benchmark
-  is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
+  is_external_package: true
+  dependency_name:
+  - pytest_benchmark
+  is_tested: false
 
 - integration_name: redis
   is_external_package: true
   dependency_name:
   - redis
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - redis
   tested_version_min: 2.10.6
   tested_version_max: 5.2.1
-  tested_versions_list:
-  - 2.10.6
-  - 3.0.1
-  - 3.5.3
-  - 4.6.0
-  - 5.0.1
-  - 5.0.7
-  - 5.0.8
-  - 5.1.1
-  - 5.2.0
-  - 5.2.1
 
 - integration_name: rediscluster
   is_external_package: true
   dependency_name:
   - redis-py-cluster
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - rediscluster
   tested_version_min: 2.0.0
   tested_version_max: 2.1.3
-  tested_versions_list:
-  - 2.0.0
-  - 2.1.3
 
 - integration_name: requests
   is_external_package: true
   dependency_name:
   - requests
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - requests
   tested_version_min: 2.22.0
   tested_version_max: 2.32.3
-  tested_versions_list:
-  - 2.22.0
-  - 2.25.1
-  - 2.28.1
-  - 2.28.2
-  - 2.31.0
-  - 2.32.3
 
 - integration_name: rq
   is_external_package: true
   dependency_name:
   - rq
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - rq
   tested_version_min: 1.8.1
   tested_version_max: 1.16.2
-  tested_versions_list:
-  - 1.8.1
-  - 1.10.1
-  - 1.15.1
-  - 1.16.2
 
 - integration_name: sanic
   is_external_package: true
   dependency_name:
   - sanic
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - sanic
   tested_version_min: 20.12.7
   tested_version_max: 24.6.0
-  tested_versions_list:
-  - 20.12.7
-  - 21.12.2
-  - 22.12.0
-  - 23.6.0
-  - 24.6.0
 
 - integration_name: selenium
   is_external_package: true
   dependency_name:
   - selenium
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - selenium
+  is_tested: false
 
 - integration_name: snowflake
   is_external_package: true
   dependency_name:
   - snowflake-connector-python
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - snowflake.connector
   tested_version_min: 2.3.10
   tested_version_max: 3.12.2
-  tested_versions_list:
-  - 2.3.10
-  - 2.4.6
-  - 2.7.12
-  - 2.9.0
-  - 3.6.0
-  - 3.11.0
-  - 3.12.2
 
 - integration_name: sqlalchemy
   is_external_package: true
   dependency_name:
   - sqlalchemy
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - sqlalchemy
   tested_version_min: 1.2.19
-  tested_version_max: 2.0.38
-  tested_versions_list:
-  - 1.2.19
-  - 1.3.24
-  - 1.4.54
-  - 2.0.28
-  - 2.0.29
-  - 2.0.36
-  - 2.0.37
-  - 2.0.38
+  tested_version_max: 2.0.40
 
 - integration_name: sqlite3
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - sqlite3
 
 - integration_name: starlette
   is_external_package: true
   dependency_name:
   - starlette
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - starlette
   tested_version_min: 0.13.6
-  tested_version_max: 0.44.0
-  tested_versions_list:
-  - 0.13.6
-  - 0.14.2
-  - 0.15.0
-  - 0.20.4
-  - 0.21.0
-  - 0.23.1
-  - 0.33.0
-  - 0.39.2
-  - 0.41.2
-  - 0.41.3
-  - 0.44.0
+  tested_version_max: 0.46.1
 
 - integration_name: structlog
   is_external_package: true
   dependency_name:
   - structlog
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - structlog
   tested_version_min: 20.2.0
   tested_version_max: 25.1.0
-  tested_versions_list:
-  - 20.2.0
-  - 23.2.0
-  - 24.4.0
-  - 25.1.0
 
 - integration_name: subprocess
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - subprocess
 
 - integration_name: tornado
   is_external_package: true
   dependency_name:
   - tornado
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - tornado
   tested_version_min: 4.5.3
   tested_version_max: 6.4.1
-  tested_versions_list:
-  - 4.5.3
-  - 5.1.1
-  - 6.2.0
-  - 6.3.1
-  - 6.4.0
-  - 6.4.1
 
 - integration_name: unittest
   is_external_package: false
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - unittest
 
 - integration_name: urllib
   is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
 
 - integration_name: urllib3
   is_external_package: true
   dependency_name:
   - urllib3
-  is_patchable: true
-  patched_by_default: false
-  instrumented_modules:
-  - urllib3
   tested_version_min: 1.25.0
   tested_version_max: 2.3.0
-  tested_versions_list:
-  - 1.25.0
-  - 1.25.8
-  - 1.25.11
-  - 1.26.6
-  - 1.26.8
-  - 1.26.15
-  - 1.26.18
-  - 1.26.19
-  - 1.26.20
-  - 2.0.0
-  - 2.0.7
-  - 2.1.0
-  - 2.2.0
-  - 2.2.1
-  - 2.2.2
-  - 2.2.3
-  - 2.3.0
 
 - integration_name: valkey
   is_external_package: true
   dependency_name:
   - valkey
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - valkey
   tested_version_min: 6.0.2
   tested_version_max: 6.0.2
-  tested_versions_list:
-  - 6.0.2
 
 - integration_name: vertexai
   is_external_package: true
   dependency_name:
   - google-cloud-aiplatform
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - vertexai
   tested_version_min: 1.71.1
   tested_version_max: 1.71.1
-  tested_versions_list:
-  - 1.71.1
 
 - integration_name: vertica
   is_external_package: true
   dependency_name:
   - vertica-python
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - vertica_python
   tested_version_min: 0.6.14
   tested_version_max: 0.7.4
-  tested_versions_list:
-  - 0.6.14
-  - 0.7.4
 
 - integration_name: webbrowser
   is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
 
 - integration_name: wsgi
   is_external_package: false
-  is_patchable: false
-  patched_by_default: MISSING_IN_PATCH_MODULES
 
 - integration_name: yaaredis
   is_external_package: true
   dependency_name:
   - yaaredis
-  is_patchable: true
-  patched_by_default: true
-  instrumented_modules:
-  - yaaredis
   tested_version_min: 2.0.4
   tested_version_max: 3.0.0
-  tested_versions_list:
-  - 2.0.4
-  - 3.0.0
