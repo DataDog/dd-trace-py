@@ -412,7 +412,7 @@ venv = Venv(
             name="freezegun",
             command="pytest {cmdargs} tests/contrib/freezegun",
             env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "1",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
             pkgs={
                 "pytest": latest,
