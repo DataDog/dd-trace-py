@@ -98,22 +98,16 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import os
-import time
-import atexit
-import mock
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from tests.llmobs._utils import logs_vcr
 from tests.llmobs._utils import DummyEvaluator
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
-LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app")
-LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
-LLMObs._instance._evaluator_runner.start()
-LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
+with logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml"):
+    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app")
+    LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
+    LLMObs._instance._evaluator_runner.start()
+    LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
 """,
         env=env,
     )

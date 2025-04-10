@@ -741,7 +741,7 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
@@ -819,7 +819,7 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
