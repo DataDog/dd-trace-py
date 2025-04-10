@@ -435,7 +435,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> Union[str, bytes, bytearray]:
+) -> TEXT_TYPES:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:

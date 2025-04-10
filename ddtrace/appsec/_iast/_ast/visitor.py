@@ -227,7 +227,7 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _is_string_node(node: Any) -> bool:
-        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
+        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, IAST.TEXT_TYPES)):
             return True
 
         return False

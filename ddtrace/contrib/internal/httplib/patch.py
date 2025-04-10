@@ -92,7 +92,7 @@ def _wrap_request(func, instance, args, kwargs):
     if should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
-    cfg = config._get_from(instance)
+    cfg = Pin._get_config(instance)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
