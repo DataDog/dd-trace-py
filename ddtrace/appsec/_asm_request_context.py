@@ -19,6 +19,7 @@ from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
+from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -252,6 +253,13 @@ def finalize_asm_env(env: ASM_Environment) -> None:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
             root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+        waf_adresses = env.waf_addresses
+        req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
+        if req_headers:
+            _set_headers(root_span, req_headers, kind="request")
+        res_headers = waf_adresses.get(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, {})
+        if res_headers:
+            _set_headers(root_span, res_headers, kind="response")
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -287,10 +295,8 @@ def set_waf_address(address: str, value: Any) -> None:
         set_value(_WAF_ADDRESSES, address, waf_value)
     else:
         set_value(_WAF_ADDRESSES, address, value)
-    env = _get_asm_context()
-    if env and env.span:
-        root = env.span._local_root or env.span
-        root._set_ctx_item(address, value)
+    if address in (SPAN_DATA_NAMES.REQUEST_HTTP_IP, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE):
+        core.set_item(address, value)
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:
@@ -349,6 +355,16 @@ def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) ->
         logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
         report_error_on_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
         return None
+
+
+def call_waf_callback_no_instrumentation() -> None:
+    """call the waf once if it was not already called"""
+    if asm_config._asm_enabled:
+        env = _get_asm_context()
+        if env and not env.telemetry.triggered:
+            callback = env.callbacks.get(_WAF_CALL)
+            if callback:
+                callback()
 
 
 def set_ip(ip: Optional[str]) -> None:
@@ -582,6 +598,61 @@ def _on_block_decided(callback):
 def _get_headers_if_appsec():
     if asm_config._asm_enabled:
         return get_headers()
+
+
+## headers tags
+
+_COLLECTED_REQUEST_HEADERS_ASM_ENABLED = {
+    "accept",
+    "content-type",
+    "user-agent",
+    "x-amzn-trace-id",
+    "cloudfront-viewer-ja3-fingerprint",
+    "cf-ray",
+    "x-cloud-trace-context",
+    "x-appgw-trace-id",
+    "akamai-user-risk",
+    "x-sigsci-requestid",
+    "x-sigsci-tags",
+}
+
+_COLLECTED_REQUEST_HEADERS = {
+    "accept-encoding",
+    "accept-language",
+    "cf-connecting-ip",
+    "cf-connecting-ipv6",
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "fastly-client-ip",
+    "forwarded",
+    "forwarded-for",
+    "host",
+    "true-client-ip",
+    "via",
+    "x-client-ip",
+    "x-cluster-client-ip",
+    "x-forwarded",
+    "x-forwarded-for",
+    "x-real-ip",
+}
+
+_COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
+
+
+def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
+    for k in headers:
+        if isinstance(k, tuple):
+            key, value = k
+        else:
+            key, value = k, headers[k]
+        if isinstance(key, bytes):
+            key = key.decode()
+        if isinstance(value, bytes):
+            value = value.decode()
+        if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
+            # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
+            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def asm_listen():
