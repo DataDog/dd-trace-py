@@ -12,9 +12,8 @@ import vcr
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
-from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -175,15 +174,6 @@ def mock_tracer(crewai):
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(crewai, tracer=mock_tracer)
     yield mock_tracer
-
-
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.events = []
-
-    def enqueue(self, event):
-        self.events.append(event)
 
 
 @pytest.fixture
