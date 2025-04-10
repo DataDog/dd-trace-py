@@ -10,7 +10,6 @@ import vcr
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
@@ -192,10 +191,7 @@ def mock_tracer_chat_completions(agents, openai, mock_tracer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    dd_site = "datad0g.com"
-    api_key = "<not-a-real-key>"
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, dd_site)
-    yield TestLLMObsSpanWriter(dd_site, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
+    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
 
 
 @pytest.fixture

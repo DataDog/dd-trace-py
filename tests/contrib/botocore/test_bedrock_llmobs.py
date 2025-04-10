@@ -12,7 +12,6 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
@@ -25,9 +24,6 @@ from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-
-
-DATADOG_SITE = "datad0g.com"
 
 
 @pytest.fixture(scope="session")
@@ -89,9 +85,7 @@ def bedrock_client_proxy(boto3):
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, DATADOG_SITE)
-    api_key = "<not-a-real-key>"
-    yield TestLLMObsSpanWriter(DATADOG_SITE, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
+    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
 
 
 @pytest.fixture

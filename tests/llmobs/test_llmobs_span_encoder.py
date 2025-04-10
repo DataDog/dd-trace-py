@@ -2,21 +2,15 @@ import json
 
 import pytest
 
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _chat_completion_event_with_unserializable_field
 from tests.llmobs._utils import _completion_event
 
 
-DATADOG_SITE = "datad0g.com"
-API_KEY = "<test-key>"
-
-
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, DATADOG_SITE)
-    yield TestLLMObsSpanWriter(DATADOG_SITE, API_KEY, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
+    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
 
 
 def test_encode_span(llmobs_span_writer, mock_writer_logs):

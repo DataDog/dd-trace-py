@@ -10,14 +10,10 @@ import pytest
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-
-
-DATADOG_SITE = "datad0g.com"
 
 
 @pytest.fixture
@@ -42,9 +38,7 @@ def default_global_config():
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, DATADOG_SITE)
-    api_key = "<not-a-real-key>"
-    yield TestLLMObsSpanWriter(DATADOG_SITE, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
+    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
 
 
 @pytest.fixture

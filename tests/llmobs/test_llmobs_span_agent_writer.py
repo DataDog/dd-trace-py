@@ -13,24 +13,18 @@ from tests.llmobs._utils import _oversized_retrieval_event
 from tests.llmobs._utils import _oversized_workflow_event
 
 
-DATADOG_SITE = "datad0g.com"
 INTAKE_ENDPOINT = agent_config.trace_agent_url
 AGENT_PROXY_URL = "{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_SPAN_ENDPOINT)
-DD_API_KEY = "<not-a-real-key>"
 
 
 def test_writer_start(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1000, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1000, timeout=1, is_agentless=False)
     llmobs_span_writer.start()
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", AGENT_PROXY_URL)])
 
 
 def test_buffer_limit(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1000, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1000, timeout=1, is_agentless=False)
     for _ in range(1001):
         llmobs_span_writer.enqueue({})
     mock_writer_logs.warning.assert_called_with(
@@ -40,9 +34,7 @@ def test_buffer_limit(mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
 def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(mock_send_payload, mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=False)
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
@@ -62,9 +54,7 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(mock_send_pa
 
 @mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
 def test_truncating_oversized_events(mock_send_payload, mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1000, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=False)
     llmobs_span_writer.enqueue(_oversized_llm_event())
     llmobs_span_writer.enqueue(_oversized_retrieval_event())
     llmobs_span_writer.enqueue(_oversized_workflow_event())
@@ -79,9 +69,7 @@ def test_truncating_oversized_events(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
 def test_send_completion_event(mock_send_payload, mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=False)
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
@@ -89,9 +77,7 @@ def test_send_completion_event(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
 def test_send_chat_completion_event(mock_send_payload, mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=1, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=False)
     llmobs_span_writer.enqueue(_chat_completion_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
@@ -99,9 +85,7 @@ def test_send_chat_completion_event(mock_send_payload, mock_writer_logs):
 
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
 def test_send_timed_events(mock_send_payload, mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(
-        site=DATADOG_SITE, api_key=DD_API_KEY, interval=0.05, timeout=1, is_agentless=False
-    )
+    llmobs_span_writer = LLMObsSpanWriter(interval=0.01, timeout=1, is_agentless=False)
     llmobs_span_writer.start()
     mock_writer_logs.reset_mock()
 

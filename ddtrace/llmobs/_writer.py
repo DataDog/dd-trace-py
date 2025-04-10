@@ -14,6 +14,7 @@ except ImportError:
 import http.client as httplib
 
 import ddtrace
+from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -99,26 +100,26 @@ class BaseLLMObsWriter(PeriodicService):
 
     def __init__(
         self,
-        site: str,
-        api_key: str,
         interval: float,
         timeout: float,
+        site: str = "",
+        api_key: str = "",
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]]
-        self._buffer_size = 0
-        self._buffer_limit = 1000
-        self._timeout = timeout  # type: float
-        self._api_key = api_key or ""  # type: str
-        self._endpoint = ""  # type: str
-        self._site = site  # type: str
-        self._intake = ""  # type: str
-        self._headers = {"Content-Type": "application/json"}
-        self._agentless = is_agentless
-        self._agentless_url = _agentless_url
+        self._buffer: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
+        self._buffer_size: int = 0
+        self._buffer_limit: int = 1000
+        self._timeout: float = timeout
+        self._api_key: str = api_key or config._dd_api_key
+        self._endpoint: str = ""
+        self._site: str = site or config._dd_site
+        self._intake: str = ""
+        self._headers: Dict[str, str] = {"Content-Type": "application/json"}
+        self._agentless: bool = is_agentless
+        self._agentless_url: str = _agentless_url
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
         else:
@@ -258,18 +259,19 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
     def __init__(
         self,
-        site: str,
-        api_key: str,
         interval: float,
         timeout: float,
+        site: str = "",
+        api_key: str = "",
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
+        # TODO: NEED TO FIX TEST WRITER CLASSES
         super(LLMObsEvalMetricWriter, self).__init__(
-            site, api_key, interval, timeout, is_agentless=is_agentless, _agentless_url=_agentless_url
+            interval, timeout, site, api_key, is_agentless=is_agentless, _agentless_url=_agentless_url
         )
         if self._agentless:
-            self._intake = _agentless_url or AGENTLESS_EVAL_BASE_URL
+            self._intake = _agentless_url or "{}.{}".format(AGENTLESS_EVAL_BASE_URL, self._site)
             self._endpoint = AGENTLESS_EVAL_ENDPOINT
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_EVAL_SUBDOMAIN_HEADER_VALUE
@@ -289,18 +291,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
 
     def __init__(
         self,
-        site: str,
-        api_key: str,
         interval: float,
         timeout: float,
+        site: str = "",
+        api_key: str = "",
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
         super(LLMObsSpanWriter, self).__init__(
-            site, api_key, interval, timeout, is_agentless=is_agentless, _agentless_url=_agentless_url
+            interval, timeout, site, api_key, is_agentless=is_agentless, _agentless_url=_agentless_url
         )
         if self._agentless:
-            self._intake = _agentless_url or AGENTLESS_SPAN_BASE_URL
+            self._intake = _agentless_url or "{}.{}".format(AGENTLESS_SPAN_BASE_URL, self._site)
             self._endpoint = AGENTLESS_SPAN_ENDPOINT
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SPAN_SUBDOMAIN_HEADER_VALUE

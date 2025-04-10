@@ -41,6 +41,7 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
     )
 
 
+@pytest.mark.vcr_logs
 def test_evaluator_runner_periodic_enqueues_eval_metric(mock_llmobs_eval_metric_writer, active_evaluator_runner):
     active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     active_evaluator_runner.periodic()
@@ -57,6 +58,7 @@ def test_evaluator_runner_stopped_does_not_enqueue_metric(llmobs, mock_llmobs_ev
     assert mock_llmobs_eval_metric_writer.enqueue.call_count == 0
 
 
+@pytest.mark.vcr_logs
 def test_evaluator_runner_timed_enqueues_eval_metric(llmobs, mock_llmobs_eval_metric_writer, active_evaluator_runner):
     active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
 
@@ -95,7 +97,9 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "5"})
+    env.update(
+        {"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "0.01", "_DD_LLMOBS_WRITER_INTERVAL": "0.01"}
+    )
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace.llmobs import LLMObs
