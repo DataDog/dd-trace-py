@@ -1,13 +1,14 @@
-from ddtrace.llmobs._writer import LLMObsSpanWriter
 import pytest
+
 from ddtrace.contrib.internal.litellm.patch import patch
-from ddtrace.trace import Pin
 from ddtrace.contrib.internal.litellm.patch import unpatch
-from tests.utils import DummyTracer
-from tests.utils import override_global_config
-from tests.contrib.litellm.utils import get_request_vcr
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
+from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.trace import Pin
+from tests.contrib.litellm.utils import get_request_vcr
+from tests.utils import DummyTracer
+from tests.utils import override_global_config
 
 
 class TestLLMObsSpanWriter(LLMObsSpanWriter):

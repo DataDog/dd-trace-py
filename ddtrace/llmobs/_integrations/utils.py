@@ -10,15 +10,18 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 from urllib.parse import urlparse
+
+from ddtrace._trace.span import Span
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
-from ddtrace.internal import core
-from ddtrace.internal.utils.formats import format_trace_id
-
-from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
-from ddtrace._trace.span import Span
-from ddtrace.llmobs._constants import INPUT_MESSAGES, INPUT_TOKENS_METRIC_KEY, METADATA, OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr

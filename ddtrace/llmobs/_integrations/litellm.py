@@ -6,18 +6,18 @@ from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -77,14 +77,16 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         Span should be NOT submitted to LLMObs if:
             - base_url is not None: is a proxy request and we will capture the LLM request downstream
-            - non-streamed request and model provider is OpenAI/AzureOpenAI and the OpenAI integration is enabled: this request will be captured in the OpenAI integration instead
+            - non-streamed request and model provider is OpenAI/AzureOpenAI and the OpenAI integration
+                is enabled: this request will be captured in the OpenAI integration instead
         """
         base_url = kwargs.get("api_base", None)
         if base_url is not None:
             return False
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
-        # model provider is unknown until request completes; therefore, this is a best effort attempt to check if model provider is Open AI or Azure
+        # model provider is unknown until request completes; therefore, this is a best effort attempt to check
+        # if model provider is Open AI or Azure
         if (
             any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
             and not stream
