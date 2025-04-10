@@ -244,12 +244,15 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     if not mapping or not _DISTRIBUTIONS:
         return None
 
-    path = Path(filename) if isinstance(filename, str) else filename
-    root_module = _root_module(path.resolve())
+    try:
+        path = Path(filename) if isinstance(filename, str) else filename
+        root_module = _root_module(path.resolve())
 
-    if root_module in mapping:
-        return _DISTRIBUTIONS.get(mapping[root_module], None)
-    return None
+        if root_module in mapping:
+            return _DISTRIBUTIONS.get(mapping[root_module], None)
+        return None
+    except (ValueError, OSError):
+        return None
 
 
 @cached(maxsize=256)
