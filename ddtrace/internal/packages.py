@@ -51,12 +51,14 @@ def parse_git_metadata(project_urls: t.List[str]) -> t.Tuple[str, str]:
     return "", ""
 
 
-@callonce
 def parse_importlib_metadata():
     """parses importlib.metadata and populate distribution data structures to be used"""
     global _DISTRIBUTIONS
     global _PACKAGE_DISTRIBUTIONS
     global _ROOT_TO_PACKAGE
+
+    if _DISTRIBUTIONS or _PACKAGE_DISTRIBUTIONS or _ROOT_TO_PACKAGE:
+        return
 
     try:
         import importlib.metadata as importlib_metadata
