@@ -9,7 +9,7 @@ def test_get_distributions():
     """use pkg_resources to validate package names and versions returned by get_distributions()"""
     import pkg_resources
 
-    pkg_resources_ws = {pkg.project_name for pkg in pkg_resources.working_set}
+    pkg_resources_ws = {pkg.project_name.lower() for pkg in pkg_resources.working_set}
 
     importlib_pkgs = set()
     for pkg in get_distributions():
