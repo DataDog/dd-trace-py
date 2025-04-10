@@ -2,8 +2,8 @@ import sys
 
 import bm
 
+from ddtrace.internal.packages import _DISTRIBUTIONS  # noqa: F401
 from ddtrace.internal.packages import get_module_distribution_versions
-from ddtrace.internal.packages import _DISTRIBUTIONS
 from ddtrace.internal.telemetry.data import update_imported_dependencies
 
 
@@ -16,8 +16,7 @@ class PackagesUpdateImportedDependencies(bm.Scenario):
         if not use_cache:
             get_module_distribution_versions.cache_clear()
             # This will force the next call to parse_importlib_metadata to re-parse the metadata
-            _DISTRIBUTIONS = None
-
+            _DISTRIBUTIONS = None  # noqa: F811
 
     def run(self):
         # Clear any initial caches
