@@ -117,6 +117,10 @@ class Contrib_TestClass_For_Threats:
     # """
     #            )
 
+    def setup_method(self, method):
+        """called before each test method"""
+        _addresses_store.clear()
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
         # you can disable any test in a framework like that:
@@ -184,7 +188,6 @@ class Contrib_TestClass_For_Threats:
         assert (span_priority == 2) if asm_enabled and priority else (span_priority < 2)
 
     def test_querystrings(self, interface: Interface, root_span):
-        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/?a=1&b&c=d")
@@ -197,7 +200,6 @@ class Contrib_TestClass_For_Threats:
             ]
 
     def test_no_querystrings(self, interface: Interface, root_span):
-        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             response = interface.client.get("/")
@@ -277,7 +279,6 @@ class Contrib_TestClass_For_Threats:
         [({"mytestingcookie_key": "mytestingcookie_value"}, False), ({"attack": "1' or '1' = '1'"}, True)],
     )
     def test_request_cookies(self, interface: Interface, root_span, asm_enabled, cookies, attack):
-        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
             self.update_tracer(interface)
             response = interface.client.get("/", cookies=cookies)
@@ -322,7 +323,6 @@ class Contrib_TestClass_For_Threats:
         payload_struct,
         attack,
     ):
-        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
             payload = encode_payload(payload_struct)
@@ -369,7 +369,6 @@ class Contrib_TestClass_For_Threats:
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_request_path_params(self, interface: Interface, root_span, asm_enabled):
-        _addresses_store.clear()
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
