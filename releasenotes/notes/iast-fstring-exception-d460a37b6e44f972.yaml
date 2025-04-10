@@ -1,7 +1,4 @@
 ---
 fixes:
   - |
-    Code Security: This fixes a bug with f-strings when IAST is enabled: when building an invalid string that 
-    should raise an "Unknown format code X" exception, the error wasn't being triggered in certain cases.
-
-
+    IAST: Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.
