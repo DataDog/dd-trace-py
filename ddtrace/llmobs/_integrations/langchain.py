@@ -125,7 +125,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
-        setattr(parent_instance, "_datadog_spans", spans)
+
+        try:
+            setattr(parent_instance, "_datadog_spans", spans)
+        except Exception:
+            parent_instance.__dict__["_datadog_spans"] = spans
 
     def _llmobs_set_tags(
         self,
@@ -715,7 +719,7 @@ class LangChainIntegration(BaseLLMIntegration):
         run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
         response_metadata = getattr(ai_message, "response_metadata", {}) or {}
-        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {}) or {}
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
