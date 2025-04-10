@@ -1176,3 +1176,18 @@ def test_django_xss_secure(client, test_spans, tracer):
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
+
+
+def test_django_ospathjoin_propagation(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/propagation/ospathjoin/?input=test/propagation/errors",
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"OK:True:False:False", response.content
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None

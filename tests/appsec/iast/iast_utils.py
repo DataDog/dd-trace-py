@@ -1,9 +1,16 @@
 import importlib
 import re
 import types
+from typing import Any
+from typing import List
 from typing import Optional
 from typing import Text
+from typing import Union
 import zlib
+
+from hypothesis.strategies import binary
+from hypothesis.strategies import builds
+from hypothesis.strategies import text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
@@ -60,3 +67,30 @@ def _iast_patched_module(module_name, new_module_object=False):
     else:
         raise IastTestException(f"IAST Test Error: module {module_name} was excluded: {res}")
     return module
+
+
+TEXT_TYPE = Union[str, bytes, bytearray]
+
+
+class CustomStr(str):
+    pass
+
+
+class CustomBytes(bytes):
+    pass
+
+
+class CustomBytearray(bytearray):
+    pass
+
+
+non_empty_text = text().filter(lambda x: x not in ("", "0", "1", "2"))
+
+string_strategies: List[Any] = [
+    text(),  # regular str
+    binary(),  # regular bytes
+    builds(bytearray, binary()),  # regular bytearray
+    builds(CustomStr, text()),  # custom str subclass
+    builds(CustomBytes, binary()),  # custom bytes subclass
+    builds(CustomBytearray, binary()),  # custom bytearray subclass
+]
