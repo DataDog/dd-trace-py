@@ -43,8 +43,7 @@ def test_get_distributions():
     for pkg in get_distributions():
         assert pkg.name
         assert pkg.version
-        for p in pkg.paths:
-            assert os.path.exists(p)
+        assert os.path.exists(pkg.path)
         # The package name in typing_extensions-4.x.x.dist-info/METADATA is set to `typing_extensions`
         # this is inconsistent with the package name found in pkg_resources. The block below corrects this.
         # The correct package name is typing-extensions.
