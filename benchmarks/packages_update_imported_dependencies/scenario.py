@@ -3,7 +3,7 @@ import sys
 import bm
 
 from ddtrace.internal.packages import get_module_distribution_versions
-from ddtrace.internal.packages import get_package_distributions
+from ddtrace.internal.packages import parse_importlib_metadata
 from ddtrace.internal.telemetry.data import update_imported_dependencies
 
 
@@ -15,10 +15,8 @@ class PackagesUpdateImportedDependencies(bm.Scenario):
     def clear_caches(self, use_cache: bool = False):
         if not use_cache:
             get_module_distribution_versions.cache_clear()
-            if hasattr(get_package_distributions, "cache_clear"):
-                get_package_distributions.cache_clear()
-            elif hasattr(get_package_distributions, "__callonce_result__"):
-                del get_package_distributions.__callonce_result__
+            if hasattr(parse_importlib_metadata, "cache_clear"):
+                parse_importlib_metadata.cache_clear()
 
     def run(self):
         # Clear any initial caches
