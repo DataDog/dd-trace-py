@@ -24,11 +24,9 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import (
-    get_llmobs_metrics_tags,
-    openai_set_meta_tags_from_chat,
-    openai_set_meta_tags_from_completion,
-)
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document

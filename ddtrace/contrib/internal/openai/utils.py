@@ -6,10 +6,8 @@ from typing import Dict
 from typing import Generator
 from typing import List
 
-from ddtrace.llmobs._integrations.utils import (
-    openai_construct_completion_from_streamed_chunks,
-    openai_construct_message_from_streamed_chunks,
-)
+from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 import wrapt
 
 from ddtrace.internal.logger import get_logger

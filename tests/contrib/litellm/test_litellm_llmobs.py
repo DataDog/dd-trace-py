@@ -2,7 +2,11 @@ from ddtrace._trace.pin import Pin
 from ddtrace.llmobs._llmobs import LLMObs
 import pytest
 
-from tests.contrib.litellm.utils import async_consume_stream, get_cassette_name, consume_stream, parse_response, tools
+from tests.contrib.litellm.utils import async_consume_stream
+from tests.contrib.litellm.utils import get_cassette_name
+from tests.contrib.litellm.utils import consume_stream
+from tests.contrib.litellm.utils import parse_response
+from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.utils import DummyTracer
 

@@ -52,7 +52,6 @@ def mock_tracer(litellm, ddtrace_global_config):
     pin = Pin.get_from(litellm)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(litellm, tracer=mock_tracer)
-    pin.tracer.configure()
 
     if ddtrace_global_config.get("_llmobs_enabled", False):
         # Have to disable and re-enable LLMObs to use the mock tracer.

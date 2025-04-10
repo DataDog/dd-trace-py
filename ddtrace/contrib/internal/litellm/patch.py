@@ -14,13 +14,7 @@ from ddtrace.trace import Pin
 from ddtrace.internal.utils import get_argument_value
 
 
-config._add(
-    "litellm",
-    {
-        "span_prompt_completion_sample_rate": float(os.getenv("DD_LITELLM_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)),
-        "span_char_limit": int(os.getenv("DD_LITELLM_SPAN_CHAR_LIMIT", 128)),
-    },
-)
+config._add("litellm", {})
 
 
 def get_version() -> str:
@@ -66,7 +60,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMStream(resp, integration, span, args, kwargs, is_completion)
+            return TracedLiteLLMStream(resp, integration, span, kwargs, is_completion)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -99,7 +93,7 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMAsyncStream(resp, integration, span, args, kwargs, is_completion)
+            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs, is_completion)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())

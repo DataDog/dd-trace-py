@@ -2,21 +2,19 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import ddtrace
-from ddtrace.llmobs._constants import (
-    INPUT_TOKENS_METRIC_KEY,
-    METRICS,
-    OUTPUT_TOKENS_METRIC_KEY,
-    TOTAL_TOKENS_METRIC_KEY,
-)
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._integrations.utils import (
-    openai_set_meta_tags_from_chat,
-    openai_set_meta_tags_from_completion,
-)
+from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -25,7 +23,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
     # maps requested model name to parsed model name and provider
-    _model_map = {}
+    _model_map: Dict[str, Tuple[str, str]] = {}
 
     def _set_base_span_tags(
         self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: Dict[str, Any]
@@ -44,7 +42,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = span.get_tag("litellm.request.model")
-        # get resolved model name and provider
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
         # use Open AI helpers since response format will match Open AI
@@ -76,8 +73,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def should_submit_to_llmobs(self, model: Optional[str] = None, kwargs: Dict[str, Any] = None) -> bool:
         """
         Span should be NOT submitted to LLMObs if:
-            - base_url is not None
-            - model provider is Open AI or Azure AND request is not being streamed AND Open AI integration is enabled
+            - base_url is not None: is a proxy request and we will capture the LLM request downstream
+            - non-streamed request and model provider is OpenAI/AzureOpenAI and the OpenAI integration is enabled: this request will be captured in the OpenAI integration instead
         """
         base_url = kwargs.get("api_base", None)
         if base_url is not None:
@@ -86,9 +83,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_lower = model.lower() if model else ""
         # model provider is unknown until request completes; therefore, this is a best effort attempt to check if model provider is Open AI or Azure
         if (
-            ("gpt" in model_lower or "openai" in model_lower or "azure" in model_lower)
+            any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
             and not stream
-            and "openai" in ddtrace._monkey._get_patched_modules()
+            and LLMObs._integration_is_enabled("openai")
         ):
             return False
         return True

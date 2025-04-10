@@ -13,12 +13,11 @@ log = get_logger(__name__)
 
 
 class BaseTracedLiteLLMStream:
-    def __init__(self, generator, integration, span, args, kwargs, is_completion=False):
+    def __init__(self, generator, integration, span, kwargs, is_completion=False):
         n = kwargs.get("n", 1) or 1
         self._generator = generator
         self._dd_integration = integration
         self._dd_span = span
-        self._args = args
         self._kwargs = kwargs
         self._streamed_chunks = [[] for _ in range(n)]
         self._is_completion = is_completion
