@@ -95,6 +95,66 @@ def test_otel_span_kind(oteltracer):
         pass
 
 
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize("span_kind", [OtelSpanKind.CLIENT, OtelSpanKind.SERVER])
+def test_otel_http_span_operation_name(oteltracer, span_kind):
+    with oteltracer.start_span("otel-http", kind=span_kind) as span:
+        span.set_attribute("http.request.method", "GET")
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize(
+    "span_kind,operation",
+    [
+        (OtelSpanKind.CONSUMER, "receive"),
+        (OtelSpanKind.SERVER, "receive"),
+        (OtelSpanKind.PRODUCER, "send"),
+        (OtelSpanKind.CLIENT, "send"),
+    ],
+)
+def test_otel_messaging_span_operation_name(oteltracer, span_kind, operation):
+    with oteltracer.start_span("otel-messaging", kind=span_kind) as span:
+        span.set_attribute("messaging.system", "aws_sqs")
+        span.set_attribute("messaging.operation", operation)
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize(
+    "span_kind,attributes",
+    [
+        (OtelSpanKind.CLIENT, {"rpc.system": "aws-api"}),
+        (OtelSpanKind.CLIENT, {"rpc.system": "aws-api", "rpc.service": "myservice.EchoService"}),
+        (OtelSpanKind.CLIENT, {"rpc.system": "grpc"}),
+        (OtelSpanKind.SERVER, {"rpc.system": "grpc"}),
+    ],
+)
+def test_otel_rpc_span_operation_name(oteltracer, span_kind, attributes):
+    with oteltracer.start_span("otel-rpc", kind=span_kind, attributes=attributes):
+        pass
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize("span_kind", [OtelSpanKind.CLIENT, OtelSpanKind.SERVER])
+def test_otel_faas_span_operation_name(oteltracer, span_kind):
+    with oteltracer.start_span("otel-faas", kind=span_kind) as span:
+        span.set_attribute("faas.invoked_provider", "aws")
+        span.set_attribute("faas.invoked_name", "my-function")
+        span.set_attribute("faas.trigger", "http")
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+def test_otel_graphql_span_operation_name(oteltracer):
+    with oteltracer.start_span("otel-graphql", kind=OtelSpanKind.SERVER) as span:
+        span.set_attribute("graphql.operation.type", "query")
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.parametrize("span_kind", [OtelSpanKind.CLIENT, OtelSpanKind.SERVER])
+def test_otel_network_span_operation_name(oteltracer, span_kind):
+    with oteltracer.start_span("otel-network", kind=span_kind) as span:
+        span.set_attribute("network.protocol.name", "http")
+
+
 def test_otel_span_status_with_status_obj(oteltracer, caplog):
     with oteltracer.start_span("otel-unset") as unsetspan:
         unsetspan.set_status(OtelStatus(OtelStatusCode.UNSET, "is unset"))
