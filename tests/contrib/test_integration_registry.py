@@ -1,12 +1,12 @@
 import json
 import pathlib
+import subprocess
 import sys
 
 import jsonschema
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 import pytest
-import subprocess
 import yaml
 
 
@@ -158,7 +158,10 @@ def test_external_package_requirements(registry_data: list[dict]):
             for field in version_fields_to_check:
                 if field not in entry:
                     # This might be too strict if the source CSV legitimately lacks data for some integrations
-                    errors.append(f"External integration '{name}' is missing the field '{field}' (Expected even if value is 'N/A').")
+                    errors.append(
+                        f"External integration '{name}' is missing the field '{field}' (Expected even if value"
+                        + " is 'N/A')."
+                    )
 
             # 3. Check version format if fields *do* exist
             for field in version_fields_to_check:
@@ -168,9 +171,12 @@ def test_external_package_requirements(registry_data: list[dict]):
                     if version_str != "N/A":
                         try:
                             # Ensure it's parsable as per SemVer
-                            v = parse_version(version_str)
+                            parse_version(version_str)
                         except InvalidVersion:
-                            errors.append(f"External integration '{name}' has invalid SemVer format for '{field}': '{version_str}'.")
+                            errors.append(
+                                f"External integration '{name}' has invalid SemVer format for '{field}': "
+                                + f"'{version_str}'."
+                            )
 
         elif is_external is False:
             # Check that non-external packages *don't* have these fields
@@ -203,12 +209,18 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                 continue
 
             if not isinstance(dependency_names, list):
-                errors.append(f"External integration '{integration_name}' has invalid dependency_name (not a list): {dependency_names}")
+                errors.append(
+                    f"External integration '{integration_name}' has invalid dependency_name (not a list): "
+                    + f"{dependency_names}"
+                )
                 continue
 
             for dep_name in dependency_names:
                 if not isinstance(dep_name, str) or not dep_name:
-                    errors.append(f"External integration '{integration_name}' has invalid item in dependency_name list: {dep_name}")
+                    errors.append(
+                        f"External integration '{integration_name}' has invalid item in dependency_name list: "
+                        + f"{dep_name}"
+                    )
                     continue
 
                 if dep_name in checked_packages:
@@ -217,13 +229,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
 
                 command = pip_command + ["index", "versions", dep_name]
                 try:
-                    result = subprocess.run(
-                        command,
-                        capture_output=True,
-                        text=True,
-                        check=False, 
-                        timeout=30
-                    )
+                    result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
 
                     if result.returncode != 0:
                         error_detail = f"Return Code: {result.returncode}"
@@ -236,10 +242,17 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                         )
 
                 except subprocess.TimeoutExpired:
-                    errors.append(f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI.")
+                    errors.append(
+                        f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI."
+                    )
                 except FileNotFoundError:
-                    pytest.fail(f"Could not execute pip command. Ensure Python environment is correctly set up. Command: {' '.join(command)}")
+                    pytest.fail(
+                        "Could not execute pip command. Ensure Python environment is correctly set up. Command: "
+                        + f"{' '.join(command)}"
+                    )
                 except Exception as e:
-                    errors.append(f"Integration '{integration_name}': Unexpected error checking dependency '{dep_name}': {e}")
+                    errors.append(
+                        f"Integration '{integration_name}': Unexpected error checking dependency '{dep_name}': {e}"
+                    )
 
     assert not errors, "\n".join(errors)

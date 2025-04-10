@@ -19,27 +19,23 @@ def format_yaml_with_newlines(yaml_path: pathlib.Path):
     print(f"Formatting YAML file: {yaml_path}")
     if not yaml_path.is_file():
         print(f"  Error: Cannot format - file not found: {yaml_path}", file=sys.stderr)
-        return False # Indicate failure
-
+        return False  # Indicate failure
 
     try:
-        with open(yaml_path, 'r', encoding='utf-8') as infile:
+        with open(yaml_path, "r", encoding="utf-8") as infile:
             input_lines = infile.readlines()
     except IOError as e:
         print(f"  Error reading {yaml_path} for formatting: {e}", file=sys.stderr)
-        return False # Indicate failure
-
+        return False  # Indicate failure
 
     output_lines = []
     found_first_integration = False
 
-
     for line in input_lines:
         # Check if the line marks the beginning of a top-level integration item
         # by checking if the stripped line starts with '- integration_name:'
-        stripped_line = line.lstrip() # Remove leading whitespace only
+        stripped_line = line.lstrip()  # Remove leading whitespace only
         is_integration_start = stripped_line.startswith(INTEGRATION_START_KEY)
-
 
         if is_integration_start:
             if found_first_integration:
@@ -49,18 +45,16 @@ def format_yaml_with_newlines(yaml_path: pathlib.Path):
             else:
                 found_first_integration = True
 
-
-        output_lines.append(line) # Preserve original line ending
-
+        output_lines.append(line)  # Preserve original line ending
 
     try:
-        with open(yaml_path, 'w', encoding='utf-8') as outfile:
+        with open(yaml_path, "w", encoding="utf-8") as outfile:
             outfile.writelines(output_lines)
         print(f"Successfully applied formatting to {yaml_path.name}")
         return True
     except IOError as e:
         print(f"  Error writing formatted file {yaml_path}: {e}", file=sys.stderr)
-        return False 
+        return False
 
 
 if __name__ == "__main__":

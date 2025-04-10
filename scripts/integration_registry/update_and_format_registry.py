@@ -12,6 +12,7 @@ import pathlib
 import subprocess
 import sys
 
+
 # --- Configuration ---
 # Assuming this script is in ./scripts/
 SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
@@ -23,6 +24,7 @@ GENERATE_TABLE_SCRIPT = PROJECT_ROOT / "scripts" / "generate_table.py"
 UPDATE_REGISTRY_SCRIPT = PROJECT_ROOT / "scripts" / "integration_registry" / "_update_integration_registry_versions.py"
 
 # --- End Configuration ---
+
 
 def run_script(script_path: pathlib.Path, *args: str) -> bool:
     """Runs a python script and checks for errors."""
@@ -38,31 +40,31 @@ def run_script(script_path: pathlib.Path, *args: str) -> bool:
         # Run from the project root directory
         result = subprocess.run(
             command,
-            check=True,         # Raise exception on non-zero exit code
-            capture_output=True,# Capture stdout/stderr
-            text=True,          # Decode output as text
-            cwd=PROJECT_ROOT
+            check=True,  # Raise exception on non-zero exit code
+            capture_output=True,  # Capture stdout/stderr
+            text=True,  # Decode output as text
+            cwd=PROJECT_ROOT,
         )
         print(f"--- {script_name} Output ---")
         print(result.stdout)
         if result.stderr:
-             print(f"--- {script_name} Stderr ---", file=sys.stderr)
-             print(result.stderr, file=sys.stderr)
+            print(f"--- {script_name} Stderr ---", file=sys.stderr)
+            print(result.stderr, file=sys.stderr)
         print(f"--- {script_name} Succeeded ---")
         return True
     except FileNotFoundError:
-         print(f"Error: Could not execute script. '{sys.executable}' or '{script_path}' not found?", file=sys.stderr)
-         return False
+        print(f"Error: Could not execute script. '{sys.executable}' or '{script_path}' not found?", file=sys.stderr)
+        return False
     except subprocess.CalledProcessError as e:
-         print(f"Error: {script_name} failed with exit code {e.returncode}", file=sys.stderr)
-         print("--- Stdout ---", file=sys.stderr)
-         print(e.stdout, file=sys.stderr)
-         print("--- Stderr ---", file=sys.stderr)
-         print(e.stderr, file=sys.stderr)
-         return False
+        print(f"Error: {script_name} failed with exit code {e.returncode}", file=sys.stderr)
+        print("--- Stdout ---", file=sys.stderr)
+        print(e.stdout, file=sys.stderr)
+        print("--- Stderr ---", file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+        return False
     except Exception as e:
-         print(f"Error running {script_name}: {e}", file=sys.stderr)
-         return False
+        print(f"Error running {script_name}: {e}", file=sys.stderr)
+        return False
 
 
 def main():
@@ -83,7 +85,6 @@ def main():
     else:
         print(f"\nWarning: Script {GENERATE_TABLE_SCRIPT} not found. Skipping table generation.")
         print("Ensure supported_versions_table.csv is up-to-date manually if needed.")
-
 
     # Step 3: Run update_integration_registry_versions.py
     if not run_script(UPDATE_REGISTRY_SCRIPT):
