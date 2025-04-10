@@ -8,7 +8,6 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
-from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
@@ -383,12 +382,7 @@ def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
     tracer = DummyTracer()
     # get processor
-    for aggregator in tracer._deferred_processors:
-        if type(aggregator) is SpanAggregator:
-            for processor in aggregator._trace_processors:
-                if type(processor) is TraceSamplingProcessor:
-                    sampling_processor = processor
-
+    sampling_processor = tracer._span_aggregator.sampling_processor
     assert sampling_processor.sampler is tracer._sampler
 
     new_sampler = mock.Mock()
@@ -401,9 +395,8 @@ def test_single_span_sampling_processor():
     """Test that single span sampling tags are applied to spans that should get sampled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    sampling_processor = TraceSamplingProcessor(
-        False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False
-    )
+    sampling_processor = TraceSamplingProcessor(False, rules, False)
+    sampling_processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, sampling_processor)
 
@@ -418,7 +411,8 @@ def test_single_span_sampling_processor_match_second_rule():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service2", name="test_name2", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -435,7 +429,8 @@ def test_single_span_sampling_processor_rule_order_drop():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -452,7 +447,8 @@ def test_single_span_sampling_processor_rule_order_keep():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -487,7 +483,8 @@ def test_single_span_sampling_processor_w_tracer_sampling(
         service="test_service", name="test_name", sample_rate=span_sample_rate_rule, max_per_second=-1
     )
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -509,7 +506,8 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     """
     rule_1 = SpanSamplingRule(name="child", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
     root = tracer.trace("root")
@@ -549,7 +547,8 @@ def test_single_span_sampling_processor_w_stats_computation():
     """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
+    processor = TraceSamplingProcessor(False, rules, False)
+    processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer = DummyTracer()
         switch_out_trace_sampling_processor(tracer, processor)
@@ -580,15 +579,7 @@ def assert_span_sampling_decision_tags(
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
-    for aggregator in tracer._deferred_processors:
-        if type(aggregator) is SpanAggregator:
-            i = 0
-            while i < len(aggregator._trace_processors):
-                processor = aggregator._trace_processors[i]
-                if type(processor) is TraceSamplingProcessor:
-                    aggregator._trace_processors[i] = sampling_processor
-                    break
-                i += 1
+    tracer._span_aggregator.sampling_processor = sampling_processor
 
 
 def test_endpoint_call_counter_processor():
