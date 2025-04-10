@@ -438,7 +438,7 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
     The resulting message dictionary is of form:
     {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message = {"content": "", "tool_calls": []}
+    message: Dict[str, Any] = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if getattr(chunk, "usage", None):
             message["usage"] = chunk.usage
