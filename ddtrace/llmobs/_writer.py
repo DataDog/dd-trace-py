@@ -266,7 +266,6 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         is_agentless: bool = True,
         _agentless_url: str = "",
     ) -> None:
-        # TODO: NEED TO FIX TEST WRITER CLASSES
         super(LLMObsEvalMetricWriter, self).__init__(
             interval, timeout, site, api_key, is_agentless=is_agentless, _agentless_url=_agentless_url
         )

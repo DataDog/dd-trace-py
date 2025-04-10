@@ -200,10 +200,7 @@ def crewai_llmobs(mock_tracer, llmobs_span_writer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    dd_site = "datad0g.com"
-    api_key = "<not-a-real-key>"
-    agentless_url = "{}.{}".format(AGENTLESS_SPAN_BASE_URL, dd_site)
-    yield TestLLMObsSpanWriter(dd_site, api_key, 1.0, 5.0, is_agentless=True, _agentless_url=agentless_url)
+    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
 
 
 @pytest.fixture

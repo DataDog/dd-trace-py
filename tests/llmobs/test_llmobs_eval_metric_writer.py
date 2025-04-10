@@ -171,7 +171,7 @@ ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_eval_metric_writer.send_sc
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-    interval=0.01, timeout=1, site="datad0g.com", api_key="<not-a-real-key>", is_agentless=False
+    interval=0.01, timeout=1, site="datad0g.com", api_key="<not-a-real-key>", is_agentless=True
 )
 llmobs_eval_metric_writer.start()
 llmobs_eval_metric_writer.enqueue(_score_metric_event())
