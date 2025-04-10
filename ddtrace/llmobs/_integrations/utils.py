@@ -433,7 +433,7 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
 
 
-def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
     {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}

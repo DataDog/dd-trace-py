@@ -53,7 +53,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
         func.__name__,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
+        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None
@@ -86,7 +86,7 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
         func.__name__,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(model, kwargs),
+        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None

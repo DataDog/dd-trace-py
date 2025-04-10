@@ -77,7 +77,6 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-
     def test_completion_with_tools(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
         if stream and n > 1:
             pytest.skip(
@@ -202,9 +201,7 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_integrations_enabled=True)])
-    def test_completion_integrations_enabled(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
-    ):
+    def test_completion_integrations_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             import openai
 
@@ -254,9 +251,7 @@ class TestLLMObsLiteLLM:
         )
         assert llmobs_events[0] == expected_event
 
-    def test_completion_proxy(
-        self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n
-    ):
+    def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
