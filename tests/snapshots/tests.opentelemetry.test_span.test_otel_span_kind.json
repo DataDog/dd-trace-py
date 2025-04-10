@@ -1,6 +1,6 @@
 [[
   {
-    "name": "server.request",
+    "name": "client.request",
     "service": "tests.opentelemetry",
     "resource": "otel-client",
     "trace_id": 0,
