@@ -1,5 +1,6 @@
 """ This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
 """
+import copy
 import os
 import re
 import subprocess  # nosec
@@ -7,6 +8,7 @@ import subprocess  # nosec
 from flask import Flask
 from flask import Response
 from flask import request
+from wrapt import FunctionWrapper
 
 
 import ddtrace.auto  # noqa: F401  # isort: skip
@@ -978,6 +980,12 @@ def iast_ast_patching_non_re_search():
     except Exception as e:
         print(e)
     return resp
+
+
+@app.route("/common-modules-patch-read", methods=["GET"])
+def test_flask_common_modules_patch_read():
+    copy_open = copy.deepcopy(open)
+    return Response(f"OK: {isinstance(copy_open, FunctionWrapper)}")
 
 
 if __name__ == "__main__":
