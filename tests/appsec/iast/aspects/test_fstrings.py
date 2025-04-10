@@ -1,3 +1,5 @@
+import sys
+
 from hypothesis import given
 from hypothesis.strategies import builds
 from hypothesis.strategies import integers
@@ -87,11 +89,18 @@ def test_fstring_fill_spaces_integers_unkwow_format(text, spec):
 def test_fstring_fill_spaces_integers_invalid_format(text, spec):
     with pytest.raises(ValueError) as excinfo:
         f"{text:{spec}}bar"
-    assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
+    if sys.version_info >= (3, 11):
+        assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
+    else:
+        assert str(excinfo.value) == "Invalid format specifier"
 
     with pytest.raises(ValueError) as excinfo:
         mod_py3.do_fmt_value(text, spec)
-    assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
+
+    if sys.version_info >= (3, 11):
+        assert str(excinfo.value) == "Invalid format specifier '!s' for object of type 'int'"
+    else:
+        assert str(excinfo.value) == "Invalid format specifier"
 
 
 @given(non_empty_text)

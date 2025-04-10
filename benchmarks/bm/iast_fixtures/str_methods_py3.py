@@ -3,7 +3,6 @@ import re
 from typing import Any
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 
 COMPILED_RE = re.compile(
@@ -97,7 +96,7 @@ class URLPattern:
     def _join_route(self, current_route: str, sub_match_route: str) -> str:
         return "".join([current_route, sub_match_route])
 
-    def match(self, path: str) -> Optional[Tuple[str, str, str]] | bool:
+    def match(self, path: str):
         global COUNTER
         COUNTER = COUNTER + 1
         if COUNTER > 4:
