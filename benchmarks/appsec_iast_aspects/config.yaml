@@ -146,142 +146,6 @@ modulo_noaspect:
   <<: *modulo_aspect
   function_name: "modulo_noaspect"
 
-ospathbasename_aspect: &ospathbasename_aspect
-  warmups: 1
-  function_name: "iast_ospathbasename_aspect"
-
-ospathbasename_noaspect:
-  <<: *ospathbasename_aspect
-  function_name: "ospathbasename_noaspect"
-
-ospathdirname_aspect: &ospathdirname_aspect
-  warmups: 1
-  function_name: "iast_ospathdirname_aspect"
-
-ospathdirname_noaspect:
-  <<: *ospathdirname_aspect
-  function_name: "ospathdirname_noaspect"
-
-ospathjoin_aspect: &ospathjoin_aspect
-  warmups: 1
-  function_name: "iast_ospathjoin_aspect"
-
-ospathjoin_noaspect:
-  <<: *ospathjoin_aspect
-  function_name: "ospathjoin_noaspect"
-
-ospathnormcase_aspect: &ospathnormcase_aspect
-  warmups: 1
-  function_name: "iast_ospathnormcase_aspect"
-
-ospathnormcase_noaspect:
-  <<: *ospathnormcase_aspect
-  function_name: "ospathnormcase_noaspect"
-
-ospathsplit_aspect: &ospathsplit_aspect
-  warmups: 1
-  function_name: "iast_ospathsplit_aspect"
-
-ospathsplit_noaspect:
-  <<: *ospathsplit_aspect
-  function_name: "ospathsplit_noaspect"
-
-ospathsplitdrive_aspect: &ospathsplitdrive_aspect
-  warmups: 1
-  function_name: "iast_ospathsplitdrive_aspect"
-
-ospathsplitdrive_noaspect:
-  <<: *ospathsplitdrive_aspect
-  function_name: "ospathsplitdrive_noaspect"
-
-ospathsplitext_aspect: &ospathsplitext_aspect
-  warmups: 1
-  function_name: "iast_ospathsplitext_aspect"
-
-ospathsplitext_noaspect:
-  <<: *ospathsplitext_aspect
-  function_name: "ospathsplitext_noaspect"
-
-re_expand_aspect: &re_expand_aspect
-  warmups: 1
-  function_name: "iast_re_expand_aspect"
-
-re_expand_noaspect:
-  <<: *re_expand_aspect
-  function_name: "re_expand_noaspect"
-
-re_findall_aspect: &re_findall_aspect
-  warmups: 1
-  function_name: "iast_re_findall_aspect"
-
-re_findall_noaspect:
-  <<: *re_findall_aspect
-  function_name: "re_findall_noaspect"
-
-re_finditer_aspect: &re_finditer_aspect
-  warmups: 1
-  function_name: "iast_re_finditer_aspect"
-
-re_finditer_noaspect:
-  <<: *re_finditer_aspect
-  function_name: "re_finditer_noaspect"
-
-re_fullmatch_aspect: &re_fullmatch_aspect
-  warmups: 1
-  function_name: "iast_re_fullmatch_aspect"
-
-re_fullmatch_noaspect:
-  <<: *re_fullmatch_aspect
-  function_name: "re_fullmatch_noaspect"
-
-re_group_aspect: &re_group_aspect
-  warmups: 1
-  function_name: "iast_re_group_aspect"
-
-re_group_noaspect:
-  <<: *re_group_aspect
-  function_name: "re_group_noaspect"
-
-re_groups_aspect: &re_groups_aspect
-  warmups: 1
-  function_name: "iast_re_groups_aspect"
-
-re_groups_noaspect:
-  <<: *re_groups_aspect
-  function_name: "re_groups_noaspect"
-
-re_match_aspect: &re_match_aspect
-  warmups: 1
-  function_name: "iast_re_match_aspect"
-
-re_match_noaspect:
-  <<: *re_match_aspect
-  function_name: "re_match_noaspect"
-
-re_search_aspect: &re_search_aspect
-  warmups: 1
-  function_name: "iast_re_search_aspect"
-
-re_search_noaspect:
-  <<: *re_search_aspect
-  function_name: "re_search_noaspect"
-
-re_sub_aspect: &re_sub_aspect
-  warmups: 1
-  function_name: "iast_re_sub_aspect"
-
-re_sub_noaspect:
-  <<: *re_sub_aspect
-  function_name: "re_sub_noaspect"
-
-re_subn_aspect: &re_subn_aspect
-  warmups: 1
-  function_name: "iast_re_subn_aspect"
-
-re_subn_noaspect:
-  <<: *re_subn_aspect
-  function_name: "re_subn_noaspect"
-
 replace_aspect: &replace_aspect
   warmups: 1
   function_name: "iast_replace_aspect"
@@ -297,15 +161,6 @@ repr_aspect: &repr_aspect
 repr_noaspect:
   <<: *repr_aspect
   function_name: "repr_noaspect"
-
-rsplit_aspect: &rsplit_aspect
-  warmups: 1
-  function_name: "iast_rsplit_aspect"
-
-rsplit_noaspect:
-  <<: *rsplit_aspect
-  function_name: "rsplit_noaspect"
-
 slice_aspect: &slice_aspect
   warmups: 1
   function_name: "iast_slice_aspect"
@@ -313,22 +168,6 @@ slice_aspect: &slice_aspect
 slice_noaspect:
   <<: *slice_aspect
   function_name: "slice_noaspect"
-
-split_aspect: &split_aspect
-  warmups: 1
-  function_name: "iast_split_aspect"
-
-split_noaspect:
-  <<: *split_aspect
-  function_name: "split_noaspect"
-
-splitlines_aspect: &splitlines_aspect
-  warmups: 1
-  function_name: "iast_splitlines_aspect"
-
-splitlines_noaspect:
-  <<: *splitlines_aspect
-  function_name: "splitlines_noaspect"
 
 stringio_aspect: &stringio_aspect
   warmups: 1

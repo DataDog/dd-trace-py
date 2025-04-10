@@ -56,7 +56,7 @@ def aspect_function(internal_loop, tainted):
 
 
 def new_request(enable_propagation):
-    tainted = b"my_string"
+    tainted = "my_string"
 
     if enable_propagation:
         tainted = taint_pyobject(tainted, source_name="path", source_value=tainted, source_origin=OriginType.PATH)
