@@ -16,9 +16,9 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tain
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
-from tests.appsec.iast.aspects.aspect_utils import string_strategies
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import string_strategies
 from tests.utils import override_env
 from tests.utils import override_global_config
 

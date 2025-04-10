@@ -3,11 +3,6 @@ from typing import Any
 from typing import List
 from typing import NamedTuple
 from typing import Optional
-from typing import Union
-
-from hypothesis.strategies import binary
-from hypothesis.strategies import builds
-from hypothesis.strategies import text
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
@@ -15,32 +10,8 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+from tests.appsec.iast.iast_utils import TEXT_TYPE
 from tests.appsec.iast.iast_utils import _iast_patched_module
-
-
-TEXT_TYPE = Union[str, bytes, bytearray]
-
-
-class CustomStr(str):
-    pass
-
-
-class CustomBytes(bytes):
-    pass
-
-
-class CustomBytearray(bytearray):
-    pass
-
-
-string_strategies: List[Any] = [
-    text(),  # regular str
-    binary(),  # regular bytes
-    builds(bytearray, binary()),  # regular bytearray
-    builds(CustomStr, text()),  # custom str subclass
-    builds(CustomBytes, binary()),  # custom bytes subclass
-    builds(CustomBytearray, binary()),  # custom bytearray subclass
-]
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")

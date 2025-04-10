@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.internal.logger import get_logger
@@ -101,7 +102,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
             if command.pre:  # first processing of the object
                 if not command.obj:
                     command.store(command.obj)
-                elif isinstance(command.obj, (str, bytes, bytearray)):
+                elif isinstance(command.obj, IAST.TEXT_TYPES):
                     if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
                         new_obj = taint_pyobject(
                             pyobject=command.obj,
@@ -161,7 +162,7 @@ class LazyTaintList:
 
     def _taint(self, value):
         if value:
-            if isinstance(value, (str, bytes, bytearray)):
+            if isinstance(value, IAST.TEXT_TYPES):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -342,7 +343,7 @@ class LazyTaintDict:
         if origin is None:
             origin = self._origin_value
         if value:
-            if isinstance(value, (str, bytes, bytearray)):
+            if isinstance(value, IAST.TEXT_TYPES):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one

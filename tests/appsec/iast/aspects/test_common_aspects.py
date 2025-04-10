@@ -8,9 +8,9 @@ from hypothesis import given
 from hypothesis.strategies import one_of
 import pytest
 
-from tests.appsec.iast.aspects.aspect_utils import string_strategies
 import tests.appsec.iast.fixtures.aspects.callees
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import string_strategies
 
 
 def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):
