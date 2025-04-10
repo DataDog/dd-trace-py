@@ -94,7 +94,7 @@ def test_int_fstring_zero_padding_integers(integers_to_test):
     assert result == f"{integers_to_test:05d}"
 
 
-@given(non_empty_text)
+@given(text())
 def test_int_fstring_zero_padding_text(text):
     with pytest.raises(ValueError) as excinfo:
         f"{text:05d}"
