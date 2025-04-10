@@ -177,6 +177,22 @@ stack_v2_link_tasks(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_v2_set_adaptive_sampling(PyObject* self, PyObject* args)
+{
+    (void)self;
+
+    int do_adaptive_sampling = false;
+
+    if (!PyArg_ParseTuple(args, "|p", &do_adaptive_sampling)) {
+        return NULL;
+    }
+
+    Sampler::get().set_adaptive_sampling(do_adaptive_sampling);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
@@ -191,6 +207,7 @@ static PyMethodDef _stack_v2_methods[] = {
     { "track_asyncio_loop", stack_v2_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_v2_link_tasks, METH_VARARGS, "Link two tasks" },
+    { "set_adaptive_sampling", stack_v2_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { NULL, NULL, 0, NULL }
 };
 

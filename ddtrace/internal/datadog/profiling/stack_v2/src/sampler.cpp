@@ -60,16 +60,18 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 #endif
 
 void
-Sampler::adapt_sampling_interval(double overhead)
+Sampler::adapt_sampling_interval(double target_overhead)
 {
 #if defined(__linux__)
     struct timespec ts;
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    uint64_t new_process_count = ts.tv_sec * 1e9 + ts.tv_nsec;
+    uint64_t new_process_count = ts.tv_sec * 1e6 + ts.tv_nsec / 1000;
+
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    uint64_t new_sampler_thread_count = ts.tv_sec * 1e9 + ts.tv_nsec;
+    uint64_t new_sampler_thread_count = ts.tv_sec * 1e6 + ts.tv_nsec / 1000;
 #elif defined(__MACH__)
+    // Get the process CPU time
     task_thread_times_info_data_t task_info_data;
     mach_msg_type_number_t task_info_count = TASK_THREAD_TIMES_INFO_COUNT;
 
@@ -83,17 +85,17 @@ Sampler::adapt_sampling_interval(double overhead)
       static_cast<uint64_t>(task_info_data.user_time.seconds * 1e6 + task_info_data.user_time.microseconds +
                             task_info_data.system_time.seconds * 1e6 + task_info_data.system_time.microseconds);
 
+    // Get the sampling thread CPU time
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
     thread_basic_info_data_t info;
 
-    thread_port_t thread = mach_thread_self();
+    thread_port_t thread = mach_thread_self(); // perf: call once
     int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
     mach_port_deallocate(mach_task_self(), thread);
     if (kr != KERN_SUCCESS) {
         return;
     }
 
-    // add system and user time
     auto new_sampler_thread_count =
       static_cast<uint64_t>(info.user_time.seconds * 1e6 + info.user_time.microseconds +
                             info.system_time.seconds * 1e6 + info.system_time.microseconds);
@@ -115,9 +117,17 @@ Sampler::adapt_sampling_interval(double overhead)
     //    I' = I * [(s / p) / o]
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
-    auto new_interval = static_cast<microsecond_t>(sampler_thread_delta / process_delta / overhead * current_interval);
+    auto new_interval =
+      static_cast<microsecond_t>(sampler_thread_delta / process_delta / target_overhead * current_interval);
 
-    sample_interval_us.store(new_interval > g_default_sampling_period_us ? new_interval : g_default_sampling_period_us);
+    // Cap the new interval to the min/max sampling period
+    if (new_interval < g_min_sampling_period_us) {
+        new_interval = g_min_sampling_period_us;
+    } else if (new_interval > g_max_sampling_period_us) {
+        new_interval = g_max_sampling_period_us;
+    }
+
+    sample_interval_us.store(new_interval);
 
     // Update the counters for the next iteration
     process_count = new_process_count;
@@ -143,10 +153,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
             });
         });
 
-        // Adjust the sampling interval at most every second
-        if (sample_time_now - interval_adjust_time_prev > milliseconds(1000)) {
-            adapt_sampling_interval(0.01); // 1% overhead
-            interval_adjust_time_prev = sample_time_now;
+        if (do_adaptive_sampling) {
+            // Adjust the sampling interval at most every second
+            if (sample_time_now - interval_adjust_time_prev > milliseconds(1000)) {
+                adapt_sampling_interval(0.01); // 1% overhead
+                interval_adjust_time_prev = sample_time_now;
+            }
         }
 
         // Before sleeping, check whether the user has called for this thread to die.
