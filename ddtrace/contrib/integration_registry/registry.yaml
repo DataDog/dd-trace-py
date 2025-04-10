@@ -1,0 +1,592 @@
+integrations:
+- integration_name: aiobotocore
+  is_external_package: true
+  dependency_name:
+  - aiobotocore
+  tested_version_min: 1.4.2
+  tested_version_max: 2.16.0
+
+- integration_name: aiohttp
+  is_external_package: true
+  dependency_name:
+  - aiohttp
+  tested_version_min: 3.9.1
+  tested_version_max: 3.11.16
+
+- integration_name: aiohttp_jinja2
+  is_external_package: true
+  dependency_name:
+  - aiohttp_jinja2
+  tested_version_min: 1.5.1
+  tested_version_max: 1.6.0
+
+- integration_name: aiomysql
+  is_external_package: true
+  dependency_name:
+  - aiomysql
+  tested_version_min: 0.1.1
+  tested_version_max: 0.2.0
+
+- integration_name: aiopg
+  is_external_package: true
+  dependency_name:
+  - aiopg
+  tested_version_min: 1.4.0
+  tested_version_max: 1.4.0
+
+- integration_name: aioredis
+  is_external_package: true
+  dependency_name:
+  - aioredis
+  is_tested: false
+
+- integration_name: algoliasearch
+  is_external_package: true
+  dependency_name:
+  - algoliasearch
+  tested_version_min: 2.6.3
+  tested_version_max: 2.6.3
+
+- integration_name: anthropic
+  is_external_package: true
+  dependency_name:
+  - anthropic
+  tested_version_min: 0.26.0
+  tested_version_max: 0.49.0
+
+- integration_name: aredis
+  is_external_package: true
+  dependency_name:
+  - aredis
+  tested_version_min: 1.1.8
+  tested_version_max: 1.1.8
+
+- integration_name: asgi
+  is_external_package: false
+
+- integration_name: asyncio
+  is_external_package: false
+
+- integration_name: asyncpg
+  is_external_package: true
+  dependency_name:
+  - asyncpg
+  tested_version_min: 0.23.0
+  tested_version_max: 0.30.0
+
+- integration_name: avro
+  is_external_package: true
+  dependency_name:
+  - avro
+  tested_version_min: 1.12.0
+  tested_version_max: 1.12.0
+
+- integration_name: aws_lambda
+  is_external_package: true
+  dependency_name:
+  - aws_lambda
+  tested_version_min: 6.105.0
+  tested_version_max: 6.105.0
+
+- integration_name: azure_functions
+  is_external_package: true
+  dependency_name:
+  - azure-functions
+  tested_version_min: 1.21.3
+  tested_version_max: 1.21.3
+
+- integration_name: boto
+  is_external_package: true
+  dependency_name:
+  - boto
+  tested_version_min: 2.49.0
+  tested_version_max: 2.49.0
+
+- integration_name: botocore
+  is_external_package: true
+  dependency_name:
+  - botocore
+  tested_version_min: 1.20.106
+  tested_version_max: 1.37.26
+
+- integration_name: bottle
+  is_external_package: true
+  dependency_name:
+  - bottle
+  tested_version_min: 0.12.25
+  tested_version_max: 0.13.2
+
+- integration_name: cassandra
+  is_external_package: true
+  dependency_name:
+  - cassandra-driver
+  tested_version_min: 3.24.0
+  tested_version_max: 3.29.2
+
+- integration_name: celery
+  is_external_package: true
+  dependency_name:
+  - celery
+  tested_version_min: 5.3.6
+  tested_version_max: 5.4.0
+
+- integration_name: cherrypy
+  is_external_package: true
+  dependency_name:
+  - cherrypy
+  tested_version_min: 17.4.2
+  tested_version_max: 18.10.0
+
+- integration_name: consul
+  is_external_package: true
+  dependency_name:
+  - python-consul
+  tested_version_min: 1.1.0
+  tested_version_max: 1.1.0
+
+- integration_name: coverage
+  is_external_package: true
+  dependency_name:
+  - coverage
+  tested_version_min: 7.4.4
+  tested_version_max: 7.4.4
+
+- integration_name: crewai
+  is_external_package: true
+  dependency_name:
+  - crewai
+  tested_version_min: 0.108.0
+  tested_version_max: 0.108.0
+
+- integration_name: ddtrace_api
+  is_external_package: false
+
+- integration_name: django
+  is_external_package: true
+  dependency_name:
+  - django
+  tested_version_min: 2.2.1
+  tested_version_max: 5.1.4
+
+- integration_name: dogpile_cache
+  is_external_package: true
+  dependency_name:
+  - dogpile.cache
+  tested_version_min: 0.9.2
+  tested_version_max: 1.3.3
+
+- integration_name: dramatiq
+  is_external_package: true
+  dependency_name:
+  - dramatiq
+  tested_version_min: 1.17.0
+  tested_version_max: 1.17.0
+
+- integration_name: elasticsearch
+  is_external_package: true
+  dependency_name:
+  - elasticsearch
+  tested_version_min: 7.13.4
+  tested_version_max: 8.17.0
+
+- integration_name: falcon
+  is_external_package: true
+  dependency_name:
+  - falcon
+  tested_version_min: 3.0.1
+  tested_version_max: 4.0.2
+
+- integration_name: fastapi
+  is_external_package: true
+  dependency_name:
+  - fastapi
+  tested_version_min: 0.64.0
+  tested_version_max: 0.115.11
+
+- integration_name: flask
+  is_external_package: true
+  dependency_name:
+  - flask
+  tested_version_min: 0.12.5
+  tested_version_max: 3.1.0
+
+- integration_name: flask_cache
+  is_external_package: true
+  dependency_name:
+  - flask_cache
+  tested_version_min: 1.10.1
+  tested_version_max: 2.3.0
+
+- integration_name: freezegun
+  is_external_package: true
+  dependency_name:
+  - freezegun
+  is_tested: false
+
+- integration_name: futures
+  is_external_package: false
+
+- integration_name: gevent
+  is_external_package: true
+  dependency_name:
+  - gevent
+  tested_version_min: 20.12.1
+  tested_version_max: 24.11.1
+
+- integration_name: google_generativeai
+  is_external_package: true
+  dependency_name:
+  - google-generativeai
+  tested_version_min: 0.8.3
+  tested_version_max: 0.8.3
+
+- integration_name: graphql
+  is_external_package: true
+  dependency_name:
+  - graphql-core
+  tested_version_min: 3.1.7
+  tested_version_max: 3.2.6
+
+- integration_name: grpc
+  is_external_package: true
+  dependency_name:
+  - grpcio
+  tested_version_min: 1.34.1
+  tested_version_max: 1.71.0
+
+- integration_name: httplib
+  is_external_package: false
+
+- integration_name: httpx
+  is_external_package: true
+  dependency_name:
+  - httpx
+  tested_version_min: 0.15.4
+  tested_version_max: 0.28.1
+
+- integration_name: jinja2
+  is_external_package: true
+  dependency_name:
+  - jinja2
+  tested_version_min: 2.10.3
+  tested_version_max: 3.1.6
+
+- integration_name: kafka
+  is_external_package: true
+  dependency_name:
+  - confluent-kafka
+  tested_version_min: 1.9.2
+  tested_version_max: 2.6.2
+
+- integration_name: kombu
+  is_external_package: true
+  dependency_name:
+  - kombu
+  tested_version_min: 4.2.2.post1
+  tested_version_max: 5.4.2
+
+- integration_name: langchain
+  is_external_package: true
+  dependency_name:
+  - langchain
+  tested_version_min: 0.1.20
+  tested_version_max: 0.3.18
+
+- integration_name: langgraph
+  is_external_package: true
+  dependency_name:
+  - langgraph
+  tested_version_min: 0.2.60
+  tested_version_max: 0.2.61
+
+- integration_name: litellm
+  is_external_package: true
+  dependency_name:
+  - litellm
+  tested_version_min: 1.60.2
+  tested_version_max: 1.65.1
+
+- integration_name: logbook
+  is_external_package: true
+  dependency_name:
+  - logbook
+  tested_version_min: 1.0.0
+  tested_version_max: 1.8.1
+
+- integration_name: logging
+  is_external_package: false
+
+- integration_name: loguru
+  is_external_package: true
+  dependency_name:
+  - loguru
+  tested_version_min: 0.4.1
+  tested_version_max: 0.7.2
+
+- integration_name: mako
+  is_external_package: true
+  dependency_name:
+  - mako
+  tested_version_min: 1.1.6
+  tested_version_max: 1.3.8
+
+- integration_name: mariadb
+  is_external_package: true
+  dependency_name:
+  - mariadb
+  tested_version_min: 1.0.11
+  tested_version_max: 1.1.11
+
+- integration_name: molten
+  is_external_package: true
+  dependency_name:
+  - molten
+  tested_version_min: 1.0.2
+  tested_version_max: 1.0.2
+
+- integration_name: mongoengine
+  is_external_package: true
+  dependency_name:
+  - mongoengine
+  tested_version_min: 0.29.1
+  tested_version_max: 0.29.1
+
+- integration_name: mysql
+  is_external_package: true
+  dependency_name:
+  - mysql-connector-python
+  tested_version_min: 8.0.5
+  tested_version_max: 9.2.0
+
+- integration_name: mysqldb
+  is_external_package: true
+  dependency_name:
+  - mysqlclient
+  tested_version_min: 2.2.1
+  tested_version_max: 2.2.6
+
+- integration_name: openai
+  is_external_package: true
+  dependency_name:
+  - openai
+  tested_version_min: 1.30.3
+  tested_version_max: 1.70.0
+
+- integration_name: openai_agents
+  is_external_package: true
+  dependency_name:
+  - openai-agents
+  tested_version_min: 0.0.8
+  tested_version_max: 0.0.8
+
+- integration_name: protobuf
+  is_external_package: true
+  dependency_name:
+  - protobuf
+  tested_version_min: 3.19.0
+  tested_version_max: 6.30.2
+
+- integration_name: psycopg
+  is_external_package: true
+  dependency_name:
+  - psycopg
+  tested_version_min: 3.2.1
+  tested_version_max: 3.2.3
+
+- integration_name: pylibmc
+  is_external_package: true
+  dependency_name:
+  - pylibmc
+  tested_version_min: 1.6.3
+  tested_version_max: 1.6.3
+
+- integration_name: pymemcache
+  is_external_package: true
+  dependency_name:
+  - pymemcache
+  tested_version_min: 3.4.4
+  tested_version_max: 4.0.0
+
+- integration_name: pymongo
+  is_external_package: true
+  dependency_name:
+  - pymongo
+  tested_version_min: 3.8.0
+  tested_version_max: 4.10.1
+
+- integration_name: pymysql
+  is_external_package: true
+  dependency_name:
+  - pymysql
+  tested_version_min: 0.10.1
+  tested_version_max: 1.1.1
+
+- integration_name: pynamodb
+  is_external_package: true
+  dependency_name:
+  - pynamodb
+  tested_version_min: 5.5.1
+  tested_version_max: 5.5.1
+
+- integration_name: pyodbc
+  is_external_package: true
+  dependency_name:
+  - pyodbc
+  tested_version_min: 4.0.39
+  tested_version_max: 5.2.0
+
+- integration_name: pyramid
+  is_external_package: true
+  dependency_name:
+  - pyramid
+  tested_version_min: 1.10.8
+  tested_version_max: 2.0.2
+
+- integration_name: pytest
+  is_external_package: true
+  dependency_name:
+  - pytest
+  tested_version_min: 4.6.11
+  tested_version_max: 8.3.5
+
+- integration_name: pytest_bdd
+  is_external_package: true
+  dependency_name:
+  - pytest_bdd
+  tested_version_min: 4.1.0
+  tested_version_max: 6.0.1
+
+- integration_name: pytest_benchmark
+  is_external_package: true
+  dependency_name:
+  - pytest_benchmark
+  is_tested: false
+
+- integration_name: redis
+  is_external_package: true
+  dependency_name:
+  - redis
+  tested_version_min: 2.10.6
+  tested_version_max: 5.2.1
+
+- integration_name: rediscluster
+  is_external_package: true
+  dependency_name:
+  - redis-py-cluster
+  tested_version_min: 2.0.0
+  tested_version_max: 2.1.3
+
+- integration_name: requests
+  is_external_package: true
+  dependency_name:
+  - requests
+  tested_version_min: 2.22.0
+  tested_version_max: 2.32.3
+
+- integration_name: rq
+  is_external_package: true
+  dependency_name:
+  - rq
+  tested_version_min: 1.8.1
+  tested_version_max: 1.16.2
+
+- integration_name: sanic
+  is_external_package: true
+  dependency_name:
+  - sanic
+  tested_version_min: 20.12.7
+  tested_version_max: 24.6.0
+
+- integration_name: selenium
+  is_external_package: true
+  dependency_name:
+  - selenium
+  is_tested: false
+
+- integration_name: snowflake
+  is_external_package: true
+  dependency_name:
+  - snowflake-connector-python
+  tested_version_min: 2.3.10
+  tested_version_max: 3.12.2
+
+- integration_name: sqlalchemy
+  is_external_package: true
+  dependency_name:
+  - sqlalchemy
+  tested_version_min: 1.2.19
+  tested_version_max: 2.0.40
+
+- integration_name: sqlite3
+  is_external_package: false
+
+- integration_name: starlette
+  is_external_package: true
+  dependency_name:
+  - starlette
+  tested_version_min: 0.13.6
+  tested_version_max: 0.46.1
+
+- integration_name: structlog
+  is_external_package: true
+  dependency_name:
+  - structlog
+  tested_version_min: 20.2.0
+  tested_version_max: 25.1.0
+
+- integration_name: subprocess
+  is_external_package: false
+
+- integration_name: tornado
+  is_external_package: true
+  dependency_name:
+  - tornado
+  tested_version_min: 4.5.3
+  tested_version_max: 6.4.1
+
+- integration_name: unittest
+  is_external_package: false
+
+- integration_name: urllib
+  is_external_package: false
+
+- integration_name: urllib3
+  is_external_package: true
+  dependency_name:
+  - urllib3
+  tested_version_min: 1.25.0
+  tested_version_max: 2.3.0
+
+- integration_name: valkey
+  is_external_package: true
+  dependency_name:
+  - valkey
+  tested_version_min: 6.0.2
+  tested_version_max: 6.0.2
+
+- integration_name: vertexai
+  is_external_package: true
+  dependency_name:
+  - google-cloud-aiplatform
+  tested_version_min: 1.71.1
+  tested_version_max: 1.71.1
+
+- integration_name: vertica
+  is_external_package: true
+  dependency_name:
+  - vertica-python
+  tested_version_min: 0.6.14
+  tested_version_max: 0.7.4
+
+- integration_name: webbrowser
+  is_external_package: false
+
+- integration_name: wsgi
+  is_external_package: false
+
+- integration_name: yaaredis
+  is_external_package: true
+  dependency_name:
+  - yaaredis
+  tested_version_min: 2.0.4
+  tested_version_max: 3.0.0
