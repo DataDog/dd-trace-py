@@ -569,8 +569,8 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        peer_ip=core.get_item("http.request.remote_ip", span=span),
-        headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive", span=span)),
+        peer_ip=core.get_item("http.request.remote_ip"),
+        headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
     )
 
