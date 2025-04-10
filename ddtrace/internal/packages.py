@@ -93,7 +93,7 @@ def parse_importlib_metadata():
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
-        name = metadata["name"]
+        name = metadata["name"].lower()
         version = metadata["version"]
 
         project_urls = metadata.get_all("Project-URL")
