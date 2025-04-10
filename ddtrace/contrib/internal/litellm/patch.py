@@ -133,7 +133,7 @@ def patch():
     wrap("litellm", "text_completion", traced_text_completion(litellm))
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
-    wrap("litellm", "litellm.main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
 
 
 def unpatch():
@@ -147,6 +147,6 @@ def unpatch():
     unwrap(litellm, "text_completion")
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
-    unwrap(litellm.litellm.main, "get_llm_provider")
+    unwrap(litellm.main, "get_llm_provider")
 
     delattr(litellm, "_datadog_integration")

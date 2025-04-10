@@ -2,6 +2,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+import wrapt
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import (
@@ -12,10 +13,10 @@ from ddtrace.llmobs._integrations.utils import (
 log = get_logger(__name__)
 
 
-class BaseTracedLiteLLMStream:
-    def __init__(self, generator, integration, span, kwargs, is_completion=False):
+class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
+    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+        super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
-        self._generator = generator
         self._dd_integration = integration
         self._dd_span = span
         self._kwargs = kwargs
@@ -25,15 +26,15 @@ class BaseTracedLiteLLMStream:
 
 class TracedLiteLLMStream(BaseTracedLiteLLMStream):
     def __enter__(self):
-        self._generator.__enter__()
+        self.__wrapped__.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._generator.__exit__(exc_type, exc_val, exc_tb)
+        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
         try:
-            for chunk in self._generator:
+            for chunk in self.__wrapped__:
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
@@ -47,7 +48,7 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
 
     def __next__(self):
         try:
-            chunk = self._generator.__next__()
+            chunk = self.__wrapped__.__next__()
             _loop_handler(chunk, self._streamed_chunks)
             return chunk
         except StopIteration:
@@ -64,15 +65,15 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
     async def __aenter__(self):
-        await self._generator.__aenter__()
+        await self.__wrapped__.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._generator.__aexit__(exc_type, exc_val, exc_tb)
+        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     async def __aiter__(self):
         try:
-            async for chunk in self._generator:
+            async for chunk in self.__wrapped__:
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
@@ -86,7 +87,7 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
 
     async def __anext__(self):
         try:
-            chunk = await self._generator.__anext__()
+            chunk = await self.__wrapped__.__anext__()
             _loop_handler(chunk, self._streamed_chunks)
             return chunk
         except StopAsyncIteration:
