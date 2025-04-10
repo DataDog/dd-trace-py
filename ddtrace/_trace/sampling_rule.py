@@ -152,6 +152,8 @@ class SamplingRule(object):
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
             value = meta.get(tag_key)
+            if value is None:
+                continue
             tag_match = self._tag_value_matchers[tag_key].match(str(value))
             # If the value doesn't match in meta, check the metrics
             if tag_match is False:
