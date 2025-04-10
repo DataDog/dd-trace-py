@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Tuple
 
 import ddtrace
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -41,7 +42,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        model_name = span.get_tag("litellm.request.model")
+        model_name = get_argument_value(args, kwargs, 0, "model", None)
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
         # use Open AI helpers since response format will match Open AI
@@ -57,18 +58,21 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_llmobs_metrics(resp: Any) -> Dict[str, Any]:
+        if not resp:
+            return {}
         if isinstance(resp, list):
             token_usage = _get_attr(resp[0], "usage", None)
         else:
             token_usage = _get_attr(resp, "usage", None)
-        if token_usage is not None:
-            prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
-            completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
-            return {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
-            }
+        if token_usage is None:
+            return {}
+        prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
+        completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+        return {
+            INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+            OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+            TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+        }
 
     def should_submit_to_llmobs(self, model: Optional[str] = None, kwargs: Dict[str, Any] = None) -> bool:
         """
