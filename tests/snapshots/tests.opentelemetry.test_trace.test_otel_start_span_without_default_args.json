@@ -24,7 +24,7 @@
     "start": 1700083162375734175
   },
      {
-       "name": "client",
+       "name": "server.request",
        "service": "tests.opentelemetry",
        "resource": "rename-start-span",
        "trace_id": 0,

@@ -24,7 +24,7 @@
     "start": 1722181302828129000
   },
      {
-       "name": "server",
+       "name": "server.request",
        "service": "",
        "resource": "GET /otel",
        "trace_id": 0,
