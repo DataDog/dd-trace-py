@@ -6,6 +6,7 @@ import jsonschema
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 import pytest
+import subprocess
 import yaml
 
 
@@ -178,5 +179,67 @@ def test_external_package_requirements(registry_data: list[dict]):
             for field in version_fields_to_check:
                 if field in entry:
                     errors.append(f"Non-external integration '{name}' unexpectedly contains '{field}'.")
+
+    assert not errors, "\n".join(errors)
+
+
+def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
+    """
+    Verify that package names listed in 'dependency_name' for external integrations
+    can be found on PyPI using 'pip index versions'.
+    """
+    errors = []
+    pip_command = [sys.executable, "-m", "pip"]
+
+    print("\nChecking external dependencies against PyPI...")
+    checked_packages = set()
+
+    for entry in registry_data:
+        if entry.get("is_external_package") is True:
+            integration_name = entry.get("integration_name", "UNKNOWN_ENTRY")
+            dependency_names = entry.get("dependency_name", [])
+
+            if not dependency_names:
+                continue
+
+            if not isinstance(dependency_names, list):
+                errors.append(f"External integration '{integration_name}' has invalid dependency_name (not a list): {dependency_names}")
+                continue
+
+            for dep_name in dependency_names:
+                if not isinstance(dep_name, str) or not dep_name:
+                    errors.append(f"External integration '{integration_name}' has invalid item in dependency_name list: {dep_name}")
+                    continue
+
+                if dep_name in checked_packages:
+                    continue
+                checked_packages.add(dep_name)
+
+                command = pip_command + ["index", "versions", dep_name]
+                try:
+                    result = subprocess.run(
+                        command,
+                        capture_output=True,
+                        text=True,
+                        check=False, 
+                        timeout=30
+                    )
+
+                    if result.returncode != 0:
+                        error_detail = f"Return Code: {result.returncode}"
+                        if "no matching distribution found" in result.stderr.lower():
+                            error_detail = "No matching distribution found on PyPI (or configured index)."
+                        else:
+                            error_detail += f"\n  Stderr: {result.stderr.strip()}"
+                        errors.append(
+                            f"Integration '{integration_name}': Dependency '{dep_name}' check failed. {error_detail}"
+                        )
+
+                except subprocess.TimeoutExpired:
+                    errors.append(f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI.")
+                except FileNotFoundError:
+                    pytest.fail(f"Could not execute pip command. Ensure Python environment is correctly set up. Command: {' '.join(command)}")
+                except Exception as e:
+                    errors.append(f"Integration '{integration_name}': Unexpected error checking dependency '{dep_name}': {e}")
 
     assert not errors, "\n".join(errors)
