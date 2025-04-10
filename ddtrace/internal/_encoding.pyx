@@ -231,8 +231,10 @@ cdef class MsgpackStringTable(StringTable):
     cdef stdint.uint32_t _sp_id
     cdef object _lock
     cdef size_t _reset_size
+    cdef int MAX_SPAN_META_VALUE_LEN
 
     def __init__(self, max_size):
+        self.MAX_SPAN_META_VALUE_LEN = MAX_SPAN_META_VALUE_LEN
         self.pk.buf_size = min(max_size, 1 << 20)
         self.pk.buf = <char*> PyMem_Malloc(self.pk.buf_size)
         if self.pk.buf == NULL:

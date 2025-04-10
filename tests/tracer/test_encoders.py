@@ -918,3 +918,21 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
+
+
+def test_encode_large_resource_name():
+    # test encoding for MsgPack format
+    encoder = MSGPACK_ENCODERS["v0.5"](2 << 10, 2 << 10)
+    span = Span(name="client.testing", trace_id=1)
+    repetition = 10000
+    span.resource = "resource" * repetition
+    encoder.put(
+        [
+            span,
+        ]
+    )
+    spans, _ = encoder.encode()
+    items = decode(spans)
+    assert items[0][0][2:3] == (b"resource" * repetition,)
+    assert isinstance(spans, bytes)
+    assert len(items[0]) == 1
