@@ -267,8 +267,10 @@ def is_single_span_sampled(span):
 
 def _set_sampling_tags(span, sampled, sample_rate, mechanism):
     # type: (Span, bool, float, int) -> None
-    # Set the sampling mechanism
-    set_sampling_decision_maker(span.context, mechanism)
+    # Set the sampling mechanism once but never overwrite an existing tag
+    if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        set_sampling_decision_maker(span.context, mechanism)
+
     # Set the sampling psr rate
     if mechanism in (
         SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
