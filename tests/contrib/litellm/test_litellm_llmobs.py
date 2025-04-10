@@ -53,9 +53,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_with_tools(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, include_usage
-    ):
+    def test_completion_with_tools(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, include_usage):
         if stream and n > 1:
             pytest.skip(
                 "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
@@ -150,9 +148,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_atext_completion(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, include_usage
-    ):
+    async def test_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, include_usage):
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
             prompt = "Hey, what is up?"
             resp = await litellm.atext_completion(
@@ -186,6 +182,7 @@ class TestLLMObsLiteLLM:
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, include_usage)):
             import openai
+
             pin = Pin.get_from(litellm)
             pin._override(openai, tracer=mock_tracer)
 

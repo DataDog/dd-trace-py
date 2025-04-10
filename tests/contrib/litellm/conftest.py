@@ -9,6 +9,7 @@ from tests.contrib.litellm.utils import get_request_vcr
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 
+
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -17,6 +18,7 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
     def enqueue(self, event):
         self.events.append(event)
 
+
 def default_global_config():
     return {}
 
@@ -24,6 +26,7 @@ def default_global_config():
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
 
 @pytest.fixture
 def llmobs_span_writer():
@@ -50,8 +53,9 @@ def litellm(ddtrace_global_config, monkeypatch):
         yield litellm
         unpatch()
 
+
 @pytest.fixture
-def litellm_llmobs(tracer, mock_tracer, llmobs_span_writer, ddtrace_global_config, monkeypatch):
+def litellm_llmobs(mock_tracer, llmobs_span_writer, ddtrace_global_config):
     llmobs_service.disable()
     with override_global_config(
         {
@@ -64,6 +68,7 @@ def litellm_llmobs(tracer, mock_tracer, llmobs_span_writer, ddtrace_global_confi
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
+
 
 @pytest.fixture
 def mock_tracer(litellm):
