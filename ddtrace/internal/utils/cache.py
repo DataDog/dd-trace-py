@@ -1,7 +1,7 @@
+from functools import wraps
 from inspect import FullArgSpec
 from inspect import getfullargspec
 from inspect import isgeneratorfunction
-from functools import wraps
 from threading import RLock
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
