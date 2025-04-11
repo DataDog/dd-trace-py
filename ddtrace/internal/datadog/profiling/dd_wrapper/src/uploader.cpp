@@ -83,14 +83,13 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
-    // DEV: This function is called with the profile_lock held, and the following
-    // function call acquires lock on CodeProvenance.
-    std::optional<std::string> json_str_opt = CodeProvenance::get_instance().try_serialize_to_json_str();
-    if (json_str_opt.has_value() and !json_str_opt.value().empty()) {
+    std::string_view json_str = CodeProvenance::get_instance().get_json_str();
+
+    if (!json_str.empty()) {
         to_compress_files.reserve(1);
         to_compress_files.push_back({
           .name = to_slice("code-provenance.json"),
-          .file = to_byte_slice(json_str_opt.value()),
+          .file = to_byte_slice(json_str),
         });
     }
 

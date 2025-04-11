@@ -69,8 +69,6 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
     name = string_storage.insert(name);
     filename = string_storage.insert(filename);
 
-    CodeProvenance::get_instance().add_filename(filename);
-
     const ddog_prof_Location loc = {
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
