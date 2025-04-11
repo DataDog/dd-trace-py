@@ -203,7 +203,7 @@ class TestLLMObsLiteLLM:
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             import openai
 
-            pin = Pin.get_from(litellm)
+            pin = Pin.get_from(openai)
             pin._override(openai, tracer=mock_tracer)
 
             messages = [{"content": "Hey, what is up?", "role": "user"}]
