@@ -113,7 +113,6 @@ suites:
     timeout: 40m
   appsec_integrations_pygoat:
     parallelism: 3
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
