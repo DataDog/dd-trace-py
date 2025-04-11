@@ -151,10 +151,10 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
     err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwayson():
-    from ddtrace import config
     from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert _global_sampling_rule().sample_rate == 1.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 1.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -162,10 +162,10 @@ def test_otel_traces_sampler_configuration_alwayson():
     err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_ignore_parent():
-    from ddtrace import config
     from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert _global_sampling_rule().sample_rate == 1.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 1.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -173,10 +173,10 @@ def test_otel_traces_sampler_configuration_ignore_parent():
     err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
-    from ddtrace import config
     from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert _global_sampling_rule().sample_rate == 0.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 0.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -187,10 +187,10 @@ def test_otel_traces_sampler_configuration_alwaysoff():
     err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
-    from ddtrace import config
     from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert _global_sampling_rule().sample_rate == 0.5, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 0.5, sample_rate
 
 
 @pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "none"})
@@ -313,14 +313,14 @@ def test_otel_resource_attributes_tags_warning():
     }, config.tags
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration():
     from ddtrace import config
 
     assert config._otel_enabled is True
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": ""})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 

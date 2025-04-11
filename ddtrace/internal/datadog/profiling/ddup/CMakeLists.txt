@@ -10,6 +10,9 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
+# Set verbose mode so compiler and args are shown
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # Get the cmake modules for this project
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 
@@ -48,10 +51,14 @@ add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 
 add_ddup_config(${EXTENSION_NAME})
 # Cython generates code that produces errors for the following, so relax compile options
-target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
-# tp_print is marked deprecated in Python 3.8, but cython still generates code using it
-if("${Python3_VERSION_MINOR}" STREQUAL "8")
-    target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-deprecated-declarations)
+if(WIN32)
+    target_compile_options(${EXTENSION_NAME} PRIVATE /wd4456 /wd4457 /wd4458 /wd4459 /wd4706 /wd4127)
+else()
+    target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
+    # tp_print is marked deprecated in Python 3.8, but cython still generates code using it
+    if("${Python3_VERSION_MINOR}" STREQUAL "8")
+        target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-deprecated-declarations)
+    endif()
 endif()
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
@@ -70,6 +77,10 @@ target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include ${Dat
                                                      ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+if(MSVC)
+    # Not sure why explicit linking is necessary for Windows
+    target_link_libraries(${EXTENSION_NAME} PRIVATE ${Python3_LIBRARIES})
+endif()
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
@@ -78,4 +89,37 @@ if(LIB_INSTALL_DIR)
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${LIB_INSTALL_DIR})
+
+    # Windows doesn't have an equivalent of RPATH. Instead, we create a symlink to dd_wrapper file from the
+    # LIB_INSTALL_DIR to up one level
+    if(MSVC)
+        set(DLL_INSTALL_DIR "${LIB_INSTALL_DIR}")
+
+        # We need to consider it's inplace We can't simply overwrite LIB_INSTALL_DIR as cmake would look for the built
+        # ddup binary to be in the temp directory and it will move it to the final location
+        if(INPLACE_LIB_INSTALL_DIR)
+            set(DLL_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
+        endif()
+
+        get_target_property(DD_WRAPPER_TARGET_NAME dd_wrapper OUTPUT_NAME)
+
+        set(TARGET_FILE "${DLL_INSTALL_DIR}/../${DD_WRAPPER_TARGET_NAME}.dll")
+        set(LINK_NAME "${DLL_INSTALL_DIR}/${DD_WRAPPER_TARGET_NAME}.dll")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${TARGET_FILE} ${LINK_NAME} RESULT_VARIABLE result)
+        if(NOT result EQUAL "0")
+            message(FATAL_ERROR "Failed to create symlink: ${LINK_NAME} -> ${TARGET_FILE}")
+        else()
+            message("Created symlink: ${LINK_NAME} -> ${TARGET_FILE}")
+        endif()
+
+        set(TARGET_FILE "${DLL_INSTALL_DIR}/../${DD_WRAPPER_TARGET_NAME}.lib")
+        set(LINK_NAME "${DLL_INSTALL_DIR}/${DD_WRAPPER_TARGET_NAME}.lib")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${TARGET_FILE} ${LINK_NAME} RESULT_VARIABLE result)
+        if(NOT result EQUAL "0")
+            message(FATAL_ERROR "Failed to create symlink: ${LINK_NAME} -> ${TARGET_FILE}")
+        else()
+            message("Created symlink: ${LINK_NAME} -> ${TARGET_FILE}")
+        endif()
+
+    endif()
 endif()

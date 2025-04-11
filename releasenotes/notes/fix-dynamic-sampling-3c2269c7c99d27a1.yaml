@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic sampling: Ensures that dynamic sampling rates are always consistent with the rates received from the agent via remote configuration.
+    Previously, setting a global sample rate and then sampling rules via remote config would result in both configurations being applied. With this fix only the
+    most recent sampling configuration will be applied.

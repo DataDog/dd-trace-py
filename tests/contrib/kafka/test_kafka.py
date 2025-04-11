@@ -283,6 +283,17 @@ def test_produce_multiple_servers(dummy_tracer, kafka_topic):
     Pin._override(producer, tracer=None)
 
 
+def test_produce_topicname(dummy_tracer, producer, kafka_topic):
+    Pin._override(producer, tracer=dummy_tracer)
+    producer.produce(kafka_topic, PAYLOAD, key=KEY)
+    producer.flush()
+
+    traces = dummy_tracer.pop_traces()
+    assert 1 == len(traces)
+    produce_span = traces[0][0]
+    assert produce_span.get_tag("messaging.destination.name") == kafka_topic
+
+
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
@@ -508,7 +519,7 @@ def _generate_in_subprocess(random_topic):
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
-    ddtrace.tracer._configure(trace_processors=[KafkaConsumerPollFilter()])
+    ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
     ddtrace.tracer._writer._send_payload_with_backoff = ddtrace.tracer._writer._send_payload
     patch()

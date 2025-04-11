@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    yaaredis: Removes the yaaredis integration from ``ddtrace``. For yaaredis support pin ddtrace to an older version.

@@ -1,3 +1,5 @@
+import os
+
 import consul
 from wrapt import BoundFunctionWrapper
 
@@ -12,10 +14,15 @@ from tests.utils import assert_is_measured
 from ..config import CONSUL_CONFIG
 
 
+CONSUL_HTTP_ADDR = f"{CONSUL_CONFIG['host']}:{CONSUL_CONFIG['port']}"
+
+
 class TestConsulPatch(TracerTestCase):
     TEST_SERVICE = "test-consul"
 
     def setUp(self):
+        if "CONSUL_HTTP_ADDR" in os.environ:
+            del os.environ["CONSUL_HTTP_ADDR"]
         super(TestConsulPatch, self).setUp()
         patch()
         c = consul.Consul(
@@ -176,7 +183,7 @@ class TestSchematization(TracerTestCase):
         unpatch()
         super(TestSchematization, self).tearDown()
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
@@ -189,7 +196,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_service_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
@@ -202,7 +211,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_service_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
@@ -215,7 +226,7 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR))
     def test_schematize_unspecified_service_name_default(self):
         key = "test/put/consul"
         value = "test_value"
@@ -228,7 +239,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_unspecified_service_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
@@ -241,7 +254,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == "consul"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_unspecified_service_name_v1(self):
         key = "test/put/consul"
         value = "test_value"
@@ -254,7 +269,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_operation_name_v0(self):
         key = "test/put/consul"
         value = "test_value"
@@ -267,7 +284,9 @@ class TestSchematization(TracerTestCase):
 
         assert span.name == consulx.CMD
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", CONSUL_HTTP_ADDR=CONSUL_HTTP_ADDR)
+    )
     def test_schematize_operation_name_v1(self):
         key = "test/put/consul"
         value = "test_value"

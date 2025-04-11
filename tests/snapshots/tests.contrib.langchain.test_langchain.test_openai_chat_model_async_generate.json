@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4500000000",
+      "_dd.p.tid": "67ab955100000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.0.content": "Respond like a frat boy.",
       "langchain.request.messages.0.0.message_type": "SystemMessage",
@@ -21,31 +21,30 @@
       "langchain.request.messages.1.1.content": "How does one get to Bikini Bottom from New York?",
       "langchain.request.messages.1.1.message_type": "HumanMessage",
       "langchain.request.model": "gpt-3.5-turbo",
-      "langchain.request.openai.parameters.max_tokens": "256",
+      "langchain.request.openai.parameters.max_completion_tokens": "256",
       "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
       "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
-      "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.stream": "False",
       "langchain.request.openai.parameters.temperature": "0.0",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
-      "langchain.response.completions.0.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance, you can't miss it! Get your pump on and show those w...",
+      "langchain.response.completions.0.0.content": "Arrr matey, ye be wantin' to sail the high seas from New York to Bikini Bottom, eh? Well, ye best be gettin' yerself a sturdy sh...",
       "langchain.response.completions.0.0.message_type": "AIMessage",
-      "langchain.response.completions.1.0.content": "Arrr matey, ye be needin' to sail the high seas to reach Bikini Bottom from New York! Hoist the sails, set a course for the east...",
+      "langchain.response.completions.1.0.content": "Bro, Equinox Hudson Yards is just a few blocks away from the main entrance. You can't miss it, dude. Get your pump on and show t...",
       "langchain.response.completions.1.0.message_type": "AIMessage",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "b584c2645df1457da006ddfb84068ad4"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 150,
+      "langchain.tokens.completion_tokens": 155,
       "langchain.tokens.prompt_tokens": 60,
-      "langchain.tokens.total_tokens": 210,
-      "process_id": 82010
+      "langchain.tokens.total_tokens": 215,
+      "process_id": 72810
     },
-    "duration": 7706000,
-    "start": 1738263109445840000
+    "duration": 41982000,
+    "start": 1739298129637919000
   }]]

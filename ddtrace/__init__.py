@@ -1,14 +1,9 @@
 import sys
 import os
-import warnings
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-from ddtrace.internal.module import ModuleWatchdog
-
-
-ModuleWatchdog.install()
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
@@ -17,7 +12,7 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings import _global_config as config
+from .settings._config import config
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization

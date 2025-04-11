@@ -20,13 +20,16 @@ OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
 OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
-    "Span started while LLMObs is disabled." " Spans will not be sent to LLM Observability."
+    "Span started with LLMObs disabled."
+    " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."
+    " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
+CREWAI_APM_SPAN_NAME = "crewai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
@@ -65,3 +68,13 @@ EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 
 SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
+DECORATOR = "_ml_obs.decorator"
+INTEGRATION = "_ml_obs.integration"
+
+DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
+DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
+DISPATCH_ON_TOOL_CALL = "on_tool_call"
+
+# Tool call arguments are used to lookup the associated tool call info.
+# When there are no tool call args, we use this as a place-holder lookup key
+OAI_HANDOFF_TOOL_ARG = "{}"

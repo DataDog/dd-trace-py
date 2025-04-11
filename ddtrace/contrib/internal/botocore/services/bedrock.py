@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 
 import wrapt
 
@@ -113,9 +114,90 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             )
 
 
-def _extract_request_params(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+class TracedBotocoreConverseStream(wrapt.ObjectProxy):
     """
-    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences.
+    This class wraps the stream response returned by converse_stream.
+    """
+
+    def __init__(self, wrapped, ctx: core.ExecutionContext):
+        super().__init__(wrapped)
+        self._stream_chunks = []
+        self._execution_ctx = ctx
+
+    def __iter__(self):
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                self._stream_chunks.append(chunk)
+                yield chunk
+        except Exception:
+            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
+            exception_raised = True
+            raise
+        finally:
+            if exception_raised:
+                return
+            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, self._stream_chunks])
+
+
+def safe_token_count(token_count) -> Optional[int]:
+    """
+    Converse api returns integer token counts, while invoke api returns string token counts.
+
+    Use this function to safely return an integer token count from either type.
+    """
+    if isinstance(token_count, int):
+        return token_count
+    elif isinstance(token_count, str) and token_count:
+        return int(token_count)
+    return None
+
+
+def _set_llmobs_usage(
+    ctx: core.ExecutionContext,
+    input_tokens: Optional[int],
+    output_tokens: Optional[int],
+    total_tokens: Optional[int] = None,
+) -> None:
+    """
+    Sets LLM usage metrics in the execution context for LLM Observability.
+    """
+    llmobs_usage = {}
+    if input_tokens is not None:
+        llmobs_usage["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        llmobs_usage["output_tokens"] = output_tokens
+    if total_tokens is not None:
+        llmobs_usage["total_tokens"] = total_tokens
+    if llmobs_usage:
+        ctx.set_item("llmobs.usage", llmobs_usage)
+
+
+def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for converse and converse_stream.
+    """
+    messages = params.get("messages", [])
+    inference_config = params.get("inferenceConfig", {})
+    prompt = []
+    system_content_block = params.get("system", None)
+    if system_content_block:
+        prompt.append({"role": "system", "content": system_content_block})
+    prompt += messages
+    return {
+        "prompt": prompt,
+        "temperature": inference_config.get("temperature", ""),
+        "top_p": inference_config.get("topP", ""),
+        "max_tokens": inference_config.get("maxTokens", ""),
+        "stop_sequences": inference_config.get("stopSequences", []),
+    }
+
+
+def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+    """
+    Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
+        for invoke.
     """
     request_body = json.loads(params.get("body"))
     model_id = params.get("modelId")
@@ -281,6 +363,9 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
 def _extract_streamed_response_metadata(
     ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
+    """
+    Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
+    """
     provider = ctx["model_provider"]
     metadata = {}
     if provider == _AI21:
@@ -290,22 +375,28 @@ def _extract_streamed_response_metadata(
     elif provider == _STABILITY:
         # TODO: figure out extraction for image-based models
         pass
+
+    input_tokens = metadata.get("inputTokenCount")
+    output_tokens = metadata.get("outputTokenCount")
+
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
     return {
         "response.duration": metadata.get("invocationLatency", None),
-        "usage.prompt_tokens": metadata.get("inputTokenCount", None),
-        "usage.completion_tokens": metadata.get("outputTokenCount", None),
+        "usage.prompt_tokens": input_tokens,
+        "usage.completion_tokens": output_tokens,
     }
 
 
 def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
     """Perform request param extraction and tagging."""
-    request_params = _extract_request_params(ctx["params"], ctx["model_provider"])
+    request_params = (
+        _extract_request_params_for_converse(ctx["params"])
+        if ctx["resource"] in ("Converse", "ConverseStream")
+        else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
+    )
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
-    prompt = None
-    for k, v in request_params.items():
-        if k == "prompt" and ctx["bedrock_integration"].is_pc_sampled_llmobs(ctx.span):
-            prompt = v
-    ctx.set_item("prompt", prompt)
+    if ctx["bedrock_integration"].llmobs_enabled:
+        ctx.set_item("llmobs.request_params", request_params)
 
 
 def handle_bedrock_response(
@@ -315,16 +406,47 @@ def handle_bedrock_response(
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
+    total_tokens = None
+    input_tokens = http_headers.get("x-amzn-bedrock-input-token-count", "")
+    output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
+    request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
+
+    if ctx["resource"] == "Converse":
+        if "metrics" in result:
+            latency = result.get("metrics", {}).get("latencyMs", "")
+            request_latency = str(latency) if latency else request_latency
+        if "usage" in result:
+            usage = result.get("usage", {})
+            if usage:
+                input_tokens = usage.get("inputTokens", input_tokens)
+                output_tokens = usage.get("outputTokens", output_tokens)
+                total_tokens = usage.get("totalTokens", total_tokens)
+        if "stopReason" in result:
+            ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
+
+    _set_llmobs_usage(
+        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
+    )
+
+    # for both converse & invoke, dispatch success event to store basic metrics
     core.dispatch(
         "botocore.patched_bedrock_api_call.success",
         [
             ctx,
             str(metadata.get("RequestId", "")),
-            str(http_headers.get("x-amzn-bedrock-invocation-latency", "")),
-            str(http_headers.get("x-amzn-bedrock-input-token-count", "")),
-            str(http_headers.get("x-amzn-bedrock-output-token-count", "")),
+            request_latency,
+            str(input_tokens),
+            str(output_tokens),
         ],
     )
+
+    if ctx["resource"] == "Converse":
+        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        return result
+    if ctx["resource"] == "ConverseStream":
+        if "stream" in result:
+            result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
+        return result
 
     body = result["body"]
     result["body"] = TracedBotocoreStreamingBody(body, ctx)
@@ -371,7 +493,14 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     model_id = params.get("modelId")
     model_provider, model_name = _parse_model_id(model_id)
     integration = function_vars.get("integration")
-    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
+    endpoint = getattr(instance, "_endpoint", None)
+    endpoint_host = getattr(endpoint, "host", None) if endpoint else None
+    # only report LLM Obs spans if base_url has not been changed
+    submit_to_llmobs = (
+        integration.llmobs_enabled
+        and "embed" not in model_name
+        and integration.is_default_base_url(str(endpoint_host) if endpoint_host else None)
+    )
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,

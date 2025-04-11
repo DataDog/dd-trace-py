@@ -1,8 +1,12 @@
 """
 Class based views used for Django tests.
 """
+
 import hashlib
 import os
+from pathlib import Path
+from pathlib import PosixPath
+import shlex
 from typing import Any
 
 from django.db import connection
@@ -82,6 +86,18 @@ def xss_secure(request):
 
     # label xss_http_request_parameter_mark_safe
     return render(request, "index.html", {"user_input": user_input})
+
+
+def ospathjoin_propagation(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return HttpResponse(
+        f"OK:{is_pyobject_tainted(os.path.join(user_input, user_input))}:"
+        f"{is_pyobject_tainted(os.path.join(Path(user_input), Path(user_input)))}:"
+        f"{is_pyobject_tainted(os.path.join(PosixPath(user_input), PosixPath(user_input)))}",
+        status=200,
+    )
 
 
 def xss_http_request_parameter_template_safe(request):
@@ -256,6 +272,8 @@ def view_with_exception(request):
 
 def view_insecure_cookies_insecure(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie
     res.set_cookie("insecure", "cookie", secure=False, httponly=True, samesite="Strict")
     return res
 
@@ -282,6 +300,8 @@ def view_insecure_cookies_two_insecure_one_secure(request):
 
 def view_insecure_cookies_insecure_special_chars(request):
     res = HttpResponse("OK")
+
+    # label test_django_insecure_cookie_special_characters
     res.set_cookie("insecure", "cookie?()43jfM;;;===value", secure=False, httponly=True, samesite="Strict")
     return res
 
@@ -290,6 +310,14 @@ def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
     os.system("dir -l " + value)
+
+    return HttpResponse("OK", status=200)
+
+
+def command_injection_secure_mark(request):
+    value = request.body.decode()
+    # label iast_command_injection
+    os.system("dir -l " + shlex.quote(value))
 
     return HttpResponse("OK", status=200)
 
@@ -328,3 +356,14 @@ def stacktrace_leak_500_view(request):
         from django.views.debug import technical_500_response
 
         return technical_500_response(request, *sys.exc_info())
+
+
+def signup(request):
+    from django.contrib.auth.models import User
+
+    login = request.GET.get("login")
+    passwd = request.GET.get("pwd")
+    if login and passwd:
+        User.objects.create_user(username=login, password=passwd)
+        return HttpResponse("OK", status=200)
+    return HttpResponse("Error", status=400)

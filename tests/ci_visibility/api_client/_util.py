@@ -47,6 +47,7 @@ def _get_setting_api_response(
     flaky_test_retries_enabled=False,
     efd_present=False,  # This controls whether a default EFD response is present (instead of only {"enabled": false}
     efd_detection_enabled=False,
+    known_tests_enabled=False,
     efd_5s=10,
     efd_10s=5,
     efd_30s=3,
@@ -66,6 +67,7 @@ def _get_setting_api_response(
                 "itr_enabled": itr_enabled,
                 "require_git": require_git,
                 "tests_skipping": tests_skipping,
+                "known_tests_enabled": known_tests_enabled,
             },
         }
     }
@@ -159,7 +161,7 @@ class TestTestVisibilityAPIClientBase:
             # no-dd-sa:python-best-practices/no-silent-exception
             pass
 
-    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala")
+    default_git_data = GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "some message")
 
     default_configurations = {
         "os.architecture": "arm64",

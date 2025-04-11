@@ -97,6 +97,7 @@ def mock_writer_logs():
 def mock_evaluator_logs():
     with mock.patch("ddtrace.llmobs._evaluators.runner.logger") as m:
         yield m
+        m.reset_mock()
 
 
 @pytest.fixture
@@ -301,3 +302,27 @@ def llmobs(
 @pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
     return llmobs_span_writer.events()
+
+
+@pytest.fixture
+def agent():
+    with mock.patch("ddtrace.internal.agent.info", return_value={"endpoints": ["/evp_proxy/v2/"]}):
+        yield
+
+
+@pytest.fixture
+def agent_missing_proxy():
+    with mock.patch("ddtrace.internal.agent.info", return_value={"endpoints": []}):
+        yield
+
+
+@pytest.fixture
+def no_agent_info():
+    with mock.patch("ddtrace.internal.agent.info", return_value=None):
+        yield
+
+
+@pytest.fixture
+def no_agent():
+    with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
+        yield

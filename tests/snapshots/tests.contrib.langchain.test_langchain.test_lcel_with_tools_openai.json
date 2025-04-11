@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4500000000",
+      "_dd.p.tid": "67ab7e7800000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.messages.0.0.content": "What is the sum of 1 and 2?",
       "langchain.request.messages.0.0.message_type": "HumanMessage",
@@ -22,24 +22,25 @@
       "langchain.request.openai.parameters.temperature": "0.7",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
+      "langchain.response.completions.0.0.content": "Hello world!",
       "langchain.response.completions.0.0.message_type": "AIMessage",
       "langchain.response.completions.0.0.tool_calls.0.args.a": "1",
       "langchain.response.completions.0.0.tool_calls.0.args.b": "2",
-      "langchain.response.completions.0.0.tool_calls.0.id": "call_HlX90uizLM5c3ZHoMkRB1tPt",
+      "langchain.response.completions.0.0.tool_calls.0.id": "bar",
       "langchain.response.completions.0.0.tool_calls.0.name": "add",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "e7478e576a0c4f41af375b5462892fc3"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 32,
-      "langchain.tokens.prompt_tokens": 85,
-      "langchain.tokens.total_tokens": 117,
-      "process_id": 82010
+      "langchain.tokens.completion_tokens": 5,
+      "langchain.tokens.prompt_tokens": 5,
+      "langchain.tokens.total_tokens": 10,
+      "process_id": 44634
     },
-    "duration": 8071000,
-    "start": 1738263109237865000
+    "duration": 6422000,
+    "start": 1739292280572397000
   }]]

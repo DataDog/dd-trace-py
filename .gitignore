@@ -18,6 +18,8 @@ ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
+ddtrace/internal/telemetry/metrics_namespaces.c
+pygoat/*
 *.so
 *.dylib
 *.a
@@ -132,6 +134,9 @@ ENV/
 # VS Code
 .vscode/
 
+# Cursor
+.cursor/
+
 # Riot
 .riot/venv*
 .riot/requirements/*.in
@@ -165,7 +170,10 @@ cloned_venvs/
 .circleci/config.gen.yml
 # GitLab CI generated config
 .gitlab/*-gen.yml
+.gitlab-ci-local/
 
 # Automatically generated fixtures
+tests/appsec/iast/fixtures/aspects/obj_callers.py
+tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
 tests/appsec/iast/fixtures/aspects/callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_callers.py

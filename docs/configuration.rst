@@ -269,7 +269,7 @@ Traces
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog,tracecontext``
+         ``datadog,tracecontext,baggage``
      
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
@@ -278,7 +278,7 @@ Traces
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, ``baggage``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
@@ -293,6 +293,7 @@ Traces
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
        v2.6.0: Updated default value to ``datadog,tracecontext``.
+       v2.16.0: Updated default value to ``datadog,tracecontex,baggage``.
 
    DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
       type: Integer
@@ -689,9 +690,9 @@ Agent
 
    DD_TAGS:
      description: |
-         Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2:value2`` or ``key1:value key2:value2``.
+         Set global tags to be attached to every span. Value must be either comma and/or space separated. e.g. ``key1:value1,key2:value2,key3``, ``key1:value key2:value2 key3`` or ``key1:value1, key2:value2, key3``.
 
-         If a tag value is not supplied the value will be an empty string. e.g. ``key1,key2`` or ``key1 key2``.
+         If a tag value is not supplied the value will be an empty string.
      
      version_added:
        v0.38.0: Comma separated support added
@@ -839,11 +840,6 @@ Other
 
 .. ddtrace-configuration-options::
 
-   DD_COMPILE_DEBUG:
-     type: Boolean
-     default: False
-     description: Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
-
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
      default: True
@@ -859,6 +855,25 @@ Other
          When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+     type: Boolean
+     default: False
+     version_added:
+       v3.2.0: Adds initial support
+
+     description: |
+         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
+     type: string
+     version_added:
+       v3.2.0: Adds initial support and support for enabling experimental runtime metrics. 
+     default: ""
+
+     description: |
+         Enables support for experimental ddtrace configurations. The supported configurations are: ``DD_RUNTIME_METRICS_ENABLED``.
 
    DD_SUBPROCESS_SENSITIVE_WILDCARDS:
      type: String
@@ -898,7 +913,6 @@ Other
       
       version_added:
          v1.15.0:
-
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 

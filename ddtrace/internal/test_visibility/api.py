@@ -13,11 +13,14 @@ from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
 from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixSessionMixin
+from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
+from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility._utils import _get_item_span
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -53,7 +56,7 @@ class InternalTestBase(ext_api.TestBase):
         core.dispatch("test_visibility.item.stash_delete", (item_id, key))
 
 
-class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin):
+class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin, AttemptToFixSessionMixin):
     @staticmethod
     def get_span() -> Span:
         return _get_item_span(TestSessionId())
@@ -133,6 +136,11 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin)
         ).path_codeowners.value
         return path_codeowners
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_library_capabilities(capabilities: LibraryCapabilities) -> None:
+        core.dispatch("test_visibility.session.set_library_capabilities", (capabilities,))
+
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):
     pass
@@ -142,7 +150,9 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
     pass
 
 
-class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, BenchmarkTestMixin):
+class InternalTest(
+    ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, AttemptToFixTestMixin, BenchmarkTestMixin
+):
     class FinishArgs(NamedTuple):
         """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
@@ -192,6 +202,16 @@ class InternalTest(ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTe
         is_disabled = bool(core.dispatch_with_results("test_visibility.test.is_disabled", (item_id,)).is_disabled.value)
         log.debug("Test %s is disabled: %s", item_id, is_disabled)
         return is_disabled
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def is_attempt_to_fix(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s is attempt to fix", item_id)
+        is_attempt_to_fix = bool(
+            core.dispatch_with_results("test_visibility.test.is_attempt_to_fix", (item_id,)).is_attempt_to_fix.value
+        )
+        log.debug("Test %s is attempt to fix: %s", item_id, is_attempt_to_fix)
+        return is_attempt_to_fix
 
     class OverwriteAttributesArgs(NamedTuple):
         test_id: InternalTestId

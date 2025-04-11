@@ -125,6 +125,13 @@ Consul
 .. automodule:: ddtrace.contrib._consul
 
 
+.. _crewai:
+
+CrewAI
+^^^^^^
+.. automodule:: ddtrace.contrib._crewai
+
+
 .. _datadog_lambda:
 
 Datadog Lambda
@@ -325,6 +332,13 @@ OpenAI
 .. automodule:: ddtrace.contrib._openai
 
 
+.. _openai-agents:
+
+OpenAI Agents
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._openai_agents
+
+
 .. _pylibmc:
 
 pylibmc
@@ -504,6 +518,12 @@ vertexai
 Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib._vertica
+
+.. _yaaredis:
+
+yaaredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib._yaaredis
 
 .. _wsgi:
 

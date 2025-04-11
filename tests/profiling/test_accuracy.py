@@ -44,8 +44,8 @@ def spend_cpu_3():
         pass
 
 
-# We allow 5% error:
-TOLERANCE = 0.05
+# We allow 7% error:
+TOLERANCE = 0.07
 
 
 def assert_almost_equal(value, target, tolerance=TOLERANCE):

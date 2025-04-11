@@ -10,7 +10,7 @@ from tests.webclient import PingFilter
 
 opentelemetry.trace.set_tracer_provider(TracerProvider())
 
-ddtrace.tracer._configure(trace_processors=[PingFilter()])
+ddtrace.tracer.configure(trace_processors=[PingFilter()])
 app = flask.Flask(__name__)
 
 

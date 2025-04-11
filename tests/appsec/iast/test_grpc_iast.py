@@ -1,8 +1,8 @@
 import threading
+from unittest import mock
 
 import grpc
 from grpc._grpcio_metadata import __version__ as _GRPC_VERSION
-import mock
 import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES

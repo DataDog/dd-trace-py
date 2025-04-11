@@ -17,25 +17,24 @@ from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
+from urllib import parse
 
 import wrapt
 
-from ddtrace import config
+from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.compat import parse
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -76,12 +75,6 @@ IP_PATTERNS = (
 )
 
 
-@cached()
-def _normalized_header_name(header_name):
-    # type: (str) -> str
-    return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
-
-
 def _get_header_value_case_insensitive(headers, keyname):
     # type: (Mapping[str, str], str) -> Optional[str]
     """
@@ -98,31 +91,6 @@ def _get_header_value_case_insensitive(headers, keyname):
             return value
 
     return None
-
-
-def _normalize_tag_name(request_or_response, header_name):
-    # type: (str, str) -> str
-    """
-    Given a tag name, e.g. 'Content-Type', returns a corresponding normalized tag name, i.e
-    'http.request.headers.content_type'. Rules applied actual header name are:
-    - any letter is converted to lowercase
-    - any digit is left unchanged
-    - any block of any length of different ASCII chars is converted to a single underscore '_'
-    :param request_or_response: The context of the headers: request|response
-    :param header_name: The header's name
-    :type header_name: str
-    :rtype: str
-    """
-    # Looking at:
-    #   - http://www.iana.org/assignments/message-headers/message-headers.xhtml
-    #   - https://tools.ietf.org/html/rfc6648
-    # and for consistency with other language integrations seems safe to assume the following algorithm for header
-    # names normalization:
-    #   - any letter is converted to lowercase
-    #   - any digit is left unchanged
-    #   - any block of any length of different ASCII chars is converted to a single underscore '_'
-    normalized_name = _normalized_header_name(header_name)
-    return "http.{}.headers.{}".format(request_or_response, normalized_name)
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
@@ -169,6 +137,30 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
 
         if user_agent:
             return user_agent
+    return ""
+
+
+def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False):
+    # type: (Mapping[str, str], bool) -> str
+    """Get referrer host from request headers
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    :param headers_are_case_sensitive: Whether the headers are case sensitive
+    :type headers_are_case_sensitive: bool
+    :return: The referrer host if found, empty string otherwise
+    :rtype: str
+    """
+    if headers_are_case_sensitive:
+        referrer = _get_header_value_case_insensitive(headers, http.REFERER_HEADER)
+    else:
+        referrer = headers.get(http.REFERER_HEADER)
+    if referrer:
+        try:
+            parsed_url = parse.urlparse(referrer)
+            if parsed_url.hostname:
+                return parsed_url.hostname
+        except (ValueError, AttributeError):
+            return ""
     return ""
 
 
@@ -501,11 +493,16 @@ def set_http_meta(
         if user_agent:
             span.set_tag_str(http.USER_AGENT, user_agent)
 
+        # Extract referrer host if referer header is present
+        referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
+        if referrer_host:
+            span.set_tag_str(http.REFERRER_HOSTNAME, referrer_host)
+
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if asm_config._asm_enabled or config._retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.get_item("http.request.remote_ip", span=span)
+            request_ip = core.get_item("http.request.remote_ip")
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env

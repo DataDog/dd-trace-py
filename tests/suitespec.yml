@@ -13,7 +13,6 @@ components:
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
-    - .circleci/*
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
@@ -58,7 +57,7 @@ components:
     - ddtrace/internal/logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
-    - ddtrace/internal/injection.py
+    - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
@@ -66,6 +65,7 @@ components:
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
@@ -152,7 +152,7 @@ suites:
     runner: hatch
     snapshot: false
   ddtracerun:
-    parallelism: 6
+    parallelism: 3
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -163,6 +163,7 @@ suites:
     services:
       - redis
   integration_agent:
+    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -173,6 +174,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
+    parallelism: 1
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -184,6 +186,7 @@ suites:
     runner: riot
     snapshot: true
   internal:
+    parallelism: 2
     paths:
       - '@core'
       - '@remoteconfig'
@@ -223,7 +226,7 @@ suites:
     runner: riot
     skip: true
   telemetry:
-    parallelism: 6
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -255,6 +258,7 @@ suites:
     retry: 2
     runner: riot
   vendor:
+    parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*

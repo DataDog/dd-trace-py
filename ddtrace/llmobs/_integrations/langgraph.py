@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
@@ -39,7 +40,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         metadata = _get_attr(config, "metadata", {})
         instance_id = metadata.get("langgraph_checkpoint_ns", "").split(":")[-1]
         invoked_node = self._graph_nodes_by_task_id.setdefault(instance_id, {})
-        invoked_node["span"] = {"trace_id": "{:x}".format(span.trace_id), "span_id": str(span.span_id)}
+        invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
 
         span_links = [_default_span_link(span)]
         invoked_node_span_links = invoked_node.get("span_links")
@@ -97,7 +98,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = [
                 {
                     "span_id": str(graph_span.span_id) or "undefined",
-                    "trace_id": "{:x}".format(graph_caller_span.trace_id),
+                    "trace_id": format_trace_id(graph_span.trace_id),
                     "attributes": {"from": "output", "to": "output"},
                 }
             ]
@@ -176,7 +177,7 @@ def _default_span_link(span: Span):
     """
     return {
         "span_id": span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
-        "trace_id": "{:x}".format(span.trace_id),
+        "trace_id": format_trace_id(span.trace_id),
         "attributes": {"from": "input", "to": "input"},
     }
 

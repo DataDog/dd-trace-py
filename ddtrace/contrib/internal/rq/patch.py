@@ -1,5 +1,3 @@
-import os
-
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
@@ -13,13 +11,14 @@ from ddtrace.trace import Pin
 
 from ....ext import SpanKind
 from ....ext import SpanTypes
+from ....settings._config import _get_config
 from ... import trace_utils
 
 
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -27,7 +26,7 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(os.environ.get("DD_RQ_DISTRIBUTED_TRACING_ENABLED", True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
@@ -111,7 +110,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             pin=pin,
             span_type=SpanTypes.WORKER,
             resource=job.func_name,
-            distributed_headers_config=config.rq_worker,
+            integration_config=config.rq_worker,
             distributed_headers=job.meta,
             tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
         ) as ctx, ctx.span:
