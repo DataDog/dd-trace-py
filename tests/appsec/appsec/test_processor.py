@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -366,6 +367,7 @@ def test_ddwaf_not_raises_exception():
             rules_json,
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
+            _metrics,
         )
 
 
@@ -495,7 +497,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 def test_ddwaf_run():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -515,7 +517,7 @@ def test_ddwaf_run():
 def test_ddwaf_run_timeout():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
@@ -531,7 +533,7 @@ def test_ddwaf_run_timeout():
 def test_ddwaf_info():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == len(rules_json["rules"])
@@ -543,7 +545,7 @@ def test_ddwaf_info():
 def test_ddwaf_info_with_2_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json")) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -559,7 +561,7 @@ def test_ddwaf_info_with_2_errors():
 def test_ddwaf_info_with_3_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json")) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1

@@ -284,7 +284,13 @@ def set_body_response(body_response):
     # local import to avoid circular import
     from ddtrace.appsec._utils import parse_response_body
 
-    set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, lambda: parse_response_body(body_response))
+    set_waf_address(
+        SPAN_DATA_NAMES.RESPONSE_BODY,
+        lambda: parse_response_body(
+            body_response,
+            get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES),
+        ),
+    )
 
 
 def set_waf_address(address: str, value: Any) -> None:
