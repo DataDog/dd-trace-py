@@ -30,8 +30,8 @@ W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_HASH_MODULO = 1 << 64
-# Big prime number to make hashing better distributed, it has to be the same factor and key as the Agent
-# to allow chained sampling
+# Big prime number to make hashing better distributed, it has to be the same factor as the Agent
+# and other tracers to allow chained sampling
 SAMPLING_KNUTH_FACTOR = 1111111111111111111
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
