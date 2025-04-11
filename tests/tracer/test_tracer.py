@@ -1904,3 +1904,64 @@ def test_multiple_tracer_instances():
     log.error.assert_called_once_with(
         "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
     )
+
+
+def test_span_creation_with_context(tracer):
+    """Test that a span created with a Context parent correctly sets its parent context.
+
+    This test verifies that when a span is created with a Context object as its parent,
+    the span's _parent_context attribute is properly set to that Context.
+    """
+
+    context = Context(trace_id=123, span_id=321)
+    with tracer.start_span("s1", child_of=context) as span:
+        assert span._parent_context == context
+
+
+def test_activate_context_propagates_to_child_spans(tracer):
+    """Test that activating a context properly propagates to child spans.
+
+    This test verifies that when a context is activated using _activate_context:
+    1. Child spans created within the context inherit the trace_id and parent_id
+    2. Multiple child spans within the same context maintain consistent parentage
+    3. Spans created outside the context have different trace_id and parent_id
+    """
+    with tracer._activate_context(Context(trace_id=1, span_id=1)):
+        with tracer.trace("child1") as c1:
+            assert c1.trace_id == 1
+            assert c1.parent_id == 1
+
+        with tracer.trace("child1") as c2:
+            assert c2.trace_id == 1
+            assert c2.parent_id == 1
+
+    with tracer.trace("root") as root:
+        assert root.trace_id != 1
+        assert root.parent_id != 1
+
+
+def test_activate_context_nesting_and_restoration(tracer):
+    """Test that context activation properly handles nesting and restoration.
+
+    This test verifies that:
+    1. A context can be activated and its values are accessible
+    2. A nested context can be activated and its values override the outer context
+    3. When the nested context exits, the outer context is properly restored
+    4. When all contexts exit, the active context is None
+    """
+
+    with tracer._activate_context(Context(trace_id=1, span_id=1)):
+        active = tracer.context_provider.active()
+        assert active.trace_id == 1
+        assert active.span_id == 1
+
+        with tracer._activate_context(Context(trace_id=2, span_id=2)):
+            active = tracer.context_provider.active()
+            assert active.trace_id == 2
+            assert active.span_id == 2
+
+        active = tracer.context_provider.active()
+        assert active.trace_id == 1
+        assert active.span_id == 1
+
+    assert tracer.context_provider.active() is None
