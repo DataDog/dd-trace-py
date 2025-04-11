@@ -251,7 +251,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # persistent addresses must be sent if api security is used
         force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
 
-        for key, waf_name in iter_data:  # type: ignore[attr-defined]
+        for key, waf_name in iter_data:
             if key in data_already_sent and not force_sent:
                 continue
             # ensure ephemeral addresses are sent, event when value is None
