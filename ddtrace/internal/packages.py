@@ -191,12 +191,10 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
         mapping = {}
 
         for dist in importlib_metadata.distributions():
-            if not files := dist.files:
+            if not (files := dist.files):
                 continue
             metadata = dist.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            d = Distribution(name=name, version=version, path=None)
+            d = Distribution(name=metadata["name"], version=metadata["version"], path=None)
             for f in files:
                 root = f.parts[0]
                 if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
