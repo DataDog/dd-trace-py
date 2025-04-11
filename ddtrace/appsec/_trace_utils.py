@@ -418,7 +418,7 @@ def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriev
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
     res = None
     if result_user and result_user.is_authenticated:
-        span = pin.core.get_root_span()
+        span = core.get_root_span()
         if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
             hash_id = _hash_user_id(user_id)
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
