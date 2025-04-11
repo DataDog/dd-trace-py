@@ -11,6 +11,18 @@ and outputs of LLM calls used for Ragas
 """
 
 
+class AnswerRelevanceClassification(BaseModel):
+    question: str
+    noncommittal: int
+
+
+class ContextPrecisionVerification(BaseModel):
+    """Answer for the verification task whether the context was useful."""
+
+    reason: str = Field(..., description="Reason for verification")
+    verdict: int = Field(..., description="Binary (0/1) verdict of verification")
+
+
 class StatementFaithfulnessAnswer(BaseModel):
     statement: str = Field(..., description="the original statement, word-by-word")
     reason: str = Field(..., description="the reason of the verdict")

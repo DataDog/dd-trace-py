@@ -2,8 +2,10 @@ import bottle
 import webtest
 
 import ddtrace
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.bottle import TracePlugin
 from ddtrace.internal import compat
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
 
@@ -127,3 +129,81 @@ class TraceBottleDistributedTest(TracerTestCase):
         # check distributed headers
         assert 123 != s.trace_id
         assert 456 != s.parent_id
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="True"))
+    def test_inferred_spans_api_gateway_distributed_tracing_enabled(self):
+        @self.app.route("/")
+        def default_endpoint():
+            return bottle.HTTPResponse("", status=200)
+
+        self._trace_app_distributed(self.tracer)
+
+        # make a request
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        resp = self.app.get("/", headers=headers)
+        assert resp.status_int == 200
+
+        traces = self.pop_traces()
+        aws_gateway_span = traces[0][0]
+        web_span = traces[0][1]
+
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="bottle.request",
+            web_span_component="bottle",
+            web_span_service_name=SERVICE,
+            web_span_resource="GET " + "/",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            status_code=200,
+            url="local/",
+            start=1736973768,
+            is_distributed=True,
+            distributed_trace_id=1,
+            distributed_parent_id=2,
+            distributed_sampling_priority=USER_KEEP,
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED="False"))
+    def test_inferred_spans_api_gateway_distributed_tracing_disabled(self):
+        @self.app.route("/")
+        def default_endpoint():
+            return bottle.HTTPResponse("", status=200)
+
+        self._trace_app_distributed(self.tracer)
+
+        # make a request
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        resp = self.app.get("/", headers=headers)
+        assert resp.status_int == 200
+
+        traces = self.pop_traces()
+        web_span = traces[0][0]
+        assert web_span.name == "bottle.request"
+        assert web_span._parent is None

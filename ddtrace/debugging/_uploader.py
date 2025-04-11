@@ -9,10 +9,8 @@ from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
-from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
@@ -26,6 +24,7 @@ class UploaderProduct(str, Enum):
 
     DEBUGGER = "dynamic_instrumentation"
     EXCEPTION_REPLAY = "exception_replay"
+    CODE_ORIGIN_SPAN = "code_origin.span"
 
 
 class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
@@ -55,8 +54,6 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             "Accept": "text/plain",
         }
 
-        container.update_headers_with_container_info(self._headers, container.get_container_info())
-
         if di_config._tags_in_qs and di_config.tags:
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
@@ -83,7 +80,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
                     payload,
                     headers=self._headers,
                 )
-                resp = compat.get_connection_response(conn)
+                resp = conn.getresponse()
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})

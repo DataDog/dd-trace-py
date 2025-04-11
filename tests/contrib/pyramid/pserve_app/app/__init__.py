@@ -1,8 +1,8 @@
 from pyramid.config import Configurator
 from pyramid.response import Response
 
-from ddtrace import tracer
-from ddtrace.filters import TraceFilter
+from ddtrace.trace import TraceFilter
+from ddtrace.trace import tracer
 
 
 class PingFilter(TraceFilter):
@@ -13,11 +13,7 @@ class PingFilter(TraceFilter):
         return None if trace and trace[0].trace_id == 1 else trace
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer.configure(trace_processors=[PingFilter()])
 
 
 def tracer_shutdown(request):

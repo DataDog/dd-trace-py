@@ -4,6 +4,7 @@ from pathlib import Path
 
 from wrapt import FunctionWrapper
 
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.inspection import undecorated
 
 
@@ -12,6 +13,7 @@ try:
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
+from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
@@ -27,6 +29,8 @@ from typing import cast
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.inspection import collect_code_objects
+from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
 
 
@@ -48,6 +52,8 @@ class FullyNamed(Protocol):
 
 class FullyNamedFunction(FullyNamed):
     """A fully named function object."""
+
+    __qualname__: str
 
     def __call__(self, *args, **kwargs):
         pass
@@ -119,7 +125,47 @@ def _local_name(name: str, f: FunctionType) -> str:
     return func_name
 
 
-def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
+class _FunctionCodePair:
+    """Function-Code Pair
+
+    This class allows us to resolve a code object to a function object by
+    querying the GC on-demand.
+    """
+
+    __slots__ = ("function", "code")
+
+    def __init__(self, code: Optional[CodeType] = None, function: Optional[FunctionType] = None) -> None:
+        if code is not None and function is not None and function.__code__ is not code:
+            raise ValueError("Function and code objects do not match")
+
+        self.function = function
+        self.code = function.__code__ if function is not None else code
+
+    def resolve(self) -> FullyNamedFunction:
+        if self.function is not None:
+            return cast(FullyNamedFunction, self.function)
+
+        code = self.code
+        functions = functions_for_code(code)
+        n = len(functions)
+        if n == 0:
+            msg = f"Cannot resolve code object to function: {code}"
+            raise ValueError(msg)
+        if n > 1:
+            # This can happen for functions that are created at runtime rather
+            # than compile time. We do not support this case deliberately for
+            # now.
+            msg = f"Multiple functions found for code object {code}"
+            raise ValueError(msg)
+
+        self.function = _f = functions[0]
+        f = cast(FullyNamedFunction, _f)
+        f.__fullname__ = f"{f.__module__}.{f.__qualname__}"
+
+        return f
+
+
+def _collect_functions(module: ModuleType) -> Dict[str, _FunctionCodePair]:
     """Collect functions from a given module.
 
     All the collected functions are augmented with a ``__fullname__`` attribute
@@ -160,7 +206,9 @@ def _collect_functions(module: ModuleType) -> Dict[str, FullyNamedFunction]:
                         # try to retrieve any potentially decorated function so
                         # that we don't end up returning the decorator function
                         # instead of the original function.
-                        functions[fullname] = undecorated(f, name, path) if name == k else o
+                        functions[fullname] = _FunctionCodePair(
+                            function=cast(FunctionType, undecorated(f, name, path) if name == k else o)
+                        )
 
                 try:
                     if f.__closure__:
@@ -189,28 +237,52 @@ class FunctionDiscovery(defaultdict):
 
     def __init__(self, module: ModuleType) -> None:
         super().__init__(list)
-        self._module = module
-        self._fullname_index = {}
 
-        functions = _collect_functions(module)
-        seen_functions = set()
         module_path = origin(module)
         if module_path is None:
             # We are not going to collect anything because no code objects will
             # match the origin.
             return
 
-        for fname, function in functions.items():
-            if (
-                function not in seen_functions
-                and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
-            ):
-                # We only map line numbers for functions that actually belong to
-                # the module.
-                for lineno in linenos(cast(FunctionType, function)):
-                    self[lineno].append(function)
-            self._fullname_index[fname] = function
-            seen_functions.add(function)
+        self._module = module
+        self._fullname_index = _collect_functions(module)
+        if PYTHON_VERSION_INFO < (3, 11):
+            self._name_index: Dict[str, List[_FunctionCodePair]] = defaultdict(list)
+        self._cached: Dict[int, List[FullyNamedFunction]] = {}
+
+        # Create the line to function mapping
+        if hasattr(module, "__dd_code__"):
+            for code in module.__dd_code__:
+                fcp = _FunctionCodePair(code=code)
+
+                if PYTHON_VERSION_INFO >= (3, 11):
+                    # From this version of Python we can derive the qualified
+                    # name of the function directly from the code object.
+                    fullname = f"{module.__name__}.{code.co_qualname}"
+                    self._fullname_index[fullname] = fcp
+                else:
+                    self._name_index[code.co_name].append(fcp)
+
+                for lineno in linenos(code):
+                    self[lineno].append(fcp)
+        else:
+            # If the module was already loaded we don't have its code object
+            seen_functions = set()
+            for _, fcp in self._fullname_index.items():
+                try:
+                    function = fcp.resolve()
+                except ValueError:
+                    continue
+
+                if (
+                    function not in seen_functions
+                    and Path(cast(FunctionType, function).__code__.co_filename).resolve() == module_path
+                ):
+                    # We only map line numbers for functions that actually belong to
+                    # the module.
+                    for lineno in linenos(cast(FunctionType, function)):
+                        self[lineno].append(_FunctionCodePair(function=cast(FunctionType, function)))
+                seen_functions.add(function)
 
     def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
@@ -218,15 +290,58 @@ class FunctionDiscovery(defaultdict):
         Note that, in general, there can be multiple copies of the same
         functions. This can happen as a result, e.g., of using decorators.
         """
-        return self[line]
+        if line in self._cached:
+            return self._cached[line]
+
+        if line in self:
+            functions = []
+            for fcp in self[line]:
+                try:
+                    functions.append(fcp.resolve())
+                except ValueError:
+                    pass
+
+            if not functions:
+                del self[line]
+            else:
+                self._cached[line] = functions
+
+            return functions
+
+        return []
 
     def by_name(self, qualname: str) -> FullyNamedFunction:
         """Get the function by its qualified name."""
-        fullname = ".".join((self._module.__name__, qualname))
+        fullname = f"{self._module.__name__}.{qualname}"
         try:
-            return self._fullname_index[fullname]
+            return self._fullname_index[fullname].resolve()
+        except ValueError:
+            pass
         except KeyError:
-            raise ValueError("Function '%s' not found" % fullname)
+            if PYTHON_VERSION_INFO < (3, 11):
+                # Check if any code objects whose names match the last part of
+                # the qualified name have a function with the same qualified
+                # name.
+                for name, fcps in self._name_index.items():
+                    if qualname == name or qualname.endswith(f".{name}"):
+                        for fcp in list(fcps):
+                            try:
+                                f = fcp.resolve()
+
+                                # We have resolved the function so we can now
+                                # get its full name
+                                self._fullname_index[f"{self._module.__name__}.{f.__qualname__}"] = fcp
+
+                                # We can remove the entry from the name index
+                                fcps.pop(0)
+
+                                # If this is the function we are looking for,
+                                # return it
+                                if f.__qualname__ == qualname:
+                                    return f
+                            except ValueError:
+                                pass
+        raise ValueError("Function '%s' not found" % fullname)
 
     @classmethod
     def from_module(cls, module: ModuleType) -> "FunctionDiscovery":
@@ -241,4 +356,12 @@ class FunctionDiscovery(defaultdict):
             return module.__function_discovery__
         except AttributeError:
             fd = module.__function_discovery__ = cls(module)  # type: ignore[attr-defined]
+            if hasattr(module, "__dd_code__"):
+                # We no longer need to keep this collection around
+                del module.__dd_code__
             return fd
+
+    @classmethod
+    def transformer(cls, code: CodeType, module: ModuleType) -> CodeType:
+        module.__dd_code__ = collect_code_objects(code)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+        return code

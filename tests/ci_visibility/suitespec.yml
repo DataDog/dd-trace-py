@@ -7,17 +7,21 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
-    - ddtrace/contrib/pytest/*
-    - ddtrace/contrib/pytest_bdd/*
-    - ddtrace/contrib/pytest_benchmark/*
+    - ddtrace/contrib/_pytest.py
+    - ddtrace/contrib/_pytest_bdd.py
+    - ddtrace/contrib/_pytest_benchmark.py
+  selenium:
+    - ddtrace/contrib/_selenium.py
+    - ddtrace/contrib/internal/selenium/*
   unittest:
-    - ddtrace/contrib/unittest/*
+    - ddtrace/contrib/_unittest.py
 suites:
   ci_visibility:
     parallelism: 4
     paths:
       - '@ci_visibility'
       - '@ci'
+      - '@core'
       - '@coverage'
       - '@git'
       - '@pytest'
@@ -26,7 +30,7 @@ suites:
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 6
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -53,7 +57,7 @@ suites:
     runner: riot
     snapshot: true
   pytest_v2:
-    parallelism: 10
+    parallelism: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -70,7 +74,23 @@ suites:
     pattern: pytest_plugin_v2
     runner: hatch
     snapshot: true
+  selenium:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ci_visibility'
+      - '@pytest'
+      - '@unittest'
+      - '@selenium'
+      - tests/contrib/selenium/*
+      - tests/snapshots/test_selenium*
+    runner: hatch
+    snapshot: true
   unittest:
+    parallelism: 2
     paths:
       - '@contrib'
       - '@unittest'

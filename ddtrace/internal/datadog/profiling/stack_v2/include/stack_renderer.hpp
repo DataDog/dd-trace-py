@@ -12,6 +12,8 @@
 #include "python_headers.hpp"
 
 #include "dd_wrapper/include/ddup_interface.hpp"
+
+#include "echion/frame.h"
 #include "echion/render.h"
 
 namespace Datadog {
@@ -34,6 +36,19 @@ class StackRenderer : public RendererInterface
 {
     Sample* sample = nullptr;
     ThreadState thread_state = {};
+    // Whether task name has been pushed for the current sample. Whenever
+    // the sample is created, this has to be reset.
+    bool pushed_task_name = false;
+
+    void open() override {}
+    void close() override {}
+    void header() override {}
+    void metadata(const std::string&, const std::string&) override {}
+    void frame(mojo_ref_t, mojo_ref_t, mojo_ref_t, mojo_int_t, mojo_int_t, mojo_int_t, mojo_int_t) override{};
+    void frame_ref(mojo_ref_t) override{};
+    void frame_kernel(const std::string&) override {};
+    void string(mojo_ref_t, const std::string&) override {};
+    void string_ref(mojo_ref_t) override{};
 
     virtual void render_message(std::string_view msg) override;
     virtual void render_thread_begin(PyThreadState* tstate,
@@ -41,12 +56,11 @@ class StackRenderer : public RendererInterface
                                      microsecond_t wall_time_us,
                                      uintptr_t thread_id,
                                      unsigned long native_id) override;
-    virtual void render_task_begin(std::string_view name) override;
-    virtual void render_stack_begin() override;
-    virtual void render_python_frame(std::string_view name, std::string_view file, uint64_t line) override;
-    virtual void render_native_frame(std::string_view name, std::string_view file, uint64_t line) override;
+    virtual void render_task_begin() override;
+    virtual void render_stack_begin(long long pid, long long iid, const std::string& name) override;
+    virtual void render_frame(Frame& frame) override;
     virtual void render_cpu_time(uint64_t cpu_time_us) override;
-    virtual void render_stack_end() override;
+    virtual void render_stack_end(MetricType metric_type, uint64_t value) override;
     virtual bool is_valid() override;
 };
 

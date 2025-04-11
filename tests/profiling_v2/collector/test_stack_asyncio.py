@@ -1,24 +1,22 @@
-import asyncio
-import glob
-import os
-import sys
-import time
-
 import pytest
 
-from ddtrace.internal.datadog.profiling import stack_v2
-from ddtrace.profiling import _asyncio
-from ddtrace.profiling import profiler
-from ddtrace.settings.profiling import config
-from tests.profiling.collector import _asyncio_compat
-from tests.profiling.collector import pprof_utils
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
+    ),
+)
+def test_asyncio():
+    import asyncio
+    import os
+    import time
+    import uuid
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="stack v2 is available only on 3.8+ as echion does")
-def test_asyncio(monkeypatch):
-    pprof_output_prefix = "/tmp/test_asyncio"
-    monkeypatch.setattr(config.stack, "v2_enabled", True)
-    monkeypatch.setattr(config, "output_pprof", pprof_output_prefix)
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import stack_v2
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     assert stack_v2.is_available, stack_v2.failure_msg
 
@@ -31,32 +29,40 @@ def test_asyncio(monkeypatch):
             await asyncio.sleep(sleep_time)
 
     async def hello():
-        t1 = _asyncio_compat.create_task(stuff(), name="sleep 1")
-        t2 = _asyncio_compat.create_task(stuff(), name="sleep 2")
+        t1 = asyncio.create_task(stuff(), name="sleep 1")
+        t2 = asyncio.create_task(stuff(), name="sleep 2")
         await stuff()
         return (t1, t2)
 
-    p = profiler.Profiler()
-    p.start()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    if _asyncio_compat.PY38_AND_LATER:
-        maintask = loop.create_task(hello(), name="main")
-    else:
-        maintask = loop.create_task(hello())
+    resource = str(uuid.uuid4())
+    span_type = ext.SpanTypes.WEB
 
-    t1, t2 = loop.run_until_complete(maintask)
+    p = profiler.Profiler(tracer=tracer)
+    assert p._profiler._stack_v2_enabled
+    p.start()
+    with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
+        span_id = span.span_id
+        local_root_span_id = span._local_root.span_id
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        maintask = loop.create_task(hello(), name="main")
+
+        t1, t2 = loop.run_until_complete(maintask)
     p.stop()
 
-    t1_name = _asyncio._task_get_name(t1)
-    t2_name = _asyncio._task_get_name(t2)
+    t1_name = t1.get_name()
+    t2_name = t2.get_name()
 
     assert t1_name == "sleep 1"
     assert t2_name == "sleep 2"
 
-    output_filename = pprof_output_prefix + "." + str(os.getpid())
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     profile = pprof_utils.parse_profile(output_filename)
+
+    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+    assert len(samples_with_span_id) > 0
 
     # get samples with task_name
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
@@ -64,51 +70,50 @@ def test_asyncio(monkeypatch):
     # tracking via ddtrace.profiling._asyncio
     assert len(samples) > 0
 
-    # We'd like to check whether there exist samples with
-    # 1. task name label "main"
-    #   - function name label "hello"
-    #   - and line number is between
-    # 2. task name label t1_name or t2_name
-    #  - function name label "stuff"
-    # And they all have thread name "MainThread"
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="main",
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="hello", filename="test_stack_asyncio.py", line_no=hello.__code__.co_firstlineno + 3
+                )
+            ],
+        ),
+    )
 
-    checked_main = False
-    checked_t1 = False
-    checked_t2 = False
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=t1_name,
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ],
+        ),
+    )
 
-    for sample in samples:
-        task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
-        task_name = profile.string_table[task_name_label.str]
-
-        thread_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread name")
-        thread_name = profile.string_table[thread_name_label.str]
-
-        location_id = sample.location_id[0]
-        location = pprof_utils.get_location_with_id(profile, location_id)
-        line = location.line[0]
-        function = pprof_utils.get_function_with_id(profile, line.function_id)
-        function_name = profile.string_table[function.name]
-
-        if task_name == "main":
-            assert thread_name == "MainThread"
-            assert function_name == "hello"
-            checked_main = True
-        elif task_name == t1_name or task_name == t2_name:
-            assert thread_name == "MainThread"
-            assert function_name == "stuff"
-            if task_name == t1_name:
-                checked_t1 = True
-            if task_name == t2_name:
-                checked_t2 = True
-
-    assert checked_main
-    assert checked_t1
-    assert checked_t2
-
-    # cleanup output file
-    for f in glob.glob(pprof_output_prefix + ".*"):
-        try:
-            os.remove(f)
-        except Exception as e:
-            print("Error removing file: {}".format(e))
-        pass
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=t2_name,
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="stuff", filename="test_stack_asyncio.py", line_no=stuff.__code__.co_firstlineno + 3
+                ),
+            ],
+        ),
+    )

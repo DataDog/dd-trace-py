@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where explicitly only using ``LLMObs.enable()`` to configure LLM Observability 
+    without environment variables would not automatically propagate distributed tracing headers.  

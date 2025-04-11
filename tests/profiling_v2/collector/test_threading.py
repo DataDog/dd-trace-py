@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace import ext
-from ddtrace import tracer
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import threading as collector_threading
 from tests.profiling.collector import pprof_utils
@@ -74,12 +73,12 @@ def test_patch():
     lock = threading.Lock
     collector = collector_threading.ThreadingLockCollector(None)
     collector.start()
-    assert lock == collector.original
+    assert lock == collector._original
     # wrapt makes this true
     assert lock == threading.Lock
     collector.stop()
     assert lock == threading.Lock
-    assert collector.original == threading.Lock
+    assert collector._original == threading.Lock
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
@@ -356,7 +355,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer(self):
+    def test_lock_events_tracer(self, tracer):
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -375,7 +374,7 @@ class TestThreadingLockCollector:
                 span_id = t.span_id
 
             lock2.release()  # !RELEASE! test_lock_events_tracer_2
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_2")
@@ -419,7 +418,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer_non_web(self):
+    def test_lock_events_tracer_non_web(self, tracer):
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.SQL
@@ -435,7 +434,7 @@ class TestThreadingLockCollector:
                 span_id = t.span_id
 
             lock2.release()  # !RELEASE! test_lock_events_tracer_non_web
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
 
@@ -463,7 +462,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_lock_events_tracer_late_finish(self):
+    def test_lock_events_tracer_late_finish(self, tracer):
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -482,7 +481,7 @@ class TestThreadingLockCollector:
             lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
         span.resource = resource
         span.finish()
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
@@ -520,7 +519,7 @@ class TestThreadingLockCollector:
             ],
         )
 
-    def test_resource_not_collected(self):
+    def test_resource_not_collected(self, tracer):
         tracer._endpoint_call_counter_span_processor.enable()
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
@@ -539,7 +538,7 @@ class TestThreadingLockCollector:
                 lock1.release()  # !RELEASE! test_resource_not_collected_1
                 span_id = t.span_id
             lock2.release()  # !RELEASE! test_resource_not_collected_2
-        ddup.upload()
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_resource_not_collected_1")
         linenos2 = get_lock_linenos("test_resource_not_collected_2")

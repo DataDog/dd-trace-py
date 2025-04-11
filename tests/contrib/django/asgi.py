@@ -4,7 +4,7 @@ from channels.routing import URLRouter
 from django.core.asgi import get_asgi_application
 from django.urls import re_path
 
-from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 
 
 application = get_asgi_application()

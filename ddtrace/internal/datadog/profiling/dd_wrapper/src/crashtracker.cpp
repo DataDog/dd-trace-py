@@ -207,8 +207,8 @@ Datadog::Crashtracker::start()
 
     auto result = ddog_crasht_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
-    if (result.tag != DDOG_CRASHT_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = result.err;                 // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (result.tag != DDOG_VOID_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;               // NOLINT (cppcoreguidelines-pro-type-union-access)
         std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);

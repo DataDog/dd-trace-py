@@ -1,43 +1,95 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
-# For more modern versions:
-# clang-format --dry-run -Werror file.c
-# would be enough…
-
-clean ()
-{
-    rm -f "$CFORMAT_TMP"
+clean() {
+    rm -f "$CFORMAT_TMP" 2>/dev/null || true
 }
 
 trap clean EXIT
 
-if [[ "$1" == "update" ]]
-then
-  THIS_PATH="$(realpath "$0")"
-  THIS_DIR="$(dirname $(dirname "$THIS_PATH"))"
-  # Find .c, , .h, .cpp, and .hpp files, excluding specified directories
-  find "$THIS_DIR" -type f \( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \) \
-    | grep -v '.eggs/' \
-    | grep -v 'dd-trace-py/build/' \
-    | grep -v '_taint_tracking/CMakeFiles' \
-    | grep -v '_taint_tracking/_deps/' \
-    | grep -v '.riot/' \
-    | grep -v 'ddtrace/vendor/' \
-    | grep -v '_taint_tracking/_vendor/' \
-    | grep -v 'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/' \
-    | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/' \
-    | while IFS= read -r file; do
-  clang-format -i $file
-  echo "Formatting $file"
+# Exclude patterns applied to file list
+exclude_patterns() {
+    local patterns=(
+        '^ddtrace/vendor/'
+        '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'
+        '.eggs/'
+        'dd-trace-py/build/'
+        '_taint_tracking/CMakeFiles'
+        '_taint_tracking/_deps/'
+        '.riot/'
+        '_taint_tracking/_vendor/'
+        'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
+    )
+
+    # Join all patterns with '|'
+    local joined="$(IFS='|'; echo "${patterns[*]}")"
+
+    grep -vE "${joined}"
+}
+
+# Function to enumerate files depending on mode
+enumerate_files() {
+    local extensions=(
+        '*.c'
+        '*.h'
+        '*.cpp'
+        '*.hpp'
+    )
+
+    if [[ "$ENUM_ALL" == "true" ]]; then
+        local find_conditions=()
+        for ext in "${extensions[@]}"; do
+            find_conditions+=("-o" "-name" "$ext")
+        done
+        unset 'find_conditions[-1]'
+        find "$BASE_DIR" -type f \( "${find_conditions[@]}" \)
+    else
+        git ls-files "${extensions[@]}"
+    fi
+}
+
+# Script defaults
+UPDATE_MODE=false
+ENUM_ALL=false
+BASE_DIR=$(dirname "$(realpath "$0")")
+CLANG_FORMAT=clang-format
+
+# NB: consumes the arguments
+while (( "$#" )); do
+    case "$1" in
+        --fix|-fix|fix)
+            UPDATE_MODE="true"
+            ;;
+        --all|-all|all)
+            ENUM_ALL="true"
+            ;;
+        *)
+            ;;
+    esac
 done
+
+# Environment variable overrides
+[[ -n "${CFORMAT_FIX:-}" ]] && UPDATE_MODE=true
+[[ -n "${CFORMAT_ALL:-}" ]] && ENUM_ALL=true
+[[ -n "${CFORMAT_BIN:-}" ]] && CLANG_FORMAT="$CLANG_FORMAT_BIN"
+
+if [[ "$UPDATE_MODE" == "true" ]]; then
+    # Update mode: Format files in-place
+    enumerate_files \
+        | exclude_patterns \
+        | while IFS= read -r file; do
+            ${CLANG_FORMAT} -i "$file"
+            echo "Formatting $file"
+        done
 else
-  git ls-files '*.c' '*.h' '*.cpp' '*.hpp' | grep -v '^ddtrace/vendor/' | grep -v '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'  | while read filename
-  do
-    CFORMAT_TMP=`mktemp`
-    clang-format "$filename" > "$CFORMAT_TMP"
-    diff -u "$filename" "$CFORMAT_TMP"
-    rm -f "$CFORMAT_TMP"
-  done
+    # Check mode: Compare formatted output to existing files
+    enumerate_files \
+        | exclude_patterns \
+        | while IFS= read -r filename; do
+            CFORMAT_TMP=$(mktemp)
+            ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
+            diff -u "$filename" "$CFORMAT_TMP" || true
+            rm -f "$CFORMAT_TMP"
+        done
 fi
 

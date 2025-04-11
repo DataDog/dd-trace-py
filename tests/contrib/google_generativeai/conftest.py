@@ -3,10 +3,10 @@ import os
 import mock
 import pytest
 
-from ddtrace.contrib.google_generativeai import patch
-from ddtrace.contrib.google_generativeai import unpatch
+from ddtrace.contrib.internal.google_generativeai.patch import patch
+from ddtrace.contrib.internal.google_generativeai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.contrib.google_generativeai.utils import MockGenerativeModelAsyncClient
 from tests.contrib.google_generativeai.utils import MockGenerativeModelClient
 from tests.utils import DummyTracer
@@ -35,8 +35,7 @@ def mock_tracer(ddtrace_global_config, genai):
     try:
         pin = Pin.get_from(genai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin.override(genai, tracer=mock_tracer)
-        pin.tracer.configure()
+        pin._override(genai, tracer=mock_tracer)
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()

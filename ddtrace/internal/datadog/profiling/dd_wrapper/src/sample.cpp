@@ -4,7 +4,45 @@
 
 #include <algorithm>
 #include <chrono>
+#include <string_view>
 #include <thread>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
+Datadog::internal::StringArena::StringArena()
+{
+    chunks.emplace_back();
+    chunks.back().reserve(Datadog::internal::StringArena::DEFAULT_SIZE);
+}
+
+void
+Datadog::internal::StringArena::reset()
+{
+    // Free chunks. Keep the first one around so it's easy to reuse this without
+    // needing new allocations every time. We can completely drop it to get rid
+    // of everything
+    // TODO - we could consider keeping more around if it's not too costly.
+    // The goal is to not retain more than we need _on average_. If we have
+    // mostly small samples and then a rare huge one, we can end up with
+    // all samples in our pool using as much memory as the largets ones we've seen
+    chunks.front().clear();
+    chunks.erase(++chunks.begin(), chunks.end());
+}
+
+std::string_view
+Datadog::internal::StringArena::insert(std::string_view s)
+{
+    auto chunk = &chunks.back();
+    if ((chunk->capacity() - chunk->size()) < s.size()) {
+        chunk = &chunks.emplace_back();
+        chunk->reserve(std::max(s.size(), Datadog::internal::StringArena::DEFAULT_SIZE));
+    }
+    int base = chunk->size();
+    chunk->insert(chunk->end(), s.begin(), s.end());
+    return std::string_view(chunk->data() + base, s.size());
+}
 
 Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
   : max_nframes{ _max_nframes }
@@ -27,9 +65,9 @@ Datadog::Sample::profile_clear_state()
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), to_slice("") };
-    name = profile_state.insert_or_get(name);
-    filename = profile_state.insert_or_get(filename);
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
+    name = string_storage.insert(name);
+    filename = string_storage.insert(filename);
 
     CodeProvenance::get_instance().add_filename(filename);
 
@@ -37,8 +75,11 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
         .mapping = null_mapping, // No support for mappings in Python
         .function = {
           .name = to_slice(name),
+          .name_id = { 0 },
           .system_name = {}, // No support for system_name in Python
+          .system_name_id = { 0 },
           .filename = to_slice(filename),
+          .filename_id = { 0 },
           .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,
@@ -73,7 +114,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     }
 
     // Otherwise, persist the val string and add the label
-    val = profile_state.insert_or_get(val);
+    val = string_storage.insert(val);
     auto& label = labels.emplace_back();
     label.key = to_slice(key_sv);
     label.str = to_slice(val);
@@ -106,6 +147,7 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    string_storage.reset();
 }
 
 bool
@@ -228,6 +270,42 @@ Datadog::Sample::push_heap(int64_t size)
 }
 
 bool
+Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUTime)) {
+        values[profile_state.val().gpu_time] += time * count;
+        values[profile_state.val().gpu_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUMemory)) {
+        values[profile_state.val().gpu_alloc_space] += size * count;
+        values[profile_state.val().gpu_alloc_count] += count;
+        return true;
+    }
+    std::cout << "bad push gpu memory" << std::endl;
+    return false;
+}
+
+bool
+Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
+{
+    if (0U != (type_mask & SampleType::GPUFlops)) {
+        values[profile_state.val().gpu_flops] += size * count;
+        values[profile_state.val().gpu_flops_samples] += count;
+        return true;
+    }
+    std::cout << "bad push gpu flops" << std::endl;
+    return false;
+}
+
+bool
 Datadog::Sample::push_lock_name(std::string_view lock_name)
 {
     push_label(ExportLabelKey::lock_name, lock_name);
@@ -317,6 +395,27 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 }
 
 bool
+Datadog::Sample::push_gpu_device_name(std::string_view device_name)
+{
+    if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
+        std::cout << "bad push" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool
+Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
+{
+    // If timeline is not enabled, then this is a no-op
+    if (is_timeline_enabled()) {
+        endtime_ns = _timestamp_ns;
+    }
+
+    return true;
+}
+
+bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
     // Monotonic times have their epoch at the system start, so they need an
@@ -327,11 +426,21 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
+#ifdef _WIN32
+        // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+        LARGE_INTEGER frequency, counter;
+        QueryPerformanceFrequency(&frequency); // Frequency of the performance counter
+        QueryPerformanceCounter(&counter);     // Current value of the performance counter
+
+        // Convert to nanoseconds
+        auto monotonic_ns = (counter.QuadPart * 1'000'000'000LL) / frequency.QuadPart;
+#else
         // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
         // which clock is actually used in std::chrono
         timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
+#endif
 
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
         return epoch_ns - monotonic_ns;

@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracer: Deprecates the ability to use multiple tracer instances with ddtrace.Pin. In v3.0.0 pin objects will only use the global tracer.

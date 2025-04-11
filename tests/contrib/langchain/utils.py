@@ -28,7 +28,7 @@ true whenever it is put forward by me or conceived in my mind.
 #       between cassettes generated for requests and aiohttp.
 def get_request_vcr(subdirectory_name=""):
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key"],

@@ -1,6 +1,5 @@
-"""Fake test runner where all too many tests are new, so the session is faulty and no retries are done
-
-Incorporates setting and deleting tags, as well.
+"""Fake test runner where too many tests are new, so the session is faulty and no retries are done
+.
 Starts session before discovery (simulating pytest behavior)
 
 Comment lines in the test start/finish lines are there for visual distinction.
@@ -17,7 +16,7 @@ from ddtrace.internal.test_visibility import api
 
 
 def _make_test_ids():
-    _unique_test_ids = {
+    _known_test_ids = {
         "m1": {
             "m1_s1": [
                 ["m1_s1_t3"],
@@ -33,7 +32,7 @@ def _make_test_ids():
     }
 
     test_ids = set()
-    for module, suites in _unique_test_ids.items():
+    for module, suites in _known_test_ids.items():
         module_id = ext_api.TestModuleId(module)
         for suite, tests in suites.items():
             suite_id = ext_api.TestSuiteId(module_id, suite)
@@ -90,18 +89,8 @@ def run_tests():
     m2_s1_id = ext_api.TestSuiteId(m2_id, "m2_s1")
     api.InternalTestSuite.discover(m2_s1_id)
 
-    # M2_S1 tests (mostly exist to keep under faulty session threshold)
-    m2_s1_test_ids = [
-        api.InternalTestId(m2_s1_id, "m2_s1_t1"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t2"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t3"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t4"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t5"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t6"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t7"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t8"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t9"),
-    ]
+    # M2_S1 tests
+    m2_s1_test_ids = [api.InternalTestId(m2_s1_id, f"m2_s1_t{i}") for i in range(35)]
     for test_id in m2_s1_test_ids:
         api.InternalTest.discover(test_id)
 
@@ -226,13 +215,15 @@ def main():
     with mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=TestVisibilityAPISettings(
-            require_git=False, early_flake_detection=EarlyFlakeDetectionSettings(True)
+            require_git=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(True),
+            known_tests_enabled=True,
         ),
     ):
         ext_api.enable_test_visibility()
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._unique_test_ids",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._known_test_ids",
             _make_test_ids(),
         ):
             run_tests()

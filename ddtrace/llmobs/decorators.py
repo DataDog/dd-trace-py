@@ -1,12 +1,12 @@
 from functools import wraps
 from inspect import isasyncgenfunction
+from inspect import iscoroutinefunction
+from inspect import isgeneratorfunction
 from inspect import signature
 import sys
 from typing import Callable
 from typing import Optional
 
-from ddtrace.internal.compat import iscoroutinefunction
-from ddtrace.internal.compat import isgeneratorfunction
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -79,6 +79,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        _decorator=True,
                     )
                     return yield_from_async_gen(func, span, args, kwargs)
 
@@ -95,6 +96,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        _decorator=True,
                     ):
                         return await func(*args, **kwargs)
 
@@ -114,6 +116,7 @@ def _model_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
+                            _decorator=True,
                         )
                         try:
                             yield from func(*args, **kwargs)
@@ -138,6 +141,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        _decorator=True,
                     ):
                         return func(*args, **kwargs)
 
@@ -168,11 +172,11 @@ def _llmobs_decorator(operation_kind):
                         return func(*args, **kwargs)
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                    span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
+                    span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True)
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
                     if _automatic_io_annotation and bound_args.arguments:
-                        LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                        LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
@@ -182,17 +186,19 @@ def _llmobs_decorator(operation_kind):
                         return await func(*args, **kwargs)
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                    with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
+                    with traced_operation(
+                        name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
+                    ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                         resp = await func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span.get_tag(OUTPUT_VALUE) is None
+                            and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
@@ -207,11 +213,11 @@ def _llmobs_decorator(operation_kind):
                     else:
                         _, span_name = _get_llmobs_span_options(name, None, func)
                         traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                        span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app)
+                        span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True)
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                         try:
                             yield from func(*args, **kwargs)
                         except (StopIteration, GeneratorExit):
@@ -230,17 +236,19 @@ def _llmobs_decorator(operation_kind):
                         return func(*args, **kwargs)
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                    with traced_operation(name=span_name, session_id=session_id, ml_app=ml_app) as span:
+                    with traced_operation(
+                        name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
+                    ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=bound_args.arguments)
+                            LLMObs.annotate(span=span, input_data=dict(bound_args.arguments))
                         resp = func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
                             and resp
                             and operation_kind != "retrieval"
-                            and span.get_tag(OUTPUT_VALUE) is None
+                            and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp

@@ -6,7 +6,7 @@ from typing import Tuple
 
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.internal._encoding import BufferFull
@@ -49,6 +49,8 @@ class SignalCollector(object):
             meter.increment("skip", tags={"cause": "cond_error", "probe_id": signal.probe.probe_id})
         elif signal.state is SignalState.SKIP_RATE:
             meter.increment("skip", tags={"cause": "rate", "probe_id": signal.probe.probe_id})
+        elif signal.state is SignalState.SKIP_BUDGET:
+            meter.increment("skip", tags={"cause": "budget", "probe_id": signal.probe.probe_id})
         elif signal.state is SignalState.DONE:
             meter.increment("signal", tags={"probe_id": signal.probe.probe_id})
 

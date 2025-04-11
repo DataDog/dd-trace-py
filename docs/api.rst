@@ -9,28 +9,20 @@ Tracing
 
 .. automodule:: ddtrace.auto
 
-.. autofunction:: ddtrace.patch_all
-
 .. autofunction:: ddtrace.patch
 
-.. autoclass:: ddtrace.Tracer
+.. autoclass:: ddtrace.trace.Tracer
     :members:
 
-.. autoclass:: ddtrace.Span
+.. autoclass:: ddtrace.trace.Span
     :members:
 
-.. autoclass:: ddtrace.Pin
+.. autoclass:: ddtrace.trace.Pin
     :members:
 
 .. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:
-
-.. autoclass:: ddtrace.sampler.DatadogSampler
-    :members:
-
-.. autoclass:: ddtrace.sampler.SamplingRule
-    :members:
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:

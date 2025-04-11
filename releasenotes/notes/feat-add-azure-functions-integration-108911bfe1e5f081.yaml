@@ -1,0 +1,3 @@
+features:
+  - |
+    azure_functions: This introduces support for Azure Functions.

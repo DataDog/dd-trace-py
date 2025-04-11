@@ -13,8 +13,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import Span
-from ddtrace import Tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -25,6 +23,7 @@ from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
@@ -39,6 +38,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 
 
 if typing.TYPE_CHECKING:
@@ -69,12 +70,16 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    known_tests_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
+    test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
+    ci_provider_name: Optional[str] = None
+    is_auto_injected: bool = False
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
-            raise TypeError("tracer must be a ddtrace.Tracer")
+            raise TypeError("tracer must be a ddtrace.trace.Tracer")
         if not isinstance(self.workspace_path, Path):
             raise TypeError("root_dir must be a pathlib.Path")
         if not self.workspace_path.is_absolute():
@@ -183,6 +188,9 @@ class TestVisibilityItemBase(abc.ABC):
             span_type=SpanTypes.TEST,
             activate=True,
         )
+        # Setting initial tags is necessary for integrations that might look at the span before it is finished
+        self._span.set_tag(EVENT_TYPE, self._event_type)
+        self._span.set_tag(SPAN_KIND, "test")
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
@@ -201,10 +209,20 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
 
+        if self._session_settings.known_tests_enabled:
+            self._set_known_tests_tags()
+
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
-        # Allow item-level _set_span_tags() to potentially overwrite default and hierarchy tags.
+        if (
+            self._session_settings.test_management_settings is not None
+            and self._session_settings.test_management_settings.enabled
+        ):
+            self._set_test_management_tags()
+
+        # Allow items to potentially overwrite default and hierarchy tags.
+        self._set_item_tags()
         self._set_span_tags()
 
         self._add_all_tags_to_span()
@@ -219,8 +237,6 @@ class TestVisibilityItemBase(abc.ABC):
 
         self.set_tags(
             {
-                EVENT_TYPE: self._event_type,
-                SPAN_KIND: "test",
                 COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
                 test.FRAMEWORK_VERSION: self._session_settings.test_framework_version,
@@ -246,6 +262,10 @@ class TestVisibilityItemBase(abc.ABC):
             if self._source_file_info.end_line is not None:
                 self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
 
+    def _set_item_tags(self) -> None:
+        """Overridable by subclasses to set tags specific to the item type"""
+        pass
+
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Note: some tags are also added in the parent class as well as some individual item classes"""
         if not itr_enabled:
@@ -262,8 +282,16 @@ class TestVisibilityItemBase(abc.ABC):
         """EFD tags are only set at the test or session level"""
         pass
 
+    def _set_known_tests_tags(self) -> None:
+        """Known test tags are only set at the test level"""
+        pass
+
     def _set_atr_tags(self) -> None:
         """ATR tags are only set at the test level"""
+        pass
+
+    def _set_test_management_tags(self) -> None:
+        """Quarantine tags are only set at the test or session level"""
         pass
 
     def _set_span_tags(self):

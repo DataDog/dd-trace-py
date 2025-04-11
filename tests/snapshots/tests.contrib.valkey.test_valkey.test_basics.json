@@ -1,0 +1,37 @@
+[[
+  {
+    "name": "valkey.command",
+    "service": "valkey",
+    "resource": "GET",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "valkey",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.valkey",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "valkey",
+      "db.system": "valkey",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "server.address": "localhost",
+      "span.kind": "client",
+      "valkey.raw_command": "GET cheese"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 0,
+      "network.destination.port": 6379,
+      "out.valkey_db": 0,
+      "process_id": 19999,
+      "valkey.args_length": 2
+    },
+    "duration": 335292,
+    "start": 1692651820600962708
+  }]]

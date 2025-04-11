@@ -1,9 +1,13 @@
 .testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:7a2e802af76051f82d698919d2837eff18dbb48e
+  image: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
   before_script:
     - ulimit -c unlimited
-    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
+    - pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+  retry: 2
+  artifacts:
+    reports:
+      junit: test-results/junit*.xml

@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
 import itertools
+import os
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -19,39 +20,38 @@ from typing import Union
 import _io
 
 from ddtrace.appsec._constants import IAST
-
-from .._taint_tracking import TagMappingMode
-from .._taint_tracking import TaintRange
-from .._taint_tracking import _aspect_ospathbasename
-from .._taint_tracking import _aspect_ospathdirname
-from .._taint_tracking import _aspect_ospathjoin
-from .._taint_tracking import _aspect_ospathnormcase
-from .._taint_tracking import _aspect_ospathsplit
-from .._taint_tracking import _aspect_ospathsplitdrive
-from .._taint_tracking import _aspect_ospathsplitext
-from .._taint_tracking import _aspect_ospathsplitroot
-from .._taint_tracking import _aspect_rsplit
-from .._taint_tracking import _aspect_split
-from .._taint_tracking import _aspect_splitlines
-from .._taint_tracking import _convert_escaped_text_to_tainted_text
-from .._taint_tracking import _format_aspect
-from .._taint_tracking import are_all_text_all_ranges
-from .._taint_tracking import as_formatted_evidence
-from .._taint_tracking import common_replace
-from .._taint_tracking import copy_and_shift_ranges_from_strings
-from .._taint_tracking import copy_ranges_from_strings
-from .._taint_tracking import copy_ranges_to_iterable_with_strings
-from .._taint_tracking import copy_ranges_to_string
-from .._taint_tracking import get_ranges
-from .._taint_tracking import get_tainted_ranges
-from .._taint_tracking import iast_taint_log_error
-from .._taint_tracking import is_pyobject_tainted
-from .._taint_tracking import new_pyobject_id
-from .._taint_tracking import parse_params
-from .._taint_tracking import set_ranges
-from .._taint_tracking import shift_taint_range
-from .._taint_tracking import taint_pyobject_with_ranges
-from .._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec._iast._logs import iast_propagation_error_log
+from ddtrace.appsec._iast._taint_tracking import TagMappingMode
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathbasename
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathdirname
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathjoin
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathnormcase
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitdrive
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitext
+from ddtrace.appsec._iast._taint_tracking import _aspect_ospathsplitroot
+from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
+from ddtrace.appsec._iast._taint_tracking import _aspect_split
+from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
+from ddtrace.appsec._iast._taint_tracking import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec._iast._taint_tracking import _format_aspect
+from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
+from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
+from ddtrace.appsec._iast._taint_tracking import common_replace
+from ddtrace.appsec._iast._taint_tracking import copy_and_shift_ranges_from_strings
+from ddtrace.appsec._iast._taint_tracking import copy_ranges_from_strings
+from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast._taint_tracking import new_pyobject_id
+from ddtrace.appsec._iast._taint_tracking import parse_params
+from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking import shift_taint_range
+from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings
+from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]
@@ -62,14 +62,6 @@ add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
 index_aspect = aspects.index_aspect
 modulo_aspect = aspects.modulo_aspect
-ospathbasename_aspect = _aspect_ospathbasename
-ospathdirname_aspect = _aspect_ospathdirname
-ospathjoin_aspect = _aspect_ospathjoin
-ospathnormcase_aspect = _aspect_ospathnormcase
-ospathsplit_aspect = _aspect_ospathsplit
-ospathsplitdrive_aspect = _aspect_ospathsplitdrive
-ospathsplitext_aspect = _aspect_ospathsplitext
-ospathsplitroot_aspect = _aspect_ospathsplitroot
 rsplit_aspect = _aspect_rsplit
 slice_aspect = aspects.slice_aspect
 split_aspect = _aspect_split
@@ -144,7 +136,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. stringio_aspect. {}".format(e))
+            iast_propagation_error_log(f"IAST propagation error. stringio_aspect. {e}")
     return result
 
 
@@ -162,7 +154,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("IAST propagation error. bytesio_aspect. {}".format(e))
+            iast_propagation_error_log(f"IAST propagation error. bytesio_aspect. {e}")
     return result
 
 
@@ -180,7 +172,7 @@ def bytes_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("bytes_aspect. {}".format(e))
+            iast_propagation_error_log(f"bytes_aspect. {e}")
     return result
 
 
@@ -198,7 +190,7 @@ def bytearray_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_taint_log_error("bytearray_aspect. {}".format(e))
+            iast_propagation_error_log(f"bytearray_aspect. {e}")
     return result
 
 
@@ -238,7 +230,7 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
     try:
         return _extend_aspect(op1, op2)
     except Exception as e:
-        iast_taint_log_error("extend_aspect. {}".format(e))
+        iast_propagation_error_log(f"extend_aspect. {e}")
         return op1.extend(op2)
 
 
@@ -246,9 +238,7 @@ def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
 
 
-def ljust_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def ljust_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if not orig_function:
         orig_function = args[0].ljust
     if not isinstance(orig_function, BuiltinFunctionType):
@@ -276,14 +266,12 @@ def ljust_aspect(
             taint_pyobject_with_ranges(result, ranges_new)
             return result
         except Exception as e:
-            iast_taint_log_error("ljust_aspect. {}".format(e))
+            iast_propagation_error_log(f"ljust_aspect. {e}")
 
     return result
 
 
-def zfill_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def zfill_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and not isinstance(orig_function, BuiltinFunctionType):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -310,24 +298,29 @@ def zfill_aspect(
 
         for r in ranges_orig:
             if not prefix or r.start > 0:
-                ranges_new_append(TaintRange(start=r.start + difflen, length=r.length, source=r.source))
+                ranges_new_append(
+                    TaintRange(start=r.start + difflen, length=r.length, source=r.source, secure_marks=r.secure_marks)
+                )
             else:
                 ranges_new_extend(
                     [
-                        TaintRange(start=0, length=1, source=r.source),
-                        TaintRange(start=r.start + difflen + 1, length=r.length - 1, source=r.source),
+                        TaintRange(start=0, length=1, source=r.source, secure_marks=r.secure_marks),
+                        TaintRange(
+                            start=r.start + difflen + 1,
+                            length=r.length - 1,
+                            source=r.source,
+                            secure_marks=r.secure_marks,
+                        ),
                     ]
                 )
         taint_pyobject_with_ranges(result, tuple(ranges_new))
     except Exception as e:
-        iast_taint_log_error("format_aspect. {}".format(e))
+        iast_propagation_error_log(f"format_aspect. {e}")
 
     return result
 
 
-def format_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def format_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is None:
         orig_function = args[0].format
 
@@ -352,14 +345,12 @@ def format_aspect(
             params = tuple(args) + tuple(kwargs.values())
             return _format_aspect(candidate_text, params, *args, **kwargs)
         except Exception as e:
-            iast_taint_log_error("format_aspect. {}".format(e))
+            iast_propagation_error_log(f"format_aspect. {e}")
 
     return candidate_text.format(*args, **kwargs)
 
 
-def format_map_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def format_map_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is None:
         orig_function = args[0].format_map
 
@@ -405,7 +396,7 @@ def format_map_aspect(
             ranges_orig=ranges_orig,
         )
     except Exception as e:
-        iast_taint_log_error("format_map_aspect. {}".format(e))
+        iast_propagation_error_log(f"format_map_aspect. {e}")
 
     return result
 
@@ -436,7 +427,7 @@ def repr_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: 
 
             copy_and_shift_ranges_from_strings(args[0], result, offset, len(check_offset))
         except Exception as e:
-            iast_taint_log_error("repr_aspect. {}".format(e))
+            iast_propagation_error_log(f"repr_aspect. {e}")
     return result
 
 
@@ -444,7 +435,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> Union[str, bytes, bytearray]:
+) -> TEXT_TYPES:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -458,8 +449,8 @@ def format_value_aspect(
             return format(new_text, format_spec)
         return format(new_text)
 
-    try:
-        if format_spec:
+    if format_spec:
+        try:
             # Apply formatting
             text_ranges = get_tainted_ranges(new_text)
             if text_ranges:
@@ -475,11 +466,11 @@ def format_value_aspect(
                     return ("{:%s}" % format_spec).format(new_text)
             else:
                 return ("{:%s}" % format_spec).format(new_text)
-        else:
-            return format(new_text)
-    except Exception as e:
-        iast_taint_log_error("format_value_aspect. {}".format(e))
-        return new_text
+        except Exception as e:
+            iast_propagation_error_log(f"format_value_aspect. {e}")
+            return ("{:%s}" % format_spec).format(new_text)
+
+    return format(new_text)
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
@@ -520,6 +511,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
                         start=tainted_start,
                         length=tainted_new_length,
                         source=tainted_range.source,
+                        secure_marks=tainted_range.secure_marks,
                     )
                 )
 
@@ -535,9 +527,7 @@ def incremental_translation(self, incr_coder, funcode, empty):
     return result
 
 
-def decode_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def decode_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -554,13 +544,11 @@ def decode_aspect(
             inc_dec = codecs.getincrementaldecoder(codec)(**kwargs)
             return incremental_translation(self, inc_dec, inc_dec.decode, "")
         except Exception as e:
-            iast_taint_log_error("decode_aspect. {}".format(e))
+            iast_propagation_error_log(f"decode_aspect. {e}")
     return result
 
 
-def encode_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def encode_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -577,14 +565,12 @@ def encode_aspect(
             inc_enc = codecs.getincrementalencoder(codec)(**kwargs)
             return incremental_translation(self, inc_enc, inc_enc.encode, b"")
         except Exception as e:
-            iast_taint_log_error("encode_aspect. {}".format(e))
+            iast_propagation_error_log(f"encode_aspect. {e}")
 
     return result
 
 
-def upper_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def upper_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -598,13 +584,11 @@ def upper_aspect(
     try:
         return common_replace("upper", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("upper_aspect. {}".format(e))
+        iast_propagation_error_log(f"upper_aspect. {e}")
         return candidate_text.upper(*args, **kwargs)
 
 
-def lower_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def lower_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -618,7 +602,7 @@ def lower_aspect(
     try:
         return common_replace("lower", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("lower_aspect. {}".format(e))
+        iast_propagation_error_log(f"lower_aspect. {e}")
         return candidate_text.lower(*args, **kwargs)
 
 
@@ -675,6 +659,7 @@ def _distribute_ranges_and_escape(
                 start=start - element_start,
                 length=end - element_start,
                 source=taint_range.source,
+                secure_marks=taint_range.secure_marks,
             )
             new_ranges[new_range] = taint_range
 
@@ -798,9 +783,7 @@ def aspect_replace_api(
     return result
 
 
-def replace_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def replace_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -841,13 +824,11 @@ def replace_aspect(
 
         return aspect_result
     except Exception as e:
-        iast_taint_log_error("replace_aspect. {}".format(e))
+        iast_propagation_error_log(f"replace_aspect. {e}")
         return orig_result
 
 
-def swapcase_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def swapcase_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -860,13 +841,11 @@ def swapcase_aspect(
     try:
         return common_replace("swapcase", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("swapcase_aspect. {}".format(e))
+        iast_propagation_error_log(f"swapcase_aspect. {e}")
         return candidate_text.swapcase(*args, **kwargs)
 
 
-def title_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def title_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -879,13 +858,11 @@ def title_aspect(
     try:
         return common_replace("title", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("title_aspect. {}".format(e))
+        iast_propagation_error_log(f"title_aspect. {e}")
         return candidate_text.title(*args, **kwargs)
 
 
-def capitalize_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def capitalize_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -899,13 +876,11 @@ def capitalize_aspect(
     try:
         return common_replace("capitalize", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("capitalize_aspect. {}".format(e))
+        iast_propagation_error_log(f"capitalize_aspect. {e}")
         return candidate_text.capitalize(*args, **kwargs)
 
 
-def casefold_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def casefold_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None:
         if not isinstance(orig_function, BuiltinFunctionType) or not args:
             if flag_added_args > 0:
@@ -932,13 +907,11 @@ def casefold_aspect(
     try:
         return common_replace("casefold", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("casefold_aspect. {}".format(e))
+        iast_propagation_error_log(f"casefold_aspect. {e}")
         return candidate_text.casefold(*args, **kwargs)  # type: ignore[union-attr]
 
 
-def translate_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def translate_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not isinstance(orig_function, BuiltinFunctionType) or not args):
         if flag_added_args > 0:
             args = args[flag_added_args:]
@@ -951,7 +924,7 @@ def translate_aspect(
     try:
         return common_replace("translate", candidate_text, *args, **kwargs)
     except Exception as e:
-        iast_taint_log_error("translate_aspect. {}".format(e))
+        iast_propagation_error_log(f"translate_aspect. {e}")
         return candidate_text.translate(*args, **kwargs)
 
 
@@ -992,7 +965,7 @@ def re_findall_aspect(
             if ranges:
                 result = copy_ranges_to_iterable_with_strings(result, ranges)
     except Exception as e:
-        iast_taint_log_error("re_findall_aspect. {}".format(e))
+        iast_propagation_error_log(f"re_findall_aspect. {e}")
 
     return result
 
@@ -1030,13 +1003,11 @@ def re_finditer_aspect(orig_function: Optional[Callable], flag_added_args: int, 
                 for elem in result_backup:
                     taint_pyobject_with_ranges(elem, ranges)
     except Exception as e:
-        iast_taint_log_error("IAST propagation error. re_finditer_aspect. {}".format(e))
+        iast_propagation_error_log(f"IAST propagation error. re_finditer_aspect. {e}")
     return result
 
 
-def re_sub_aspect(
-    orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES]:
+def re_sub_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -1205,7 +1176,7 @@ def re_groups_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
     try:
         return copy_ranges_to_iterable_with_strings(result, get_ranges(self))
     except Exception as e:
-        iast_taint_log_error("re_groups_aspect. {}".format(e))
+        iast_propagation_error_log(f"re_groups_aspect. {e}")
         return result
 
 
@@ -1230,7 +1201,7 @@ def re_group_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         else:
             result = copy_ranges_to_string(result, get_ranges(self))
     except Exception as e:
-        iast_taint_log_error("re_group_aspect. {}".format(e))
+        iast_propagation_error_log(f"re_group_aspect. {e}")
 
     return result
 
@@ -1261,6 +1232,86 @@ def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         elif is_pyobject_tainted(args[0]):
             result = copy_ranges_to_string(result, get_ranges(args[0]))
     except Exception as e:
-        iast_taint_log_error("re_expand_aspect. {}".format(e))
+        iast_propagation_error_log(f"re_expand_aspect. {e}")
 
     return result
+
+
+def ospathjoin_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathjoin(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathjoin_aspect. {e}")
+
+    return os.path.join(*args, **kwargs)
+
+
+def ospathbasename_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathbasename(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathbasename. {e}")
+
+    return os.path.basename(*args, **kwargs)
+
+
+def ospathdirname_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathdirname(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathdirname. {e}")
+
+    return os.path.dirname(*args, **kwargs)
+
+
+def ospathnormcase_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathnormcase(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathnormcase_aspect. {e}")
+
+    return os.path.normcase(*args, **kwargs)
+
+
+def ospathsplit_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplit(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathnormcase_aspect. {e}")
+
+    return os.path.split(*args, **kwargs)
+
+
+def ospathsplitdrive_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitdrive(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitdrive. {e}")
+
+    return os.path.splitdrive(*args, **kwargs)
+
+
+def ospathsplitext_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitext(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitext. {e}")
+
+    return os.path.splitext(*args, **kwargs)
+
+
+def ospathsplitroot_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitroot(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitroot. {e}")
+
+    return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]

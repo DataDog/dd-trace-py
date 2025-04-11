@@ -19,7 +19,7 @@ fi
 for i in {1..3}; do $compose_cmd pull -q testrunner && break || sleep 3; done
 
 # TODO(DEV): Install riot in the docker image
-FULL_CMD="pip install -q --disable-pip-version-check riot==0.20.0 && $CMD"
+FULL_CMD="pip install -q --disable-pip-version-check riot==0.20.1 && $CMD"
 
 # install and upgrade riot in case testrunner image has not been updated
 # DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI

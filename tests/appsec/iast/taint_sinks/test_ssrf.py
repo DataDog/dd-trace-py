@@ -1,17 +1,17 @@
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
-from ddtrace.contrib.httplib.patch import patch as httplib_patch
-from ddtrace.contrib.httplib.patch import unpatch as httplib_unpatch
-from ddtrace.contrib.requests.patch import patch as requests_patch
-from ddtrace.contrib.requests.patch import unpatch as requests_unpatch
-from ddtrace.contrib.urllib.patch import patch as urllib_patch
-from ddtrace.contrib.urllib.patch import unpatch as urllib_unpatch
-from ddtrace.contrib.urllib3.patch import patch as urllib3_patch
-from ddtrace.contrib.urllib3.patch import unpatch as urllib3_unpatch
-from ddtrace.contrib.webbrowser.patch import patch as webbrowser_patch
-from ddtrace.contrib.webbrowser.patch import unpatch as webbrowser_unpatch
+from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+from ddtrace.contrib.internal.requests.patch import patch as requests_patch
+from ddtrace.contrib.internal.requests.patch import unpatch as requests_unpatch
+from ddtrace.contrib.internal.urllib.patch import patch as urllib_patch
+from ddtrace.contrib.internal.urllib.patch import unpatch as urllib_unpatch
+from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
+from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
+from ddtrace.contrib.internal.webbrowser.patch import patch as webbrowser_patch
+from ddtrace.contrib.internal.webbrowser.patch import unpatch as webbrowser_unpatch
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -53,6 +53,8 @@ def _check_report(tainted_path, label):
     line, hash_value = get_line_and_hash(label, VULN_SSRF, filename=FIXTURES_PATH)
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
+    assert vulnerability["location"]["method"] == label
+    assert vulnerability["location"]["class_name"] == ""
     assert vulnerability["hash"] == hash_value
 
 

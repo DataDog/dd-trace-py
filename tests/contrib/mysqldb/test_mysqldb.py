@@ -2,10 +2,10 @@ import mock
 import MySQLdb
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.mysqldb.patch import patch
-from ddtrace.contrib.mysqldb.patch import unpatch
+from ddtrace.contrib.internal.mysqldb.patch import patch
+from ddtrace.contrib.internal.mysqldb.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.contrib import shared_tests
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -534,7 +534,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert pin
         # Customize the service
         # we have to apply it on the existing one since new one won't inherit `app`
-        pin.clone(tracer=self.tracer).onto(obj)
+        pin._clone(tracer=self.tracer).onto(obj)
 
     def _get_conn_tracer(self):
         if not self.conn:
@@ -559,7 +559,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert pin
             # Customize the service
             # we have to apply it on the existing one since new one won't inherit `app`
-            pin.clone(tracer=self.tracer).onto(self.conn)
+            pin._clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
@@ -575,7 +575,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
-            pin.clone(tracer=self.tracer).onto(conn)
+            pin._clone(tracer=self.tracer).onto(conn)
             conn.ping()
 
             cursor = conn.cursor()
@@ -617,7 +617,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     def test_user_pin_override(self):
         conn, tracer = self._get_conn_tracer()
         pin = Pin.get_from(conn)
-        pin.clone(service="pin-svc", tracer=self.tracer).onto(conn)
+        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()

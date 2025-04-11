@@ -4,13 +4,13 @@ import pytest
 import structlog
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.structlog import patch
-from ddtrace.contrib.structlog import unpatch
+from ddtrace.contrib.internal.structlog.patch import patch
+from ddtrace.contrib.internal.structlog.patch import unpatch
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.trace import tracer
 from tests.utils import override_global_config
 
 
@@ -86,9 +86,9 @@ def test_log_trace():
     import structlog
 
     from ddtrace import config
-    from ddtrace import tracer
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -131,10 +131,10 @@ def test_log_trace_128bit_trace_ids():
     import structlog
 
     from ddtrace import config
-    from ddtrace import tracer
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -174,12 +174,12 @@ def test_log_DD_TAGS():
 
     import structlog
 
-    from ddtrace import tracer
     from ddtrace.constants import ENV_KEY
     from ddtrace.constants import SERVICE_KEY
     from ddtrace.constants import VERSION_KEY
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     patch()
 
@@ -221,9 +221,9 @@ def test_tuple_processor_list():
     import structlog
 
     from ddtrace import config
-    from ddtrace import tracer
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -263,9 +263,9 @@ def test_no_configured_processor():
     import structlog
 
     from ddtrace import config
-    from ddtrace import tracer
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -303,8 +303,8 @@ def test_two_loggers_no_duplicates():
     """
     import structlog
 
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
 
     patch()
 
@@ -331,8 +331,8 @@ def test_configure_processor():
     """
     import structlog
 
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
 
     patch()
 
@@ -360,8 +360,8 @@ def test_consistent_empty_config():
     """
     import structlog
 
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
 
     patch()
 
@@ -383,8 +383,8 @@ def test_reset_defaults():
     """
     import structlog
 
-    from ddtrace.contrib.structlog import patch
-    from ddtrace.contrib.structlog import unpatch
+    from ddtrace.contrib.internal.structlog.patch import patch
+    from ddtrace.contrib.internal.structlog.patch import unpatch
 
     patch()
 

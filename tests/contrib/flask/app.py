@@ -1,3 +1,4 @@
+import hashlib
 import os
 import subprocess
 import sys
@@ -5,17 +6,13 @@ import sys
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
-from ddtrace.contrib.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils import set_user
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer.configure(trace_processors=[PingFilter()])
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -63,7 +60,7 @@ def body():
 
 @app.route("/checkuser/<user_id>")
 def checkuser(user_id):
-    from ddtrace import tracer
+    from ddtrace.trace import tracer
 
     block_request_if_user_blocked(tracer, user_id)
     return "Ok", 200
@@ -100,3 +97,9 @@ def run_subcommunicatenoshell():
     subp.wait()
     ret = subp.returncode
     return str(ret), 200
+
+
+@app.route("/md5sum")
+def md5sum():
+    data = request.args.get("q").encode()
+    return hashlib.md5(data).hexdigest()

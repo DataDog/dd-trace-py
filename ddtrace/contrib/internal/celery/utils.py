@@ -2,9 +2,9 @@ from typing import Any
 from typing import Dict
 from weakref import WeakValueDictionary
 
-from ddtrace._trace.span import Span
-from ddtrace.contrib.trace_utils import set_flattened_tags
+from ddtrace.contrib.internal.trace_utils import set_flattened_tags
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Span
 
 from .constants import CTX_KEY
 from .constants import SPAN_KEY

@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tracing: Removes support for overriding the global tracer in ``ddtrace.trace.Pin``

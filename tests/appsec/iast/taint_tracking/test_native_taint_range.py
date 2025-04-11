@@ -14,24 +14,26 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import are_all_text_all_ranges
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking import get_range_by_hash
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import reset_contexts
-from ddtrace.appsec._iast._taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_contexts
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
+from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
-from tests.appsec.iast.conftest import IAST_VALID_LOG
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -316,10 +318,16 @@ def test_set_get_ranges_other():
     s2 = None
     set_ranges(s1, [_RANGE1, _RANGE2])
     set_ranges(s2, [_RANGE1, _RANGE2])
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s1)
 
-    with pytest.raises(ValueError, match=re.escape("[IAST] Get ranges error: Invalid type of candidate_text variable")):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("iast::propagation::native::error::Get ranges error: Invalid type of candidate_text variable"),
+    ):
         get_ranges(s2)
 
 
@@ -339,17 +347,83 @@ def test_set_get_ranges_bytearray():
     assert not get_ranges(b2) == [_RANGE1, _RANGE2]
 
 
-def test_shift_taint_ranges():
-    r1 = TaintRange(0, 2, _SOURCE1)
+@pytest.mark.parametrize(
+    "source",
+    [
+        Source(name="name", value="value", origin=OriginType.PARAMETER_NAME),
+        Source(name="name", value="value", origin=OriginType.PARAMETER),
+        Source(name="name", value="value", origin=OriginType.HEADER_NAME),
+        Source(name="name", value="value", origin=OriginType.COOKIE),
+        Source(name="name", value="value", origin=OriginType.PATH),
+    ],
+)
+@pytest.mark.parametrize(
+    "vulnerability_type",
+    [
+        [],
+        [VulnerabilityType.CODE_INJECTION],
+        [VulnerabilityType.COMMAND_INJECTION],
+        [VulnerabilityType.HEADER_INJECTION],
+        [VulnerabilityType.NO_HTTPONLY_COOKIE],
+        [VulnerabilityType.NO_SAMESITE_COOKIE],
+        [VulnerabilityType.PATH_TRAVERSAL],
+        [VulnerabilityType.SQL_INJECTION],
+        [VulnerabilityType.SSRF],
+        [VulnerabilityType.CODE_INJECTION, VulnerabilityType.COMMAND_INJECTION],
+        [VulnerabilityType.CODE_INJECTION, VulnerabilityType.COMMAND_INJECTION, VulnerabilityType.HEADER_INJECTION],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+            VulnerabilityType.SQL_INJECTION,
+        ],
+        [
+            VulnerabilityType.CODE_INJECTION,
+            VulnerabilityType.COMMAND_INJECTION,
+            VulnerabilityType.HEADER_INJECTION,
+            VulnerabilityType.NO_HTTPONLY_COOKIE,
+            VulnerabilityType.NO_SAMESITE_COOKIE,
+            VulnerabilityType.PATH_TRAVERSAL,
+            VulnerabilityType.SQL_INJECTION,
+            VulnerabilityType.SSRF,
+        ],
+    ],
+)
+def test_shift_taint_ranges(source, vulnerability_type):
+    r1 = TaintRange(0, 2, source, vulnerability_type)
     r1_shifted = shift_taint_range(r1, 2)
-    assert r1_shifted == TaintRange(2, 2, _SOURCE1)
+    assert r1_shifted == TaintRange(2, 2, source, vulnerability_type)
     assert r1_shifted != r1
 
     r2 = TaintRange(1, 3, _SOURCE1)
     r3 = TaintRange(4, 6, _SOURCE2)
     r2_shifted, r3_shifted = shift_taint_ranges([r2, r3], 2)
-    assert r2_shifted == TaintRange(3, 3, _SOURCE1)
-    assert r3_shifted == TaintRange(6, 6, _SOURCE1)
+    assert r2_shifted == TaintRange(3, 3, source, vulnerability_type)
+    assert r3_shifted == TaintRange(6, 6, source, vulnerability_type)
 
 
 def test_are_all_text_all_ranges():
@@ -499,7 +573,9 @@ def test_race_conditions_reset_contexts_threads(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
+    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
+        dict(_iast_debug=True)
+    ), caplog.at_level(logging.DEBUG):
         pool = ThreadPool(processes=3)
         results_async = [pool.apply_async(reset_contexts_loop) for _ in range(70)]
         _ = [res.get() for res in results_async]

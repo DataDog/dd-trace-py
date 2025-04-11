@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.17.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
     variables:
       LOG_LEVEL: INFO
@@ -22,12 +22,16 @@
       DD_POOL_TRACE_CHECK_FAILURES: true
       DD_DISABLE_ERROR_RESPONSES: true
       ENABLED_CHECKS: trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+      SNAPSHOT_IGNORED_ATTRS: span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
   mongo:
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
   redis:
     name: registry.ddbuild.io/redis:7.0.7
     alias: redis
+  valkey:
+    name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
+    alias: valkey
   kafka:
     name: registry.ddbuild.io/images/mirror/apache/kafka:3.8.0
     alias: kafka
@@ -54,6 +58,9 @@
   rediscluster:
     name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
     alias: rediscluster
+  valkeycluster:
+    name: registry.ddbuild.io/images/mirror/grokzen/redis-cluster:6.2.0
+    alias: valkeycluster
   elasticsearch:
     name: registry.ddbuild.io/images/mirror/library/elasticsearch:7.17.23
     alias: elasticsearch
@@ -77,3 +84,42 @@
   rabbitmq:
     name: registry.ddbuild.io/images/mirror/rabbitmq:3.12.7-management-alpine
     alias: rabbitmq
+  mysql:
+    name: registry.ddbuild.io/images/mirror/mysql:5.7
+    alias: mysql
+    variables:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_PASSWORD: test
+      MYSQL_USER: test
+      MYSQL_DATABASE: test
+  cassandra:
+    name: registry.ddbuild.io/images/mirror/cassandra:3.11.3
+    alias: cassandra
+    variables:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 256M
+  localstack:
+    name: registry.ddbuild.io/images/mirror/localstack:1.4.0
+    alias: localstack
+    variables:
+      LAMBDA_EXECUTOR: local
+      DOCKER_HOST: unix:///var/run/docker.sock
+  mariadb:
+    name: registry.ddbuild.io/images/mirror/mariadb:lts
+    alias: mariadb
+    variables:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+  consul:
+    name: registry.ddbuild.io/images/mirror/consul:1.6.0
+    alias: consul
+  moto:
+    name: registry.ddbuild.io/images/mirror/moto:5.1.0
+    alias: moto
+    variables:
+      MOTO_PORT: 3000
+  azurite:
+    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
+    alias: azurite

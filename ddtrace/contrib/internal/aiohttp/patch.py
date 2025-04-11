@@ -6,23 +6,24 @@ from yarl import URL
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import extract_netloc_and_query_info_from_url
-from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module as with_traced_module_sync
-from ddtrace.contrib.trace_utils import wrap
-from ddtrace.contrib.trace_utils_async import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import set_http_meta
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module as with_traced_module_sync
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -31,7 +32,12 @@ log = get_logger(__name__)
 # Server config
 config._add(
     "aiohttp",
-    dict(distributed_tracing=True),
+    dict(
+        distributed_tracing=True,
+        disable_stream_timing_for_mem_leak=asbool(
+            _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
+        ),
+    ),
 )
 
 config._add(

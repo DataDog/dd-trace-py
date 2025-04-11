@@ -24,7 +24,7 @@ generic_launch_sleep_upload(int n, unsigned int sleep_time_ns)
 void
 emulate_profiler(unsigned int num_threads, unsigned int sample_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://localhost:8126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     generic_launch_sleep_upload(num_threads, sample_ns);
 
     // Assumed to execute within a thread

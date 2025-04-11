@@ -1,8 +1,8 @@
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace import Pin
 from ddtrace.internal.packages import get_version_for_package
+from ddtrace.trace import Pin
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
 
@@ -37,7 +37,7 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = app
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin.override(self.app, tracer=self.tracer)
+        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()

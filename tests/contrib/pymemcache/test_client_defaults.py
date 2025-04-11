@@ -2,10 +2,11 @@
 import pymemcache
 import pytest
 
+from ddtrace.contrib.internal.pymemcache.patch import patch
+from ddtrace.contrib.internal.pymemcache.patch import unpatch
+
 # project
-from ddtrace import Pin
-from ddtrace.contrib.pymemcache.patch import patch
-from ddtrace.contrib.pymemcache.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import override_config
 
 from .test_client_mixin import TEST_HOST
@@ -17,7 +18,7 @@ from .utils import MockSocket
 def client(tracer):
     try:
         patch()
-        Pin.override(pymemcache, tracer=tracer)
+        Pin._override(pymemcache, tracer=tracer)
         with override_config("pymemcache", dict(command_enabled=False)):
             client = pymemcache.client.base.Client((TEST_HOST, TEST_PORT))
             yield client

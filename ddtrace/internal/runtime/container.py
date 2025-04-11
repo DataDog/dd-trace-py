@@ -1,12 +1,17 @@
 import errno
+from functools import lru_cache
 import os
 import re
 from typing import Any
 from typing import Dict
+from typing import Literal  # noqa:F401
 from typing import Optional
+from typing import Union
 
 from ..constants import CONTAINER_ID_HEADER_NAME
 from ..constants import ENTITY_ID_HEADER_NAME
+from ..constants import EXTERNAL_ENV_ENVIRONMENT_VARIABLE
+from ..constants import EXTERNAL_ENV_HEADER_NAME
 from ..logger import get_logger
 
 
@@ -128,25 +133,17 @@ class CGroupInfo:
         )
 
 
-def get_container_info(pid="self"):
-    # type: (str) -> Optional[CGroupInfo]
+@lru_cache(64)
+def get_container_info(pid: Union[Literal["self"], int] = "self") -> Optional[CGroupInfo]:
     """
-    Helper to fetch the current container id, if we are running in a container
+    Helper to fetch the current container id, if we are running in a container.
 
     We will parse `/proc/{pid}/cgroup` to determine our container id.
 
-    The results of calling this function are cached
-
-    :param pid: The pid of the cgroup file to parse (default: 'self')
-    :type pid: str | int
-    :returns: The cgroup file info if found, or else None
-    :rtype: :class:`CGroupInfo` | None
+    The results of calling this function are cached.
     """
-
-    cgroup_file = "/proc/{0}/cgroup".format(pid)
-
     try:
-        with open(cgroup_file, mode="r") as fp:
+        with open(f"/proc/{pid}/cgroup", mode="r") as fp:
             for line in fp:
                 info = CGroupInfo.from_line(line)
                 if info and (info.container_id or info.node_inode):
@@ -159,19 +156,30 @@ def get_container_info(pid="self"):
     return None
 
 
-def update_headers_with_container_info(headers: Dict, container_info: Optional[CGroupInfo]) -> None:
-    if container_info is None:
-        return
-    if container_info.container_id:
+def update_headers(headers: Dict) -> None:
+    """Get the container info (either the container ID or the cgroup inode) and add it to the headers."""
+    container_info = get_container_info()
+    if container_info is not None:
+        if container_info.container_id:
+            headers.update(
+                {
+                    CONTAINER_ID_HEADER_NAME: container_info.container_id,
+                    ENTITY_ID_HEADER_NAME: f"ci-{container_info.container_id}",
+                }
+            )
+        elif container_info.node_inode:
+            headers.update(
+                {
+                    ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+                }
+            )
+
+    # Get the external environment info from the environment variable and add it
+    # to the headers
+    external_info = os.environ.get(EXTERNAL_ENV_ENVIRONMENT_VARIABLE)
+    if external_info:
         headers.update(
             {
-                CONTAINER_ID_HEADER_NAME: container_info.container_id,
-                ENTITY_ID_HEADER_NAME: f"cid-{container_info.container_id}",
-            }
-        )
-    elif container_info.node_inode:
-        headers.update(
-            {
-                ENTITY_ID_HEADER_NAME: f"in-{container_info.node_inode}",
+                EXTERNAL_ENV_HEADER_NAME: external_info,
             }
         )

@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_anthropic.chat_models.ChatAnthropic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679bca4600000000",
+      "langchain.request.anthropic.parameters.default_request_timeout": "None",
+      "langchain.request.anthropic.parameters.max_retries": "2",
+      "langchain.request.anthropic.parameters.max_tokens": "1024",
+      "langchain.request.anthropic.parameters.model": "claude-3-opus-20240229",
+      "langchain.request.anthropic.parameters.streaming": "False",
+      "langchain.request.anthropic.parameters.temperature": "1.0",
+      "langchain.request.anthropic.parameters.top_k": "None",
+      "langchain.request.anthropic.parameters.top_p": "None",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.messages.0.0.content": "What is the sum of 1 and 2?",
+      "langchain.request.messages.0.0.message_type": "HumanMessage",
+      "langchain.request.model": "claude-3-opus-20240229",
+      "langchain.request.provider": "anthropic",
+      "langchain.request.type": "chat_model",
+      "langchain.response.completions.0.0.content": "<thinking>\\nThe user is asking to find the sum of 1 and 2. The relevant tool to answer this question is the \"add\" tool, which ta...",
+      "langchain.response.completions.0.0.message_type": "AIMessage",
+      "langchain.response.completions.0.0.tool_calls.0.args.a": "1",
+      "langchain.response.completions.0.0.tool_calls.0.args.b": "2",
+      "langchain.response.completions.0.0.tool_calls.0.id": "toolu_01QLnLDPgrFLbBWTSCju4uao",
+      "langchain.response.completions.0.0.tool_calls.0.name": "add",
+      "language": "python",
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 82010
+    },
+    "duration": 18026000,
+    "start": 1738263110454272000
+  }]]

@@ -2,13 +2,13 @@ from pathlib import Path
 import typing as t
 
 from _config import config as expl_config
-from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
 from debugging.utils import create_snapshot_function_probe
 from output import log
+from utils import COLS
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionLocationMixin

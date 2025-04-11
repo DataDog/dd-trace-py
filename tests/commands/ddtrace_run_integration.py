@@ -5,8 +5,9 @@ that we expect to be implicitly traced via `ddtrace-run`
 
 import redis
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.config import REDIS_CONFIG
+from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
 
@@ -15,8 +16,9 @@ if __name__ == "__main__":
     pin = Pin.get_from(r)
     assert pin
 
-    writer = DummyWriter()
-    pin.tracer.configure(writer=writer)
+    pin._tracer = DummyTracer()
+    assert isinstance(pin.tracer._writer, DummyWriter)
+    writer = pin.tracer._writer
     r.flushall()
     spans = writer.pop()
 

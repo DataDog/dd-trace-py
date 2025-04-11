@@ -7,7 +7,6 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
-from libcpp.map cimport map
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
@@ -15,11 +14,12 @@ import ddtrace
 import platform
 from .._types import StringType
 from ..util import sanitize_string
-from ddtrace.internal import agent
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
+from ddtrace.settings._agent import config as agent_config
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -56,8 +56,8 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
-    void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
-    void ddup_profile_add_endpoint_counts(map[string_view, int64_t] trace_endpoints_to_counts)
+    void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
+    void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
@@ -67,6 +67,9 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
     void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
+    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -76,8 +79,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
+    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
+    void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
@@ -161,7 +166,7 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    cdef unordered_map[int64_t, string_view] span_ids_to_endpoints = unordered_map[int64_t, string_view]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, span_ids in endpoint_to_span_ids.items():
@@ -195,7 +200,7 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    cdef unordered_map[string_view, int64_t] trace_endpoints_to_counts = unordered_map[string_view, int64_t]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, count in endpoint_counts.items():
@@ -301,6 +306,18 @@ cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if utf8_data != NULL:
         ddup_push_class_name(sample, string_view(utf8_data, utf8_size))
 
+cdef call_ddup_push_gpu_device_name(Sample* sample, device_name: StringType):
+    if not device_name:
+        return
+    if isinstance(device_name, bytes):
+        ddup_push_gpu_device_name(sample, string_view(<const char*>device_name, len(device_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(device_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_gpu_device_name(sample, string_view(utf8_data, utf8_size))
+
 cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if not trace_type:
         return
@@ -392,20 +409,20 @@ def _get_endpoint(tracer)-> str:
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
     tracer_agent_url = tracer.agent_trace_url
-    endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    endpoint = tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
     return endpoint
 
 
-def upload() -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint(ddtrace.tracer)
+    endpoint = _get_endpoint(tracer)
     call_func_with_str(ddup_config_url, endpoint)
 
     with nogil:
@@ -446,6 +463,18 @@ cdef class SampleHandle:
     def push_heap(self, value: int) -> None:
         if self.ptr is not NULL:
             ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+
+    def push_gpu_gputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_memory(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_flops(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -493,6 +522,10 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_class_name(self.ptr, class_name)
 
+    def push_gpu_device_name(self, device_name: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_gpu_device_name(self.ptr, device_name)
+
     def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
             return
@@ -510,6 +543,10 @@ cdef class SampleHandle:
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
+
+    def push_absolute_ns(self, timestamp_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

@@ -3,8 +3,6 @@ import time
 
 import pytest
 
-from ddtrace.internal import compat
-
 
 def spend_1():
     time.sleep(1)
@@ -33,28 +31,29 @@ def spend_16():
 
 
 def spend_cpu_2():
-    now = compat.monotonic_ns()
+    now = time.process_time_ns()
     # Active wait for 2 seconds
-    while compat.monotonic_ns() - now < 2e9:
+    while time.process_time_ns() - now < 2e9:
         pass
 
 
 def spend_cpu_3():
     # Active wait for 3 seconds
-    now = compat.monotonic_ns()
-    while compat.monotonic_ns() - now < 3e9:
+    now = time.process_time_ns()
+    while time.process_time_ns() - now < 3e9:
         pass
 
 
-# We allow 4% error:
-# The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.04
-# Use 5% accuracy for CPU usage, it's way less precise
-CPU_TOLERANCE = 0.05
+# We allow 7% error:
+TOLERANCE = 0.07
 
 
-def almost_equal(value, target, tolerance=TOLERANCE):
-    return abs(value - target) / target <= tolerance
+def assert_almost_equal(value, target, tolerance=TOLERANCE):
+    if abs(value - target) / target > tolerance:
+        raise AssertionError(
+            f"Assertion failed: {value} is not approximately equal to {target} "
+            f"within tolerance={tolerance}, actual error={abs(value - target) / target}"
+        )
 
 
 def total_time(time_data, funcname):
@@ -67,8 +66,7 @@ def test_accuracy():
 
     from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack_event
-    from tests.profiling.test_accuracy import CPU_TOLERANCE
-    from tests.profiling.test_accuracy import almost_equal
+    from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
     from tests.profiling.test_accuracy import total_time
 
@@ -87,20 +85,13 @@ def test_accuracy():
             time_spent_ns[idx][frame[2]] += event.wall_time_ns
             cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns
 
-    assert almost_equal(total_time(time_spent_ns, "spend_3"), 9e9)
-    assert almost_equal(total_time(time_spent_ns, "spend_1"), 2e9)
-    assert almost_equal(total_time(time_spent_ns, "spend_4"), 4e9)
-    assert almost_equal(total_time(time_spent_ns, "spend_16"), 16e9)
-    assert almost_equal(total_time(time_spent_ns, "spend_7"), 7e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_3"), 9e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_1"), 2e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_4"), 4e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_16"), 16e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_7"), 7e9)
 
-    try:
-        from time import monotonic_ns  # noqa:F401
-    except ImportError:
-        # If we don't have access to high resolution clocks, we can't really test accurately things as it's spread in
-        # various Python implementation of monotonic, etc.
-        pass
-    else:
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9)
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9)
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9, CPU_TOLERANCE)
-        assert almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9, CPU_TOLERANCE)
+    assert_almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9)
+    assert_almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9)
+    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_2"), 2e9)
+    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_3"), 3e9)

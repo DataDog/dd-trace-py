@@ -2,15 +2,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict
 from typing import List
+from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-
-
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    # Compatibility with Python 3.7
-    from typing_extensions import TypedDict
 
 
 class CoverageFilePayload(TypedDict):

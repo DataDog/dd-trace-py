@@ -53,10 +53,8 @@ ThreadSpanLinks::reset()
 void
 ThreadSpanLinks::postfork_child()
 {
-    // Explicitly destroy and reconstruct the mutex to avoid undefined behavior
-    get_instance().mtx.~mutex();
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&get_instance().mtx) std::mutex();
-
     get_instance().reset();
 }
 

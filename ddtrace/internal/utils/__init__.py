@@ -3,6 +3,7 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import Union  # noqa:F401
 
 
 class ArgumentError(Exception):
@@ -13,7 +14,7 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args: List[Any],
+    args: Union[Tuple[Any], List[Any]],
     kwargs: Dict[str, Any],
     pos: int,
     kw: str,

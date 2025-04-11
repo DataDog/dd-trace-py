@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fix unbounded memory usage growth caused by keeping arbitrary
+     user-generated strings (e.g. asyncio Task names) in an internal table and
+     never removing them.

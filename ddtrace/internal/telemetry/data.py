@@ -3,6 +3,7 @@ import sys
 import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import Iterable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
@@ -69,7 +70,7 @@ def _get_application(key):
     }
 
 
-def update_imported_dependencies(already_imported: Dict[str, str], new_modules: List[str]) -> List[Dict[str, str]]:
+def update_imported_dependencies(already_imported: Dict[str, str], new_modules: Iterable[str]) -> List[Dict[str, str]]:
     deps = []
 
     for module_name in new_modules:
@@ -77,15 +78,15 @@ def update_imported_dependencies(already_imported: Dict[str, str], new_modules: 
         if not dists:
             continue
 
-        for name, version in dists.items():
-            if name == "ddtrace":
-                continue
+        name, version = dists
+        if name == "ddtrace":
+            continue
 
-            if name in already_imported:
-                continue
+        if name in already_imported:
+            continue
 
-            already_imported[name] = version
-            deps.append({"name": name, "version": version})
+        already_imported[name] = version
+        deps.append({"name": name, "version": version})
 
     return deps
 

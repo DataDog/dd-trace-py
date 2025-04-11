@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces "Standalone SCA billing", opting out for APM billing and applying to only SCA. Enable this by setting these two environment variables: ``DD_APPSEC_SCA_ENABLED`` and ``DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED``

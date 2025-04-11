@@ -1,13 +1,12 @@
 # Standard library
 import contextlib
+import http.client as httplib
 
 import wrapt
 
 # Project
-from ddtrace import config
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.internal.compat import httplib
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from .test_httplib import SOCKET
@@ -38,7 +37,7 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
 
     def get_http_connection(self, *args, **kwargs):
         conn = httplib.HTTPConnection(*args, **kwargs)
-        Pin.override(conn, tracer=self.tracer)
+        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def request(self, conn=None):
@@ -71,14 +70,14 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
 
     def test_propagation_connection_true(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = config.get_from(conn)
+        cfg = Pin._get_config(conn)
         cfg["distributed_tracing"] = True
         self.request(conn=conn)
         self.check_enabled()
 
     def test_propagation_connection_false(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = config.get_from(conn)
+        cfg = Pin._get_config(conn)
         cfg["distributed_tracing"] = False
         self.request(conn=conn)
         self.check_disabled()

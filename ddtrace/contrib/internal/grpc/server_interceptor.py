@@ -3,10 +3,10 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
@@ -100,7 +100,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         # set span.kind tag equal to type of span
         span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
         span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)

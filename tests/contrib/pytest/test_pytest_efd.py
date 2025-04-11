@@ -7,15 +7,16 @@ are checked.
 - The session object is patched to never be a faulty session, by default.
 """
 from unittest import mock
+from xml.etree import ElementTree
 
 import pytest
 
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest._utils import _pytest_version_supports_efd
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
-from tests.ci_visibility.util import _fetch_unique_tests_side_effect
+from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
@@ -107,19 +108,16 @@ class PytestEFDTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def set_up_efd(self):
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
             return_value=_KNOWN_TEST_IDS,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(
-                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90)
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                known_tests_enabled=True,
             ),
         ):
             yield
-            from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-            if CIVisibility.enabled:
-                CIVisibility.disable()
 
     def test_pytest_efd_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
@@ -139,8 +137,8 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_unique_tests",
-            side_effect=_fetch_unique_tests_side_effect(set()),
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            side_effect=_fetch_known_tests_side_effect(set()),
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
@@ -172,6 +170,148 @@ class PytestEFDTestCase(PytestTestCaseBase):
         ):
             rec = self.inline_run("--ddtrace")
             rec.assertoutcome(passed=4, failed=3)
+
+    def test_pytest_efd_disabled_when_kte_disabled(self):
+        """Tests that EFD is disabled when Known Tests Enabled (KTE) is disabled, even if EFD is enabled"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                known_tests_enabled=False,
+            ),
+        ):
+            rec = self.inline_run("--ddtrace")
+            rec.assertoutcome(passed=4)
+            spans = self.pop_spans()
+
+            # Verify no retries happened since EFD should be disabled when KTE is disabled
+            new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+            assert len(new_flaky_spans) == 1
+            assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is NOT set when KTE is disabled, even for new tests
+            assert new_flaky_spans[0].get_tag("test.is_new") != "true"
+
+            new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+            assert len(new_passes_spans) == 1
+            assert new_passes_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is NOT set for new passing tests either when KTE is disabled
+            assert new_passes_spans[0].get_tag("test.is_new") != "true"
+
+    def test_pytest_efd_disabled_when_kte_enabled_but_efd_disabled(self):
+        """Tests that EFD is disabled when KTE is enabled but EFD itself is disabled"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False, faulty_session_threshold=90),
+                known_tests_enabled=True,
+            ),
+        ):
+            rec = self.inline_run("--ddtrace")
+            rec.assertoutcome(passed=4)
+            spans = self.pop_spans()
+
+            # Verify no retries happened since EFD is disabled even though KTE is enabled
+            new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+            assert len(new_flaky_spans) == 1
+            assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is still being set even when EFD is disabled but KTE is enabled
+            assert new_flaky_spans[0].get_tag("test.is_new") == "true"
+
+            new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+            assert len(new_passes_spans) == 1
+            assert new_passes_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is still being set for new passing tests too
+            assert new_passes_spans[0].get_tag("test.is_new") == "true"
+
+            # Verify that known tests are not tagged as new
+            known_passes_spans = _get_spans_from_list(spans, "test", "test_known_passes_01")
+            assert len(known_passes_spans) == 1
+            assert known_passes_spans[0].get_tag("test.is_new") != "true"
+
+    def test_pytest_efd_enabled_when_both_kte_and_efd_enabled(self):
+        """Tests that EFD is enabled only when both KTE and EFD are enabled"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        # This test explicitly sets both KTE and EFD to enabled
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                known_tests_enabled=True,
+            ),
+        ):
+            self.inline_run("--ddtrace")
+            # Instead of checking the outcome, which might include custom EFD statuses,
+            # directly check the spans to verify retries happened
+            spans = self.pop_spans()
+
+            # Verify retries happened since both KTE and EFD are enabled
+            new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+            assert len(new_flaky_spans) == 11  # 1 original + 10 retries
+
+            flaky_retries = 0
+            for span in new_flaky_spans:
+                if span.get_tag("test.is_retry") == "true":
+                    flaky_retries += 1
+            assert flaky_retries == 10
+
+            new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+            assert len(new_passes_spans) == 11  # 1 original + 10 retries
+
+            passes_retries = 0
+            for span in new_passes_spans:
+                if span.get_tag("test.is_retry") == "true":
+                    passes_retries += 1
+            assert passes_retries == 10
+
+    def test_pytest_efd_env_var_disables_retrying_even_with_kte(self):
+        """Tests that EFD env var can disable retries even when both KTE and EFD API settings are enabled"""
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+        with override_env({"DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0"}), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=True, faulty_session_threshold=90),
+                known_tests_enabled=True,
+            ),
+        ):
+            rec = self.inline_run("--ddtrace")
+            rec.assertoutcome(passed=4)
+            spans = self.pop_spans()
+
+            # Verify no retries happened since EFD env var is disabled even though both API settings are enabled
+            new_flaky_spans = _get_spans_from_list(spans, "test", "test_new_flaky_01")
+            assert len(new_flaky_spans) == 1
+            assert new_flaky_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is still set because KTE is enabled, even though EFD is disabled by env var
+            assert new_flaky_spans[0].get_tag("test.is_new") == "true"
+
+            new_passes_spans = _get_spans_from_list(spans, "test", "test_new_passes_01")
+            assert len(new_passes_spans) == 1
+            assert new_passes_spans[0].get_tag("test.is_retry") != "true"
+
+            # Verify that test.is_new is set for new passing tests too
+            assert new_passes_spans[0].get_tag("test.is_new") == "true"
+
+            # Verify that known tests are not tagged as new
+            known_passes_spans = _get_spans_from_list(spans, "test", "test_known_passes_01")
+            assert len(known_passes_spans) == 1
+            assert known_passes_spans[0].get_tag("test.is_new") != "true"
 
     def test_pytest_efd_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
@@ -289,3 +429,17 @@ class PytestEFDTestCase(PytestTestCaseBase):
         assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
         assert rec.ret == 1
         assert len(spans) == 7
+
+    def test_pytest_efd_junit_xml(self):
+        self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
+        self.testdir.makepyfile(test_known_fail=_TEST_KNOWN_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_pass=_TEST_NEW_PASS_CONTENT)
+        self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
+        self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
+
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+        assert rec.ret == 1
+
+        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
+        assert test_suite.attrib["tests"] == "7"
+        assert test_suite.attrib["failures"] == "3"

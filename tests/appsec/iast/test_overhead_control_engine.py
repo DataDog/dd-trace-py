@@ -3,10 +3,9 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
-from ddtrace.appsec._iast._overhead_control_engine import MAX_VULNERABILITIES_PER_REQUEST
+from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.settings.asm import config as asm_config
 from tests.utils import override_global_config
 
 
@@ -55,7 +54,7 @@ def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
     m.digest()
     span_report = get_iast_reporter()
 
-    assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST
+    assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests
 
 
 @pytest.mark.skip_iast_check_logs
@@ -72,7 +71,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_defaults):
 
     span_report = get_iast_reporter()
 
-    assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
+    assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests + 1
 
 
 @pytest.mark.skip_iast_check_logs
@@ -82,7 +81,7 @@ def test_oce_no_race_conditions_in_span(iast_span_defaults):
     oc = OverheadControl()
     oc.reconfigure()
 
-    assert oc._request_quota == MAX_REQUESTS
+    assert oc._request_quota == asm_config._iast_max_concurrent_requests
 
     # Request 1 tries to acquire the lock
     assert oc.acquire_request(iast_span_defaults) is True
@@ -148,7 +147,6 @@ def test_oce_concurrent_requests_in_spans(iast_span_defaults):
     """
     import threading
 
-    from ddtrace.appsec._iast._overhead_control_engine import MAX_REQUESTS
     from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
 
     oc = OverheadControl()
@@ -167,7 +165,7 @@ def test_oce_concurrent_requests_in_spans(iast_span_defaults):
         results.append(thread.join())
 
     # Ensures quota is always within bounds after multithreading scenario
-    assert 0 <= oc._request_quota <= MAX_REQUESTS
+    assert 0 <= oc._request_quota <= asm_config._iast_max_concurrent_requests
 
 
 @pytest.mark.skip_iast_check_logs

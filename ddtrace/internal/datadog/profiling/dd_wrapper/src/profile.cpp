@@ -7,7 +7,11 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 // Inline helpers
 namespace {
@@ -89,6 +93,23 @@ Datadog::Profile::setup_samplers()
     if (0U != (type_mask & SampleType::Heap)) {
         val_idx.heap_space = get_value_idx("heap-space", "bytes");
     }
+    if (0U != (type_mask & SampleType::GPUTime)) {
+        val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
+        val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+    }
+    if (0U != (type_mask & SampleType::GPUMemory)) {
+        // In the backend the unit is called 'gpu-space', but maybe for consistency
+        // it should be gpu-alloc-space
+        // gpu-alloc-samples may be unused, but it's passed along for scaling purposes
+        val_idx.gpu_alloc_space = get_value_idx("gpu-space", "bytes");
+        val_idx.gpu_alloc_count = get_value_idx("gpu-alloc-samples", "count");
+    }
+    if (0U != (type_mask & SampleType::GPUFlops)) {
+        // Technically "FLOPS" is a unit, but we call it a 'count' because no
+        // other profiler uses it as a unit.
+        val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
+        val_idx.gpu_flops_samples = get_value_idx("gpu-flops-samples", "count");
+    }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
@@ -162,21 +183,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     first_time.store(false);
 }
 
-std::string_view
-Datadog::Profile::insert_or_get(std::string_view str)
-{
-    const std::lock_guard<std::mutex> lock(string_table_mtx); // Serialize access
-
-    auto str_it = strings.find(str);
-    if (str_it != strings.end()) {
-        return *str_it;
-    }
-
-    string_storage.emplace_back(str);
-    strings.insert(string_storage.back());
-    return string_storage.back();
-}
-
 const Datadog::ValueIndex&
 Datadog::Profile::val()
 {
@@ -201,6 +207,6 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 void
 Datadog::Profile::postfork_child()
 {
-    profile_mtx.unlock();
+    new (&profile_mtx) std::mutex();
     cycle_buffers();
 }

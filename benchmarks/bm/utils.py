@@ -8,8 +8,8 @@ import string
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import telemetry
+from ddtrace.trace import TraceFilter
 
 
 _Span = Span
@@ -65,7 +65,7 @@ class _DropTraces(TraceFilter):
 
 
 def drop_traces(tracer):
-    tracer.configure(settings={"FILTERS": [_DropTraces()]})
+    tracer.configure(trace_processors=[_DropTraces()])
 
 
 def drop_telemetry_events():

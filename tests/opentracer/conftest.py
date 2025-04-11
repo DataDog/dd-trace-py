@@ -6,7 +6,7 @@ https://docs.pytest.org/en/latest/writing_plugins.html#testing-plugins
 """
 import pytest
 
-from ddtrace.opentracer import Tracer
+from ddtrace.opentracer import Tracer as OTTracer
 from ddtrace.opentracer import set_global_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -18,12 +18,12 @@ def ot_tracer_factory():
 
     def make_ot_tracer(service_name="my_svc", config=None, scope_manager=None, context_provider=None):
         config = config or {}
-        tracer = Tracer(service_name=service_name, config=config, scope_manager=scope_manager)
+        tracer = OTTracer(service_name=service_name, config=config, scope_manager=scope_manager)
 
         # similar to how we test the ddtracer, use a dummy tracer
         dd_tracer = DummyTracer()
         if context_provider:
-            dd_tracer.configure(context_provider=context_provider)
+            dd_tracer.context_provider = context_provider
 
         # attach the dummy tracer to the opentracer
         tracer._dd_tracer = dd_tracer

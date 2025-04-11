@@ -1,9 +1,14 @@
 from enum import Enum
 
 
-TELEMETRY_NAMESPACE_TAG_TRACER = "tracers"
-TELEMETRY_NAMESPACE_TAG_APPSEC = "appsec"
-TELEMETRY_NAMESPACE_TAG_IAST = "iast"
+class TELEMETRY_NAMESPACE(Enum):
+    TRACERS = "tracers"
+    APPSEC = "appsec"
+    IAST = "iast"
+    CIVISIBILITY = "civisibility"
+    MLOBS = "mlobs"
+    DD_TRACE_API = "ddtraceapi"
+
 
 TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"
 TELEMETRY_TYPE_DISTRIBUTION = "distributions"

@@ -2,19 +2,22 @@ import molten
 from molten.testing import TestClient
 import pytest
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.molten import patch
-from ddtrace.contrib.molten import unpatch
-from ddtrace.contrib.molten.patch import MOLTEN_VERSION
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION
+from ddtrace.contrib.internal.molten.patch import patch
+from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.trace import Pin
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_config
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -30,12 +33,17 @@ def reply_404():
     raise molten.HTTPError(molten.HTTP_404, {"error": "Nope"})
 
 
+def unhandled_error_endpoint():
+    return 1 / 0
+
+
 def molten_app():
     return molten.App(
         routes=[
             molten.Route("/hello/{name}/{age}", hello),
             molten.Route("/greet", greet),
             molten.Route("/404", reply_404),
+            molten.Route("/unhandlederror", unhandled_error_endpoint),
         ]
     )
 
@@ -49,7 +57,7 @@ class TestMolten(TracerTestCase):
     def setUp(self):
         super(TestMolten, self).setUp()
         patch()
-        Pin.override(molten, tracer=self.tracer)
+        Pin._override(molten, tracer=self.tracer)
         self.app = molten_app()
         self.client = TestClient(self.app)
 
@@ -57,8 +65,11 @@ class TestMolten(TracerTestCase):
         super(TestMolten, self).setUp()
         unpatch()
 
-    def make_request(self, headers=None, params=None):
-        uri = self.app.reverse_uri("hello", name="Jim", age=24)
+    def make_request(self, headers=None, params=None, route=None):
+        if route:
+            uri = route
+        else:
+            uri = self.app.reverse_uri("hello", name="Jim", age=24)
         return self.client.request("GET", uri, headers=headers, params=params)
 
     def test_route_success(self):
@@ -89,7 +100,7 @@ class TestMolten(TracerTestCase):
             self.assertEqual(len(spans), 16)
 
         # test override of service name
-        Pin.override(molten, service=self.TEST_SERVICE)
+        Pin._override(molten, service=self.TEST_SERVICE)
         response = self.make_request()
         spans = self.pop_spans()
         self.assertEqual(spans[0].service, "molten-patch")
@@ -273,7 +284,7 @@ class TestMolten(TracerTestCase):
 
         patch()
         # Need to override Pin here as we do in setUp
-        Pin.override(molten, tracer=self.tracer)
+        Pin._override(molten, tracer=self.tracer)
         self.assertTrue(Pin.get_from(molten) is not None)
         self.make_request()
         spans = self.pop_spans()
@@ -415,3 +426,78 @@ class TestMolten(TracerTestCase):
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")
+
+    def test_inferred_spans_api_gateway_default(self):
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        distributed_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+            "x-datadog-trace-id": "1",
+            "x-datadog-parent-id": "2",
+            "x-datadog-origin": "rum",
+            "x-datadog-sampling-priority": "2",
+        }
+
+        for setting_enabled in [False, True]:
+            for test_headers in [headers, distributed_headers]:
+                for test_endpoint in [
+                    {
+                        "endpoint": "/greet",
+                        "status": 200,
+                        "resource_name": "GET /greet",
+                    },
+                    {
+                        "endpoint": "/unhandlederror",
+                        "status": 500,
+                        "resource_name": "GET /unhandlederror",
+                    },
+                    {
+                        "endpoint": "/404",
+                        "status": 404,
+                        "resource_name": "GET /404",
+                    },
+                ]:
+                    with override_global_config(dict(_inferred_proxy_services_enabled=setting_enabled)):
+                        try:
+                            self.make_request(headers=test_headers, route=test_endpoint["endpoint"])
+                        except ZeroDivisionError:
+                            pass
+
+                        traces = self.pop_traces()
+                        if setting_enabled:
+                            aws_gateway_span = traces[0][0]
+                            web_span = traces[0][1]
+
+                            assert_web_and_inferred_aws_api_gateway_span_data(
+                                aws_gateway_span,
+                                web_span,
+                                web_span_name="molten.request",
+                                web_span_component="molten",
+                                web_span_service_name="molten",
+                                web_span_resource=test_endpoint["resource_name"],
+                                api_gateway_service_name="local",
+                                api_gateway_resource="GET /",
+                                method="GET",
+                                status_code=test_endpoint["status"],
+                                url="local/",
+                                start=1736973768,
+                                is_distributed=test_headers == distributed_headers,
+                                distributed_trace_id=1,
+                                distributed_parent_id=2,
+                                distributed_sampling_priority=USER_KEEP,
+                            )
+                        else:
+                            web_span = traces[0][0]
+                            assert web_span._parent is None

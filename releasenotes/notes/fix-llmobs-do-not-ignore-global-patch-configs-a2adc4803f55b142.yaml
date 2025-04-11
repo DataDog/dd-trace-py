@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where ``LLMObs.enable()`` ignored global patch configurations, specifically
+     the ``DD_TRACE_<INTEGRATION>_ENABLED`` and ``DD_PATCH_MODULES`` environment variables.

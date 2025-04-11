@@ -3,21 +3,20 @@ from typing import Any  # noqa:F401
 import mock
 import pytest
 
-from ddtrace import Tracer
-from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
-from ddtrace._trace.span import Span
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
@@ -25,7 +24,9 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.sampler import DatadogSampler
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.trace import Context
+from ddtrace.trace import Span
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -241,14 +242,10 @@ def test_aggregator_partial_flush_2_spans():
     assert parent.get_metric("_dd.py.partial_flush") is None
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
-    tracer = Tracer()
-    tracer.configure(
-        partial_flush_enabled=True,
-        partial_flush_min_spans=2,
-        writer=DummyWriter(),
-    )
+    from ddtrace import tracer
 
     with tracer.trace("parent") as parent:
         with tracer.trace("1") as child1:
@@ -270,8 +267,7 @@ def test_trace_top_level_span_processor_partial_flushing():
 def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer = DummyTracer()
 
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
@@ -284,8 +280,7 @@ def test_trace_top_level_span_processor_same_service_name():
 def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer = DummyTracer()
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -298,8 +293,7 @@ def test_trace_top_level_span_processor_different_service_name():
 def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer = DummyTracer()
 
     with tracer.trace("parent") as parent:
         pass
@@ -353,27 +347,41 @@ def test_span_creation_metrics():
 
             mock_tm.assert_has_calls(
                 [
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 100, tags=(("integration_name", "datadog"),)),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
                 ]
             )
             mock_tm.reset_mock()
             aggr.shutdown(None)
             mock_tm.assert_has_calls(
                 [
-                    mock.call("tracers", "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                    mock.call("tracers", "spans_finished", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "datadog"),)
+                    ),
                 ]
             )
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():
     """Changing the tracer sampler should change the sampling processor's sampler"""
-    tracer = Tracer()
+    tracer = DummyTracer()
     # get processor
     for aggregator in tracer._deferred_processors:
         if type(aggregator) is SpanAggregator:
@@ -393,7 +401,9 @@ def test_single_span_sampling_processor():
     """Test that single span sampling tags are applied to spans that should get sampled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    sampling_processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    sampling_processor = TraceSamplingProcessor(
+        False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False
+    )
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, sampling_processor)
 
@@ -408,7 +418,7 @@ def test_single_span_sampling_processor_match_second_rule():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service2", name="test_name2", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -425,7 +435,7 @@ def test_single_span_sampling_processor_rule_order_drop():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -442,7 +452,7 @@ def test_single_span_sampling_processor_rule_order_keep():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
     rules = [rule_1, rule_2]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -477,7 +487,7 @@ def test_single_span_sampling_processor_w_tracer_sampling(
         service="test_service", name="test_name", sample_rate=span_sample_rate_rule, max_per_second=-1
     )
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
 
@@ -499,7 +509,7 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     """
     rule_1 = SpanSamplingRule(name="child", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     tracer = DummyTracer()
     switch_out_trace_sampling_processor(tracer, processor)
     root = tracer.trace("root")
@@ -539,7 +549,7 @@ def test_single_span_sampling_processor_w_stats_computation():
     """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, DatadogSampler(default_sample_rate=0.0), rules, False)
+    processor = TraceSamplingProcessor(False, DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0)]), rules, False)
     with override_global_config(dict(_trace_compute_stats=True)):
         tracer = DummyTracer()
         switch_out_trace_sampling_processor(tracer, processor)
@@ -566,7 +576,7 @@ def assert_span_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
@@ -617,9 +627,8 @@ def test_endpoint_call_counter_processor_disabled():
 
 
 def test_endpoint_call_counter_processor_real_tracer():
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer._endpoint_call_counter_span_processor.enable()
-    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
         with tracer.trace("child", service="top_level_test_service2"):
@@ -641,8 +650,7 @@ def test_endpoint_call_counter_processor_real_tracer():
 
 
 def test_trace_tag_processor_adds_chunk_root_tags():
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    tracer = DummyTracer()
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:
@@ -664,7 +672,7 @@ def test_register_unregister_span_processor():
     tp = TestProcessor()
     tp.register()
 
-    tracer = Tracer()
+    tracer = DummyTracer()
 
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") == "ok"
@@ -675,20 +683,3 @@ def test_register_unregister_span_processor():
     with tracer.trace("test") as span:
         assert span.get_tag("on_start") is None
     assert span.get_tag("on_finish") is None
-
-
-def _stderr_contains_log(stderr: str) -> bool:
-    return "finished span not connected to a trace" in stderr
-
-
-@pytest.mark.subprocess(
-    err=_stderr_contains_log, env=dict(DD_TRACE_DEBUG="true", DD_API_KEY="test", DD_CIVISIBILITY_AGENTLESS_ENABLED=None)
-)
-def test_tracer_reconfigured_with_active_span_does_not_crash():
-    import ddtrace
-
-    with ddtrace.tracer.trace("regression1") as exploding_span:
-        # Reconfiguring the tracer clears active traces
-        # Calling .finish() manually bypasses the code that catches the exception
-        ddtrace.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=1)
-        exploding_span.finish()

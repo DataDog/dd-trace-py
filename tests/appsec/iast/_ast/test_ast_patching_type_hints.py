@@ -11,10 +11,9 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
     """
     import astunparse
 
-    from ddtrace.appsec._iast._ast.ast_patching import get_encoding
     from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 
-    with open(module_path, "r", encoding=get_encoding(module_path)) as source_file:
+    with open(module_path, "rb") as source_file:
         source_text = source_file.read()
 
         new_source = visit_ast(
@@ -32,7 +31,7 @@ def _get_patched_code(module_path: Text, module_name: Text) -> str:
         return new_code
 
 
-@pytest.mark.skipif(sys.version_info <= (3, 8, 0), reason="Sample code not compatible with Python 3.7")
+@pytest.mark.skipif(sys.version_info == (3, 8, 0), reason="Sample code not compatible with Python 3.8")
 def test_no_index_aspects_py38plus():
     """
     Methods should not be replaced by the aspect since it's not the builtin method

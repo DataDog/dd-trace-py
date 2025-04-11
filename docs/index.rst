@@ -25,7 +25,7 @@ documentation`_.
 Supported Libraries
 -------------------
 
-We officially support Python 3.7 and above.
+dd-trace-py works with Python 3.8 and above.
 
 The versions listed are the versions that we have tested, but ``ddtrace`` can
 still be compatible with other versions of these libraries. If a version of a
@@ -52,11 +52,13 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`algoliasearch`                             | >= 2.5.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`anthropic`                                 | >= 0.28.0     | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`aredis`                                    | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asgi`                                      | >= 3.0        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`asyncio`                                   | \*            | Yes [4]_       |
+| :ref:`asyncio`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`asyncpg`                                   | >= 0.22.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -73,6 +75,8 @@ contacting support.
 | :ref:`confluent-kafka <kafka>`                   | >= 1.9.2      | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`consul`                                    | >= 1.1        | Yes [2]_       |
++--------------------------------------------------+---------------+----------------+
+| :ref:`crewai`                                    | >= 0.102      | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`django`                                    | >= 3.2        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -110,7 +114,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`kombu`                                     | >= 4.2        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`langchain`                                 | >= 0.0.192    | Yes            |
+| :ref:`langchain`                                 | >= 0.1        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`logbook`                                   | >= 1.0.0      | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -126,7 +130,9 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mysql-connector`                           | >= 8.0.5      | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`openai`                                    | >= 0.26.5     | Yes            |
+| :ref:`openai`                                    | >= 1.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`openai-agents`                             | >= 0.0.2      | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`opensearch-py <elasticsearch>`             | >= 1.1        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -172,6 +178,10 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`urllib3`                                   | >= 1.25.8     | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`valkey`                                    | >= 6.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`vertexai`                                  | >= 1.71.1     | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`vertica`                                   | >= 0.6        | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`wsgi`                                      | \*            | No             |
@@ -182,15 +192,12 @@ contacting support.
 
 .. [1] Libraries that are automatically instrumented when the
   :ref:`ddtrace-run<ddtracerun>` command is used or the ``import ddtrace.auto`` import
-  is used. Always use ``patch()``, ``patch_all()``, and ``import ddtrace.auto`` as soon
+  is used. Always use ``import ddtrace.auto`` as soon
   as possible in your Python entrypoint.
 
 .. [2] only the synchronous client
 
-.. [3] only in Python 3.7 and above.
-
-.. [4] Activating the legacy context provider is required in Python < 3.7. See
-       :ref:`asyncio` for more details.
+.. [3] only in Python 3.8 and above.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
@@ -229,6 +236,7 @@ Indices and tables
     integrations
     basic_usage
     advanced_usage
+    build_system
     benchmarks
     contributing
     troubleshooting

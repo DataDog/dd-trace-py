@@ -77,16 +77,15 @@ def test_tracer_tags_config():
 def test_tracer_tags_service_from_code():
     """Ensure we collect the expected tags for the TracerTagCollector"""
     import ddtrace
-    from ddtrace.filters import TraceFilter
     from ddtrace.internal.runtime import tag_collectors
-    from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+    from ddtrace.trace import TraceFilter
 
     class DropFilter(TraceFilter):
         def process_trace(self, _):
             return None
 
     # Drop all traces so we don't get an error trying to flush
-    ddtrace.tracer.configure(settings={"FILTERS": [DropFilter()]})
+    ddtrace.tracer.configure(trace_processors=[DropFilter()])
 
     ddtrace.config.service = "my-service"
 
@@ -102,10 +101,6 @@ def test_tracer_tags_service_from_code():
     values = ttc.collect()
 
     assert values is not None
-    assert set(values) == set(
-        [
-            ("service", "new-service"),
-            ("service", DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME),
-            ("service", "my-service"),
-        ]
-    )
+    assert values == [
+        ("service", "my-service"),
+    ], values

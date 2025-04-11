@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    langchain: removed tracing support for ``langchain.chains.base.Chains``. To maintain support, migrate to using Langchain's LCEL instead.

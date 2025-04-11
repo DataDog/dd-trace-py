@@ -1,0 +1,21 @@
+---
+deprecations:
+  - |
+    tracing: Ensures most tracing configurations are only set on application start up. This is done by deprecating the following parameters in ``ddtrace.configure(...)`` function. 
+    These parameters will be removed in ``ddtrace>=3.0.0``:
+      - enabled
+      - hostname
+      - port
+      - uds_path
+      - https
+      - sampler
+      - settings
+      - priority_sampling
+      - settings
+      - dogstatsd_url
+      - writer
+      - partial_flush_enabled
+      - partial_flush_min_spans
+      - api_version
+      - compute_stats_enabled
+      - wrap_executor

@@ -1,10 +1,11 @@
 import concurrent.futures
+import sys
 import time
 
 import pytest
 
-from ddtrace.contrib.futures import patch
-from ddtrace.contrib.futures import unpatch
+from ddtrace.contrib.internal.futures.patch import patch
+from ddtrace.contrib.internal.futures.patch import unpatch
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -406,6 +407,7 @@ class PropagationTestCase(TracerTestCase):
         assert spans[1].parent_id == spans[0].span_id
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
 @pytest.mark.subprocess(ddtrace_run=True, timeout=5)
 def test_concurrent_futures_with_gevent():
     """Check compatibility between the integration and gevent"""

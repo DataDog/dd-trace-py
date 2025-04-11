@@ -1,11 +1,11 @@
+import http.client as httplib
 import socket
 from typing import Any  # noqa:F401
 
-from .compat import httplib
-from .http import BasePathMixin
+from .http import HTTPConnectionMixin
 
 
-class UDSHTTPConnection(BasePathMixin, httplib.HTTPConnection):
+class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
     # It's "important" to keep the hostname and port arguments here; while there are not used by the connection

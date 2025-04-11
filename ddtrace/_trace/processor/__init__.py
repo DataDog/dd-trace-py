@@ -8,12 +8,11 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace import config
+from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
@@ -25,9 +24,9 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE_TAG_TRACER
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.sampler import BaseSampler
+from ddtrace.settings._config import config
 
 
 try:
@@ -120,7 +119,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def __init__(
         self,
         compute_stats_enabled: bool,
-        sampler: BaseSampler,
+        sampler: DatadogSampler,
         single_span_rules: List[SpanSamplingRule],
         apm_opt_out: bool,
     ):
@@ -165,7 +164,7 @@ class TraceSamplingProcessor(TraceProcessor):
                                 # In order to ensure that the agent does not update priority sampling rates
                                 # due to single spans sampling, we set all of these spans to manual keep.
                                 if config._trace_compute_stats:
-                                    span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                                    span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                                 break
 
             return trace
@@ -190,7 +189,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
-        if _is_top_level(span):
+        if span._is_top_level:
             span.set_metric("_dd.top_level", 1)
 
 
@@ -215,7 +214,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        ctx._update_tags(chunk_root)
+        chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
         # for 128 bit trace ids
@@ -374,7 +373,7 @@ class SpanAggregator(SpanProcessor):
         ]
         if unfinished_spans:
             log.warning(
-                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
                 len(unfinished_spans),
                 ", ".join(unfinished_spans),
             )
@@ -392,6 +391,6 @@ class SpanAggregator(SpanProcessor):
         if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
             for tag_value, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE_TAG_TRACER, metric_name, count, tags=((tag_name, tag_value),)
+                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)

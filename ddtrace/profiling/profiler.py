@@ -24,6 +24,7 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
+from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
@@ -120,6 +121,7 @@ class _ProfilerInstance(service.Service):
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
         _stack_v2_enabled: bool = profiling_config.stack.v2_enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
+        _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
     ):
@@ -135,6 +137,7 @@ class _ProfilerInstance(service.Service):
         self._stack_collector_enabled: bool = _stack_collector_enabled
         self._stack_v2_enabled: bool = _stack_v2_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
+        self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
@@ -219,6 +222,12 @@ class _ProfilerInstance(service.Service):
                     LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
                     return []
 
+                # pytorch collector relies on libdd exporter
+                if self._pytorch_collector_enabled:
+                    LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
+                    config.pytorch.enabled = False
+                    self._pytorch_collector_enabled = False
+
         # DEV: Import this only if needed to avoid importing protobuf
         # unnecessarily
         from ddtrace.profiling.exporter import http
@@ -297,6 +306,33 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
+        if self._pytorch_collector_enabled:
+
+            def start_collector(collector_class: Type) -> None:
+                with self._service_lock:
+                    col = collector_class(r)
+
+                    if self.status == service.ServiceStatus.RUNNING:
+                        # The profiler is already running so we need to start the collector
+                        try:
+                            col.start()
+                            LOG.debug("Started pytorch collector %r", col)
+                        except collector.CollectorUnavailable:
+                            LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            return
+                        except Exception:
+                            LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            return
+
+                    self._collectors.append(col)
+
+            self._collectors_on_import = [
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+            ]
+
+            for module, hook in self._collectors_on_import:
+                ModuleWatchdog.register_module_hook(module, hook)
+
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
 
@@ -311,6 +347,7 @@ class _ProfilerInstance(service.Service):
                 recorder=r,
                 exporters=exporters,
                 before_flush=self._collectors_snapshot,
+                tracer=self.tracer,
             )
 
     def _collectors_snapshot(self):

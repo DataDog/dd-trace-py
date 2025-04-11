@@ -25,9 +25,9 @@ import pytest
 import sys
 
 from ddtrace import config
-from ddtrace.constants import BASE_SERVICE_KEY
+from ddtrace.constants import _BASE_SERVICE_KEY
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace._trace.span import Span
+from ddtrace.trace import Span
 from tests.internal.service_name.test_processor import processor
 
 def test(processor):
@@ -54,11 +54,11 @@ def test(processor):
     ]
 
     processor.process_trace(fake_trace)
-    assert BASE_SERVICE_KEY not in fake_trace[0].get_tags()
-    assert BASE_SERVICE_KEY not in fake_trace[1].get_tags(), config.service
-    assert fake_trace[2].get_tag(BASE_SERVICE_KEY) is not None
-    assert fake_trace[2].get_tag(BASE_SERVICE_KEY) == '{}'
-    assert BASE_SERVICE_KEY not in fake_trace[3].get_tags(), fake_trace[3].service + fake_trace[3].get_tags()
+    assert _BASE_SERVICE_KEY not in fake_trace[0].get_tags()
+    assert _BASE_SERVICE_KEY not in fake_trace[1].get_tags(), config.service
+    assert fake_trace[2].get_tag(_BASE_SERVICE_KEY) is not None
+    assert fake_trace[2].get_tag(_BASE_SERVICE_KEY) == '{}'
+    assert _BASE_SERVICE_KEY not in fake_trace[3].get_tags(), fake_trace[3].service + fake_trace[3].get_tags()
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))

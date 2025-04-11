@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
@@ -125,7 +126,7 @@ def test_str_utf(encoding):
 def test_repr_utf16():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
 
         obj = taint_pyobject(
@@ -145,7 +146,7 @@ def test_repr_utf16():
 def test_repr_utf16_2():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = (
             "\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85".encode(
                 "utf-16"
@@ -169,7 +170,7 @@ def test_repr_utf16_2():
 def test_repr_nonascii():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = "記者 鄭啟源 羅智堅"
 
         obj = taint_pyobject(
@@ -189,7 +190,7 @@ def test_repr_nonascii():
 def test_repr_bytearray():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = bytearray(
             b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
         )
@@ -356,7 +357,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     ],
 )
 def test_repr_aspect_tainting(obj, expected_result, formatted_result):
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         assert repr(obj) == expected_result
 
         obj = taint_pyobject(

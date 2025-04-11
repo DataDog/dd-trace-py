@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code security (IAST): This fix resolves an issue where the usage of `callonce` decorator could trigger an import loop

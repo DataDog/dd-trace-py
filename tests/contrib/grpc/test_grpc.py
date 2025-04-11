@@ -5,16 +5,16 @@ import grpc
 from grpc.framework.foundation import logging_pool
 import pytest
 
-from ddtrace import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.grpc import constants
-from ddtrace.contrib.grpc import patch
-from ddtrace.contrib.grpc import unpatch
+from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.patch import _unpatch_server
+from ddtrace.contrib.internal.grpc.patch import patch
+from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import flaky
 from tests.utils import snapshot
@@ -216,7 +216,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_server_span(server_span, "grpc-server", "SayHello", "unary")
 
     def test_pin_not_activated(self):
-        self.tracer.configure(enabled=False)
+        self.tracer.enabled = False
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             stub.SayHello(HelloRequest(name="test"))
@@ -227,9 +227,9 @@ class GrpcTestCase(GrpcBaseTestCase):
     def test_pin_tags_are_put_in_span(self):
         # DEV: stop and restart server to catch overridden pin
         self._stop_server()
-        Pin.override(constants.GRPC_PIN_MODULE_SERVER, service="server1")
-        Pin.override(constants.GRPC_PIN_MODULE_SERVER, tags={"tag1": "server"})
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, tags={"tag2": "client"})
+        Pin._override(constants.GRPC_PIN_MODULE_SERVER, service="server1")
+        Pin._override(constants.GRPC_PIN_MODULE_SERVER, tags={"tag1": "server"})
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, tags={"tag2": "client"})
         self._start_server()
         with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
@@ -241,10 +241,10 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert spans[0].get_tag("tag2") == "client"
 
     def test_pin_can_be_defined_per_channel(self):
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
         channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
 
-        Pin.override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc2")
+        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc2")
         channel2 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
 
         stub1 = HelloStub(channel1)
@@ -630,8 +630,8 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
 
 
 def test_handle_response_future_like():
-    from ddtrace._trace.span import Span
     from ddtrace.contrib.internal.grpc.client_interceptor import _handle_response
+    from ddtrace.trace import Span
 
     span = Span(None)
 
@@ -669,7 +669,7 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
 
 
 @snapshot(ignores=["meta.network.destination.port"], wait_for_num_traces=2)
-@flaky(until=1738272799, reason="GitLab CI does not support ipv6 at this time")
+@flaky(until=1767220930, reason="GitLab CI does not support ipv6 at this time")
 def test_method_service(patch_grpc):
     def handler(request, context):
         return b""

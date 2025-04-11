@@ -1,5 +1,2 @@
-from .session import patch
-from .session import unpatch
-
-
-__all__ = ["patch", "unpatch"]
+from .session import patch  # noqa: F401
+from .session import unpatch  # noqa: F401

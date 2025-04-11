@@ -4,22 +4,21 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Union
+from urllib.parse import urlparse
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -27,6 +26,7 @@ log = get_logger(__name__)
 
 API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
+DEFAULT_ANTHROPIC_HOSTNAME = "api.anthropic.com"
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -66,23 +66,23 @@ class AnthropicIntegration(BaseLLMIntegration):
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
 
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("anthropic.request.model") or "")
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
-        span.set_tag_str(METADATA, safe_json(parameters))
-        span.set_tag_str(MODEL_PROVIDER, "anthropic")
-
-        if span.error or response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, json.dumps([{"content": ""}]))
-        else:
+        output_messages = [{"content": ""}]
+        if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
-        usage = self._get_llmobs_metrics_tags(span)
-        if usage:
-            span.set_tag_str(METRICS, safe_json(usage))
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("anthropic.request.model") or "",
+                MODEL_PROVIDER: "anthropic",
+                INPUT_MESSAGES: input_messages,
+                METADATA: parameters,
+                OUTPUT_MESSAGES: output_messages,
+                METRICS: get_llmobs_metrics_tags("anthropic", span),
+            }
+        )
 
-    def _extract_input_message(self, messages, system_prompt=None):
+    def _extract_input_message(self, messages, system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None):
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -91,7 +91,8 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         input_messages = []
         if system_prompt is not None:
-            input_messages.append({"content": system_prompt, "role": "system"})
+            messages = [{"content": system_prompt, "role": "system"}] + messages
+
         for message in messages:
             if not isinstance(message, dict):
                 log.warning("Anthropic message input must be a list of message param dicts.")
@@ -190,17 +191,9 @@ class AnthropicIntegration(BaseLLMIntegration):
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
 
-    @staticmethod
-    def _get_llmobs_metrics_tags(span):
-        usage = {}
-        input_tokens = span.get_metric("anthropic.response.usage.input_tokens")
-        output_tokens = span.get_metric("anthropic.response.usage.output_tokens")
-        total_tokens = span.get_metric("anthropic.response.usage.total_tokens")
+    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
+        if base_url is None:
+            return True
 
-        if input_tokens is not None:
-            usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
-        if output_tokens is not None:
-            usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-        return usage
+        parsed_url = urlparse(base_url)
+        return parsed_url.hostname == DEFAULT_ANTHROPIC_HOSTNAME

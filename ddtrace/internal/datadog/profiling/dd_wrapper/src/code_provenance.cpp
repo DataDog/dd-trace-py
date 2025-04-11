@@ -2,11 +2,11 @@
 
 #include <memory>
 #include <mutex>
-#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Datadog {
@@ -14,9 +14,8 @@ namespace Datadog {
 void
 Datadog::CodeProvenance::postfork_child()
 {
-    get_instance().mtx.~mutex();            // Destroy the mutex
+    // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&get_instance().mtx) std::mutex(); // Recreate the mutex
-    get_instance().reset();                 // Reset the state
 }
 
 void
@@ -84,9 +83,6 @@ CodeProvenance::add_filename(std::string_view filename)
 
     const Package* package = it->second.get();
     if (package) {
-        if (packages_to_files.find(package) == packages_to_files.end()) {
-            packages_to_files[package] = std::set<std::string>();
-        }
         packages_to_files[package].insert(std::string(filename));
     }
 }

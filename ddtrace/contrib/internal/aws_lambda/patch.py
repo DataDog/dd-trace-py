@@ -1,8 +1,6 @@
 from importlib import import_module
-import os
 import signal
 
-from ddtrace import tracer
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.aws_lambda._cold_start import is_cold_start
@@ -12,6 +10,8 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.settings._config import _get_config
+from ddtrace.trace import tracer
 
 
 def get_version():
@@ -72,7 +72,7 @@ class TimeoutChannel:
         self._handle_signal(signal.SIGALRM, self._crash_flush)
 
         remaining_time_in_millis = self.context.get_remaining_time_in_millis()
-        apm_flush_deadline = int(os.environ.get("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100))
+        apm_flush_deadline = _get_config("DD_APM_FLUSH_DEADLINE_MILLISECONDS", 100, int)
         apm_flush_deadline = 100 if apm_flush_deadline < 0 else apm_flush_deadline
 
         # TODO: Update logic to calculate an approximate of how long it will
@@ -156,7 +156,7 @@ def _modify_module_name(module_name):
 
 def _get_handler_and_module():
     """Returns the user AWS Lambda handler and module."""
-    path = os.environ.get("DD_LAMBDA_HANDLER", None)
+    path = _get_config("DD_LAMBDA_HANDLER", None, str)
     _datadog_instrumentation = DatadogInstrumentation()
 
     if path is None:
@@ -207,7 +207,7 @@ def _has_patch_module():
     It checks either the user has the DD_LAMBDA_HANDLER set correctly.
     Or if the `datadog_lambda` package is installed.
     """
-    path = os.environ.get("DD_LAMBDA_HANDLER", None)
+    path = _get_config("DD_LAMBDA_HANDLER", None, str)
     if path is None:
         try:
             import_module("datadog_lambda.wrapper")

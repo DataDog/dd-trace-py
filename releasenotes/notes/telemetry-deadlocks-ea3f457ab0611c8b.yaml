@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    library: Resolves deadlocks that could occur when sending instrumentation telemetry data after an unhandled exception is raised.

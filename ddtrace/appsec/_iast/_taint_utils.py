@@ -5,7 +5,9 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrace.appsec._iast.constants import DBAPI_INTEGRATIONS
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -87,9 +89,6 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
     use a queue like mechanism to avoid recursion
     Best effort: mutate mutable structures and rebuild immutable ones if possible
     """
-    from ._taint_tracking import is_pyobject_tainted
-    from ._taint_tracking import taint_pyobject
-
     if not main_obj:
         return main_obj
 
@@ -103,7 +102,7 @@ def taint_structure(main_obj, source_key, source_value, override_pyobject_tainte
             if command.pre:  # first processing of the object
                 if not command.obj:
                     command.store(command.obj)
-                elif isinstance(command.obj, (str, bytes, bytearray)):
+                elif isinstance(command.obj, IAST.TEXT_TYPES):
                     if override_pyobject_tainted or not is_pyobject_tainted(command.obj):
                         new_obj = taint_pyobject(
                             pyobject=command.obj,
@@ -163,10 +162,7 @@ class LazyTaintList:
 
     def _taint(self, value):
         if value:
-            if isinstance(value, (str, bytes, bytearray)):
-                from ._taint_tracking import is_pyobject_tainted
-                from ._taint_tracking import taint_pyobject
-
+            if isinstance(value, IAST.TEXT_TYPES):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -347,10 +343,7 @@ class LazyTaintDict:
         if origin is None:
             origin = self._origin_value
         if value:
-            if isinstance(value, (str, bytes, bytearray)):
-                from ._taint_tracking import is_pyobject_tainted
-                from ._taint_tracking import taint_pyobject
-
+            if isinstance(value, IAST.TEXT_TYPES):
                 if not is_pyobject_tainted(value) or self._override_pyobject_tainted:
                     try:
                         # TODO: migrate this part to shift ranges instead of creating a new one
@@ -521,19 +514,6 @@ class LazyTaintDict:
 
     def urlencode(self, safe=None):
         return self._taint(self._obj.urlencode(safe=safe), self._origin_value)
-
-
-def supported_dbapi_integration(integration_name):
-    return integration_name in DBAPI_INTEGRATIONS or integration_name.startswith(DBAPI_PREFIXES)
-
-
-def check_tainted_dbapi_args(args, kwargs, tracer, integration_name, method):
-    if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
-        from ._taint_tracking import is_pyobject_tainted
-
-        return len(args) and args[0] and is_pyobject_tainted(args[0])
-
-    return False
 
 
 if asm_config._iast_lazy_taint:

@@ -1,16 +1,16 @@
+from io import StringIO
 import os.path
 
 from mako.lookup import TemplateLookup
 from mako.runtime import Context
 from mako.template import Template
 
-from ddtrace import Pin
-from ddtrace.contrib.mako import patch
-from ddtrace.contrib.mako import unpatch
-from ddtrace.contrib.mako.constants import DEFAULT_TEMPLATE_NAME
-from ddtrace.internal.compat import StringIO
+from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
+from ddtrace.contrib.internal.mako.patch import patch
+from ddtrace.contrib.internal.mako.patch import unpatch
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -23,7 +23,7 @@ class MakoTest(TracerTestCase):
     def setUp(self):
         super(MakoTest, self).setUp()
         patch()
-        Pin.override(Template, tracer=self.tracer)
+        Pin._override(Template, tracer=self.tracer)
 
     def tearDown(self):
         super(MakoTest, self).tearDown()

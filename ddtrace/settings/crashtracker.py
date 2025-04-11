@@ -1,9 +1,8 @@
 import typing as t
 
-from envier import En
-
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._core import DDConfig
 
 
 resolver_default = "full"
@@ -33,12 +32,12 @@ def _derive_crashtracking_enabled(config: "CrashtrackingConfig") -> bool:
     return bool(config._enabled)
 
 
-class CrashtrackingConfig(En):
+class CrashtrackingConfig(DDConfig):
     # Although the component is called crashtrack_er_, for consistency with other products/telemetry we use the term
     # crashtrack_ing_ as much as possible.  We'll gradually align on this.
     __prefix__ = "dd.crashtracking"
 
-    _enabled = En.v(
+    _enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
@@ -46,9 +45,9 @@ class CrashtrackingConfig(En):
         help="Enables crashtracking",
     )
 
-    enabled = En.d(bool, _derive_crashtracking_enabled)
+    enabled = DDConfig.d(bool, _derive_crashtracking_enabled)
 
-    debug_url = En.v(
+    debug_url = DDConfig.v(
         t.Optional[str],
         "debug_url",
         default=None,
@@ -57,7 +56,7 @@ class CrashtrackingConfig(En):
         "This is generally useful only for dd-trace-py development.",
     )
 
-    stdout_filename = En.v(
+    stdout_filename = DDConfig.v(
         t.Optional[str],
         "stdout_filename",
         default=None,
@@ -65,7 +64,7 @@ class CrashtrackingConfig(En):
         help="The destination filename for crashtracking stdout",
     )
 
-    stderr_filename = En.v(
+    stderr_filename = DDConfig.v(
         t.Optional[str],
         "stderr_filename",
         default=None,
@@ -73,7 +72,7 @@ class CrashtrackingConfig(En):
         help="The destination filename for crashtracking stderr",
     )
 
-    use_alt_stack = En.v(
+    use_alt_stack = DDConfig.v(
         bool,
         "use_alt_stack",
         default=True,
@@ -81,7 +80,7 @@ class CrashtrackingConfig(En):
         help="Whether to use an alternate stack for crashtracking.",
     )
 
-    create_alt_stack = En.v(
+    create_alt_stack = DDConfig.v(
         bool,
         "create_alt_stack",
         default=True,
@@ -91,7 +90,7 @@ class CrashtrackingConfig(En):
         "use_alt_stack to ensure that the altstack is large enough.",
     )
 
-    _stacktrace_resolver = En.v(
+    _stacktrace_resolver = DDConfig.v(
         t.Optional[str],
         "stacktrace_resolver",
         default=resolver_default,
@@ -99,9 +98,9 @@ class CrashtrackingConfig(En):
         help="How to collect native stack traces during a crash, if at all.  Accepted values are 'none', 'fast',"
         " 'safe', and 'full'.  The default value is '" + resolver_default + "'.",
     )
-    stacktrace_resolver = En.d(t.Optional[str], _derive_stacktrace_resolver)
+    stacktrace_resolver = DDConfig.d(t.Optional[str], _derive_stacktrace_resolver)
 
-    tags = En.v(
+    tags = DDConfig.v(
         dict,
         "tags",
         parser=parse_tags_str,
@@ -111,7 +110,7 @@ class CrashtrackingConfig(En):
         "This is generally useful only for dd-trace-py development.",
     )
 
-    wait_for_receiver = En.v(
+    wait_for_receiver = DDConfig.v(
         bool,
         "wait_for_receiver",
         default=True,
@@ -121,4 +120,4 @@ class CrashtrackingConfig(En):
 
 
 config = CrashtrackingConfig()
-_report_telemetry(config)
+report_configuration(config)

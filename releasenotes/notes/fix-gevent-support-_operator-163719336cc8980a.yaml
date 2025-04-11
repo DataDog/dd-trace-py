@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed an issue with gevent support and the typing module on CPython >= 3.12.

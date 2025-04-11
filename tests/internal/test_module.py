@@ -2,13 +2,11 @@ import json
 import os
 from pathlib import Path
 import sys
-import warnings
 from warnings import warn
 
 import mock
 import pytest
 
-from ddtrace import check_supported_python_version
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
@@ -423,7 +421,6 @@ def test_module_watchdog_namespace_import():
         ModuleWatchdog.uninstall()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python 3.7 deprecation warning")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(
@@ -493,7 +490,10 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    import ddtrace  #  noqa:F401
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
     from tests.internal.namespace_test import ns_module
 
     # Check that the loader's get_code is wrapped:
@@ -531,89 +531,67 @@ def test_module_import_side_effect():
     import tests.internal.side_effect_module  # noqa:F401
 
 
-def test_deprecated_modules_in_ddtrace_contrib():
-    # Test that all files in the ddtrace/contrib directory except a few exceptions (ex: ddtrace/contrib/redis_utils.py)
-    # have the deprecation template below.
-    deprecation_template = """from ddtrace.contrib.internal.{} import *  # noqa: F403
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
-
-
-def __getattr__(name):
-    deprecate(
-        ("%s.%s is deprecated" % (__name__, name)),
-        category=DDTraceDeprecationWarning,
-    )
-
-    if name in globals():
-        return globals()[name]
-    raise AttributeError("%s has no attribute %s", __name__, name)
-"""
-
+def test_public_modules_in_ddtrace_contrib():
+    # Ensures that public modules are not accidentally added to ddtrace.contrib
     contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
-    missing_deprecations = set()
+    public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):
-        if directory.startswith(str(contrib_dir / "internal")):
-            # Files in ddtrace/contrib/internal/... are not part of the public API, they should not be deprecated
+        relative_dir = Path(directory).relative_to(contrib_dir)
+        if "internal" in relative_dir.parts:
+            # ignore modules in ddtrace/contrib/internal
             continue
-        # Open files in ddtrace/contrib/ and check if the content matches the template
+
         for file_name in file_names:
-            # Skip internal and __init__ modules, as they are not supposed to have the deprecation template
-            if file_name.endswith(".py") and not (file_name.startswith("_") or file_name == "__init__.py"):
-                # Get the relative path of the file from ddtrace/contrib to the deprecated file (ex: pymongo/patch)
-                relative_path = Path(directory).relative_to(contrib_dir) / file_name[:-3]  # Remove the .py extension
-                # Convert the relative path to python module format (ex: [pymongo, patch] -> pymongo.patch)
-                sub_modules = ".".join(relative_path.parts)
-                with open(os.path.join(directory, file_name), "r") as f:
-                    content = f.read()
-                    if deprecation_template.format(sub_modules) != content:
-                        missing_deprecations.add(f"ddtrace.contrib.{sub_modules}")
+            # Ignore private modules (python files prefixed with "_")
+            if file_name.endswith(".py") and not file_name.startswith("_"):
+                # Converts filename to a module name (ex: dd-trace-py/ddtrace/contrib/flask.py -> ddtrace.contrib.flask)
+                relative_dir_with_file = relative_dir / file_name[:-3]
+                module_name = "ddtrace.contrib." + ".".join(relative_dir_with_file.parts)
+                public_modules.add(module_name)
 
-    assert missing_deprecations == set(
-        [
-            # Note: The following ddtrace.contrib modules are expected to be part of the public API
-            # TODO: Revisit whether integration utils should be part of the public API
-            "ddtrace.contrib.redis_utils",
-            "ddtrace.contrib.trace_utils",
-            "ddtrace.contrib.trace_utils_async",
-            "ddtrace.contrib.trace_utils_redis",
-            # TODO: The following contrib modules are part of the public API (unlike most integrations).
-            # We should consider privatizing the internals of these integrations.
-            "ddtrace.contrib.unittest.patch",
-            "ddtrace.contrib.unittest.constants",
-            "ddtrace.contrib.pytest.constants",
-            "ddtrace.contrib.pytest.newhooks",
-            "ddtrace.contrib.pytest.plugin",
-            "ddtrace.contrib.pytest_benchmark.constants",
-            "ddtrace.contrib.pytest_benchmark.plugin",
-            "ddtrace.contrib.pytest_bdd.constants",
-            "ddtrace.contrib.pytest_bdd.plugin",
-        ]
-    )
+    # The following modules contain attributes that are exposed to ddtrace users. All other modules in ddtrace.contrib
+    # are internal.
+    assert public_modules == {
+        "ddtrace.contrib.trace_utils",
+        "ddtrace.contrib.celery",
+        "ddtrace.contrib.tornado",
+        "ddtrace.contrib.valkey",
+        "ddtrace.contrib.asgi",
+        "ddtrace.contrib.bottle",
+        "ddtrace.contrib.flask_cache",
+        "ddtrace.contrib.aiohttp",
+        "ddtrace.contrib.dbapi_async",
+        "ddtrace.contrib.wsgi",
+        "ddtrace.contrib.sqlalchemy",
+        "ddtrace.contrib.falcon",
+        "ddtrace.contrib.pylibmc",
+        "ddtrace.contrib.dbapi",
+        "ddtrace.contrib.cherrypy",
+        "ddtrace.contrib.requests",
+        "ddtrace.contrib.pyramid",
+    }
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python >= 3.8 is supported")
-def test_deprecated_python_version():
-    # Test that the deprecation warning for Python 3.7 and below is printed in unsupported Python versions.
-    with warnings.catch_warnings(record=True) as w:
-        # Cause all warnings to always be triggered.
-        warnings.simplefilter("always")
-        # Trigger a warning.
-        check_supported_python_version()
-        # Verify some things
-        assert len(w) == 1
-        assert issubclass(w[-1].category, DeprecationWarning)
-        assert "Support for ddtrace with Python version" in str(w[-1].message)
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Does not work with CPython < 3.11")
+def test_module_watchdog_no_interal_frames_in_import_exceptions(module_watchdog):
+    try:
+        import tests.submod.import_test  # noqa:F401
+    except ImportError as e:
+        import ddtrace.internal.module as m
+
+        sources = set()
+
+        tb = e.__traceback__
+        while tb is not None:
+            sources.add(Path(tb.tb_frame.f_code.co_filename).resolve())
+            tb = tb.tb_next
+
+        m_origin = origin(m)
+        assert m_origin is not None and m_origin not in sources
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="Python < 3.8 is unsupported")
-def test_non_deprecated_python_version():
-    # Test that the deprecation warning for Python 3.7 and below is not printed in supported Python versions.
-    with warnings.catch_warnings(record=True) as w:
-        # Cause all warnings to always be triggered.
-        warnings.simplefilter("always")
-        # Trigger a warning.
-        check_supported_python_version()
-        # Verify some things
-        assert len(w) == 0
+def test_lazy_decorator():
+    import tests.internal.lazy as lazy
+
+    assert lazy.new_value == 42

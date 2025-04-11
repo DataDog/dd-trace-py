@@ -2,7 +2,7 @@
   {
     "name": "langchain.request",
     "service": "tests.contrib.langchain",
-    "resource": "langchain.llms.openai.OpenAI",
+    "resource": "langchain_openai.llms.base.OpenAI",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,18 +10,17 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
-      "error.message": "Invalid token in prompt: 123456. Minimum value is 0, maximum value is 50280 (inclusive).",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/langchain/patch.py\", line 221, in traced_llm_generate\n    completions = func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/langchain/llms/base.py\", line 192, in generate\n    raise e\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/langchain/llms/base.py\", line 186, in generate\n    self._generate(prompts, stop=stop, run_manager=run_manager)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/langchain/llms/openai.py\", line 317, in _generate\n    response = completion_with_retry(self, prompt=_prompts, **params)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/langchain/llms/openai.py\", line 106, in completion_with_retry\n    return _completion_with_retry(**kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/tenacity/__init__.py\", line 289, in wrapped_f\n    return self(f, *args, **kw)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/tenacity/__init__.py\", line 379, in __call__\n    do = self.iter(retry_state=retry_state)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/tenacity/__init__.py\", line 314, in iter\n    return fut.result()\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/concurrent/futures/_base.py\", line 439, in result\n    return self.__get_result()\n  File \"/root/.pyenv/versions/3.9.16/lib/python3.9/concurrent/futures/_base.py\", line 391, in __get_result\n    raise self._exception\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/tenacity/__init__.py\", line 382, in __call__\n    result = fn(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/langchain/llms/openai.py\", line 104, in _completion_with_retry\n    return llm.client.create(**kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/openai/api_resources/completion.py\", line 25, in create\n    return super().create(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/openai/api_resources/abstract/engine_api_resource.py\", line 153, in create\n    response, _, api_key = requestor.request(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/openai/api_requestor.py\", line 298, in request\n    resp, got_stream = self._interpret_response(result, stream)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/openai/api_requestor.py\", line 700, in _interpret_response\n    self._interpret_response_line(\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_langchain00192_openai_vcrpy_pytest-asyncio_tiktoken_pinecone-client_cohere_huggingface-hub_ai21_exceptiongroup_psutil/lib/python3.9/site-packages/openai/api_requestor.py\", line 763, in _interpret_response_line\n    raise self.handle_error_response(\nopenai.error.InvalidRequestError: Invalid token in prompt: 123456. Minimum value is 0, maximum value is 50280 (inclusive).\n",
-      "error.type": "openai.error.InvalidRequestError",
+      "_dd.p.tid": "67ab7c9200000000",
+      "error.message": "Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/internal/langchain/patch.py\", line 194, in traced_llm_generate\n    completions = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 803, in generate\n    output = self._generate_helper(\n             ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 670, in _generate_helper\n    raise e\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/langchain_core/language_models/llms.py\", line 657, in _generate_helper\n    self._generate(\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/langchain_openai/llms/base.py\", line 350, in _generate\n    response = self.client.create(prompt=_prompts, **params)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/openai/_utils/_utils.py\", line 279, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/openai/resources/completions.py\", line 539, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/openai/_base_client.py\", line 1283, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/openai/_base_client.py\", line 960, in request\n    return self._request(\n           ^^^^^^^^^^^^^^\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py3128_c102664954e2741/lib/python3.12/site-packages/openai/_base_client.py\", line 1064, in _request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.BadRequestError: Error code: 400 - {'error': {'message': 'Invalid token in prompt: 123. Minimum value is 0, maximum value is 100257 (inclusive).', 'type': 'invalid_request_error', 'param': None, 'code': None}}\n",
+      "error.type": "openai.BadRequestError",
       "langchain.request.api_key": "...key>",
-      "langchain.request.model": "text-davinci-003",
+      "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.openai.parameters.frequency_penalty": "0",
       "langchain.request.openai.parameters.max_tokens": "256",
-      "langchain.request.openai.parameters.model_name": "text-davinci-003",
+      "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo-instruct",
       "langchain.request.openai.parameters.n": "1",
       "langchain.request.openai.parameters.presence_penalty": "0",
-      "langchain.request.openai.parameters.request_timeout": "None",
       "langchain.request.openai.parameters.temperature": "0.7",
       "langchain.request.openai.parameters.top_p": "1",
       "langchain.request.prompts.0": "12345",
@@ -29,15 +28,15 @@
       "langchain.request.provider": "openai",
       "langchain.request.type": "llm",
       "language": "python",
-      "runtime-id": "e3591036c91f49bfa00c0a77feefcb9b"
+      "runtime-id": "785abff131a64c6f8e16f99f5fc1ee33"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 10515
+      "process_id": 41221
     },
-    "duration": 5327422,
-    "start": 1694032466592782456
+    "duration": 28472000,
+    "start": 1739291794401895000
   }]]

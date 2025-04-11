@@ -5,9 +5,9 @@ import aredis
 import pytest
 from wrapt import ObjectProxy
 
-from ddtrace import Pin
-from ddtrace.contrib.aredis.patch import patch
-from ddtrace.contrib.aredis.patch import unpatch
+from ddtrace.contrib.internal.aredis.patch import patch
+from ddtrace.contrib.internal.aredis.patch import unpatch
+from ddtrace.trace import Pin
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config
@@ -122,7 +122,7 @@ async def test_meta_override(tracer, test_spans):
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin is not None
-    pin.clone(tags={"cheese": "camembert"}, tracer=tracer).onto(r)
+    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(r)
 
     await r.get("cheese")
     test_spans.assert_trace_count(1)
@@ -152,7 +152,7 @@ import asyncio
 import pytest
 import sys
 from tests.conftest import *
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 import aredis
 from tests.contrib.config import REDIS_CONFIG
 from tests.contrib.aredis.test_aredis import traced_aredis
@@ -162,7 +162,7 @@ async def test(tracer, test_spans):
     r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin is not None
-    pin.clone(tags={{"cheese": "camembert"}}, tracer=tracer).onto(r)
+    pin._clone(tags={{"cheese": "camembert"}}, tracer=tracer).onto(r)
 
     await r.get("cheese")
     test_spans.assert_trace_count(1)
@@ -198,7 +198,7 @@ async def test_opentracing(tracer, snapshot_context):
             await r.get("cheese")
 
 
-@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import asyncio

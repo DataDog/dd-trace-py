@@ -4,11 +4,12 @@ import aiopg
 from psycopg2 import extras
 import pytest
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.aiopg.patch import patch
-from ddtrace.contrib.aiopg.patch import unpatch
+from ddtrace.contrib.internal.aiopg.patch import patch
+from ddtrace.contrib.internal.aiopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+
+# project
+from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -38,7 +39,7 @@ class AiopgTestCase(AsyncioTestCase):
     @pytest.mark.asyncio
     async def _get_conn_and_tracer(self):
         conn = self._conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         return conn, self.tracer
 
@@ -158,7 +159,7 @@ class AiopgTestCase(AsyncioTestCase):
         services = ["db", "another"]
         for service in services:
             conn, _ = await self._get_conn_and_tracer()
-            Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+            Pin.get_from(conn)._clone(service=service, tracer=self.tracer).onto(conn)
             await self.assert_conn_is_traced(self.tracer, conn, service)
             conn.close()
 
@@ -171,7 +172,7 @@ class AiopgTestCase(AsyncioTestCase):
         service = "fo"
 
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(service=service, tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -193,7 +194,7 @@ class AiopgTestCase(AsyncioTestCase):
         patch()
 
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(service=service, tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(service=service, tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -217,7 +218,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert config.service == "mysvc"
 
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -239,7 +240,7 @@ class AiopgTestCase(AsyncioTestCase):
         assert config.service == "mysvc"
 
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -257,7 +258,7 @@ class AiopgTestCase(AsyncioTestCase):
         """
         # Ensure that the service name was configured
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -270,7 +271,7 @@ class AiopgTestCase(AsyncioTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_trace_span_name_v0_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -283,7 +284,7 @@ class AiopgTestCase(AsyncioTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_trace_span_name_v1_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
         await (await conn.cursor()).execute("select 'blah'")
         conn.close()
 
@@ -298,7 +299,7 @@ class AiopgTestCase(AsyncioTestCase):
     )
     async def test_user_specified_service_integration_v0(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -313,7 +314,7 @@ class AiopgTestCase(AsyncioTestCase):
     )
     async def test_user_specified_service_integration_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -326,7 +327,7 @@ class AiopgTestCase(AsyncioTestCase):
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_user_specified_service_env_var_v0(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -339,7 +340,7 @@ class AiopgTestCase(AsyncioTestCase):
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_user_specified_service_env_var_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -354,7 +355,7 @@ class AiopgTestCase(AsyncioTestCase):
     )
     async def test_pin_override_service_v1(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer, service="override").onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer, service="override").onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -367,7 +368,7 @@ class AiopgTestCase(AsyncioTestCase):
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     async def test_span_name_v0_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -380,7 +381,7 @@ class AiopgTestCase(AsyncioTestCase):
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     async def test_span_name_v1_schema(self):
         conn = await aiopg.connect(**POSTGRES_CONFIG)
-        Pin.get_from(conn).clone(tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("SELECT 1")
@@ -394,7 +395,7 @@ class AiopgAnalyticsTestCase(AiopgTestCase):
     async def trace_spans(self):
         conn, _ = await self._get_conn_and_tracer()
 
-        Pin.get_from(conn).clone(service="db", tracer=self.tracer).onto(conn)
+        Pin.get_from(conn)._clone(service="db", tracer=self.tracer).onto(conn)
 
         cursor = await conn.cursor()
         await cursor.execute("select 'foobar'")

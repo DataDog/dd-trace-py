@@ -33,7 +33,6 @@ class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             self._dd_span.finish()
             raise
 
@@ -60,7 +59,6 @@ class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_integration.metric(self._dd_span, "incr", "request.error", 1)
             self._dd_span.finish()
             raise
 
@@ -81,7 +79,10 @@ def shared_stream(
         "pin": pin,
         "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
         "interface_type": interface_type,
-        "submit_to_llmobs": True,
+        # submit to llmobs only if we detect an LLM request that is not being sent to a proxy
+        "submit_to_llmobs": (
+            integration.has_default_base_url(instance) if interface_type in ("chat_model", "llm") else True
+        ),
     }
 
     options.update(extra_options)
@@ -99,8 +100,6 @@ def shared_stream(
         # error with the method call itself
         span.set_exc_info(*sys.exc_info())
         span.finish()
-        integration.metric(span, "incr", "request.error", 1)
-        integration.metric(span, "dist", "request.duration", span.duration_ns)
         raise
 
 

@@ -1,27 +1,28 @@
 interactions:
 - request:
-    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
-      "12345678902", "trace_id": "98765432102", "metric_type": "score", "label": "sentiment",
-      "score_value": 0.9, "ml_app": "dummy-ml-app", "timestamp_ms": 1724249982978}]}}}'
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678902", "trace_id": "98765432102"}}, "metric_type":
+      "score", "label": "sentiment", "score_value": 0.9, "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1732568764624}]}}}'
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
   response:
     body:
-      string: '{"data":{"id":"aba22157-cc3a-4601-a6a5-7afa99eee73e","type":"evaluation_metric","attributes":{"metrics":[{"id":"c2f6f63c-17ca-48c3-ad2d-676b2a35e726","trace_id":"98765432102","span_id":"12345678902","timestamp_ms":1724249982978,"ml_app":"dummy-ml-app","metric_type":"score","label":"sentiment","score_value":0.9}]}}}'
+      string: '{"data":{"id":"5352c11a-dcdd-449b-af72-2ae0b5dac3a1","type":"evaluation_metric","attributes":{"metrics":[{"id":"WmMD7E_fAD","join_on":{"span":{"trace_id":"98765432102","span_id":"12345678902"}},"timestamp_ms":1732568764624,"ml_app":"dummy-ml-app","metric_type":"score","label":"sentiment","score_value":0.9}]}}}'
     headers:
       content-length:
-      - '316'
+      - '311'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 21 Aug 2024 14:19:45 GMT
+      - Mon, 25 Nov 2024 21:06:04 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
@@ -34,28 +35,29 @@ interactions:
       code: 202
       message: Accepted
 - request:
-    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"span_id":
-      "12345678901", "trace_id": "98765432101", "metric_type": "categorical", "categorical_value":
-      "very", "label": "toxicity", "ml_app": "dummy-ml-app", "timestamp_ms": 1724249983284}]}}}'
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678901", "trace_id": "98765432101"}}, "metric_type":
+      "categorical", "categorical_value": "very", "label": "toxicity", "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1732568765127}]}}}'
     headers:
       Content-Type:
       - application/json
       DD-API-KEY:
       - XXXXXX
     method: POST
-    uri: https://api.datad0g.com/api/intake/llm-obs/v1/eval-metric
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
   response:
     body:
-      string: '{"data":{"id":"0bc39c40-6c72-4b11-9eea-826248f9fe37","type":"evaluation_metric","attributes":{"metrics":[{"id":"7da7eb5b-32d2-43b3-adf5-208313f822c5","trace_id":"98765432101","span_id":"12345678901","timestamp_ms":1724249983284,"ml_app":"dummy-ml-app","metric_type":"categorical","label":"toxicity","categorical_value":"very"}]}}}'
+      string: '{"data":{"id":"d39e806e-40c5-4b3c-b539-440390afca85","type":"evaluation_metric","attributes":{"metrics":[{"id":"403hQLmrQW","join_on":{"span":{"trace_id":"98765432101","span_id":"12345678901"}},"timestamp_ms":1732568765127,"ml_app":"dummy-ml-app","metric_type":"categorical","label":"toxicity","categorical_value":"very"}]}}}'
     headers:
       content-length:
-      - '330'
+      - '325'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 21 Aug 2024 14:19:45 GMT
+      - Mon, 25 Nov 2024 21:06:05 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

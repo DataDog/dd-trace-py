@@ -13,7 +13,7 @@ on:
   workflow_dispatch: {}
   schedule:
     - cron: '0 5 * * *'
-  
+
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +25,9 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - id: run_needed
         name: Check if run is needed
         run:  |
@@ -64,22 +66,25 @@ jobs:
       DD_TESTING_RAISE: true
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
 
     defaults:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.9'
-      - uses: actions/checkout@v4
+          python-version: '3.10'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
-      - uses: actions/checkout@v4
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: bottlepy/bottle
           ref: 0.12.25
           path: bottle
@@ -106,66 +111,14 @@ jobs:
       - name: Debugger exploration result
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
-
-  sanic-testsuite:
-    strategy:
-      matrix:
-        include:
-          # TODO: profiling fails with a timeout error
-          #- suffix: Profiling
-          #  profiling: 1
-          #  iast: 0
-          #  appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
-    name: Sanic 24.6 (with ${{ matrix.suffix }})
-    runs-on: ubuntu-20.04
-    needs: needs-run
-    timeout-minutes: 15
-    env:
-      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
-      DD_IAST_ENABLED: ${{ matrix.iast }}
-      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
-      DD_TESTING_RAISE: true
-      CMAKE_BUILD_PARALLEL_LEVEL: 12
-      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-    defaults:
-      run:
-        working-directory: sanic
-    steps:
-      - uses: actions/checkout@v4
+      - name: Run Bytecode injection tests
         if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          path: ddtrace
-      - uses: actions/checkout@v4
+        # Disable all test_simple tests because they check for
+        # log output and it contains phony error messages.
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
+      - name: Bytecode injection result
         if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          repository: sanic-org/sanic
-          ref: v24.6.0
-          path: sanic
-      - uses: actions/setup-python@v5
-        if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          python-version: "3.11"
-      - name: Install sanic and dependencies required to run tests
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: pip3 install '.[test]' aioquic
-      - name: Install ddtrace
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: pip3 install ../ddtrace
-      - name: Run tests
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: ddtrace-run pytest -k "not test_reloader and not test_reload_listeners and not test_no_exceptions_when_cancel_pending_request and not test_add_signal and not test_ode_removes and not test_skip_touchup and not test_dispatch_signal_triggers and not test_keep_alive_connection_context and not test_redirect_with_params and not test_keep_alive_client_timeout and not test_logger_vhosts and not test_ssl_in_multiprocess_mode"
+        run: cat bytecode-injection.txt
 
   django-testsuite:
     strategy:
@@ -220,23 +173,25 @@ jobs:
       DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1  # Delete to speed up
       DD_DEBUGGER_EXPL_CONSERVATIVE: 1
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
       CMAKE_BUILD_PARALLEL_LEVEL: 12
     defaults:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: django/django
           ref: 5.0.7
           path: django
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.11"
@@ -282,11 +237,20 @@ jobs:
       - name: Run tests
         if: needs.needs-run.outputs.outcome == 'success'
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
-        run: DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
 
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+
+      - name: Run Bytecode injection tests
+        if: needs.needs-run.outputs.outcome == 'success'
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/:. DD_PATCH_MODULES=unittest:no DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py --parallel 1
+
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   graphene-testsuite-3_0:
     strategy:
@@ -322,19 +286,21 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: graphql-python/graphene
           # TODO: bump ref to `graphene>3.0.0`.
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
           ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
           path: graphene
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: "3.9"
@@ -386,25 +352,28 @@ jobs:
       DD_APPSEC_ENABLED: ${{ matrix.appsec }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
+      DD_BYTECODE_INJECTION_OUTPUT_FILE: bytecode-injection.txt
     defaults:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
-          python-version: '3.9'
-      - uses: actions/checkout@v4
+          python-version: '3.10'
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@v4.1.2
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         if: needs.needs-run.outputs.outcome == 'success'
         id: cache
         with:
@@ -423,6 +392,13 @@ jobs:
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
+      - name: Bytecode injection Test
+        if: needs.needs-run.outputs.outcome == 'success'
+        # https://github.com/tiangolo/fastapi/pull/10876
+        run: PYTHONPATH=../ddtrace/tests/internal/bytecode_injection/framework_injection/ ddtrace-run pytest -p no:warnings tests -k 'not test_warn_duplicate_operation_id'
+      - name: Bytecode injection results
+        if: needs.needs-run.outputs.outcome == 'success'
+        run: cat bytecode-injection.txt
 
   flask-testsuite:
     strategy:
@@ -459,17 +435,19 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: pallets/flask
           ref: 3.0.3
           path: flask
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -509,17 +487,19 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
@@ -581,17 +561,19 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: sqlalchemy/mako
           ref: rel_1_3_5
           path: mako
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.12'
@@ -647,17 +629,19 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: encode/starlette
           ref: 0.38.4
           path: starlette
@@ -712,17 +696,19 @@ jobs:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: psf/requests
           ref: v2.26.0
           path: requests
@@ -779,17 +765,19 @@ jobs:
       run:
         working-directory: asyncpg
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: magicstack/asyncpg
           ref: v0.29.0
           path: asyncpg
@@ -834,17 +822,19 @@ jobs:
       run:
         working-directory: gunicorn
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: benoitc/gunicorn
           ref: 20.1.0
           path: gunicorn
@@ -891,17 +881,19 @@ jobs:
       run:
         working-directory: uwsgi
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: needs.needs-run.outputs.outcome == 'success'
         with:
+          persist-credentials: false
           repository: unbit/uwsgi
           ref: 2.0.21
           path: uwsgi
@@ -935,57 +927,3 @@ jobs:
       - name: Debugger exploration results
         if: needs.needs-run.outputs.outcome == 'success'
         run: cat debugger-expl.txt
-
-  beautifulsoup-testsuite-4_12_3:
-    strategy:
-      matrix:
-        include:
-          # TODO: profiling is disabled due to a bug in the profiler paths
-          # - suffix: Profiling
-          #   profiling: 1
-          #   iast: 0
-          #   appsec: 0
-          - suffix: IAST
-            profiling: 0
-            iast: 1
-            appsec: 0
-          - suffix: APPSEC
-            profiling: 0
-            iast: 0
-            appsec: 1
-          - suffix: Tracer only
-            profiling: 0
-            iast: 0
-            appsec: 0
-    name: Beautifulsoup 4.12.3 (with ${{ matrix.suffix }})
-    runs-on: "ubuntu-latest"
-    needs: needs-run
-    env:
-      DD_TESTING_RAISE: true
-      DD_PROFILING_ENABLED: ${{ matrix.profiling }}
-      DD_IAST_ENABLED: ${{ matrix.iast }}
-      DD_APPSEC_ENABLED: ${{ matrix.appsec }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 12
-      DD_DEBUGGER_EXPL_OUTPUT_FILE: debugger-expl.txt
-    steps:
-      - uses: actions/setup-python@v5
-        if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          python-version: '3.9'
-      - uses: actions/checkout@v4
-        if: needs.needs-run.outputs.outcome == 'success'
-        with:
-          path: ddtrace
-      - name: Checkout beautifulsoup
-        if: needs.needs-run.outputs.outcome == 'success'
-        run:  |
-          git clone -b 4.12.3 https://git.launchpad.net/beautifulsoup
-      - name: Install ddtrace
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: pip3 install ./ddtrace
-      - name: Pytest fix
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: pip install pytest==8.2.1
-      - name: Run tests
-        if: needs.needs-run.outputs.outcome == 'success'
-        run: cd beautifulsoup && ddtrace-run pytest

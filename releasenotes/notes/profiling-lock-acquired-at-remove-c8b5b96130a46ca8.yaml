@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: resolves an issue where lock release would have been captured
+    with a wrong acquire timestamp

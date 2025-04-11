@@ -4,7 +4,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from ddtrace import Span
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -15,11 +14,11 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags_google
+from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
+from ddtrace.trace import Span
 
 
 class GeminiIntegration(BaseLLMIntegration):
@@ -41,28 +40,28 @@ class GeminiIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span.set_tag_str(SPAN_KIND, "llm")
-        span.set_tag_str(MODEL_NAME, span.get_tag("google_generativeai.request.model") or "")
-        span.set_tag_str(MODEL_PROVIDER, span.get_tag("google_generativeai.request.provider") or "")
-
         instance = kwargs.get("instance", None)
         metadata = llmobs_get_metadata_google(kwargs, instance)
-        span.set_tag_str(METADATA, safe_json(metadata))
 
         system_instruction = get_system_instructions_from_google_model(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
-        span.set_tag_str(INPUT_MESSAGES, safe_json(input_messages))
 
-        if span.error or response is None:
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json([{"content": ""}]))
-        else:
+        output_messages = [{"content": ""}]
+        if response is not None:
             output_messages = self._extract_output_message(response)
-            span.set_tag_str(OUTPUT_MESSAGES, safe_json(output_messages))
 
-        usage = get_llmobs_metrics_tags_google("google_generativeai", span)
-        if usage:
-            span.set_tag_str(METRICS, safe_json(usage))
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: span.get_tag("google_generativeai.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("google_generativeai.request.provider") or "",
+                METADATA: metadata,
+                INPUT_MESSAGES: input_messages,
+                OUTPUT_MESSAGES: output_messages,
+                METRICS: get_llmobs_metrics_tags("google_generativeai", span),
+            }
+        )
 
     def _extract_input_message(self, contents, system_instruction=None):
         messages = []

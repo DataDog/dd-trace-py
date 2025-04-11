@@ -4,7 +4,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 from .schema_iterator import SchemaExtractor
 

@@ -26,6 +26,7 @@ log = get_logger(__name__)
 
 DEFAULT_PROBE_RATE = 5000.0
 DEFAULT_SNAPSHOT_PROBE_RATE = 1.0
+DEFAULT_TRIGGER_PROBE_RATE = 1.0 / 60.0  # 1 per minute
 DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
@@ -84,6 +85,9 @@ class Probe(abc.ABC):
 
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
+
+    def is_global_rate_limited(self) -> bool:
+        return False
 
     def __hash__(self):
         return hash(self.probe_id)
@@ -242,15 +246,21 @@ class LogProbeMixin(AbstractProbeMixIn):
     take_snapshot: bool
     limits: CaptureLimits = field(compare=False)
 
+    @property
+    def __budget__(self) -> int:
+        return 10 if self.take_snapshot else 100
+
 
 @dataclass
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
@@ -296,8 +306,26 @@ class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, Spa
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
+@dataclass
+class SessionMixin:
+    session_id: str
+    level: int
+
+
+@dataclass
+class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
+    pass
+
+
+@dataclass
+class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe, TriggerLineProbe]
+FunctionProbe = Union[
+    LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe, TriggerFunctionProbe
+]
 
 
 class ProbeType(str, Enum):
@@ -305,3 +333,4 @@ class ProbeType(str, Enum):
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"
     SPAN_DECORATION_PROBE = "SPAN_DECORATION_PROBE"
+    TRIGGER_PROBE = "TRIGGER_PROBE"
