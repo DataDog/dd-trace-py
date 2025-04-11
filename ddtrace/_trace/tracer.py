@@ -551,9 +551,9 @@ class Tracer(object):
         span_api: str = SPAN_API_DATADOG,
     ) -> Span:
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
+        return self.start_span(name, child_of, service, resource, span_type, activate, span_api)
 
-    def _start_span(
+    def start_span(
         self,
         name: str,
         child_of: Optional[Union[Span, Context]] = None,
@@ -715,8 +715,6 @@ class Tracer(object):
         self._hooks.emit(self.__class__.start_span, span)
         dispatch("trace.span_start", (span,))
         return span
-
-    start_span = _start_span
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
