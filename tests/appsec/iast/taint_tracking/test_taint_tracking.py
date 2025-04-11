@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from hypothesis import given
 from hypothesis.strategies import one_of
@@ -20,6 +21,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_taint_pyobject(text_to_taint):
     tainted_text = taint_pyobject(
