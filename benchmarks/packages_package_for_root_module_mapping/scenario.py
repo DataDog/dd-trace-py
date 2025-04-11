@@ -10,9 +10,6 @@ class PackagesPackageForRootModuleMapping(bm.Scenario):
         def _(loops):
             for _ in range(loops):
                 f = (
-                    # This can simply be
-                    # _package_for_root_module_mapping.__wrapped__ once this
-                    # PR is merged.
                     _package_for_root_module_mapping.__closure__[0].cell_contents
                     if self.disable_cache
                     else _package_for_root_module_mapping
