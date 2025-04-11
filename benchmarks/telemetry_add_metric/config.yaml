@@ -1,24 +1,67 @@
-one-metric-one-run-batch-flush-true:
-  runs: 1
-  batches: 1
-  flush: true
-one-metric-one-run-batch-flush-false:
-  runs: 1
-  batches: 1
-  flush: False
-many-metrics-many-runs-batch-flush-true:
-  runs: 1000
-  batches: 10
-  flush: true
-many-metrics-many-runs-batch-flush-false:
-  runs: 1000
-  batches: 10
-  flush: False
-one-metric-many-runs-batch-flush-true:
-  runs: 1000
-  batches: 1
-  flush: true
-one-metric-many-runs-batch-flush-false:
-  runs: 1000
-  batches: 1
-  flush: False
+# Count metrics
+1-count-metric-1-times: &count
+  metric_type: count
+  num_metrics: 1
+  per_metric: 1
+1-count-metrics-100-times:
+  <<: *count
+  num_metrics: 1
+  per_metric: 100
+100-count-metrics-100-times:
+  <<: *count
+  num_metrics: 100
+  per_metric: 100
+
+# Gauge metrics
+1-gauge-metric-1-times: &gauge
+  metric_type: gauge
+  num_metrics: 1
+  per_metric: 1
+1-gauge-metrics-100-times:
+  <<: *gauge
+  num_metrics: 1
+  per_metric: 100
+100-gauge-metrics-100-times:
+  <<: *gauge
+  num_metrics: 100
+  per_metric: 10
+
+# Distribution metrics
+1-distribution-metric-1-times: &distribution
+  metric_type: distribution
+  num_metrics: 1
+  per_metric: 1
+1-distribution-metrics-100-times:
+  <<: *distribution
+  num_metrics: 1
+  per_metric: 100
+100-distribution-metrics-100-times:
+  <<: *distribution
+  num_metrics: 100
+  per_metric: 10
+
+# Rate metrics
+1-rate-metric-1-times: &rate
+  metric_type: rate
+  num_metrics: 1
+  per_metric: 1
+1-rate-metrics-100-times:
+  <<: *rate
+  num_metrics: 1
+  per_metric: 100
+100-rate-metrics-100-times:
+  <<: *rate
+  num_metrics: 100
+  per_metric: 10
+
+# Flush
+flush-1-metric: &flush
+  metric_type: count # unused
+  per_metric: 1
+  num_metrics: 1
+flush-100-metrics:
+  <<: *flush
+  num_metrics: 100
+flush-1000-metrics:
+  <<: *flush
+  num_metrics: 1000
