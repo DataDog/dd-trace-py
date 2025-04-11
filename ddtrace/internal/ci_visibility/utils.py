@@ -117,7 +117,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
     if remove_ddtrace_stream_handlers:
         log.debug("CIVisibility removing DDTrace logger handler")
         ddtrace_logger = logging.getLogger("ddtrace")
-        for handler in ddtrace_logger.handlers:
+        for handler in list(ddtrace_logger.handlers):
             ddtrace_logger.removeHandler(handler)
     else:
         log.warning("Keeping DDTrace logger handler, double logging is likely")
