@@ -1,4 +1,3 @@
-from functools import wraps
 from inspect import FullArgSpec
 from inspect import getfullargspec
 from inspect import isgeneratorfunction
@@ -131,7 +130,6 @@ def callonce(f):
     if is_not_void_function(f, argspec):
         raise ValueError("The callonce decorator can only be applied to functions with no arguments")
 
-    @wraps(f)
     def _():
         # type: () -> Any
         try:
