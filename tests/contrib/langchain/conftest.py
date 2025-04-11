@@ -3,7 +3,6 @@ from http.server import HTTPServer
 import os
 import threading
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
@@ -12,14 +11,8 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
-from tests.utils import DummyWriter
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-@pytest.fixture
-def ddtrace_config_langchain():
-    return {}
 
 
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
@@ -114,34 +107,6 @@ def llmobs_events(llmobs, llmobs_span_writer):
 
 
 @pytest.fixture
-def snapshot_tracer(langchain, mock_logs, mock_metrics):
-    pin = Pin.get_from(langchain)
-    yield pin.tracer
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
-
-
-@pytest.fixture
-def mock_tracer(langchain):
-    pin = Pin.get_from(langchain)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(langchain, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
-@pytest.fixture
 def langchain():
     with override_env(
         dict(
@@ -211,7 +176,7 @@ def langchain_anthropic(langchain):
 def langchain_pinecone(langchain):
     with override_env(
         dict(
-            # PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
         )
     ):
         try:
