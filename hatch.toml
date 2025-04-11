@@ -25,15 +25,9 @@ dependencies = [
 ]
 
 [envs.lint.scripts]
-black_check = [
-    "black --check {args:.}",
-]
-cmakeformat_check = [
-    "bash scripts/cmake-format.sh"
-]
-cformat_check = [
-    "bash scripts/cformat.sh"
-]
+black_check = ["black --check {args:.}"]
+cmakeformat_check = ["bash scripts/cmake-format.sh"]
+cformat_check = ["bash scripts/cformat.sh"]
 style = [
     "black_check",
     "ruff check {args:.}",
@@ -41,11 +35,7 @@ style = [
     "cformat_check",
     "cmakeformat_check",
 ]
-fmt = [
-    "black {args:.}",
-    "ruff --fix {args:.}",
-    "style",
-]
+fmt = ["black {args:.}", "ruff --fix {args:.}", "style"]
 # checks should encapsulate all rules used in pre-check
 checks = [
     "style",
@@ -59,28 +49,18 @@ checks = [
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
 ]
-typing = [
-    "mypy {args}",
-]
-security = [
-    "bandit -c pyproject.toml {args:-r ddtrace/}",
-]
-fmt-snapshots = [
-    "ddapm-test-agent-fmt {args:tests/snapshots/}",
-]
-riot = [
-    "python -m doctest {args} riotfile.py"
-]
-suitespec-check = [
-    "python scripts/check_suitespec_coverage.py"
-]
+typing = ["mypy {args}"]
+security = ["bandit -c pyproject.toml {args:-r ddtrace/}"]
+fmt-snapshots = ["ddapm-test-agent-fmt {args:tests/snapshots/}"]
+riot = ["python -m doctest {args} riotfile.py"]
+suitespec-check = ["python scripts/check_suitespec_coverage.py"]
 
 [envs.docs]
 template = "docs"
 dev-mode = false
 python = "3.10"
 features = ["opentracing"]
-dependencies = [  # copied from library dependencies
+dependencies = [ # copied from library dependencies
     "protobuf>=3",
     "typing_extensions",
     "xmltodict>=0.12",
@@ -104,29 +84,21 @@ extra-dependencies = [
     # Later release of furo breaks formatting for code blocks
     "furo<=2023.05.20",
 ]
-pre-install-commands = [
-    "scripts/docs/install.sh",
-]
+pre-install-commands = ["scripts/docs/install.sh"]
 [envs.docs.env-vars]
 DD_TRACE_ENABLED = "false"
 
 [envs.docs.scripts]
-build = [
-    "scripts/docs/build.sh",
-]
+build = ["scripts/docs/build.sh"]
 
 [envs.slotscheck]
 template = "slotscheck"
 python = "3.10"
 features = ["opentracing"]
-extra-dependencies = [
-    "slotscheck==0.17.0",
-]
+extra-dependencies = ["slotscheck==0.17.0"]
 
 [envs.slotscheck.scripts]
-test = [
-    "python -m slotscheck -v ddtrace/",
-]
+test = ["python -m slotscheck -v ddtrace/"]
 
 
 [envs.scripts]
@@ -143,24 +115,16 @@ extra-dependencies = [
 test = [
     "python -m doctest {args} scripts/get-target-milestone.py scripts/needs_testrun.py tests/suitespec.py",
 ]
-needs_testrun = [
-  "scripts/needs_testrun.py {args}",
-]
+needs_testrun = ["scripts/needs_testrun.py {args}"]
 
 [envs.meta-testing]
 python = "3.10"
-extra-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis<6.45.1"
-]
+extra-dependencies = ["pytest", "pytest-cov", "hypothesis<6.45.1"]
 [envs.meta-testing.env-vars]
 DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
-test = [
-  "pytest {args} --no-ddtrace tests/meta"
-]
+test = ["pytest {args} --no-ddtrace tests/meta"]
 
 [envs.integration_test]
 template = "integration_test"
@@ -198,7 +162,7 @@ dependencies = [
     "pytest-cov",
     "requests",
     "hypothesis",
-    "django{matrix:django}"
+    "django{matrix:django}",
 ]
 
 [envs.appsec_threats_django.scripts]
@@ -206,7 +170,7 @@ test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py",
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -243,7 +207,7 @@ dependencies = [
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
     "Werkzeug{matrix:werkzeug:}",
-    "flask{matrix:flask}"
+    "flask{matrix:flask}",
 ]
 
 [envs.appsec_threats_flask.scripts]
@@ -251,7 +215,7 @@ test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py",
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -325,7 +289,7 @@ dependencies = [
     "pycryptodome",
     "cryptography",
     "psycopg2-binary~=2.9.9",
-    "pytest-memray"
+    "pytest-memray",
 ]
 
 [envs.appsec_iast_memcheck.env-vars]
@@ -347,11 +311,7 @@ python = ["3.10", "3.11", "3.12", "3.13"]
 
 [envs.appsec_iast_native]
 template = "appsec_iast_native"
-dependencies = [
-    "cmake",
-    "pybind11",
-    "clang"
-]
+dependencies = ["cmake", "pybind11", "clang"]
 
 [envs.appsec_iast_native.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
@@ -362,7 +322,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
     "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests",
-    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests"
+    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
 ]
 
 [[envs.appsec_iast_native.matrix]]
@@ -379,7 +339,7 @@ dependencies = [
     "hypothesis",
     "astunparse",
     "flask",
-    "virtualenv-clone"
+    "virtualenv-clone",
 ]
 
 [envs.appsec_iast_packages.env-vars]
@@ -388,11 +348,7 @@ DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_packages.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/appsec/iast_packages",
-]
+test = ["uname -a", "pip freeze", "python -m pytest tests/appsec/iast_packages"]
 
 [[envs.appsec_iast_packages.matrix]]
 python = ["3.9", "3.10", "3.11", "3.12"]
@@ -539,7 +495,7 @@ dependencies = [
     "jinja2",
     "httpx<0.28.0",
     "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
+    "fastapi{matrix:fastapi}",
 ]
 
 [envs.appsec_integrations_fastapi.env-vars]
@@ -582,7 +538,7 @@ dependencies = [
     "hypothesis",
     "httpx<0.28.0",
     "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
+    "fastapi{matrix:fastapi}",
 ]
 
 [envs.appsec_threats_fastapi.scripts]
@@ -590,7 +546,7 @@ test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -683,7 +639,7 @@ dependencies = [
 [envs.multiple_os_tests.env-vars]
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
-CMAKE_BUILD_PARALLEL_LEVEL="6"
+CMAKE_BUILD_PARALLEL_LEVEL = "6"
 CARGO_BUILD_JOBS = "6"
 
 [envs.multiple_os_tests.scripts]
@@ -701,35 +657,20 @@ python = ["3.13", "3.12", "3.10", "3.8"]
 # across all supported versions
 [envs.dd_coverage]
 template = "dd_coverage"
-dependencies = [
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-]
+dependencies = ["hypothesis", "pytest", "pytest-cov"]
 
 [envs.dd_coverage.scripts]
-test = [
-    "pip freeze",
-    "pytest tests/coverage -s --no-cov {args:}",
-]
+test = ["pip freeze", "pytest tests/coverage -s --no-cov {args:}"]
 
 [[envs.dd_coverage.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
 [envs.errortracking]
 template = "errortracking"
-dependencies = [
-    "flask",
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-]
+dependencies = ["flask", "hypothesis", "pytest", "pytest-cov"]
 
 [envs.errortracking.scripts]
-test = [
-    "pip freeze",
-    "pytest tests/internal/errortracking",
-]
+test = ["pip freeze", "pytest tests/internal/errortracking"]
 
 [[envs.errortracking.matrix]]
 python = ["3.10", "3.11", "3.12", "3.13"]
@@ -742,7 +683,7 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
 ]
 
 [envs.pytest_plugin_v2.env-vars]
@@ -763,32 +704,10 @@ pytest = ["~=6.0", "~=7.0", "~=8.0"]
 dev-mode = false
 detached = true
 template = "snapshot_viewer"
-dependencies = [
-    "PrettyPrintTree"
-]
+dependencies = ["PrettyPrintTree"]
 
 [envs.snapshot_viewer.scripts]
-view = [
-    "python scripts/ci_visibility/view_snapshot.py {args:}",
-]
-
-[envs.freezegun]
-template = "freezegun"
-dependencies = [
-    "freezegun{matrix:freezegun}",
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-]
-
-[envs.freezegun.scripts]
-test = [
-    "pytest tests/contrib/freezegun {args:}",
-]
-
-[[envs.freezegun.matrix]]
-python = ["3.10", "3.12"]
-freezegun = ["~=1.3.0", "~=1.5.0"]
+view = ["python scripts/ci_visibility/view_snapshot.py {args:}"]
 
 [envs.selenium]
 template = "selenium"
@@ -797,7 +716,7 @@ dependencies = [
     "pytest-cov",
     "hypothesis",
     "selenium~=4.0",
-    "webdriver-manager"
+    "webdriver-manager",
 ]
 
 [evs.selenium.env-vars]
@@ -815,8 +734,12 @@ tested_pytest_plugin_version = ["v1", "v2"]
 
 [envs.selenium.overrides]
 matrix.tested_pytest_plugin_version.env-vars = [
-    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
-    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = [
+        "v1",
+    ] },
+    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = [
+        "v2",
+    ] },
 ]
 
 [envs.appsec_integrations_pygoat]
