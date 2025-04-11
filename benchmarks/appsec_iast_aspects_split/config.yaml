@@ -1,0 +1,23 @@
+rsplit_aspect: &rsplit_aspect
+  warmups: 1
+  function_name: "iast_rsplit_aspect"
+
+rsplit_noaspect:
+  <<: *rsplit_aspect
+  function_name: "rsplit_noaspect"
+
+split_aspect: &split_aspect
+  warmups: 1
+  function_name: "iast_split_aspect"
+
+split_noaspect:
+  <<: *split_aspect
+  function_name: "split_noaspect"
+
+splitlines_aspect: &splitlines_aspect
+  warmups: 1
+  function_name: "iast_splitlines_aspect"
+
+splitlines_noaspect:
+  <<: *splitlines_aspect
+  function_name: "splitlines_noaspect"
