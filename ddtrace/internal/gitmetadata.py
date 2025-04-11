@@ -5,6 +5,7 @@ from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import get_distribution
 from ddtrace.internal.utils import formats
 from ddtrace.settings._core import DDConfig
 
@@ -66,29 +67,11 @@ def _get_tags_from_package(main_package):
     """
     if not main_package:
         return "", ""
-    try:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
-
-        source_code_link = ""
-        for val in importlib_metadata.metadata(main_package).get_all("Project-URL"):
-            capt_val = val.split(", ")
-            if len(capt_val) > 1 and capt_val[0] == "source_code_link":
-                source_code_link = capt_val[1].strip()
-                break
-
-        if source_code_link and "#" in source_code_link:
-            repository_url, commit_sha = source_code_link.split("#")
-            commit_sha = commit_sha.split("&")[0]
-            filtered_git_url = _filter_sensitive_info(repository_url)
-            if type(filtered_git_url) != str:
-                return "", commit_sha
-            return filtered_git_url, commit_sha
+    dist = get_distribution(main_package)
+    if not dist:
         return "", ""
-    except importlib_metadata.PackageNotFoundError:
-        return "", ""
+
+    return (dist.repository_url, dist.commit_sha)
 
 
 def get_git_tags():
