@@ -56,7 +56,7 @@
 
 # Flush
 flush-1-metric: &flush
-  metric_type: count # unused
+  metric_type: count #unused
   per_metric: 1
   num_metrics: 1
 flush-100-metrics:
