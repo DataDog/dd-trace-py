@@ -671,7 +671,7 @@ class AstVisitor(ast.NodeTransformer):
         # Assign.targets, thus the manual copy
 
         func_arg1 = copy.deepcopy(augassign_node.target)
-        func_arg1.ctx = ast.Load()  # type: ignore[attr-defined]
+        func_arg1.ctx = ast.Load()
         func_arg2 = copy.deepcopy(augassign_node.value)
         func_arg2.ctx = ast.Load()  # type: ignore[attr-defined]
 

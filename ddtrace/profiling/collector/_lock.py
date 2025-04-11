@@ -348,12 +348,12 @@ class LockCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         """Start collecting lock usage."""
         self.patch()
-        super(LockCollector, self)._start_service()
+        super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self):
         # type: (...) -> None
         """Stop collecting lock usage."""
-        super(LockCollector, self)._stop_service()
+        super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
 
     def patch(self):

@@ -7,7 +7,7 @@ dependencies = [
     "cython-lint==0.15.0",
     "codespell==2.3.0",
     "bandit==1.7.5",
-    "mypy==0.991",
+    "mypy==1.15.0",
     "coverage==7.3.0",
     "envier==0.6.1",
     "types-docutils==0.19.1.1",
