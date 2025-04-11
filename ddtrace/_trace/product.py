@@ -6,20 +6,54 @@ from envier import En
 
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._config import Config
+from ddtrace.settings._config import config
 from ddtrace.settings.http import HttpConfig
 
 
 requires = ["remote-configuration"]
 
 
-class Config(En):
+class _Config(En):
     __prefix__ = "dd.trace"
 
     enabled = En.v(bool, "enabled", default=True)
     global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
 
 
-_config = Config()
+_config = _Config()
+
+
+# TODO: Consolidate with the apm_tracing_rc function
+def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
+    from ddtrace import tracer
+
+    # sampling configs always come as a pair
+    if "_trace_sampling_rules" in items:
+        tracer._sampler.set_sampling_rules(cfg._trace_sampling_rules)
+
+    if "tags" in items:
+        tracer._tags = cfg.tags.copy()
+
+    if "_tracing_enabled" in items:
+        if tracer.enabled:
+            if cfg._tracing_enabled is False:
+                tracer.enabled = False
+        else:
+            # the product specification says not to allow tracing to be re-enabled remotely at runtime
+            if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+                tracer.enabled = True
+
+    if "_logs_injection" in items:
+        # TODO: Refactor the logs injection code to import from a core component
+        if config._logs_injection:
+            from ddtrace.contrib.internal.logging.patch import patch
+
+            patch()
+        else:
+            from ddtrace.contrib.internal.logging.patch import unpatch
+
+            unpatch()
 
 
 def post_preload():
@@ -34,7 +68,10 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        from ddtrace import config
+        config._subscribe(["_trace_sampling_rules"], _on_global_config_update)
+        config._subscribe(["_logs_injection"], _on_global_config_update)
+        config._subscribe(["tags"], _on_global_config_update)
+        config._subscribe(["_tracing_enabled"], _on_global_config_update)
 
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods
@@ -78,8 +115,6 @@ class APMCapabilities(enum.IntFlag):
 
 
 def apm_tracing_rc(lib_config):
-    from ddtrace import config
-
     base_rc_config: t.Dict[str, t.Any] = {n: None for n in config._config}
 
     if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:

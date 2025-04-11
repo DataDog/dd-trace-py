@@ -292,10 +292,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        config._subscribe(["_trace_sampling_rules"], self._on_global_config_update)
-        config._subscribe(["_logs_injection"], self._on_global_config_update)
-        config._subscribe(["tags"], self._on_global_config_update)
-        config._subscribe(["_tracing_enabled"], self._on_global_config_update)
 
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
