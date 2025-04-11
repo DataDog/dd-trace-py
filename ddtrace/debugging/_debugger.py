@@ -43,6 +43,7 @@ from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal import symbol_db
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import ModuleHookType
@@ -275,6 +276,8 @@ class Debugger(Service):
 
         di_config.enabled = True
 
+        symbol_db.register()
+
         cls.__watchdog__.install()
 
         if di_config.metrics:
@@ -308,7 +311,10 @@ class Debugger(Service):
         cls._instance.stop(join=join)
         cls._instance = None
 
+        symbol_db.unregister()
+
         cls.__watchdog__.uninstall()
+
         if di_config.metrics:
             metrics.disable()
 
