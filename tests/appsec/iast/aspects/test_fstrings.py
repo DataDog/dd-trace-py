@@ -105,6 +105,8 @@ def test_fstring_fill_spaces_integers_invalid_format(text, spec):
 
 @given(non_empty_text)
 def test_repr_fstring_tainted(text):
+    if sys.version_info < (3, 9) and text == "\x00":
+        pytest.skip("Python3.8 works different with '\x00' char")
     string_input = taint_pyobject(
         pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
     )
@@ -116,6 +118,8 @@ def test_repr_fstring_tainted(text):
 
 @given(non_empty_text)
 def test_repr_fstring_with_format_tainted(text):
+    if sys.version_info < (3, 9) and text == "\x00":
+        pytest.skip("Python3.8 works different with '\x00' char")
     string_input = taint_pyobject(
         pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
     )
