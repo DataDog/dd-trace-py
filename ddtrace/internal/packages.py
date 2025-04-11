@@ -191,8 +191,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
         mapping = {}
 
         for dist in importlib_metadata.distributions():
-            files = dist.files
-            if not files:
+            if not files := dist.files:
                 continue
             metadata = dist.metadata
             name = metadata["name"]
