@@ -73,7 +73,7 @@ TEXT_TYPE = Union[str, bytes, bytearray]
 
 
 class CustomStr(str):
-    pass
+    __slots__ = ()
 
 
 class CustomBytes(bytes):
@@ -84,7 +84,8 @@ class CustomBytearray(bytearray):
     pass
 
 
-non_empty_text = text().filter(lambda x: x not in ("", "0", "1", "2"))
+non_empty_text = text().filter(lambda x: x not in ("",))
+non_empty_binary = binary().filter(lambda x: x not in (b"",))
 
 string_strategies: List[Any] = [
     text(),  # regular str
@@ -93,4 +94,10 @@ string_strategies: List[Any] = [
     builds(CustomStr, text()),  # custom str subclass
     builds(CustomBytes, binary()),  # custom bytes subclass
     builds(CustomBytearray, binary()),  # custom bytearray subclass
+]
+
+string_valid_to_taint_strategies: List[Any] = [
+    non_empty_text,  # regular str
+    non_empty_binary,  # regular bytes
+    builds(bytearray, non_empty_binary),  # regular bytearray
 ]

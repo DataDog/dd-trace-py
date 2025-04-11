@@ -144,6 +144,9 @@ microbenchmarks:
         - "core_api"
         - "otel_span"
         - "appsec_iast_aspects"
+        - "appsec_iast_aspects_ospath"
+        - "appsec_iast_aspects_re_module"
+        - "appsec_iast_aspects_split"
         - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         # Flaky. Timeout errors
