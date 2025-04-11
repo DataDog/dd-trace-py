@@ -36,6 +36,7 @@ def test_fstring(text):
     assert result == f"{text}"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_fstring_tainted(text):
     string_input = taint_pyobject(
@@ -47,6 +48,7 @@ def test_fstring_tainted(text):
     assert is_pyobject_tainted(result)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_fstring_fill_spaces_tainted(text):
     string_input = taint_pyobject(
