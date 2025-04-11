@@ -3,8 +3,8 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.settings.asm import config as asm_config
 from tests.utils import override_global_config
 

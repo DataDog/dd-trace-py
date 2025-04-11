@@ -11,7 +11,6 @@ from typing import Union
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -190,7 +189,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
-        if _is_top_level(span):
+        if span._is_top_level:
             span.set_metric("_dd.top_level", 1)
 
 
@@ -215,7 +214,7 @@ class TraceTagsProcessor(TraceProcessor):
         if not ctx:
             return trace
 
-        ctx._update_tags(chunk_root)
+        chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
         # for 128 bit trace ids
@@ -374,7 +373,7 @@ class SpanAggregator(SpanProcessor):
         ]
         if unfinished_spans:
             log.warning(
-                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
                 len(unfinished_spans),
                 ", ".join(unfinished_spans),
             )

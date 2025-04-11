@@ -59,13 +59,14 @@ ddtrace = "ddtrace.contrib.internal.pytest.plugin"
 "ddtrace.pytest_benchmark" = "ddtrace.contrib.internal.pytest_benchmark.plugin"
 
 [project.entry-points.'ddtrace.products']
+"apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
 "live-debugger" = "ddtrace.debugging._products.live_debugger"
 "profiling" = "ddtrace.profiling.product"
 "error-tracking" = "ddtrace.errortracking.product"
-"remote-configuration" = "ddtrace.internal.remoteconfig.product"
+"remote-configuration" = "ddtrace.internal.remoteconfig.products.client"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
 "iast" = "ddtrace.internal.iast.product"
@@ -105,6 +106,7 @@ exclude = '''
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/internal/_tagset.pyx$
+  | ddtrace/internal/telemetry/metrics_namespaces.pyx$  
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$

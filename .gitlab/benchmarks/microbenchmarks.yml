@@ -144,6 +144,9 @@ microbenchmarks:
         - "core_api"
         - "otel_span"
         - "appsec_iast_aspects"
+        - "appsec_iast_aspects_ospath"
+        - "appsec_iast_aspects_re_module"
+        - "appsec_iast_aspects_split"
         - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         # Flaky. Timeout errors
@@ -183,6 +186,15 @@ benchmarks-pr-comment:
 
 check-big-regressions:
   stage: report
+  rules:
+    # Run and warn on releases, but don't fail the pipeline
+    #   v2.10.0
+    #   v2.10.1
+    #   v2.10.0rc0
+    #   v2.10.0rc5
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+      allow_failure: true
+    - allow_failure: false
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE

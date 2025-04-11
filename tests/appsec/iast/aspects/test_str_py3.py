@@ -1,13 +1,26 @@
+from hypothesis import given
+from hypothesis.strategies import text
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 mod_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
+
+
+@given(text())
+def test_int_fstring_zero_padding_text(text):
+    with pytest.raises(ValueError) as excinfo:
+        f"{text:05d}"
+    assert str(excinfo.value) == "Unknown format code 'd' for object of type 'str'"
+
+    with pytest.raises(ValueError) as excinfo:
+        mod_py3.do_zero_padding_fstring(text)
+    assert str(excinfo.value) == "Unknown format code 'd' for object of type 'str'"
 
 
 class TestOperatorsReplacement(BaseReplacement):

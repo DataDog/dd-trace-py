@@ -1,3 +1,4 @@
+import json
 import os
 import signal
 import subprocess
@@ -61,4 +62,31 @@ def test_http_get_error(azure_functions_client: Client) -> None:
 def test_http_post_ok(azure_functions_client: Client) -> None:
     assert (
         azure_functions_client.post("/api/httppostok", headers=DEFAULT_HEADERS, data={"key": "val"}).status_code == 200
+    )
+
+
+@pytest.mark.snapshot
+def test_http_get_trigger_arg(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgettriggerarg", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_function_name_decorator(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetfunctionnamedecorator", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetfunctionnamenodecorator", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_timer(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post(
+            "/admin/functions/timer",
+            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
+            data=json.dumps({"input": None}),
+        ).status_code
+        == 202
     )

@@ -1,6 +1,7 @@
 from typing import Optional
 
-from ddtrace import constants
+from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -9,6 +10,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
+import ddtrace.constants as constants
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
@@ -16,8 +18,6 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Span
-from ddtrace.trace import Tracer
 
 
 log = get_logger(__name__)

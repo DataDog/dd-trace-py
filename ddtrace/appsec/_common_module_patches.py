@@ -11,10 +11,10 @@ from typing import Union
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
-import ddtrace
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
+from ddtrace.appsec._metrics import _report_rasp_skipped
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -35,10 +35,14 @@ _RASP_POPEN = "rasp_Popen"
 
 def patch_common_modules():
     global _is_patched
-    # ensure that the subprocess patch is applied even after one click activation
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
-    subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
+    @ModuleWatchdog.after_module_imported("subprocess")
+    def _(module):
+        # ensure that the subprocess patch is applied even after one click activation
+        subprocess_patch.patch()
+        subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
+        subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+
     if _is_patched:
         return
 
@@ -72,8 +76,8 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_lfi_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_lfi_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -81,6 +85,9 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
+
+            # DEV: Do not report here for efficiency reasons
+            # _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, True)
             return original_open_callable(*args, **kwargs)
 
         filename_arg = args[0] if args else kwargs.get("file", None)
@@ -88,16 +95,19 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
             filename = os.fspath(filename_arg)
         except Exception:
             filename = ""
-        if filename and in_asm_context():
-            res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
-                crop_trace="wrapped_open_CFDDB7ABBA9081B6",
-                rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
-            )
-            if res and _must_block(res.actions):
-                raise BlockingException(
-                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
+        if filename:
+            if in_asm_context():
+                res = call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
+                    crop_trace="wrapped_open_CFDDB7ABBA9081B6",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
                 )
+                if res and _must_block(res.actions):
+                    raise BlockingException(
+                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
+                    )
+            else:
+                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, False)
     try:
         return original_open_callable(*args, **kwargs)
     except Exception as e:
@@ -118,8 +128,8 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_ssrf_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -127,13 +137,14 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
             return original_open_callable(*args, **kwargs)
 
         url = args[0] if args else kwargs.get("fullurl", None)
-        if url and in_asm_context():
-            if url.__class__.__name__ == "Request":
-                url = url.get_full_url()
-            if isinstance(url, str):
+        if url.__class__.__name__ == "Request":
+            url = url.get_full_url()
+        if isinstance(url, str) and url:
+            if in_asm_context():
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
                     crop_trace="wrapped_open_ED4CF71136E15EBF",
@@ -143,6 +154,8 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                     raise BlockingException(
                         get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
                     )
+            else:
+                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_open_callable(*args, **kwargs)
 
 
@@ -159,8 +172,8 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_ssrf_enabled
+        and core.tracer._appsec_processor is not None
+        and core.tracer._appsec_processor.rasp_ssrf_enabled
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -168,11 +181,12 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
             return original_request_callable(*args, **kwargs)
 
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
-        if url and in_asm_context():
-            if isinstance(url, str):
+        if isinstance(url, str) and url:
+            if in_asm_context():
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
                     crop_trace="wrapped_request_D8CB81E472AF98A2",
@@ -182,7 +196,8 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
                     raise BlockingException(
                         get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url
                     )
-
+            else:
+                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
 
 
@@ -193,13 +208,14 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_shi_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_shi_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, True)
             return
 
         if in_asm_context():
@@ -212,6 +228,8 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
                 raise BlockingException(
                     get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SHI, command
                 )
+        else:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
 def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
@@ -221,13 +239,14 @@ def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_cmdi_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_cmdi_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
         except ImportError:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, True)
             return
 
         if in_asm_context():
@@ -240,6 +259,8 @@ def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
                 raise BlockingException(
                     get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.CMDI, arg_list
                 )
+        else:
+            _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.CMDI, False)
 
 
 _DB_DIALECTS = {
@@ -263,8 +284,8 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     if (
         asm_config._asm_enabled
         and asm_config._ep_enabled
-        and ddtrace.tracer._appsec_processor is not None
-        and ddtrace.tracer._appsec_processor.rasp_sqli_enabled
+        and core.tracer._appsec_processor is not None  # type: ignore
+        and core.tracer._appsec_processor.rasp_sqli_enabled  # type: ignore
     ):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -272,13 +293,15 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
         except ImportError:
             # execute is used during module initialization
             # and shouldn't be changed at that time
+            # DEV: Do not report here for efficiency reasons
+            # _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SQLI, True)
             return
 
-        if instrument_self and query and in_asm_context():
+        if instrument_self and query and isinstance(query, str):
             db_type = _DB_DIALECTS.get(
                 getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
             )
-            if isinstance(query, str):
+            if in_asm_context():
                 res = call_waf_callback(
                     {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
                     crop_trace="execute_4C9BAC8E228EB347",
@@ -288,6 +311,8 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
                     raise BlockingException(
                         get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SQLI, query
                     )
+            else:
+                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SQLI, False)
 
 
 def try_unwrap(module, name):

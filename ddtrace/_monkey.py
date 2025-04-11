@@ -39,7 +39,7 @@ PATCH_MODULES = {
     "cassandra": True,
     "celery": True,
     "consul": True,
-    "dd_trace_api": True,
+    "ddtrace_api": True,
     "django": True,
     "dramatiq": True,
     "elasticsearch": True,
@@ -52,7 +52,8 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
-    "langgraph": False,
+    "langgraph": True,
+    "litellm": True,
     "mongoengine": True,
     "mysql": True,
     "mysqldb": True,
@@ -104,11 +105,14 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "anthropic": True,
+    "crewai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
     "selenium": True,
     "valkey": True,
+    "openai_agents": True,
+    "protobuf": config._data_streams_enabled,
 }
 
 
@@ -158,9 +162,10 @@ _MODULES_FOR_CONTRIB = {
         "langgraph",
         "langgraph.graph",
     ),
+    "openai_agents": ("agents",),
 }
 
-_NOT_PATCHABLE_VIA_ENVVAR = {"dd_trace_api"}
+_NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}
 
 
 class PatchException(Exception):
