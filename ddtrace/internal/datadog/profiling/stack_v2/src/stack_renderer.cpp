@@ -1,7 +1,6 @@
 #include "stack_renderer.hpp"
 
 #include "thread_span_links.hpp"
-#include "utf8_validate.hpp"
 
 #include "echion/strings.h"
 
@@ -144,17 +143,6 @@ StackRenderer::render_frame(Frame& frame)
 
     auto line = frame.location.line;
 
-    // Normally, further utf-8 validation would be pointless here, but we may be reading data where the
-    // string pointer was valid, but the string is actually garbage data at the exact time of the read.
-    // This is rare, but blowing some cycles on early validation allows the sample to be retained by
-    // libdatadog, so we can evaluate the actual impact of this scenario in live scenarios.
-    static const std::string_view invalid = "<invalid_utf8>";
-    if (!utf8_check_is_valid(name_str.data(), name_str.size())) {
-        name_str = invalid;
-    }
-    if (!utf8_check_is_valid(filename_str.data(), filename_str.size())) {
-        filename_str = invalid;
-    }
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
     if (!pushed_task_name and line == 0) {
