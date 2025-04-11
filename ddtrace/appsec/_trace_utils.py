@@ -457,7 +457,7 @@ def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, use
         return
     user_id, user_extra = get_user_info(info_retriever, django_config)
     if user:
-        span = pin.core.get_root_span()
+        span = core.get_root_span()
         _asm_manual_keep(span)
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, "true")
