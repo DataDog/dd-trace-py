@@ -1,6 +1,5 @@
 import functools
 import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -13,6 +12,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -35,10 +35,6 @@ from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)

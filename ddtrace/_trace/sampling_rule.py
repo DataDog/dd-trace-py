@@ -1,17 +1,14 @@
 import re
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Optional
 from typing import Tuple
 
+from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 KNUTH_FACTOR = 1111111111111111111
@@ -125,8 +122,7 @@ class SamplingRule(object):
         else:
             return True
 
-    def matches(self, span):
-        # type: (Span) -> bool
+    def matches(self, span: Span) -> bool:
         """
         Return if this span matches this rule
 
@@ -138,8 +134,7 @@ class SamplingRule(object):
         tags_match = self.tags_match(span)
         return tags_match and self._matches((span.service, span.name, span.resource))
 
-    def tags_match(self, span):
-        # type: (Span) -> bool
+    def tags_match(self, span: Span) -> bool:
         tag_match = True
         if self._tag_value_matchers:
             tag_match = self.check_tags(span.get_tags(), span.get_metrics())

@@ -1,7 +1,6 @@
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -37,7 +36,7 @@ def _asm_manual_keep(span: Span) -> None:
 
 
 def _track_user_login_common(
-    tracer: Tracer,
+    tracer,
     success: bool,
     metadata: Optional[dict] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
@@ -96,7 +95,7 @@ def _track_user_login_common(
 
 
 def track_user_login_success_event(
-    tracer: Tracer,
+    tracer,
     user_id: str,
     metadata: Optional[dict] = None,
     login: Optional[str] = None,
@@ -154,7 +153,7 @@ def track_user_login_success_event(
 
 
 def track_user_login_failure_event(
-    tracer: Tracer,
+    tracer,
     user_id: Optional[str],
     exists: Optional[bool] = None,
     metadata: Optional[dict] = None,
@@ -202,7 +201,7 @@ def track_user_login_failure_event(
 
 
 def track_user_signup_event(
-    tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
+    tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
 ) -> None:
     span = tracer.current_root_span()
     if span:
@@ -226,7 +225,7 @@ def track_user_signup_event(
         )
 
 
-def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
+def track_custom_event(tracer, event_name: str, metadata: dict) -> None:
     """
     Add a new custom tracking event.
 
@@ -264,7 +263,7 @@ def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
         _asm_manual_keep(span)
 
 
-def should_block_user(tracer: Tracer, userid: str) -> bool:
+def should_block_user(tracer, userid: str) -> bool:
     """
     Return true if the specified User ID should be blocked.
 
@@ -301,7 +300,7 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer: Tracer, userid: str, mode: str = "sdk") -> None:
+def block_request_if_user_blocked(tracer, userid: str, mode: str = "sdk") -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.

@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from threading import Lock
 from threading import RLock
+from typing import DefaultDict
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -28,11 +29,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 
-
-try:
-    from typing import DefaultDict  # noqa:F401
-except ImportError:
-    from collections import defaultdict as DefaultDict
 
 log = get_logger(__name__)
 

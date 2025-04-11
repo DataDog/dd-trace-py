@@ -1,22 +1,17 @@
 import abc
 import re
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import List
+from typing import Optional
+from typing import Union
 
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.span import Span
 from ddtrace.ext import http
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 
 class TraceFilter(TraceProcessor):
     @abc.abstractmethod
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """Processes a trace.
 
         None can be returned to prevent the trace from being exported.
@@ -55,8 +50,7 @@ class FilterRequestsOnUrl(TraceFilter):
             regexps = [regexps]
         self._regexps = [re.compile(regexp) for regexp in regexps]
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         """
         When the filter is registered in the tracer, process_trace is called by
         on each trace before it is sent to the agent, the returned value will

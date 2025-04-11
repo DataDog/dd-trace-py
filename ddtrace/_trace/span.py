@@ -49,10 +49,10 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import config
 
 
@@ -328,11 +328,19 @@ class Span(object):
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
         self.context.sampling_priority = decision
-        set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
+        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
+
+    def _set_sampling_decision_maker(
+        self,
+        sampling_mechanism: int,
+    ) -> Optional[Text]:
+        value = "-%d" % sampling_mechanism
+        self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+        return value
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
