@@ -21,6 +21,7 @@ from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
@@ -29,6 +30,10 @@ from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -48,10 +53,14 @@ from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
+from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
+from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import config
 
@@ -333,6 +342,55 @@ class Span(object):
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
+
+    def tags_match(self, rule: SamplingRule) -> bool:
+        tag_match = True
+        if rule._tag_value_matchers:
+            tag_match = rule.check_tags(self.get_tags(), self.get_metrics())
+        return tag_match
+
+    def matches(self, rule: SamplingRule) -> bool:
+        """
+        Return if this span matches this rule
+
+        :param span: The span to match against
+        :type span: :class:`ddtrace._trace.span.Span`
+        :returns: Whether this span matches or not
+        :rtype: :obj:`bool`
+        """
+        tags_match = self.tags_match(rule)
+        return tags_match and rule._matches((self.service, self.name, self.resource))
+
+    def apply_span_sampling_tags(self, rule: SpanSamplingRule) -> None:
+        self.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+        self.set_metric(_SINGLE_SPAN_SAMPLING_RATE, rule._sample_rate)
+        # Only set this tag if it's not the default -1
+        if rule._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
+            self.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, rule._max_per_second)
+
+    def sample(self, rule: SpanSamplingRule) -> bool:
+        if rule._sample(self.span_id):
+            if rule._limiter.is_allowed():
+                self.apply_span_sampling_tags(rule)
+                return True
+        return False
+
+    def _set_sampling_tags(self, sampled: bool, sample_rate: float, mechanism: int) -> None:
+        # Set the sampling mechanism
+        set_sampling_decision_maker(self.context, mechanism)
+        # Set the sampling psr rate
+        if mechanism in (
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+            SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
+            SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
+        ):
+            self.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
+            self.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+        # Set the sampling priority
+        priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
+        priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
+        self.context.sampling_priority = priorities[priority_index]
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.

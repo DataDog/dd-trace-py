@@ -17,6 +17,7 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.core import dispatch
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -48,7 +49,6 @@ from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
 from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
-from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
