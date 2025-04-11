@@ -577,7 +577,4 @@ class StackCollector(collector.PeriodicCollector):
         used_wall_time_ns = time.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
 
-        if self._stack_collector_v2_enabled:
-            stack_v2.set_interval(self.interval)
-
         return all_events

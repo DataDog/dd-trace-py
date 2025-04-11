@@ -65,6 +65,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # type: (...) -> None
     filename = str(tmp_path / "gunicorn.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("_DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
