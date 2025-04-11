@@ -1,0 +1,55 @@
+ospathbasename_aspect: &ospathbasename_aspect
+  warmups: 1
+  function_name: "iast_ospathbasename_aspect"
+
+ospathbasename_noaspect:
+  <<: *ospathbasename_aspect
+  function_name: "ospathbasename_noaspect"
+
+ospathdirname_aspect: &ospathdirname_aspect
+  warmups: 1
+  function_name: "iast_ospathdirname_aspect"
+
+ospathdirname_noaspect:
+  <<: *ospathdirname_aspect
+  function_name: "ospathdirname_noaspect"
+
+ospathjoin_aspect: &ospathjoin_aspect
+  warmups: 1
+  function_name: "iast_ospathjoin_aspect"
+
+ospathjoin_noaspect:
+  <<: *ospathjoin_aspect
+  function_name: "ospathjoin_noaspect"
+
+ospathnormcase_aspect: &ospathnormcase_aspect
+  warmups: 1
+  function_name: "iast_ospathnormcase_aspect"
+
+ospathnormcase_noaspect:
+  <<: *ospathnormcase_aspect
+  function_name: "ospathnormcase_noaspect"
+
+ospathsplit_aspect: &ospathsplit_aspect
+  warmups: 1
+  function_name: "iast_ospathsplit_aspect"
+
+ospathsplit_noaspect:
+  <<: *ospathsplit_aspect
+  function_name: "ospathsplit_noaspect"
+
+ospathsplitdrive_aspect: &ospathsplitdrive_aspect
+  warmups: 1
+  function_name: "iast_ospathsplitdrive_aspect"
+
+ospathsplitdrive_noaspect:
+  <<: *ospathsplitdrive_aspect
+  function_name: "ospathsplitdrive_noaspect"
+
+ospathsplitext_aspect: &ospathsplitext_aspect
+  warmups: 1
+  function_name: "iast_ospathsplitext_aspect"
+
+ospathsplitext_noaspect:
+  <<: *ospathsplitext_aspect
+  function_name: "ospathsplitext_noaspect"
