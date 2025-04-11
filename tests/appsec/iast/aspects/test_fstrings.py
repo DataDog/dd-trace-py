@@ -103,7 +103,6 @@ def test_fstring_fill_spaces_integers_invalid_format(text, spec):
         assert str(excinfo.value) == "Invalid format specifier"
 
 
-
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_repr_fstring_tainted(text):
