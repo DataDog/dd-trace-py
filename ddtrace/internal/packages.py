@@ -161,13 +161,13 @@ def _root_module(path: Path) -> str:
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
-        import importlib.metadata as importlib_metadata
+        import importlib.metadata as metadata
     except ImportError:
-        import importlib_metadata as importlib_metadata  # type: ignore[no-redef]
+        import importlib_metadata as metadata  # type: ignore[no-redef]
 
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: importlib_metadata.PackagePath):
+    def is_namespace(f: metadata.PackagePath):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -190,22 +190,17 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in importlib_metadata.distributions():
-            files = dist.files
-            if not files:
-                continue
-            metadata = dist.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            d = Distribution(name=name, version=version, path=None)
-            for f in files:
-                root = f.parts[0]
-                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                    continue
-                if is_namespace(f):
-                    root = "/".join(f.parts[:2])
-                if root not in mapping:
-                    mapping[root] = d
+        for dist in metadata.distributions():
+            if dist is not None and dist.files is not None:
+                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
+                for f in dist.files:
+                    root = f.parts[0]
+                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                        continue
+                    if is_namespace(f):
+                        root = "/".join(f.parts[:2])
+                    if root not in mapping:
+                        mapping[root] = d
 
         return mapping
 
