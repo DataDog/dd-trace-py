@@ -191,16 +191,18 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
         mapping = {}
 
         for dist in metadata.distributions():
-            if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
-                for f in dist.files:
-                    root = f.parts[0]
-                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                        continue
-                    if is_namespace(f):
-                        root = "/".join(f.parts[:2])
-                    if root not in mapping:
-                        mapping[root] = d
+            files = dist.files
+            if not files:
+                continue
+            d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
+            for f in files:
+                root = f.parts[0]
+                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                    continue
+                if is_namespace(f):
+                    root = "/".join(f.parts[:2])
+                if root not in mapping:
+                    mapping[root] = d
 
         return mapping
 
