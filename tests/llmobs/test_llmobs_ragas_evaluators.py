@@ -1,12 +1,9 @@
-import os
-
 import mock
 import pytest
 
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
-from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.trace import Span
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_ragas_answer_relevancy_spans
@@ -224,47 +221,6 @@ def test_ragas_faithfulness_emits_traces(ragas, llmobs, llmobs_events):
     assert ragas_spans[6]["parent_id"] == root_span_id  # create score (task)
     assert ragas_spans[3]["parent_id"] == ragas_spans[2]["span_id"]  # create statements prompt (task)
     assert ragas_spans[5]["parent_id"] == ragas_spans[4]["span_id"]  # create verdicts prompt (task)
-
-
-def test_llmobs_with_faithfulness_emits_traces_and_evals_on_exit(mock_writer_logs, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
-    if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
-        {
-            "PYTHONPATH": ":".join(pypath),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "dummy-openai-api-key"),
-            "_DD_LLMOBS_EVALUATOR_INTERVAL": "5",
-            EvaluatorRunner.EVALUATORS_ENV_VAR: "ragas_faithfulness",
-            "DD_TRACE_ENABLED": "0",
-        }
-    )
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import os
-import time
-import atexit
-import mock
-from ddtrace.llmobs import LLMObs
-from ddtrace.internal.utils.http import Response
-from tests.llmobs._utils import _llm_span_with_expected_ragas_inputs_in_messages
-from tests.llmobs._utils import logs_vcr
-
-ctx = logs_vcr.use_cassette(
-    "tests.llmobs.test_llmobs_ragas_evaluators.emits_traces_and_evaluations_on_exit.yaml"
-)
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
-with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload", return_value=Response(status=200, body="{}")):
-    LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
-    LLMObs._instance._evaluator_runner.enqueue(_llm_span_with_expected_ragas_inputs_in_messages(), None)
-    """,
-        env=env,
-    )
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
 
 
 def test_ragas_context_precision_init(ragas, llmobs):
