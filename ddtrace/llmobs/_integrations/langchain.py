@@ -128,9 +128,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         try:
             setattr(parent_instance, "_datadog_spans", spans)
-        except Exception as e:
+        except Exception:
             parent_instance.__dict__["_datadog_spans"] = spans
-        
 
     def _llmobs_set_tags(
         self,

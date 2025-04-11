@@ -1,14 +1,18 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import os
+import threading
 
 import mock
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -16,6 +20,97 @@ from tests.utils import override_global_config
 @pytest.fixture
 def ddtrace_config_langchain():
     return {}
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+        super().enqueue(event)
+
+
+@pytest.fixture
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
+
+
+class LLMObsServer(BaseHTTPRequestHandler):
+    """A mock server for the LLMObs backend used to capture the requests made by the client.
+
+    Python's HTTPRequestHandler is a bit weird and uses a class rather than an instance
+    for running an HTTP server so the requests are stored in a class variable and reset in the pytest fixture.
+    """
+
+    requests = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def do_POST(self) -> None:
+        content_length = int(self.headers["Content-Length"])
+        body = self.rfile.read(content_length).decode("utf-8")
+        self.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+
+@pytest.fixture
+def _llmobs_backend():
+    LLMObsServer.requests = []
+    # Create and start the HTTP server
+    server = HTTPServer(("localhost", 0), LLMObsServer)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    # Provide the server details to the test
+    server_address = f"http://{server.server_address[0]}:{server.server_address[1]}"
+
+    yield server_address, LLMObsServer.requests
+
+    # Stop the server after the test
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.fixture
+def llmobs_span_writer(_llmobs_backend):
+    url, _ = _llmobs_backend
+    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
+    sw._headers["DD-API-KEY"] = "<test-key>"
+    yield sw
+
+
+@pytest.fixture
+def tracer(langchain):
+    tracer = DummyTracer()
+    pin = Pin.get_from(langchain)
+    pin._override(langchain, tracer=tracer)
+    yield tracer
+
+
+@pytest.fixture
+def llmobs(
+    tracer,
+    llmobs_span_writer,
+):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        yield llmobs_service
+        llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_events(llmobs, llmobs_span_writer):
+    yield llmobs_span_writer.events
 
 
 @pytest.fixture
@@ -47,27 +142,25 @@ def mock_llmobs_span_writer():
 
 
 @pytest.fixture
-def langchain(ddtrace_config_langchain):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
-        with override_config("langchain", ddtrace_config_langchain):
-            with override_env(
-                dict(
-                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-                    COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                    HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-                    AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import langchain
+def langchain():
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+            AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import langchain
 
-                yield langchain
-                unpatch()
+        yield langchain
+        unpatch()
 
 
 @pytest.fixture
-def langchain_community(ddtrace_config_langchain, langchain):
+def langchain_community(langchain):
     try:
         import langchain_community
 
@@ -77,7 +170,7 @@ def langchain_community(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_core(ddtrace_config_langchain, langchain):
+def langchain_core(langchain):
     import langchain_core
     import langchain_core.prompts  # noqa: F401
 
@@ -85,7 +178,7 @@ def langchain_core(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_openai(ddtrace_config_langchain, langchain):
+def langchain_openai(langchain):
     try:
         import langchain_openai
 
@@ -95,7 +188,7 @@ def langchain_openai(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_cohere(ddtrace_config_langchain, langchain):
+def langchain_cohere(langchain):
     try:
         import langchain_cohere
 
@@ -105,7 +198,7 @@ def langchain_cohere(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, langchain):
+def langchain_anthropic(langchain):
     try:
         import langchain_anthropic
 
@@ -115,10 +208,10 @@ def langchain_anthropic(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_pinecone(ddtrace_config_langchain, langchain):
+def langchain_pinecone(langchain):
     with override_env(
         dict(
-            PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
+            # PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
         )
     ):
         try:

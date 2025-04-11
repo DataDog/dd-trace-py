@@ -1,14 +1,14 @@
 interactions:
 - request:
     body: '{"inputText": "\n\nUser: summarize the plot to the lord of the rings in
-      a dozen words\n\nBot:", "textGenerationConfig": {"max_tokens": 50, "temperature":
+      a dozen words\n\nBot:", "textGenerationConfig": {"maxTokenCount": 50, "temperature":
       0}}'
     headers:
       Accept:
       - !!binary |
         YXBwbGljYXRpb24vanNvbg==
       Content-Length:
-      - '157'
+      - '160'
       Content-Type:
       - !!binary |
         YXBwbGljYXRpb24vanNvbg==
@@ -19,13 +19,29 @@ interactions:
         ZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjUx
       X-Amz-Date:
       - !!binary |
-        MjAyNTA0MDlUMjAyNDI3Wg==
+        MjAyNTA0MTFUMTQxMDIwWg==
       X-Amz-Security-Token:
       - !!binary |
-        dGVzdGluZw==
+        SVFvSmIzSnBaMmx1WDJWakVFY2FDWFZ6TFdWaGMzUXRNU0pHTUVRQ0lFVUtlU1lHVHd4b2JrVEk0
+        VnNUUm5Wa25XVGd6b1VvOUJVM1hJM0owdXRBQWlCNmgyaDRCT2VJK3lpb3gzcFZ5aE9TTVFDR2M0
+        MGFoUEVSS2tqK2tsTVlKaXFaQXdpLy8vLy8vLy8vLy84QkVBTWFERFl3TVRReU56STNPVGs1TUNJ
+        TXNwTEI5T1dwRitBQUdhcDFLdTBDUmR4dWpidmsxaFpOMllmcXliSno2TE5ON3UzRGFWbWZzZU1t
+        eEZEK1kyUTlleTJTTEpUU00xTUJ2MjRreW04Snd2aU0yK0dwMmdFMWJ2SkJQMm8wK2Y5U0l3anln
+        K0xZQ2FIejNsNmt2bzQzTlZkZWJ3WUVoYm9mWU1TM3dwN1VEOElnemhianpJN2JIRGQwT2hBWDZD
+        Ym9QSjVWRU5wQzZpL3pLVE1KLzJHQmhrNXpUdmtOMFZYRkhqYWh2TUN6bUpKR2VOYVUvRDY4aTVV
+        L3R6dVJwTDVKV0V4dzNZajR4bk01bkR1Y3ZqL25PV3VzaExuMzdKbStYVzkvc0RXTy9SeGhGUjVx
+        UG5RdUIvdkZWcEZGSkRwbjEzZTRKSGNnbHR4Zng5ejdVWFk5aENCOVIxZWJCRkpuMDBlN29wYlhE
+        V3RFbnVMWjV4QUEwdFh6dEYrRHpGbExXd0VRVmRJbmZJYmdLcXlUMEZGVWNCNlFlQU5IZTlrTWM1
+        NEdOV0cxeHVueGxUY2xwNXZLOWtoN1lGYzh5citqWk5paWZUdEgvRVJvODY5Y2ltT3dTU0NRWndN
+        OUlYeGd0amZNZ1N3dGQxL053T0k0bjRtSklvU1NCcWFseFdqUVNabGVLTm40cFZ2TjkxQXd0TVRr
+        dndZNnB3RXMybnNMMmhlbHBMTDJRQzU1UmdlMno3aFhiTzhNS2hmUmRJMWdKL3NVZUdiQmhqckJp
+        bUFBSkdqN2MrcWpJR3lxQTI4WHZqRUE3Vm11U1ZVM1hDYm0xa3lWZGlqaXpyN2l1dVlxVUlnSFRE
+        ZTU1Tm14QVM5eVF2eXI3dHEvelNjdGNTTjNRekJmK3I3MkZWUU1nUDhNR1dmY0s0Z2ZnUnFkN2E5
+        TzhnQnBvcTZ5NzV3NWFZMVh6UWV0dkpQcVd0M3dLRTBjazVqMi9yd0xTd3VyM1lFUkVBUmlINXk5
+        akE9PQ==
       amz-sdk-invocation-id:
       - !!binary |
-        NzU5NTkzY2YtZmUzZC00MjZmLWFmNDUtZjM1ZWQ3NDNkMDBm
+        MTcyYmNlNWUtYWMwNS00MDZmLTlmOTUtZDhlYjMxNTFlODIx
       amz-sdk-request:
       - !!binary |
         YXR0ZW1wdD0x
@@ -33,21 +49,27 @@ interactions:
     uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke
   response:
     body:
-      string: '{"message":"The security token included in the request is invalid."}'
+      string: '{"inputTextTokenCount":19,"results":[{"tokenCount":26,"outputText":"\nThe
+        Lord of the Rings follows a hobbit on a quest to destroy a ring that belongs
+        to an evil dark lord.","completionReason":"FINISH"}]}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '68'
+      - '204'
       Content-Type:
       - application/json
       Date:
-      - Wed, 09 Apr 2025 20:24:27 GMT
-      x-amzn-ErrorType:
-      - UnrecognizedClientException:http://internal.amazon.com/coral/com.amazon.coral.service/
+      - Fri, 11 Apr 2025 14:10:22 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '19'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '1306'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '26'
       x-amzn-RequestId:
-      - a78618d9-33f5-47a6-9c1b-8c71ca239b26
+      - f90ce49e-62d8-4821-b519-d73aca0df34b
     status:
-      code: 403
-      message: Forbidden
+      code: 200
+      message: OK
 version: 1
