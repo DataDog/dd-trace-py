@@ -8,7 +8,6 @@ import mock
 from mock.mock import call
 import pytest
 
-import ddtrace
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
@@ -28,6 +27,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
+import ddtrace.trace
 from tests.debugging.mocking import debugger
 from tests.debugging.utils import compile_template
 from tests.debugging.utils import create_log_function_probe
@@ -913,11 +913,11 @@ def test_debugger_log_line_probe_generate_messages(stuff):
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
         super(SpanProbeTestCase, self).setUp()
-        self.backup_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
+        self.backup_tracer = ddtrace.trace.tracer
+        ddtrace.trace.tracer = self.tracer
 
     def tearDown(self):
-        ddtrace.tracer = self.backup_tracer
+        ddtrace.trace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
     def test_debugger_span_probe(self):

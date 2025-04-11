@@ -255,8 +255,8 @@ class Tracer(object):
             )
         self._single_span_sampling_rules: List[SpanSamplingRule] = get_span_sampling_rules()
         self._writer: TraceWriter = writer
-        self._partial_flush_enabled = config._partial_flush_enabled
-        self._partial_flush_min_spans = config._partial_flush_min_spans
+        self._partial_flush_enabled: bool = config._partial_flush_enabled
+        self._partial_flush_min_spans: int = config._partial_flush_min_spans
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors, self._appsec_processor, self._deferred_processors = _default_span_processors_factory(
