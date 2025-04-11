@@ -1,3 +1,5 @@
+from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace.appsec import _asm_request_context
@@ -70,7 +72,11 @@ def _track_user_login_common(
         tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
             for k, v in metadata.items():
-                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str(v))
+                if isinstance(v, bool):
+                    str_v = "true" if v else "false"
+                else:
+                    str_v = str(v)
+                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str_v)
 
         if login:
             span.set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
@@ -97,7 +103,7 @@ def _track_user_login_common(
 
 def track_user_login_success_event(
     tracer: Tracer,
-    user_id: str,
+    user_id: Optional[str],
     metadata: Optional[dict] = None,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -136,7 +142,7 @@ def track_user_login_success_event(
     span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if login_events_mode != LOGIN_EVENTS_MODE.SDK:
         span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-    set_user(tracer, user_id, name, email, scope, role, session_id, propagate, span, may_block=False)
+    set_user(tracer, user_id or "", name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
         custom_data = {
             "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
@@ -187,8 +193,8 @@ def track_user_login_failure_event(
             user_id = _hash_user_id(user_id)
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
-        span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
+    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
+    span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
         if login:
@@ -202,20 +208,34 @@ def track_user_login_failure_event(
 
 
 def track_user_signup_event(
-    tracer: Tracer, user_id: str, success: bool, login_events_mode: str = LOGIN_EVENTS_MODE.SDK
+    tracer: Tracer,
+    user_id: Optional[str],
+    success: bool,
+    login: Optional[str] = None,
+    login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
 ) -> None:
     span = tracer.current_root_span()
     if span:
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
-        span.set_tag_str(user.ID, str(user_id))
+        if user_id:
+            if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
+                user_id = _hash_user_id(user_id)
+            span.set_tag_str(user.ID, str(user_id))
+            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERID, str(user_id))
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+        if login:
+            if login_events_mode == LOGIN_EVENTS_MODE.ANON and isinstance(login, str):
+                login = _hash_user_id(login)
+            span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_USERNAME, str(login))
+            span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, str(login))
         _asm_manual_keep(span)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str("%s.sdk" % APPSEC.USER_SIGNUP_EVENT, "true")
         else:
-            span.set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT, str(login_events_mode))
+            span.set_tag_str("%s.auto.mode" % APPSEC.USER_SIGNUP_EVENT_MODE, str(login_events_mode))
 
         return
     else:
@@ -226,7 +246,7 @@ def track_user_signup_event(
         )
 
 
-def track_custom_event(tracer: Tracer, event_name: str, metadata: dict) -> None:
+def track_custom_event(tracer: Tracer, event_name: str, metadata: Dict[str, Any]) -> None:
     """
     Add a new custom tracking event.
 
@@ -418,16 +438,25 @@ def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriev
     if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
+    user_login = user_extra.get("login")
     res = None
     if result_user and result_user.is_authenticated:
         span = pin.tracer.current_root_span()
-        if mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
-            hash_id = _hash_user_id(user_id)
-            span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+        if mode == LOGIN_EVENTS_MODE.ANON:
+            hash_id = ""
+            if isinstance(user_id, str):
+                hash_id = _hash_user_id(user_id)
+                span.set_tag_str(APPSEC.USER_LOGIN_USERID, hash_id)
+            if isinstance(user_login, str):
+                hash_login = _hash_user_id(user_login)
+                span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, hash_login)
             span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(pin.tracer, hash_id, propagate=True, may_block=False, span=span)
         elif mode == LOGIN_EVENTS_MODE.IDENT:
-            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            if user_id:
+                span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+            if user_login:
+                span.set_tag_str(APPSEC.USER_LOGIN_USERNAME, str(user_login))
             span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             set_user(
                 pin.tracer,
@@ -442,7 +471,7 @@ def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriev
             real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
-                "REQUEST_USERNAME": user_extra.get("login"),
+                "REQUEST_USERNAME": user_login,
                 "LOGIN_SUCCESS": real_mode,
             }
             if session_key:
