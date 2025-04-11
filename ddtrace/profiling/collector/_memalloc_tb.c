@@ -7,9 +7,6 @@
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
-/* Temporary traceback buffer to store new traceback */
-static traceback_t* traceback_buffer = NULL;
-
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
@@ -19,6 +16,77 @@ static PyObject* empty_string = NULL;
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
 static PyObject* ddframe_class = NULL;
+
+#ifndef MEMALLOC_BUFFER_POOL_CAPACITY
+#define MEMALLOC_BUFFER_POOL_CAPACITY 4
+#endif
+
+/* memalloc_tb_buffer_pool is a pool of scratch buffers used for collecting
+ * tracebacks. We don't know ahead of time how many frames a traceback will have,
+ * and traversing the list of frames can be expensive. At the same time, we want
+ * to right-size the tracebacks we aggregate in memory to minimize waste. So we
+ * use scratch buffers of the maximum configured traceback size and then copy
+ * the actual traceback once we know how many frames it has.
+ *
+ * We need a pool because, for some Python versions, collecting a traceback
+ * releases the GIL. So we can't just have one scratch buffer or we will have a
+ * logical race in writing to the buffer. The calling thread owns the scratch
+ * buffer it gets from the pool until the buffer is returned to the pool.
+ */
+typedef struct
+{
+    /* TODO: if/when we support no-GIL or subinterpreter python, we'll need a
+     * lock to protect the pool in get & put */
+    traceback_t* pool[MEMALLOC_BUFFER_POOL_CAPACITY];
+    size_t count;
+    size_t capacity;
+} memalloc_tb_buffer_pool;
+
+/* For now we use a global pool */
+static memalloc_tb_buffer_pool g_memalloc_tb_buffer_pool = {
+    .count = 0,
+    .capacity = MEMALLOC_BUFFER_POOL_CAPACITY,
+};
+
+#undef MEMALLOC_BUFFER_POOL_CAPACITY
+
+static traceback_t*
+memalloc_tb_buffer_pool_get(memalloc_tb_buffer_pool* pool, uint16_t max_nframe)
+{
+    traceback_t* t = NULL;
+    if (pool->count > 0) {
+        t = pool->pool[pool->count - 1];
+        pool->pool[pool->count - 1] = NULL;
+        pool->count--;
+    } else {
+        t = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
+    }
+    return t;
+}
+
+static void
+memalloc_tb_buffer_pool_put(memalloc_tb_buffer_pool* pool, traceback_t* t)
+{
+    if (pool->count < pool->capacity) {
+        pool->pool[pool->count] = t;
+        pool->count++;
+    } else {
+        /* We don't want to keep an unbounded number of full-size tracebacks
+         * around. So in the rare chance that there are a large number of threads
+         * hitting sampling at the same time, just drop excess tracebacks */
+        PyMem_RawFree(t);
+    }
+}
+
+static void
+memalloc_tb_buffer_pool_clear(memalloc_tb_buffer_pool* pool)
+{
+    for (size_t i = 0; i < pool->count; i++) {
+        PyMem_RawFree(pool->pool[i]);
+        pool->pool[i] = NULL;
+    }
+    pool->count = 0;
+}
 
 bool
 memalloc_ddframe_class_init()
@@ -67,21 +135,13 @@ memalloc_tb_init(uint16_t max_nframe)
             return -1;
         PyUnicode_InternInPlace(&empty_string);
     }
-
-    /* Allocate a buffer that can handle the largest traceback possible.
-       This will be used a temporary buffer when converting stack traces. */
-    traceback_buffer = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
-
-    if (traceback_buffer == NULL)
-        return -1;
-
     return 0;
 }
 
 void
 memalloc_tb_deinit(void)
 {
-    PyMem_RawFree(traceback_buffer);
+    memalloc_tb_buffer_pool_clear(&g_memalloc_tb_buffer_pool);
 }
 
 void
@@ -145,6 +205,10 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
 static traceback_t*
 memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
 {
+    traceback_t* traceback_buffer = memalloc_tb_buffer_pool_get(&g_memalloc_tb_buffer_pool, max_nframe);
+    if (!traceback_buffer) {
+        return NULL;
+    }
     traceback_buffer->total_nframe = 0;
     traceback_buffer->nframe = 0;
 
@@ -171,6 +235,8 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
 
     if (traceback)
         memcpy(traceback, traceback_buffer, traceback_size);
+
+    memalloc_tb_buffer_pool_put(&g_memalloc_tb_buffer_pool, traceback_buffer);
 
     return traceback;
 }
