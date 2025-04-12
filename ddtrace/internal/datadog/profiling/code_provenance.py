@@ -33,7 +33,15 @@ class CodeProvenance:
                 kind="standard library",
                 name="stdlib",
                 version=platform.python_version(),
-                paths=[sysconfig.get_path("stdlib")],
+                paths=[
+                    sysconfig.get_path("stdlib"),
+                    # These are frozen modules that are part of the standard library
+                    # and they show up as <frozen importlib._bootstrap> etc in
+                    # when profiled.
+                    "<frozen importlib._bootstrap>",
+                    "<frozen importlib._bootstrap_external>",
+                    "<frozen zipimport>",
+                ],
             )
         )
 
