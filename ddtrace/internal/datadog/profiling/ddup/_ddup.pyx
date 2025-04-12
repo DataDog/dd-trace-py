@@ -318,7 +318,9 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
-# Public API
+# Module-level flag to track if code provenance has been set
+cdef bint _code_provenance_set = False
+
 def config(
         service: StringType = None,
         env: StringType = None,
@@ -327,8 +329,7 @@ def config(
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
-        sample_pool_capacity: Optional[int] = None,
-        enable_code_provenance: bool = None) -> None:
+        sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -359,9 +360,6 @@ def config(
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
-    if enable_code_provenance:
-        call_code_provenance_set_json_str(json_str_to_export())
-
 
 def start() -> None:
     ddup_start()
@@ -377,7 +375,9 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+    global _code_provenance_set
+
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
     processor = tracer._endpoint_call_counter_span_processor
@@ -388,6 +388,10 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer) -> None:
 
     endpoint = _get_endpoint(tracer)
     call_func_with_str(ddup_config_url, endpoint)
+
+    if enable_code_provenance and not _code_provenance_set:
+        call_code_provenance_set_json_str(json_str_to_export())
+        _code_provenance_set = True
 
     with nogil:
         ddup_upload()
