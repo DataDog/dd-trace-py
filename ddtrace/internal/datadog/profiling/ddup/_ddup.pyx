@@ -321,6 +321,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
 # Module-level flag to track if code provenance has been set
 cdef bint _code_provenance_set = False
 
+
 def config(
         service: StringType = None,
         env: StringType = None,
