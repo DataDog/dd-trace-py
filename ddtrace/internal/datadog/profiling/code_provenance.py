@@ -55,9 +55,9 @@ class CodeProvenance:
 
             # We assume that each module is a directory or a python file
             # relative to site-packages/ directory.
-            module = site_packages / module
-            if module.endswith(".py") or module.is_dir():
-                lib.paths.add(str(module))
+            module_path = site_packages / module
+            if module.endswith(".py") or module_path.is_dir():
+                lib.paths.add(str(module_path))
 
         self.libraries.extend(libraries.values())
 
