@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import platform
 import sysconfig
 import typing as t
@@ -13,7 +14,7 @@ class Library:
         kind: str,
         name: str,
         version: str,
-        paths: t.List[str],
+        paths: t.Set[str],
     ):
         self.kind = kind
         self.name = name
@@ -21,7 +22,7 @@ class Library:
         self.paths = paths
 
     def to_dict(self):
-        return {"kind": self.kind, "name": self.name, "version": self.version, "paths": self.paths}
+        return {"kind": self.kind, "name": self.name, "version": self.version, "paths": list(self.paths)}
 
 
 class CodeProvenance:
@@ -40,6 +41,7 @@ class CodeProvenance:
 
         libraries: t.Dict[str, Library] = {}
 
+        site_packages = Path(sysconfig.get_path("purelib"))
         for module, dist in module_to_distribution.items():
             name = dist.name
             # special case for __pycache__/filename.cpython-3xx.pyc -> filename.py
@@ -48,9 +50,14 @@ class CodeProvenance:
 
             lib = libraries.get(name)
             if lib is None:
-                lib = Library(kind="library", name=name, version=dist.version, paths=[])
+                lib = Library(kind="library", name=name, version=dist.version, paths=set())
                 libraries[name] = lib
-            lib.paths.append(module)
+
+            # We assume that each module is a directory or a python file
+            # relative to site-packages/ directory.
+            module = site_packages / module
+            if module.endswith(".py") or module.is_dir():
+                lib.paths.add(str(module))
 
         self.libraries.extend(libraries.values())
 
