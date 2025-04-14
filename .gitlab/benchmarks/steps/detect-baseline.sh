@@ -14,7 +14,8 @@ set -e -o pipefail
 
 
 # The branch or tag name of the CI run
-UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
+# UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
+UPSTREAM_BRANCH="v3.5.0rc1" # TESTING
 
 # If this is a build on the `main` branch then test against the latest released version
 if [ "${UPSTREAM_BRANCH}" == "main" ]; then
@@ -25,6 +26,14 @@ if [ "${UPSTREAM_BRANCH}" == "main" ]; then
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
   # Baseline branch is the major.minor version of the tag
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
+  # Check if origin/BASELINE_BRANCH exists
+  if git ls-remote --exit-code --heads origin "${BASELINE_BRANCH}" > /dev/null; then
+    echo "Found remote branch origin/${BASELINE_BRANCH}"
+  else
+    echo "Remote branch origin/${BASELINE_BRANCH} not found. Falling back to main."
+    BASELINE_BRANCH="main"
+  fi
+
   echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
   # Don't forget to omit the current tag we are testing
   BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" --exclude "${UPSTREAM_BRANCH}" "origin/${BASELINE_BRANCH}" || echo "")
