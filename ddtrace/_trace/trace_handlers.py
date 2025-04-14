@@ -980,6 +980,7 @@ def listen():
         "rq.job.perform",
         "rq.job.fetch_many",
         "azure.functions.patched_route_request",
+        "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
