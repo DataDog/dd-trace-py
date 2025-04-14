@@ -35,7 +35,17 @@ class CodeProvenance:
             kind="standard library",
             name="stdlib",
             version=platform.python_version(),
-            paths=set([sysconfig.get_path("stdlib")]),
+            paths=set(
+                [
+                    sysconfig.get_path("stdlib"),
+                    # Though we do handle frozen modules in the stdlib, these
+                    # two modules appear as _frozen_importlib and _frozen_importlib_external
+                    # in sys.stdlib_module_names where they appear as below
+                    # from profiles, we hardcode them here.
+                    "<frozen importlib._bootstrap>",
+                    "<frozen importlib._bootstrap_external>",
+                ]
+            ),
         )
 
         # Add frozen modules that are part of the standard library
@@ -48,7 +58,7 @@ class CodeProvenance:
                 try:
                     spec = importlib.util.find_spec(name)
                     if spec and spec.origin == "frozen":
-                        python_stdlib.paths.add(f"<frozen {name}>")
+                        python_stdlib.paths.add(f"<frozen {spec.name}>")
                 except Exception:
                     continue
 
