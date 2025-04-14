@@ -7,7 +7,6 @@ are checked.
 - The session object is patched to never be a faulty session, by default.
 """
 from unittest import mock
-from xml.etree import ElementTree
 
 import pytest
 
@@ -316,22 +315,3 @@ class PytestATRTestCase(PytestTestCaseBase):
 
         assert rec.ret == 1
         assert len(spans) == 5
-
-    def test_pytest_atr_junit_xml(self):
-        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
-        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
-        self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
-        self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
-        self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
-
-        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
-        assert rec.ret == 1
-
-        test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
-
-        # There are 15 tests, but we get 16 in the JUnit XML output, because a test that passes during call but fails
-        # during teardown is counted twice. This is a bug in pytest, not ddtrace.
-        assert test_suite.attrib["tests"] == "16"
-        assert test_suite.attrib["failures"] == "4"
-        assert test_suite.attrib["skipped"] == "4"
-        assert test_suite.attrib["errors"] == "2"

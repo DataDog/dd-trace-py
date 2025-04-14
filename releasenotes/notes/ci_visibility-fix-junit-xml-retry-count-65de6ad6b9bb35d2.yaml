@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: This fix resolves an issue where JUnit XML output would not count tests retried by Early Flake
-    Detection, Auto Test Retries, and Attempt-to-Fix.

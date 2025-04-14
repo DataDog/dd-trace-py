@@ -4,7 +4,6 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -80,14 +79,13 @@ def atr_handle_retries(
         return
 
     atr_outcome = _atr_do_retries(item, outcomes)
-    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
         when="call",
-        longrepr=longrepr,
+        longrepr=None,
         outcome=final_outcomes[atr_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
