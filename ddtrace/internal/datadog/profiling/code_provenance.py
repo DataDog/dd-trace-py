@@ -1,6 +1,8 @@
 import json
+import importlib.util
 from pathlib import Path
 import platform
+import sys
 import sysconfig
 import typing as t
 
@@ -28,22 +30,29 @@ class Library:
 class CodeProvenance:
     def __init__(self):
         self.libraries = []
-        self.libraries.append(
-            Library(
-                kind="standard library",
-                name="stdlib",
-                version=platform.python_version(),
-                paths=[
-                    sysconfig.get_path("stdlib"),
-                    # These are frozen modules that are part of the standard library
-                    # and they show up as <frozen importlib._bootstrap> etc in
-                    # when profiled.
-                    "<frozen importlib._bootstrap>",
-                    "<frozen importlib._bootstrap_external>",
-                    "<frozen zipimport>",
-                ],
-            )
+
+        python_stdlib = Library(
+            kind="standard library",
+            name="stdlib",
+            version=platform.python_version(),
+            paths=[sysconfig.get_path("stdlib")]
         )
+
+        # Add frozen modules that are part of the standard library
+        # This is mainly to handle locations like <frozen importlib._bootstrap>.
+        # sys.stdlib_module_names was added in Python 3.10
+        # For older versions, we could iterate over sys.modules.keys(), but that
+        # would include all modules, not just stdlib modules.
+        if sys.version_info >= (3, 10):
+            for name in sys.stdlib_module_names:
+                try:
+                    spec = importlib.util.find_spec(name)
+                    if spec and spec.origin == "frozen":
+                        python_stdlib.paths.add(f"<frozen {name}>")
+                except Exception:
+                    continue
+
+        self.libraries.append(python_stdlib)
 
         module_to_distribution = _package_for_root_module_mapping()
 
