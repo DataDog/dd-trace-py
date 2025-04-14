@@ -210,6 +210,10 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_global_tags.py"])
             assert out.startswith(b"Test success")
 
+    @pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C"), err=None)
+    def test_global_trace_tags_deprecation(self):
+
+
     def test_logs_injection(self):
         """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true")):

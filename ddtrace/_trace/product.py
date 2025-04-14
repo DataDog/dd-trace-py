@@ -4,9 +4,11 @@ import typing as t
 
 from envier import En
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings.http import HttpConfig
+from ddtrace.vendor.debtcollector import deprecate
 
 
 requires = ["remote-configuration"]
@@ -17,6 +19,13 @@ class Config(En):
 
     enabled = En.v(bool, "enabled", default=True)
     global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
+
+    if global_tags is not None:
+        deprecate(
+            "DD_TRACE_GLOBAL_TAGS is deprecated",
+            message="Please migrate to using DD_TAGS instead",
+            category=DDTraceDeprecationWarning,
+        )
 
 
 _config = Config()
