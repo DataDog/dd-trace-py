@@ -99,9 +99,9 @@ class TestCodeProvenance:
         stdlib_item = stdlib[0]
         stdlib_paths = stdlib_item["paths"]
 
-        # We add stdlib and two frozen modules, and expect to have more frozen
+        # We add stdlib and three frozen modules, and expect to have more frozen
         # modules in the stdlib
-        assert len(stdlib_paths) > 3
+        assert len(stdlib_paths) > 4
 
         for path in stdlib_paths:
             assert path.startswith("<frozen") or path == sysconfig.get_path("stdlib")

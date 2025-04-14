@@ -44,6 +44,7 @@ class CodeProvenance:
                     # from profiles, we hardcode them here.
                     "<frozen importlib._bootstrap>",
                     "<frozen importlib._bootstrap_external>",
+                    "<frozen importlib.util>",
                 ]
             ),
         )
