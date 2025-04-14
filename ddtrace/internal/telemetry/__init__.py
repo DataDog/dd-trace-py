@@ -104,6 +104,7 @@ def get_config(
 
     return val
 
+
 if get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False):
     from .writer import TelemetryWriter
 
