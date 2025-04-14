@@ -59,7 +59,7 @@ class CodeProvenance:
                     spec = importlib.util.find_spec(name)
                     if spec and spec.origin == "frozen":
                         python_stdlib.paths.add(f"<frozen {spec.name}>")
-                except Exception:
+                except Exception: # nosec
                     continue
 
         self.libraries.append(python_stdlib)
