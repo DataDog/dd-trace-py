@@ -65,9 +65,11 @@ baseline:detect:
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
-    GITHUB_REPO_URL="/go/src/github.com/DataDog/apm-reliability/dd-trace-py"
+    GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
     echo ${GITHUB_REPO_URL}
+    git config --global --add safe.directory "/go/src/github.com/DataDog/apm-reliability/dd-trace-py"
     git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
     git remote set-url origin "${GITHUB_REPO_URL}"
 
     if [ -z ${GH_TOKEN} ]
@@ -75,10 +77,7 @@ baseline:detect:
       aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
       gh auth login --hostname "github.com" --with-token < token
       rm token
-    fi
-
-    # Needed to run `git describe`
-    git config --global --add safe.directory ${CI_PROJECT_DIR}
+    fi    
 
     git remote -v
 
