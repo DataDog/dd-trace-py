@@ -9,6 +9,7 @@ import typing as t
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.writer import TelemetryWriter
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import FLEET_CONFIG
 from ddtrace.settings._core import FLEET_CONFIG_IDS
@@ -19,16 +20,6 @@ from ddtrace.settings._otel_remapper import parse_otel_env
 
 
 log = get_logger(__name__)
-
-if os.environ.get("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "true").lower() in ("true", "1"):
-    from .writer import TelemetryWriter
-
-    telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
-
-else:
-    from .noop_writer import NoOpTelemetryWriter
-
-    telemetry_writer = NoOpTelemetryWriter()
 
 __all__ = ["telemetry_writer"]
 
@@ -112,6 +103,16 @@ def get_config(
         report_config_telemetry(effective_env, val, source, otel_env, config_id)
 
     return val
+
+if get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False):
+    from .writer import TelemetryWriter
+
+    telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
+
+else:
+    from .noop_writer import NoOpTelemetryWriter
+
+    telemetry_writer = NoOpTelemetryWriter()
 
 
 def report_configuration(config: DDConfig) -> None:
