@@ -65,9 +65,10 @@ baseline:detect:
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
-    echo ${CI_PROJECT_DIR}
-    git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    git remote set-url origin "${CI_PROJECT_DIR}"
+    GITHUB_REPO_URL="https://github.com/DataDog/apm-reliability/dd-trace-py.git"
+    echo ${GITHUB_REPO_URL}
+    git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git remote set-url origin "${GITHUB_REPO_URL}"
 
     if [ -z ${GH_TOKEN} ]
     then
