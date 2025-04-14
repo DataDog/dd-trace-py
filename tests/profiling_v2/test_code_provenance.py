@@ -2,16 +2,18 @@ import json
 import sys
 import sysconfig
 
+import pytest
+
+from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+
+
 PY_VERSION = sys.version_info[:2]
 
 # importing jsonschema in 3.8 results in an error
 #     raise exceptions.NoSuchResource(ref=uri) from None
 # E   referencing.exceptions.NoSuchResource: 'http://json-schema.org/draft-03/schema#'
 if PY_VERSION > (3, 8):
-    import jsonschema
-import pytest
-
-from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+    import jsonschema  # noqa: E402
 
 
 # Copied from RFC
