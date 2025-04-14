@@ -22,7 +22,6 @@ for importer, imports in list(g.items()):
     else:
         for i in imports:
             f[i].add(importer)
-            print(f"{importer} -> {i}")
 
 
 def dfs(v: str, visited: t.Set[str], stack: t.List[str], cycles: dict[frozenset, tuple]):
