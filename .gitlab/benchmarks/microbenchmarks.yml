@@ -74,7 +74,9 @@ baseline:detect:
     # Needed to run `git describe`
     git config --global --add safe.directory ${CI_PROJECT_DIR}
 
-    git remote -v
+    # Update the git url so the `gh` command can query the API
+    export GH_HOST="github.com"
+    git remote set-url origin "https://github.com/DataDog/dd-trace-py.git"
 
     # Determine baseline to test against and save env variables into `baseline.env`
     .gitlab/benchmarks/steps/detect-baseline.sh
