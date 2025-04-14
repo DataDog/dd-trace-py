@@ -79,3 +79,17 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         assert version != ""
 
         emit_integration_and_version_to_test_agent("sqlalchemy", version)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_WRITER_BUFFER_SIZE_BYTES="4294967295"))
+    def test_long_sql_query(self):
+        # Tests a long query with multiple column
+        repeated_string = "nonsense" * 10000
+        long_query = "SELECT " + ", ".join([f"'{repeated_string}' as column{i}" for i in range(1, 1000)])
+        results = self.conn.execute(text(long_query)).fetchall()
+        assert len(results) == 1
+        traces = self.pop_traces()
+        span = traces[0][0]
+        assert span.name == "postgres.query"
+        # The resulting resource name is super long
+        assert len(span.resource) == 79936880
+        self.tracer.flush()
