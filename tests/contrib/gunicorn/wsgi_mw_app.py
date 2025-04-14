@@ -4,7 +4,6 @@ gunicorn
 """
 
 import os
-import time
 
 
 if os.getenv("_DD_TEST_IMPORT_AUTO"):
