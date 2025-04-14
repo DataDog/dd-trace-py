@@ -74,6 +74,8 @@ baseline:detect:
     # Needed to run `git describe`
     git config --global --add safe.directory ${CI_PROJECT_DIR}
 
+    git remote -v
+
     # Determine baseline to test against and save env variables into `baseline.env`
     .gitlab/benchmarks/steps/detect-baseline.sh
   artifacts:
