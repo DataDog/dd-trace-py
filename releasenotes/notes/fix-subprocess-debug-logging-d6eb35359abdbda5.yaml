@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    subprocess: remove unncessary debug log variables.
+    subprocess: Removes unnecessary debug log variables.
