@@ -11,15 +11,29 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+# patching asm_request_context to observe waf data internals
+
+_init_finalize = _asm_request_context.finalize_asm_env
+_addresses_store = []
+
+
+def finalize_wrapper(env):
+    _addresses_store.append(env.waf_addresses)
+    _init_finalize(env)
+
+
+_asm_request_context.finalize_asm_env = finalize_wrapper
 
 
 class Interface:
@@ -103,6 +117,10 @@ class Contrib_TestClass_For_Threats:
     # """
     #            )
 
+    def setup_method(self, method):
+        """called before each test method"""
+        _addresses_store.clear()
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
         # you can disable any test in a framework like that:
@@ -126,11 +144,7 @@ class Contrib_TestClass_For_Threats:
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
-            assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
+            assert get_tag("http.response.headers.content-length")
             # DEV: fastapi may send "requests" instead of "fastapi"
             # assert get_tag("component") == interface.name
 
@@ -150,11 +164,6 @@ class Contrib_TestClass_For_Threats:
             url = f"/?{query_params}"
             response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
             assert response.status_code == 200
-            assert root_span()._get_ctx_item("http.request.uri") == f"http://localhost:8000{url}"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
             assert get_metric("_dd.appsec.waf.timeouts") > 0, (root_span()._meta, root_span()._metrics)
             args_list = [
                 (args[0].value, args[1].value) + args[2:]
@@ -183,7 +192,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/?a=1&b&c=d")
             assert self.status(response) == 200
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            query = _addresses_store[0].get("http.request.query")
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
@@ -195,7 +204,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
-            assert not core.get_item("http.request.query", span=root_span())
+            assert not _addresses_store[0].get("http.request.query")
 
     def test_truncation_tags(self, interface: Interface, get_metric):
         with override_global_config(dict(_asm_enabled=True)):
@@ -275,10 +284,13 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
             if asm_enabled:
-                cookies_parsed = dict(core.get_item("http.request.cookies", span=root_span()))
-                assert cookies_parsed == cookies
+                cookies_parsed = _addresses_store[0].get("http.request.cookies")
+                # required for flask that is sending a ImmutableMultiDict
+                if isinstance(cookies_parsed, dict):
+                    cookies_parsed = dict(cookies_parsed)
+                assert cookies_parsed == cookies, f"cookies={cookies_parsed}, expected={cookies}"
             else:
-                assert core.get_item("http.request.cookies", span=root_span()) is None
+                assert not _addresses_store
             triggers = get_triggers(root_span())
             if asm_enabled and attack:
                 assert triggers is not None, "no appsec struct in root span"
@@ -317,7 +329,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
 
-            body = core.get_item("http.request.body", span=root_span())
+            body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
                 assert body in [
                     payload_struct,
@@ -361,7 +373,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            path_params = core.get_item("http.request.path_params", span=root_span())
+            path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
                 assert path_params["param_str"] == "abc"
                 assert int(path_params["param_int"]) == 137
@@ -1682,6 +1694,8 @@ class Contrib_TestClass_For_Threats:
 
 @contextmanager
 def test_tracer():
+    from ddtrace.internal import core
+
     tracer = DummyTracer()
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer

@@ -4,6 +4,7 @@ import functools
 from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
@@ -249,7 +250,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 def _custom_protobuf_getattribute(self, name):
     ret = type(self).__saved_getattr(self, name)
-    if isinstance(ret, (str, bytes, bytearray)):
+    if isinstance(ret, IAST.TEXT_TYPES):
         ret = taint_pyobject(
             pyobject=ret,
             source_name=OriginType.GRPC_BODY,

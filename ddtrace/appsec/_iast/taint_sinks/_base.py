@@ -2,8 +2,8 @@ import os
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import Text
 from typing import Tuple
+from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -12,6 +12,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._constants import IAST
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._overhead_control_engine import Operation
@@ -26,6 +27,8 @@ from ..reporter import Vulnerability
 log = get_logger(__name__)
 
 CWD = os.path.abspath(os.getcwd())
+
+TEXT_TYPES = Union[str, bytes, bytearray]
 
 
 class taint_sink_deduplication(deduplication):
@@ -77,12 +80,12 @@ class VulnerabilityBase(Operation):
     @taint_sink_deduplication
     def _prepare_report(
         cls,
-        vulnerability_type,
-        evidence,
-        file_name,
-        line_number,
-        function_name: Text = "",
-        class_name: Text = "",
+        vulnerability_type: str,
+        evidence: Evidence,
+        file_name: Optional[str],
+        line_number: int,
+        function_name: str = "",
+        class_name: str = "",
         *args,
         **kwargs,
     ) -> bool:
@@ -125,7 +128,7 @@ class VulnerabilityBase(Operation):
         return True
 
     @classmethod
-    def _compute_file_line(cls) -> Tuple[Optional[Text], Optional[int], Optional[Text], Optional[Text]]:
+    def _compute_file_line(cls) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
         file_name = line_number = function_name = class_name = None
 
         frame_info = get_info_frame(CWD)
@@ -145,17 +148,19 @@ class VulnerabilityBase(Operation):
     @classmethod
     def _create_evidence_and_report(
         cls,
-        vulnerability_type: Text,
-        evidence_value: Text = "",
-        dialect: Optional[Text] = None,
-        file_name: Optional[Text] = None,
+        vulnerability_type: str,
+        evidence_value: TEXT_TYPES = "",
+        dialect: Optional[str] = None,
+        file_name: Optional[str] = None,
         line_number: Optional[int] = None,
-        function_name: Optional[Text] = None,
-        class_name: Optional[Text] = None,
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         *args,
         **kwargs,
     ):
-        if isinstance(evidence_value, (str, bytes, bytearray)):
+        if isinstance(evidence_value, IAST.TEXT_TYPES):
+            if isinstance(evidence_value, (bytes, bytearray)):
+                evidence_value = evidence_value.decode("utf-8")
             evidence = Evidence(value=evidence_value, dialect=dialect)
         else:
             log.debug("Unexpected evidence_value type: %s", type(evidence_value))
@@ -165,7 +170,7 @@ class VulnerabilityBase(Operation):
         )
 
     @classmethod
-    def report(cls, evidence_value: Text = "", dialect: Optional[Text] = None) -> None:
+    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if cls.acquire_quota():
             file_name = line_number = function_name = class_name = None
@@ -189,7 +194,7 @@ class VulnerabilityBase(Operation):
                 cls.increment_quota()
 
     @classmethod
-    def is_tainted_pyobject(cls, string_to_check: Text) -> bool:
+    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES) -> bool:
         """Check if a string contains tainted ranges that are not marked as secure.
 
         A string is considered tainted when:
