@@ -14,8 +14,7 @@ set -ex -o pipefail
 
 
 # The branch or tag name of the CI run
-# UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
-UPSTREAM_BRANCH="v3.5.0rc1" # TESTING
+UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
 
 # If this is a build on the `main` branch then test against the latest released version
 if [ "${UPSTREAM_BRANCH}" == "main" ]; then
