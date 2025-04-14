@@ -65,7 +65,7 @@ baseline:detect:
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
-    GITHUB_REPO_URL="https://github.com/DataDog/apm-reliability/dd-trace-py.git"
+    GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
     echo ${GITHUB_REPO_URL}
     git config --global --add safe.directory "${GITHUB_REPO_URL}"
     git remote set-url origin "${GITHUB_REPO_URL}"
