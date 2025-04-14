@@ -72,7 +72,7 @@ def _get_interval_or_default():
     if "DD_RUNTIME_METRICS_INTERVAL" in os.environ:
         deprecate(
             "`DD_RUNTIME_METRICS_INTERVAL` is deprecated and will be removed in a future version.",
-            removal_version="4.0",
+            removal_version="4.0.0",
         )
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
