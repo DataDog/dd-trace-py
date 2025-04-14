@@ -66,6 +66,7 @@ baseline:detect:
   script: |
     GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
     git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
     git remote set-url origin "${GITHUB_REPO_URL}"
 
     if [ -z ${GH_TOKEN} ]
@@ -74,9 +75,6 @@ baseline:detect:
       gh auth login --hostname "github.com" --with-token < token
       rm token
     fi
-
-    # Needed to run `git describe`
-    git config --global --add safe.directory ${CI_PROJECT_DIR}
 
     # Determine baseline to test against and save env variables into `baseline.env`
     .gitlab/benchmarks/steps/detect-baseline.sh
