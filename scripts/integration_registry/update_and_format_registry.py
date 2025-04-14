@@ -11,88 +11,95 @@ and the integration registry.
 import pathlib
 import subprocess
 import sys
+from typing import List
 
 
-# --- Configuration ---
-# Assuming this script is in ./scripts/
 SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.resolve()
-
-# Paths to the scripts relative to PROJECT_ROOT
-FRESHVENVS_SCRIPT = PROJECT_ROOT / "scripts" / "freshvenvs.py"
-GENERATE_TABLE_SCRIPT = PROJECT_ROOT / "scripts" / "generate_table.py"
-UPDATE_REGISTRY_SCRIPT = PROJECT_ROOT / "scripts" / "integration_registry" / "_update_integration_registry_versions.py"
-
-# --- End Configuration ---
+PATH_FRESHVENVS_SCRIPT = PROJECT_ROOT / "scripts" / "freshvenvs.py"
+PATH_GENERATE_TABLE_SCRIPT = PROJECT_ROOT / "scripts" / "generate_table.py"
+PATH_UPDATE_REGISTRY_SCRIPT = (
+    PROJECT_ROOT / "scripts" / "integration_registry" / "_update_integration_registry_versions.py"
+)
 
 
-def run_script(script_path: pathlib.Path, *args: str) -> bool:
-    """Runs a python script and checks for errors."""
+def _run_script(script_path: pathlib.Path, *args: str) -> bool:
+    """Executes a given Python script using the current interpreter and handles output/errors."""
     if not script_path.is_file():
-        print(f"Error: Script not found: {script_path}", file=sys.stderr)
+        print(f"Error: Script not found: {script_path.relative_to(PROJECT_ROOT)}", file=sys.stderr)
         return False
 
-    command = [sys.executable, str(script_path)] + list(args)
-    script_name = script_path.name
-    print(f"\n--- Running {script_name} {' '.join(args)} ---")
+    command: List[str] = [sys.executable, str(script_path)] + list(args)
+    script_name: str = script_path.name
+    print(f" -> Running {script_path.relative_to(PROJECT_ROOT)} {' '.join(args)}...")
 
     try:
-        # Run from the project root directory
-        result = subprocess.run(
-            command,
-            check=True,  # Raise exception on non-zero exit code
-            capture_output=True,  # Capture stdout/stderr
-            text=True,  # Decode output as text
-            cwd=PROJECT_ROOT,
-        )
-        print(f"--- {script_name} Output ---")
-        print(result.stdout)
-        if result.stderr:
+        result = subprocess.run(command, check=True, capture_output=True, text=True, cwd=PROJECT_ROOT, timeout=60)
+        if result.stdout and result.stdout.strip():
+            indented_stdout = "\n".join([f"    {line}" for line in result.stdout.strip().splitlines()])
+            print(indented_stdout)
+
+        if result.stderr and result.stderr.strip():
             print(f"--- {script_name} Stderr ---", file=sys.stderr)
-            print(result.stderr, file=sys.stderr)
-        print(f"--- {script_name} Succeeded ---")
+            print(result.stderr.strip(), file=sys.stderr)
+
         return True
     except FileNotFoundError:
-        print(f"Error: Could not execute script. '{sys.executable}' or '{script_path}' not found?", file=sys.stderr)
-        return False
+        print(
+            f"Error: Could not execute script. '{sys.executable}' or '{script_path.relative_to(PROJECT_ROOT)}' "
+            "not found?",
+            file=sys.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"Error: {script_path.relative_to(PROJECT_ROOT)} timed out after 60 seconds.", file=sys.stderr)
     except subprocess.CalledProcessError as e:
-        print(f"Error: {script_name} failed with exit code {e.returncode}", file=sys.stderr)
-        print("--- Stdout ---", file=sys.stderr)
-        print(e.stdout, file=sys.stderr)
-        print("--- Stderr ---", file=sys.stderr)
-        print(e.stderr, file=sys.stderr)
-        return False
+        print(f"Error: {script_path.relative_to(PROJECT_ROOT)} failed with exit code {e.returncode}", file=sys.stderr)
+        if e.stdout and e.stdout.strip():
+            print("--- Stdout ---", e.stdout.strip(), file=sys.stderr)
+        if e.stderr and e.stderr.strip():
+            print("--- Stderr ---", e.stderr.strip(), file=sys.stderr)
     except Exception as e:
-        print(f"Error running {script_name}: {e}", file=sys.stderr)
-        return False
+        print(f"Error running {script_path.relative_to(PROJECT_ROOT)}: {e}", file=sys.stderr)
+
+    print(f" -> {script_path.relative_to(PROJECT_ROOT)} FAILED.")
+    return False
 
 
-def main():
-    """Runs the version update workflow."""
-    print(f"Starting version update workflow from: {PROJECT_ROOT}")
+def main() -> int:
+    """Runs the version update workflow sequentially."""
+    print(f"\nStarting Version Update Workflow (from: {PROJECT_ROOT.name})")
+    print("=" * 60)
 
-    # Step 1: Run freshvenvs.py generate
-    if not run_script(FRESHVENVS_SCRIPT, "generate"):
-        print("\nWorkflow failed at freshvenvs.py step.")
-        sys.exit(1)
+    # Step 1: Regenerate intermediate version data
+    if not _run_script(PATH_FRESHVENVS_SCRIPT, "generate"):
+        print(f"\nWorkflow aborted: {PATH_FRESHVENVS_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+        print("=" * 60)
+        return 1
 
-    # Step 2: Run generate_table.py
-    # Check if generate_table.py exists, provide placeholder if not
-    if GENERATE_TABLE_SCRIPT.is_file():
-        if not run_script(GENERATE_TABLE_SCRIPT):
-            print("\nWorkflow failed at generate_table.py step.")
-            sys.exit(1)
+    # Step 2: Generate the supported versions table CSV
+    if PATH_GENERATE_TABLE_SCRIPT.is_file():
+        if not _run_script(PATH_GENERATE_TABLE_SCRIPT):
+            print(f"\nWorkflow aborted: {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+            print("=" * 60)
+            return 1
     else:
-        print(f"\nWarning: Script {GENERATE_TABLE_SCRIPT} not found. Skipping table generation.")
-        print("Ensure supported_versions_table.csv is up-to-date manually if needed.")
+        print(
+            f"\nWarning: Script {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} not found. "
+            "Skipping table generation."
+        )
+        print("         Ensure supported_versions_table.csv is up-to-date manually if depending on it.")
 
-    # Step 3: Run update_integration_registry_versions.py
-    if not run_script(UPDATE_REGISTRY_SCRIPT):
-        print("\nWorkflow failed at update_integration_registry_versions.py step.")
-        sys.exit(1)
+    # Step 3: Update the registry YAML using the generated table
+    if not _run_script(PATH_UPDATE_REGISTRY_SCRIPT):
+        print(f"\nWorkflow aborted: {PATH_UPDATE_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+        print("=" * 60)
+        return 1
 
-    print("\n--- Version Update Workflow Completed Successfully ---")
+    print("=" * 60)
+    print("--- Version Update Workflow Completed Successfully ---")
+    print("=" * 60)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

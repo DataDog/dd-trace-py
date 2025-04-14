@@ -2744,15 +2744,16 @@ venv = Venv(
         ),
         Venv(
             name="integration_registry",
-            command="pytest {cmdargs} tests/contrib/test_integration_registry.py",
+            command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
                 "jsonschema": latest,
+                "riot": "==0.20.1",
             },
             # we only need to run this on one version of Python
-            pys=select_pys(min_version="3.13", max_version="3.13"),
+            pys=["3.13"],
         ),
         Venv(
             name="llmobs",

@@ -33,11 +33,11 @@ Each integration entry in the `integrations` list adheres to the following struc
     *   Lists the primary PyPI package name(s) associated with the integration. For integrations patching multiple underlying libraries (like `elasticsearch`), this may list several names.
     *   Dependency names should be inputted by the engineer implementing the integration.
     *   Example: `["flask"]`, `["redis"]`, `["elasticsearch", "elasticsearch1", ..., "opensearchpy"]`
-*   **`supported_version_min`** (String):
+*   **`tested_version_min`** (String):
     *   Present only if `is_external_package` is `true` and version information was found in `supported_versions_table.csv`.
     *   The minimum library version officially supported by the tracer, formatted as `MAJOR.MINOR.PATCH`.
     *   Example: `"2.10.6"`
-*   **`supported_version_max`** (String):
+*   **`tested_version_max`** (String):
     *   Present only if `is_external_package` is `true` and version information was found in `supported_versions_table.csv`.
     *   The maximum library version officially supported by the tracer, formatted as `MAJOR.MINOR.PATCH`.
     *   Example: `"5.2.1"`
@@ -49,9 +49,9 @@ Unlike previous iterations where the file was fully auto-generated, `registry.ya
 1.  **Manual Updates:** When adding a new integration or changing the core dependency of an existing one:
     *   Manually add or modify the entry for the integration in `ddtrace/contrib/integration_registry/registry.yaml`.
     *   Ensure you accurately set the `integration_name` (matching the directory name), `is_external_package` (true/false), and `dependency_name` (list of PyPI package names, only if `is_external_package` is true).
-    *   Leave the version fields (`supported_version_min`, `supported_version_max`) blank or unchanged for now.
+    *   Leave the version fields (`tested_version_min`, `tested_version_max`) blank or unchanged for now.
 
-2.  **Automatic Version Population:** To update the `supported_version_min` and `supported_version_max` fields based on the latest `supported_versions_table.csv`:
+2.  **Automatic Version Population:** To update the `tested_version_min` and `tested_version_max` fields based on the latest `supported_versions_table.csv`:
     *   Run the combined update script from the **repository root**: 
         ```bash
         python scripts/integration_registry/update_and_format_registry.py
