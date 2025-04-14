@@ -3538,3 +3538,15 @@ def test_opentracer_propagator_baggage_extract():
     }
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "value1"}
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"baggage": "usr.id=123,correlation_id=abc,region=us-east"},
+    ],
+)
+def test_baggage_span_tags_default(headers):
+    context = HTTPPropagator.extract(headers)
+    assert context._meta["usr.id"] == "123"
+    assert context._meta["correlation_id"] == "abc"
+    assert context._meta["region"] == "us-east"
