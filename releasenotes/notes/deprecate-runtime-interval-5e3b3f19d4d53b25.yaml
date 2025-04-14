@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``DD_RUNTIME_METRICS_INTERVAL`` is deprecated and will be removed in the 4.0.0 release.
