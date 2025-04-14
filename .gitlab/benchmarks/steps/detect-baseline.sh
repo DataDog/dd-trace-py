@@ -24,19 +24,20 @@ if [ "${UPSTREAM_BRANCH}" == "main" ]; then
 
 # If this is a release tag (e.g. `v2.21.3`) then test against the latest version from that point (e.g. v2.21.2, or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-  # Baseline branch is the major.minor version of the tag
+  # major.minor version of the tag
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
-  # Check if origin/BASELINE_BRANCH exists
+
+  # Check if a release branch exists or not
   if git ls-remote --exit-code --heads origin "${BASELINE_BRANCH}" > /dev/null; then
     echo "Found remote branch origin/${BASELINE_BRANCH}"
   else
     echo "Remote branch origin/${BASELINE_BRANCH} not found. Falling back to main."
     BASELINE_BRANCH="main"
   fi
-
-  echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
   # Don't forget to omit the current tag we are testing
   BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" --exclude "${UPSTREAM_BRANCH}" "origin/${BASELINE_BRANCH}" || echo "")
+
+  echo "BASELINE_BRANCH=${BASELINE_BRANCH}" | tee baseline.env
 
 # If this is a release branch (e.g. `2.21`) then test against the latest version from that point (e.g. v2.21.2 or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^[0-9]+\.[0-9]+$ ]]; then
