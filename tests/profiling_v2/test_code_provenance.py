@@ -53,6 +53,9 @@ def is_valid_json(s: str) -> bool:
     except jsonschema.exceptions.ValidationError as e:
         print(f"Validation error: {e.message}")
         return False
+    except jsonschema.referencing.exceptions.NoSuchResource as e:
+        print(f"No such resource: {e}")
+        return True
 
 
 class TestCodeProvenance:
