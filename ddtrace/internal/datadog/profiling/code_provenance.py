@@ -35,7 +35,7 @@ class CodeProvenance:
             kind="standard library",
             name="stdlib",
             version=platform.python_version(),
-            paths=[sysconfig.get_path("stdlib")]
+            paths=set([sysconfig.get_path("stdlib")]),
         )
 
         # Add frozen modules that are part of the standard library

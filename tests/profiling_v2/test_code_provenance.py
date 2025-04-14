@@ -98,9 +98,8 @@ class TestCodeProvenance:
         stdlib_item = stdlib[0]
         stdlib_paths = stdlib_item["paths"]
 
+        # We expect to have some frozen modules in the stdlib and the stdlib path
+        assert len(stdlib_paths) > 1
+
         for path in stdlib_paths:
-            # Note: our test Python environments don't seem to have frozen modules
-            # in the stdlib
-            if path.startswith("<frozen "):
-                continue
-            assert path == sysconfig.get_path("stdlib")
+            assert path.startswith("<frozen") or path == sysconfig.get_path("stdlib")
