@@ -4,7 +4,6 @@ gunicorn
 """
 
 import os
-import time
 
 
 if os.getenv("_DD_TEST_IMPORT_AUTO"):
@@ -34,7 +33,6 @@ def simple_app(environ, start_response):
         aggressive_shutdown()
         data = b"goodbye"
     else:
-        print(f"{os.getpid()} {time.monotonic_ns()} {bootstrap.profiler._scheduler._last_export} app")
         payload = {
             "profiler": {
                 # Once the scheduler is initialized, the last_export is set to a
