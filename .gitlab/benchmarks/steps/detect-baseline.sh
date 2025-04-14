@@ -24,7 +24,7 @@ if [ "${UPSTREAM_BRANCH}" == "main" ]; then
 
 # If this is a release tag (e.g. `v2.21.3`) then test against the latest version from that point (e.g. v2.21.2, or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-  # major.minor version of the tag
+  # Baseline branch is the major.minor version of the tag
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
 
   # Check if a release branch exists or not
