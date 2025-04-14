@@ -82,7 +82,7 @@ def test_not_azure_function_consumption_plan():
 standard_blocklist = [
     "ddtrace.appsec._api_security.api_manager",
     "ddtrace.appsec._iast._ast.ast_patching",
-    "ddtrace.internal.telemetry.telemetry_writer",
+    "ddtrace.internal.telemetry.writer",
     "email.mime.application",
     "email.mime.multipart",
     "logging.handlers",
