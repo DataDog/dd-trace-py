@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    concurrent.futures: Fixes an issue where only the first task in a ThreadPoolExecutor would inherit the active trace context. Now all tasks will properly inherit the active trace context when submitted, ensuring all spans generated within a task are included in the same trace. If no trace is active when a task is submitted, the behavior remains unchanged.

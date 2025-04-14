@@ -38,4 +38,8 @@ def _wrap_execution(ctx: Tuple[Optional[Context], Optional[Context]], fn, args, 
         ddtrace.tracer.context_provider.activate(ctx[0])
     if ctx[1] is not None:
         core.dispatch("threading.execution", (ctx[1],))
-    return fn(*args, **kwargs)
+
+    with ddtrace.tracer.trace("threading.execution"):
+        # This ensures all the spans created by the target function
+        # are included in the same trace
+        return fn(*args, **kwargs)
