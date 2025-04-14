@@ -22,6 +22,7 @@ for importer, imports in list(g.items()):
     else:
         for i in imports:
             f[i].add(importer)
+            print(f"{importer} -> {i}")
 
 
 def dfs(v: str, visited: t.Set[str], stack: t.List[str], cycles: dict[frozenset, tuple]):
@@ -38,7 +39,10 @@ def dfs(v: str, visited: t.Set[str], stack: t.List[str], cycles: dict[frozenset,
 def analyze(args):
     dfs("ddtrace", set(), [], cycles := {})
 
-    res = ",\n".join(json.dumps(lst) for lst in sorted(cycles.values(), key=len))
+    def key(cycle):
+        return len(cycle), cycle
+
+    res = ",\n".join(json.dumps(lst) for lst in sorted(cycles.values(), key=key))
     args.output.write_text(f"[\n{res}\n]")
 
     if cycles:
