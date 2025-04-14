@@ -154,6 +154,7 @@ microbenchmarks:
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
         - "startup"
