@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
 
+
 # Copied from RFC
 SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema",
