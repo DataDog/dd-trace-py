@@ -91,35 +91,6 @@ class PropagationTestCase(TracerTestCase):
         assert spans[0].trace_id == root.trace_id
         assert spans[0].parent_id == root.span_id
 
-    def test_propagation_with_sub_spans(self):
-        @self.tracer.wrap("executor.thread")
-        def fn1(value):
-            return value
-
-        @self.tracer.wrap("executor.thread")
-        def fn2(value):
-            return value * 100
-
-        def main(value, key=None):
-            return fn1(value) + fn2(value)
-
-        with self.override_global_tracer():
-            with self.tracer.trace("main.thread"):
-                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future = executor.submit(main, 42)
-            value = future.result()
-            # assert the right result
-            self.assertEqual(value, 4242)
-
-        # the trace must be completed
-        spans = self.get_spans()
-        assert len(spans) == 3
-        assert spans[0].name == "main.thread"
-        for span in spans[1:]:
-            assert span.name == "executor.thread"
-            assert span.trace_id == spans[0].trace_id
-            assert span.parent_id == spans[0].span_id
-
     def test_propagation_with_kwargs(self):
         # instrumentation must work if only kwargs are provided
 

@@ -77,7 +77,30 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         return self.active()
 
 
-class DefaultContextProvider(BaseContextProvider):
+class DatadogContextMixin(object):
+    """Mixin that provides active span updating suitable for synchronous
+    and asynchronous executions.
+    """
+
+    def activate(self, ctx: Optional[Union[Context, Span]]) -> None:
+        raise NotImplementedError
+
+    def _update_active(self, span: Span) -> Optional[Span]:
+        """Updates the active span in an executor.
+
+        The active span is updated to be the span's parent if the span has
+        finished until an unfinished span is found.
+        """
+        if span.finished:
+            new_active: Optional[Span] = span
+            while new_active and new_active.finished:
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span
+
+
+class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
     """Context provider that retrieves contexts from a context variable.
 
     It is suitable for synchronous programming and for asynchronous executors
@@ -103,20 +126,3 @@ class DefaultContextProvider(BaseContextProvider):
         if isinstance(item, Span):
             return self._update_active(item)
         return item
-
-    def _update_active(self, span: Span) -> Optional[Span]:
-        """Updates the active span in an executor.
-
-        The active span is updated to be the span's parent if the span has
-        finished until an unfinished span is found.
-        """
-        if span.finished:
-            new_active: Optional[Span] = span
-            while new_active and new_active.finished:
-                if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
-                    new_active = new_active._parent_context
-                    break
-                new_active = new_active._parent
-            self.activate(new_active)
-            return new_active
-        return span

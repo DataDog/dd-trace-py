@@ -34,9 +34,8 @@ def _wrap_execution(ctx: Tuple[Optional[Context], Optional[Context]], fn, args, 
     provider sets the Active context in a thread local storage
     variable because it's outside the asynchronous loop.
     """
+    if ctx[0] is not None:
+        ddtrace.tracer.context_provider.activate(ctx[0])
     if ctx[1] is not None:
         core.dispatch("threading.execution", (ctx[1],))
-    if ctx[0] is not None:
-        with ddtrace.tracer._activate_context(ctx[0]):
-            return fn(*args, **kwargs)
     return fn(*args, **kwargs)
