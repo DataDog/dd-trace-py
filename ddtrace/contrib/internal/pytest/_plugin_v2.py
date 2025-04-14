@@ -49,7 +49,9 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
+from ddtrace.internal.ci_visibility.api._retry import ATRRetryManager
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
@@ -515,10 +517,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     original_result = outcome.get_result()
 
     test_id = _get_test_id_from_item(item)
+    test = CIVisibility.get_test_by_id(test_id)
 
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    is_quarantined = test.is_quarantined()
+    is_disabled = test.is_disabled()
+    is_attempt_to_fix = test.is_attempt_to_fix()
 
     test_outcome = _process_result(item, call, original_result)
 
@@ -552,7 +555,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+
+    if ATRRetryManager.should_apply(test):
         return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
@@ -656,8 +660,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    # if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
+    #     session.exitstatus = pytest.ExitCode.TESTS_FAILED
     if InternalTestSession.attempt_to_fix_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 

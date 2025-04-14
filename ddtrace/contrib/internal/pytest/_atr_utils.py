@@ -14,6 +14,9 @@ from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.internal.ci_visibility.api._retry import ATRRetryManager
+from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -100,17 +103,23 @@ def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
 def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
-    while InternalTest.atr_should_retry(test_id):
-        retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
+    breakpoint()
+    retry_manager = ATRRetryManager(test_id)
+
+    while retry_manager.should_retry():
+        retry_num = retry_manager.add_and_start_retry()
 
         with set_retry_num(item.nodeid, retry_num):
             retry_outcome = _get_outcome_from_retry(item, outcomes)
 
-        InternalTest.atr_finish_retry(
-            test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
+        retry_manager.finish_retry(
+            retry_number=retry_num,
+            status=retry_outcome.status,
+            skip_reason=retry_outcome.skip_reason,
+            exc_info=retry_outcome.exc_info,
         )
 
-    return InternalTest.atr_get_final_status(test_id)
+    return retry_manager.get_final_status()
 
 
 def _atr_write_report_for_status(

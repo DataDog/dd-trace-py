@@ -216,19 +216,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         super().finish(override_finish_time=override_finish_time)
 
-    def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
-        if self.efd_has_retries():
-            efd_status = self.efd_get_final_status()
-            if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
-                return TestStatus.PASS
-            if efd_status == EFDTestStatus.ALL_SKIP:
-                return TestStatus.SKIP
-            return TestStatus.FAIL
-        if self.atr_has_retries():
-            return self.atr_get_final_status()
-        if self.attempt_to_fix_has_retries():
-            return self.attempt_to_fix_get_final_status()
-        return super().get_status()
+    # def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
+    #     if self.efd_has_retries():
+    #         efd_status = self.efd_get_final_status()
+    #         if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
+    #             return TestStatus.PASS
+    #         if efd_status == EFDTestStatus.ALL_SKIP:
+    #             return TestStatus.SKIP
+    #         return TestStatus.FAIL
+    #     if self.atr_has_retries():
+    #         return self.atr_get_final_status()
+    #     if self.attempt_to_fix_has_retries():
+    #         return self.attempt_to_fix_get_final_status()
+    #     return super().get_status()
 
     def count_itr_skipped(self) -> None:
         """Tests do not count skipping on themselves, so only count on the parent.
@@ -426,65 +426,65 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         return retry_test
 
-    def atr_has_retries(self) -> bool:
-        return len(self._atr_retries) > 0
+    # def atr_has_retries(self) -> bool:
+    #     return len(self._atr_retries) > 0
 
-    def atr_should_retry(self):
-        if not self._session_settings.atr_settings.enabled:
-            return False
+    # def atr_should_retry(self):
+    #     if not self._session_settings.atr_settings.enabled:
+    #         return False
 
-        if self.get_session().atr_max_retries_reached():
-            return False
+    #     if self.get_session().atr_max_retries_reached():
+    #         return False
 
-        if not self.is_finished():
-            log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
-            return False
+    #     if not self.is_finished():
+    #         log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
+    #         return False
 
-        # Only tests that are failing should be retried
-        if self.atr_get_final_status() != TestStatus.FAIL:
-            return False
+    #     # Only tests that are failing should be retried
+    #     if self.atr_get_final_status() != TestStatus.FAIL:
+    #         return False
 
-        return len(self._atr_retries) < self._session_settings.atr_settings.max_retries
+    #     return len(self._atr_retries) < self._session_settings.atr_settings.max_retries
 
-    def atr_add_retry(self, start_immediately=False) -> Optional[int]:
-        if not self.atr_should_retry():
-            log.debug("Auto Test Retries: atr_add_retry called but test should not retry")
-            return None
+    # def atr_add_retry(self, start_immediately=False) -> Optional[int]:
+    #     if not self.atr_should_retry():
+    #         log.debug("Auto Test Retries: atr_add_retry called but test should not retry")
+    #         return None
 
-        retry_test = self._atr_make_retry_test()
-        self._atr_retries.append(retry_test)
-        session = self.get_session()
-        if session is not None:
-            session._atr_count_retry()
+    #     retry_test = self._atr_make_retry_test()
+    #     self._atr_retries.append(retry_test)
+    #     session = self.get_session()
+    #     if session is not None:
+    #         session._atr_count_retry()
 
-        if start_immediately:
-            retry_test.start()
+    #     if start_immediately:
+    #         retry_test.start()
 
-        return len(self._atr_retries)
+    #     return len(self._atr_retries)
 
-    def atr_start_retry(self, retry_number: int):
-        self._atr_get_retry_test(retry_number).start()
+    # def atr_start_retry(self, retry_number: int):
+    #     self._atr_get_retry_test(retry_number).start()
 
-    def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
-        retry_test = self._atr_get_retry_test(retry_number)
+    # def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
+    #     retry_test = self._atr_get_retry_test(retry_number)
 
-        if retry_number >= self._session_settings.atr_settings.max_retries:
-            if status is not None:
-                retry_test.set_status(status)
+    #     if retry_number >= self._session_settings.atr_settings.max_retries:
+    #         if status is not None:
+    #             retry_test.set_status(status)  # needed for atr_get_final_status() to give the correct result
 
-            if self.atr_get_final_status() == TestStatus.FAIL:
-                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+    #         if self.atr_get_final_status() == TestStatus.FAIL:
+    #             retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
-        retry_test.finish_test(status, exc_info=exc_info)
+    #     retry_test.finish_test(status, exc_info=exc_info)
 
-    def atr_get_final_status(self) -> TestStatus:
-        if self._status in [TestStatus.PASS, TestStatus.SKIP]:
-            return self._status
+    # def atr_get_final_status(self) -> TestStatus:
+    #     if self._status in [TestStatus.PASS, TestStatus.SKIP]:
+    #         return self._status
 
-        if any(retry._status == TestStatus.PASS for retry in self._atr_retries):
-            return TestStatus.PASS
+    #     if any(retry._status == TestStatus.PASS for retry in self._atr_retries):
+    #         return TestStatus.PASS
 
-        return TestStatus.FAIL
+    #     return TestStatus.FAIL
 
     #
     # Attempt-to-Fix functionality
