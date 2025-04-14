@@ -924,32 +924,18 @@ class _BaggageHeader:
             return Context(baggage={})
 
         baggage = {}
-        allowed_keys = set(key.strip() for key in DD_TRACE_BAGGAGE_TAG_KEYS.split(",") if key.strip())
-        tag_all_keys = len(allowed_keys) == 0
         baggages = header_value.split(",")
-        
-        context = Context(baggage={})
-
         for key_value in baggages:
             if "=" not in key_value:
-                continue
+                return Context(baggage={})
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
-                continue
-
+                return Context(baggage={})
             baggage[key] = value
 
-            if DD_TRACE_BAGGAGE_TAG_ENABLED:
-                if tag_all_keys or key in allowed_keys:
-                    if key not in context._meta:
-                        context._meta[key] = value
-                    else:
-                        log.debug("Skipping baggage tag '%s'; tag already set", key)
-
-        context._baggage = baggage
-        return context
+        return Context(baggage=baggage)
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
@@ -1162,12 +1148,21 @@ class HTTPPropagator(object):
             # baggage headers are handled separately from the other propagation styles
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
-                # put it here 
                 if baggage_context._baggage != {}:
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
+                    if DD_TRACE_BAGGAGE_TAG_ENABLED:
+                        allowed_keys = set(k.strip() for k in DD_TRACE_BAGGAGE_TAG_KEYS.split(",") if k.strip())
+                        tag_all_keys = not allowed_keys
+
+                        for key, value in baggage_context.get_all_baggage_items().items():
+                            if tag_all_keys or key in allowed_keys:
+                                if key not in context._meta:
+                                    context._meta[key] = value
+                                else:
+                                    log.debug("Skipping baggage tag '%s'; tag already set", key)
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
