@@ -4,6 +4,9 @@ Class based views used for Django tests.
 
 import hashlib
 import os
+from pathlib import Path
+from pathlib import PosixPath
+import shlex
 from typing import Any
 
 from django.db import connection
@@ -83,6 +86,18 @@ def xss_secure(request):
 
     # label xss_http_request_parameter_mark_safe
     return render(request, "index.html", {"user_input": user_input})
+
+
+def ospathjoin_propagation(request):
+    user_input = request.GET.get("input", "")
+
+    # label xss_http_request_parameter_mark_safe
+    return HttpResponse(
+        f"OK:{is_pyobject_tainted(os.path.join(user_input, user_input))}:"
+        f"{is_pyobject_tainted(os.path.join(Path(user_input), Path(user_input)))}:"
+        f"{is_pyobject_tainted(os.path.join(PosixPath(user_input), PosixPath(user_input)))}",
+        status=200,
+    )
 
 
 def xss_http_request_parameter_template_safe(request):
@@ -295,6 +310,14 @@ def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
     os.system("dir -l " + value)
+
+    return HttpResponse("OK", status=200)
+
+
+def command_injection_secure_mark(request):
+    value = request.body.decode()
+    # label iast_command_injection
+    os.system("dir -l " + shlex.quote(value))
 
     return HttpResponse("OK", status=200)
 

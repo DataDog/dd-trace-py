@@ -35,6 +35,7 @@ cherrypy,>=17
 cohere,==5.4.0
 confluent-kafka,~=1.9.2
 coverage,0
+crewai,0
 cryptography,<39
 daphne,0
 databases,0
@@ -94,6 +95,7 @@ langchain-core,==0.1.52
 langchain-openai,==0.1.6
 langchain-pinecone,==0.1.0
 langgraph,~=0.2.60
+litellm,0
 logbook,~=1.0.0
 loguru,~=0.4.0
 lxml,0
@@ -112,6 +114,7 @@ mysql-connector-python,==8.0.5
 mysqlclient,~=2.0
 numexpr,==2.8.5
 openai,==1.30.3
+openai-agents,0
 "openai[embeddings,datalib]",==1.0.0
 opensearch-py,0
 opensearch-py[async],0

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    graphql: Resolves ``AttributeError`` raised when used with older versions of graphql-core that do not have ``formatted`` property for ``SourceLocation``.

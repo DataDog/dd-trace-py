@@ -9,7 +9,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -125,8 +124,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        is_top_level = _is_top_level(span)
-        if not is_top_level and not _is_measured(span):
+        if not (is_top_level := span._is_top_level) and not _is_measured(span):
             return
 
         with self._lock:

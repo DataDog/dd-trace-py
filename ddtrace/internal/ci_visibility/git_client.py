@@ -113,7 +113,7 @@ class CIVisibilityGitClient(object):
         # type: (Optional[str]) -> None
         if not self._get_git_dir(cwd=cwd):
             log.debug("Missing .git directory; skipping git metadata upload")
-            self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED  # type: ignore[attr-defined]
+            self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
             return
 
         self._tags = ci.tags(cwd=cwd)

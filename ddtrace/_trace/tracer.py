@@ -897,7 +897,7 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
 
-        self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
+        self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
 
     def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
         # sampling configs always come as a pair
