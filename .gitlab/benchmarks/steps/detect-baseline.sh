@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -ex -o pipefail
+set -e -o pipefail
 
 # Script to determine the baseline version to compare against for a given CI run
 # The results are written as environment variables to a `baseline.env` file
