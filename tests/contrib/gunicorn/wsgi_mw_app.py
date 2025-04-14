@@ -6,6 +6,7 @@ gunicorn
 import os
 import time
 
+
 if os.getenv("_DD_TEST_IMPORT_AUTO"):
     import ddtrace.auto  # noqa: F401  # isort: skip
 
