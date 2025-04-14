@@ -69,7 +69,7 @@ class TestCodeProvenance:
         json_str = json_str_to_export()
         assert is_valid_json(json_str)
 
-    @pytest.mark.skipif(PY_VERSION == (3, 8), reason="Python 3.8 does not support jsonschema")
+    @pytest.mark.skipif(PY_VERSION == (3, 8), reason="jsonschema results in an error in 3.8 with ddtrace")
     def test_valid_json_but_invalid_schema(self):
         # Just a sanity check to ensure that jsonschema is working as expected
         json_obj = {
