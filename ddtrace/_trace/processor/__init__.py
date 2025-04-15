@@ -13,6 +13,7 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
@@ -259,8 +260,10 @@ class SpanAggregator(SpanProcessor):
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
 
-        # Tracks the number of spans created and tags each count with the api that was used
-        # ex: otel api, opentracing api, datadog api
+        # Tracks the number of spans created and tags each count with the api and span component that was used
+        # integration_name examples: otel api, opentracing api, datadog api
+        # component examples: flask, pymongo, etc
+        # store as tuple, ie: (integration_name, component) = 1
         self._span_metrics: Dict[str, DefaultDict] = {
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
@@ -280,12 +283,22 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            self._span_metrics["spans_created"][span._span_api] += 1
-            self._queue_span_count_metrics("spans_created", "integration_name")
+            if COMPONENT in span._meta.keys():
+                integration_name = span._meta["component"]
+            else:
+                integration_name = span._span_api
+
+            self._span_metrics["spans_created"][(integration_name)] += 1
+            self._send_span_count_metrics("spans_created")
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
-            self._span_metrics["spans_finished"][span._span_api] += 1
+            if COMPONENT in span._meta.keys():
+                integration_name = span._meta["component"]
+            else:
+                integration_name = span._span_api
+
+            self._span_metrics["spans_finished"][(integration_name)] += 1
 
             # Calling finish on a span that we did not see the start for
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
@@ -341,8 +354,7 @@ class SpanAggregator(SpanProcessor):
                         spans = tp.process_trace(spans)
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
-
-                self._queue_span_count_metrics("spans_finished", "integration_name")
+                self._send_span_count_metrics("spans_finished")
                 self._writer.write(spans)
                 return
 
@@ -358,12 +370,10 @@ class SpanAggregator(SpanProcessor):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        # on_span_start queue span created counts in batches of 100. This ensures all remaining counts are sent
-        # before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_created", "integration_name", 1)
-        # on_span_finish(...) queues span finish metrics in batches of 100.
-        # This ensures all remaining counts are sent before the tracer is shutdown.
-        self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        # Send spans created hits that haven't been sent yet during shutdown
+        self._send_span_count_metrics("spans_created")
+        # Send spans finished hits that haven't been sent yet during shutdown
+        self._send_span_count_metrics("spans_finished")
         # Log a warning if the tracer is shutdown before spans are finished
         unfinished_spans = [
             f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
@@ -384,13 +394,19 @@ class SpanAggregator(SpanProcessor):
             # It's possible the writer never got started in the first place :(
             pass
 
-    def _queue_span_count_metrics(self, metric_name: str, tag_name: str, min_count: int = 100) -> None:
-        """Queues a telemetry count metric for span created and span finished"""
-        # perf: telemetry_metrics_writer.add_count_metric(...) is an expensive operation.
-        # We should avoid calling this method on every invocation of span finish and span start.
-        if config._telemetry_enabled and sum(self._span_metrics[metric_name].values()) >= min_count:
-            for tag_value, count in self._span_metrics[metric_name].items():
+    def _send_span_count_metrics(self, metric_name: str) -> None:
+        """Send the telemetry count metric for span created and span finished"""
+        # perf: PR 12738 addressed some of the telemetry_metrics_writer.add_count_metric(...)
+        # performance issues but if this becomes a problem, bring back batching
+        # send less often.
+        tag = "integration_name"
+        if config._telemetry_enabled:
+            # We need to loop through the integration names in case
+            # on_flush is called and we still have spans that don't have metrics yet
+            for integration_name, count in self._span_metrics[metric_name].items():
                 telemetry.telemetry_writer.add_count_metric(
-                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
+                    TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag, integration_name),)
                 )
+
+            # Reset for next batch of metrics
             self._span_metrics[metric_name] = defaultdict(int)
