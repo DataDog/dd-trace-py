@@ -21,7 +21,6 @@ from urllib import parse
 
 import wrapt
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -37,11 +36,13 @@ import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
     from ddtrace.settings import IntegrationConfig  # noqa:F401
+    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -549,7 +550,7 @@ def set_http_meta(
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Any, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
