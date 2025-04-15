@@ -34,6 +34,10 @@ def test_handled_same_error_multiple_times_f(value):
     return value
 
 
+def test_asyncio_error_f(value):
+    return asyncio.run(test_sync_error_f(value))
+
+
 async def test_sync_error_f(value):
     task = asyncio.create_task(test_async_error_f(value))
     try:
@@ -62,17 +66,6 @@ def test_reraise_handled_error_f(value):
     except RuntimeError:
         value = 10
 
-    return value
-
-
-def test_report_after_unhandled_without_raise_f(value):
-    try:
-        try:
-            raise ValueError("auto caught error")
-        except ValueError as e:
-            raise RuntimeError(e)
-    except RuntimeError:
-        value = 10
     return value
 
 

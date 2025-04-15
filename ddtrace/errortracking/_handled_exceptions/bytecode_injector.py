@@ -6,9 +6,12 @@ import typing as t
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
+from ddtrace.internal.logger import get_logger
 
-from .callbacks import _default_errortracking_exc_callback
+from .callbacks import _default_bytecode_exc_callback
 
+
+log = get_logger(__name__)
 
 py_version = sys.version_info[:2]
 if py_version == (3, 10):
@@ -43,7 +46,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
 
     original_code = code_to_instr.__code__  # type: CodeType
 
-    callback = callback or _default_errortracking_exc_callback
+    callback = callback or _default_bytecode_exc_callback
 
     # Find the bytecode offsets, they must be the first offset of a line as we inject
     # bytecodes only at line start.
@@ -51,7 +54,10 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
 
     # Bytecode injection and code replacement
     code, _ = inject_invocation(injection_context, original_code.co_filename, "my.package")
-    code_to_instr.__code__ = code
+    try:
+        code_to_instr.__code__ = code
+    except:  # noqa: E722
+        log.debug("Could not set the code of %s", code_to_instr, exc_info=True)
 
 
 def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:

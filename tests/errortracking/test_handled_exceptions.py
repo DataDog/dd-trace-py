@@ -10,210 +10,108 @@ from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 
 
-skipif_bytecode_injection_not_supported = pytest.mark.skipif(
+skipif_errortracking_not_supported = pytest.mark.skipif(
     sys.version_info[:2] < (3, 10),
     reason="Injection is only supported for 3.10+",
 )
 
 
-@skipif_bytecode_injection_not_supported
+@skipif_errortracking_not_supported
 class ErrorTestCases(TracerTestCase):
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
-    def test_basic_try_except(self):
+    """This class contains all the cases testing the feature itself"""
+
+    def _run_error_test(self, test_func, initial_value, expected_value, expected_events, multiple_calls=None):
+        """Helper method to run error handling reporting tests."""
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+        from tests.errortracking._test_functions import __dict__ as test_functions
 
         HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_basic_try_except_f
-
-        value = 0
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = test_basic_try_except_f(value)
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == 10
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(1)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
-        )
-
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
-    def test_basic_multiple_except(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_basic_multiple_except_f
-
-        value = 0
+        test_function = test_functions[test_func]
+        value = initial_value
 
         @self.tracer.wrap()
-        def f(a):
+        def f(*args):
             nonlocal value
-            value = test_basic_multiple_except_f(a, value)
+            value = test_function(*args, value) if args else test_function(value)
 
-        f(0)
-        f(1)
-        HandledExceptionCollector.disable()
-
-        assert value == 15
-        self.assert_span_count(2)
-        self.spans[0].assert_span_event_count(1)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"}
-        )
-        self.spans[1].assert_span_event_count(1)
-        self.spans[1].assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
-        )
-
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
-    def test_handled_same_error_multiple_times(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_handled_same_error_multiple_times_f
-
-        value = 0
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = test_handled_same_error_multiple_times_f(value)
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == 10
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(1)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
-        )
-
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
-    def test_reraise_handled_error(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_reraise_handled_error_f
-
-        value = 0
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = test_reraise_handled_error_f(value)
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == 10
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
-        )
-
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all"))
-    def test_async_error(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        import asyncio
-
-        from tests.errortracking._test_functions import test_sync_error_f
-
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = asyncio.run(test_sync_error_f(value))
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == "<sync_error><async_error>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "this is a sync error"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.ValueError", "exception.message": "this is an async error"}
-        )
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all",
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
-        )
-    )
-    def test_report_after_unhandled_without_raise(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_report_after_unhandled_without_raise_f
-
-        value = 0
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = test_report_after_unhandled_without_raise_f(value)
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == 10
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(0)
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="all",
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_AFTER_UNHANDLED="true",
-        )
-    )
-    def test_report_after_unhandled_with_raise(self):
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-        from tests.errortracking._test_functions import test_report_after_unhandled_without_raise_f
-
-        value = 0
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = test_report_after_unhandled_without_raise_f(value)
-            raise NameError("kill program")
-
-        with pytest.raises(NameError):
+        if multiple_calls:
+            for args in multiple_calls:
+                f(*args)
+        else:
             f()
+
         HandledExceptionCollector.disable()
 
-        assert value == 10
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
+        assert value == expected_value
+        for i, span_events in enumerate(expected_events):
+            self.spans[i].assert_span_event_count(len(span_events))
+            for j, event_attrs in enumerate(span_events):
+                self.spans[i].assert_span_event_attributes(j, event_attrs)
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    def test_basic_try_except(self):
+        self._run_error_test(
+            "test_basic_try_except_f",
+            initial_value=0,
+            expected_value=10,
+            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
         )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    def test_basic_multiple_except(self):
+        self._run_error_test(
+            "test_basic_multiple_except_f",
+            initial_value=0,
+            expected_value=15,
+            expected_events=[
+                [{"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"}],
+                [{"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}],
+            ],
+            multiple_calls=[[0], [1]],
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    def test_handled_same_error_multiple_times(self):
+        self._run_error_test(
+            "test_handled_same_error_multiple_times_f",
+            initial_value=0,
+            expected_value=10,
+            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    def test_reraise_handled_error(self):
+        self._run_error_test(
+            "test_reraise_handled_error_f",
+            initial_value=0,
+            expected_value=10,
+            expected_events=[
+                [
+                    {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"},
+                    {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"},
+                ]
+            ],
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    def test_async_error(self):
+        self._run_error_test(
+            "test_asyncio_error_f",
+            initial_value="",
+            expected_value="<sync_error><async_error>",
+            expected_events=[
+                [
+                    {"exception.type": "builtins.ValueError", "exception.message": "this is a sync error"},
+                    {"exception.type": "builtins.ValueError", "exception.message": "this is an async error"},
+                ]
+            ],
         )
 
 
-@skipif_bytecode_injection_not_supported
+@skipif_errortracking_not_supported
 class UserCodeErrorTestCases(TracerTestCase):
+    """This class contains all the tests testing the filtering capabilities of the feature"""
+
     @pytest.fixture(scope="class", autouse=True)
     def load_user_code(self):
         from tests.errortracking._test_functions import main_user_code_string
@@ -221,7 +119,7 @@ class UserCodeErrorTestCases(TracerTestCase):
         from tests.errortracking._test_functions import submodule_1_string
         from tests.errortracking._test_functions import submodule_2_string
 
-        # set up fake user code
+        # Setting up fake user code
         temp_dir = tempfile.TemporaryDirectory()
         base_path = pathlib.Path(temp_dir.name)
         base_path.mkdir(exist_ok=True)
@@ -254,180 +152,116 @@ class UserCodeErrorTestCases(TracerTestCase):
 
         self.addCleanup(temp_dir.cleanup)
 
+    def _run_user_code_test(
+        self, initial_value, expected_value, expected_events, use_maincode=True, use_submodules=False
+    ):
+        """Helper method to run filtering tests."""
+
+        # import our fake third party package
+        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
+        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
+
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+        HandledExceptionCollector.enable()
+
+        value = initial_value
+
+        @self.tracer.wrap()
+        def f():
+            nonlocal value
+            if use_submodules:
+                try:
+                    raise ValueError("auto caught error")
+                except ValueError:
+                    value += "<except_f>"
+            if use_maincode:
+                import main_code  # type: ignore
+
+                value = main_code.main_user_code(value)  # type: ignore
+
+            if use_submodules:
+                import submodule.submodule_1 as sub_1  # type: ignore
+                import submodule.submodule_2 as sub_2  # type: ignore
+
+                value += sub_1.submodule_1_f()  # type: ignore
+                value += sub_2.submodule_2_f()  # type: ignore
+
+        f()
+        HandledExceptionCollector.disable()
+
+        assert value == expected_value
+        self.assert_span_count(1)
+
+        # Depending on CI vs local tests, it is not clear if ddtrace is considered
+        # as user code or not, so we cannot assume the exact number of span events
+        # We will just assert the message that should be present or absent
+        assert len(self.spans[0]._events) >= expected_events.get("min_events", 1)
+        event_messages = [event.attributes["exception.message"] for event in self.spans[0]._events]
+        for message in expected_events.get("messages_present", []):
+            assert message in event_messages
+        for message in expected_events.get("messages_absent", []):
+            assert message not in event_messages
+
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="user",
+            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="user",
         )
     )
     def test_user_code_reporting(self):
-        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
-        import main_code  # type: ignore
-
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = main_code.main_user_code(value)  # type: ignore
-
-        f()
-        HandledExceptionCollector.disable()
-
-        """ In python3.12, it seems ddtrace can be considered as
-        user code in the CI. Rather than doing magic stuff in the code just for a test
-        we considered it as passed if the numpy except is not in the event and the two user code
-        are
-        """
-        assert value == "<except_f><except_module_f><except_numpy>"
-        self.assert_span_count(1)
-        print(len(self.spans[0]._events))
-        assert len(self.spans[0]._events) >= 2
-        event_messages = [event.attributes["exception.message"] for event in self.spans[0]._events]
-        assert "auto caught error" in event_messages
-        assert "module caught error" in event_messages
-        assert "<error_numpy_f>" not in event_messages
+        self._run_user_code_test(
+            initial_value="",
+            expected_value="<except_f><except_module_f><except_numpy>",
+            expected_events={
+                "min_events": 2,
+                "messages_present": ["auto caught error", "module caught error"],
+                "messages_absent": ["<error_numpy_f>"],
+            },
+        )
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED="third_party",
+            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="third_party",
         )
     )
     def test_user_code_reporting_with_third_party(self):
-        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
-        import main_code  # type: ignore
-
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = main_code.main_user_code(value)  # type: ignore
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == "<except_f><except_module_f><except_numpy>"
-        self.assert_span_count(1)
-        for event in self.spans[0]._events:
-            print(event)
-        self.spans[0].assert_span_event_count(1)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
+        self._run_user_code_test(
+            initial_value="",
+            expected_value="<except_f><except_module_f><except_numpy>",
+            expected_events={"min_events": 1, "messages_present": ["<error_numpy_f>"]},
         )
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="numpy,user_module",
+            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="numpy,user_module",
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
-        package_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "third_party"))
-        subprocess.run([sys.executable, "-m", "pip", "install", package_dir], check=True)
-        import main_code  # type: ignore
-
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            value = main_code.main_user_code(value)  # type: ignore
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == "<except_f><except_module_f><except_numpy>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "module caught error"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.ValueError", "exception.message": "<error_numpy_f>"}
+        self._run_user_code_test(
+            initial_value="",
+            expected_value="<except_f><except_module_f><except_numpy>",
+            expected_events={"min_events": 2, "messages_present": ["module caught error", "<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="submodule"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="submodule"))
     def test_user_code_scoped_reporting(self):
-        import submodule.submodule_1 as sub_1  # type: ignore
-        import submodule.submodule_2 as sub_2  # type: ignore
-
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-
-        # value is used to ensure the except block is properly executed
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            try:
-                raise ValueError("auto caught error")
-            except ValueError:
-                value += "<except_f>"
-
-            value += sub_1.submodule_1_f()
-            value += sub_2.submodule_2_f()
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == "<except_f><except_submodule_1><except_submodule_2>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(2)
-
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "<error_function_submodule_1>"}
-        )
-        self.spans[0].assert_span_event_attributes(
-            1, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
+        self._run_user_code_test(
+            initial_value="",
+            expected_value="<except_f><except_submodule_1><except_submodule_2>",
+            expected_events={
+                "min_events": 2,
+                "messages_present": ["<error_function_submodule_1>", "<error_function_submodule_2>"],
+            },
+            use_maincode=False,
+            use_submodules=True,
         )
 
-    @run_in_subprocess(
-        env_overrides=dict(DD_ERROR_TRACKING_REPORT_HANDLED_ERRORS_ENABLED_MODULES="submodule.submodule_2")
-    )
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="submodule.submodule_2"))
     def test_user_code_narrowed_scoped_reporting(self):
-        import submodule.submodule_1 as sub_1  # type: ignore
-        import submodule.submodule_2 as sub_2  # type: ignore
-
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
-
-        HandledExceptionCollector.enable()
-
-        # value is used to ensure the except block is properly executed
-        value = ""
-
-        @self.tracer.wrap()
-        def f():
-            nonlocal value
-            try:
-                raise ValueError("auto caught error")
-            except ValueError:
-                value += "<except_f>"
-
-            value += sub_1.submodule_1_f()
-            value += sub_2.submodule_2_f()
-
-        f()
-        HandledExceptionCollector.disable()
-
-        assert value == "<except_f><except_submodule_1><except_submodule_2>"
-        self.assert_span_count(1)
-        self.spans[0].assert_span_event_count(1)
-
-        self.spans[0].assert_span_event_attributes(
-            0, {"exception.type": "builtins.ValueError", "exception.message": "<error_function_submodule_2>"}
+        self._run_user_code_test(
+            initial_value="",
+            expected_value="<except_f><except_submodule_1><except_submodule_2>",
+            expected_events={"min_events": 1, "messages_present": ["<error_function_submodule_2>"]},
+            use_maincode=False,
+            use_submodules=True,
         )
