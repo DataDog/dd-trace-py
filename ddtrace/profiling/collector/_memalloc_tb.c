@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define PY_SSIZE_T_CLEAN
@@ -53,13 +55,14 @@ static memalloc_tb_buffer_pool g_memalloc_tb_buffer_pool = {
 static traceback_t*
 memalloc_tb_buffer_pool_get(memalloc_tb_buffer_pool* pool, uint16_t max_nframe)
 {
+    assert(PyGILState_Check());
     traceback_t* t = NULL;
     if (pool->count > 0) {
         t = pool->pool[pool->count - 1];
         pool->pool[pool->count - 1] = NULL;
         pool->count--;
     } else {
-        t = PyMem_RawMalloc(TRACEBACK_SIZE(max_nframe));
+        t = malloc(TRACEBACK_SIZE(max_nframe));
     }
     return t;
 }
@@ -67,6 +70,7 @@ memalloc_tb_buffer_pool_get(memalloc_tb_buffer_pool* pool, uint16_t max_nframe)
 static void
 memalloc_tb_buffer_pool_put(memalloc_tb_buffer_pool* pool, traceback_t* t)
 {
+    assert(PyGILState_Check());
     if (pool->count < pool->capacity) {
         pool->pool[pool->count] = t;
         pool->count++;
@@ -74,15 +78,16 @@ memalloc_tb_buffer_pool_put(memalloc_tb_buffer_pool* pool, traceback_t* t)
         /* We don't want to keep an unbounded number of full-size tracebacks
          * around. So in the rare chance that there are a large number of threads
          * hitting sampling at the same time, just drop excess tracebacks */
-        PyMem_RawFree(t);
+        free(t);
     }
 }
 
 static void
 memalloc_tb_buffer_pool_clear(memalloc_tb_buffer_pool* pool)
 {
+    assert(PyGILState_Check());
     for (size_t i = 0; i < pool->count; i++) {
-        PyMem_RawFree(pool->pool[i]);
+        free(pool->pool[i]);
         pool->pool[i] = NULL;
     }
     pool->count = 0;
