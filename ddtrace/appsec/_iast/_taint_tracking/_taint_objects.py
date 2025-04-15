@@ -8,7 +8,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_source
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import get_ranges
@@ -26,7 +26,7 @@ log = get_logger(__name__)
 def is_pyobject_tainted(pyobject: Any) -> bool:
     if not asm_config.is_iast_request_enabled:
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
 
     try:
@@ -62,17 +62,12 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         Any: The tainted object if operation was successful, original object if failed.
 
     Note:
-        - Only works if IAST is enabled (asm_config.is_iast_request_enabled)
         - Only applies to taintable types defined in IAST.TAINTEABLE_TYPES
         - Returns unmodified object for empty strings
         - Automatically handles bytes/bytearray to str conversion
     """
-    # Early return if IAST is disabled
-    if not asm_config.is_iast_request_enabled:
-        return pyobject
-
     # Early type validation
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return pyobject
 
     # Fast path for empty strings
@@ -105,7 +100,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
     if not asm_config.is_iast_request_enabled:
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -118,7 +113,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not asm_config.is_iast_request_enabled:
         return tuple()
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
     try:
         return get_ranges(pyobject)
@@ -129,13 +124,14 @@ def get_tainted_ranges(pyobject: Any) -> Tuple:
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     try:
-        if source_origin is None:
-            source_origin = OriginType.PARAMETER
+        if asm_config.is_iast_request_enabled:
+            if source_origin is None:
+                source_origin = OriginType.PARAMETER
 
-        res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
-        _set_metric_iast_executed_source(source_origin)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
-        return res
+            res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin)
+            _set_metric_iast_executed_source(source_origin)
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
+            return res
     except ValueError:
         iast_propagation_debug_log(f"taint_pyobject error (pyobject type {type(pyobject)})", exc_info=True)
     return pyobject
@@ -143,34 +139,35 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 
 def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
-        return pyobject
+    if asm_config.is_iast_request_enabled:
+        if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+            return pyobject
 
-    for r in ranges:
-        _is_string_in_source_value = False
-        if r.source.value:
-            if isinstance(pyobject, (bytes, bytearray)):
-                pyobject_str = str(pyobject, encoding="utf8", errors="ignore")
-            else:
-                pyobject_str = pyobject
-            _is_string_in_source_value = pyobject_str in r.source.value
+        for r in ranges:
+            _is_string_in_source_value = False
+            if r.source.value:
+                if isinstance(pyobject, (bytes, bytearray)):
+                    pyobject_str = str(pyobject, encoding="utf8", errors="ignore")
+                else:
+                    pyobject_str = pyobject
+                _is_string_in_source_value = pyobject_str in r.source.value
 
-        if _is_string_in_source_value:
+            if _is_string_in_source_value:
+                pyobject = _taint_pyobject_base(
+                    pyobject=pyobject,
+                    source_name=r.source.name,
+                    source_value=r.source.value,
+                    source_origin=r.source.origin,
+                )
+                break
+        else:
+            # no total match found, maybe partial match, just take the first one
             pyobject = _taint_pyobject_base(
                 pyobject=pyobject,
-                source_name=r.source.name,
-                source_value=r.source.value,
-                source_origin=r.source.origin,
+                source_name=ranges[0].source.name,
+                source_value=ranges[0].source.value,
+                source_origin=ranges[0].source.origin,
             )
-            break
-    else:
-        # no total match found, maybe partial match, just take the first one
-        pyobject = _taint_pyobject_base(
-            pyobject=pyobject,
-            source_name=ranges[0].source.name,
-            source_value=ranges[0].source.value,
-            source_origin=ranges[0].source.origin,
-        )
     return pyobject
 
 

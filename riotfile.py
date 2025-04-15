@@ -2469,6 +2469,17 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="openai_agents",
+            command="pytest {cmdargs} tests/contrib/openai_agents",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "openai": latest,
+                "openai-agents": latest,
+            },
+        ),
+        Venv(
             name="langchain",
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
@@ -2552,6 +2563,18 @@ venv = Venv(
             },
         ),
         Venv(
+            name="litellm",
+            command="pytest {cmdargs} tests/contrib/litellm",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "litellm": latest,
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "botocore": latest,
+                "boto3": latest,
+            },
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pys=select_pys(min_version="3.8", max_version="3.12"),
@@ -2581,6 +2604,17 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-ai-generativelanguage": [latest],
+            },
+        ),
+        Venv(
+            name="crewai",
+            command="pytest {cmdargs} tests/contrib/crewai",
+            pys=select_pys(min_version="3.10", max_version="3.12"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "openai": latest,
+                "crewai": [latest],
+                "vcrpy": "==7.0.0",
             },
         ),
         Venv(

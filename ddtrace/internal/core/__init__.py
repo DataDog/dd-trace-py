@@ -129,6 +129,8 @@ if typing.TYPE_CHECKING:
 import contextvars
 
 
+tracer = None
+
 log = logging.getLogger(__name__)
 
 
@@ -275,10 +277,7 @@ class ExecutionContext(AbstractContextManager):
     def span(self) -> "Span":
         if self._inner_span is None:
             log.warning("No span found in ExecutionContext %s", self.identifier)
-            # failsafe
-            from ddtrace.trace import tracer
-
-            self._inner_span = tracer.current_span() or tracer.trace("default")
+            self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
     @span.setter
@@ -373,5 +372,5 @@ def get_span() -> Optional["Span"]:
 def get_root_span() -> Optional["Span"]:
     span = get_span()
     if span is None:
-        return None
+        return None if tracer is None else tracer.current_root_span()
     return span._local_root or span

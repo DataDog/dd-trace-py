@@ -32,3 +32,19 @@ def http_post_ok(req: func.HttpRequest) -> func.HttpResponse:
 )
 def http_get_trigger_arg(reqarg: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
+
+
+@app.function_name(name="functionnamedecorator")
+@app.route(route="httpgetfunctionnamedecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_function_name_decorator(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(route="httpgetfunctionnamenodecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
+def timer(timer: func.TimerRequest) -> None:
+    pass

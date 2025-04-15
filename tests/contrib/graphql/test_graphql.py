@@ -80,7 +80,10 @@ def resolve_fail(root, info):
     return undefined_var.property
 
 
-@snapshot(ignores=["meta.error.stack", "meta.events"])
+@snapshot(
+    ignores=["meta.error.stack", "meta.events"],
+    variants={"2.x": graphql_version >= (3, 0), "3.x": graphql_version < (3, 0)},
+)
 def test_graphql_fail(enable_graphql_resolvers):
     query = """
     query {

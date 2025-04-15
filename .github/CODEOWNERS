@@ -140,19 +140,23 @@ tests/profiling_v2                  @DataDog/profiling-python
 # MLObs
 ddtrace/llmobs/                                         @DataDog/ml-observability
 ddtrace/contrib/internal/openai                         @DataDog/ml-observability
-ddtrace/contrib/openai                                  @DataDog/ml-observability
+ddtrace/contrib/_openai.py                              @DataDog/ml-observability
 ddtrace/contrib/internal/langchain                      @DataDog/ml-observability
-ddtrace/contrib/langchain                               @DataDog/ml-observability
+ddtrace/contrib/_langchain.py                           @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py   @DataDog/ml-observability
 ddtrace/contrib/botocore/services/bedrock.py            @DataDog/ml-observability
 ddtrace/contrib/internal/anthropic                      @DataDog/ml-observability
-ddtrace/contrib/anthropic                               @DataDog/ml-observability
+ddtrace/contrib/_anthropic.py                           @DataDog/ml-observability
 ddtrace/contrib/internal/google_generativeai            @DataDog/ml-observability
-ddtrace/contrib/google_generativeai                     @DataDog/ml-observability
+ddtrace/contrib/_google_generativeai.py                 @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                       @DataDog/ml-observability
-ddtrace/contrib/vertexai                                @DataDog/ml-observability
-ddtrace/contrib/langgraph                               @DataDog/ml-observability
+ddtrace/contrib/_vertexai.py                            @DataDog/ml-observability
 ddtrace/contrib/internal/langgraph                      @DataDog/ml-observability
+ddtrace/contrib/_langgraph.py                           @DataDog/ml-observability
+ddtrace/contrib/internal/crewai                         @DataDog/ml-observability
+ddtrace/contrib/_crewai.py                              @DataDog/ml-observability
+ddtrace/contrib/internal/openai_agents                  @DataDog/ml-observability
+ddtrace/contrib/_openai_agents.py                       @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -164,6 +168,8 @@ tests/contrib/anthropic                                 @DataDog/ml-observabilit
 tests/contrib/google_generativeai                       @DataDog/ml-observability
 tests/contrib/vertexai                                  @DataDog/ml-observability
 tests/contrib/langgraph                                 @DataDog/ml-observability
+tests/contrib/crewai                                    @DataDog/ml-observability
+tests/contrib/openai_agents                             @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config

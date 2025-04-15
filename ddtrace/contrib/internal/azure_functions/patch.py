@@ -4,13 +4,13 @@ import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import Pin
+
+from .utils import create_context
+from .utils import get_function_name
 
 
 config._add(
@@ -36,7 +36,14 @@ def patch():
     azure_functions._datadog_patch = True
 
     Pin().onto(azure_functions.FunctionApp)
+    _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+    _w("azure.functions", "FunctionApp.timer_trigger", _patched_timer_trigger)
+
+
+def _patched_function_name(wrapped, instance, args, kwargs):
+    Pin.override(instance, tags={"function_name": kwargs.get("name")})
+    return wrapped(*args, **kwargs)
 
 
 def _patched_route(wrapped, instance, args, kwargs):
@@ -48,21 +55,12 @@ def _patched_route(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     def _wrapper(func):
-        function_name = func.__name__
+        function_name = get_function_name(pin, instance, func)
 
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
             req = kwargs.get(trigger_arg_name)
-            operation_name = schematize_cloud_faas_operation(
-                "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
-            )
-            with core.context_with_data(
-                "azure.functions.patched_route_request",
-                span_name=operation_name,
-                pin=pin,
-                service=int_service(pin, config.azure_functions),
-                span_type=SpanTypes.SERVERLESS,
-            ) as ctx, ctx.span:
+            with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
                 ctx.set_item("req_span", ctx.span)
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None
@@ -73,6 +71,31 @@ def _patched_route(wrapped, instance, args, kwargs):
                     core.dispatch(
                         "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
                     )
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_timer_trigger(wrapped, instance, args, kwargs):
+    trigger = "Timer"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        function_name = get_function_name(pin, instance, func)
+
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            with create_context("azure.functions.patched_timer", pin, function_name) as ctx, ctx.span:
+                ctx.set_item("trigger_span", ctx.span)
+                core.dispatch(
+                    "azure.functions.trigger_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger),
+                )
+                func(*args, **kwargs)
 
         return wrapped(*args, **kwargs)(wrap_function)
 

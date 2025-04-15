@@ -4,7 +4,6 @@ import os
 import typing
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -28,7 +27,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -128,8 +127,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        is_top_level = _is_top_level(span)
-        if not is_top_level and not _is_measured(span):
+        if not (is_top_level := span._is_top_level) and not _is_measured(span):
             return
 
         with self._lock:
