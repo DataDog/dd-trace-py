@@ -149,10 +149,10 @@ def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
 import atexit
 
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
-from tests.llmobs.test_llmobs_eval_metric_writer import _score_metric_event
+from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _score_metric_event
 from tests.llmobs._utils import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_eval_metric_writer.send_score_metric.yaml")
+ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_eval_metric_agentless_writer.send_score_metric.yaml")
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
