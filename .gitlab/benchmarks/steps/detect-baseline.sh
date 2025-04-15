@@ -19,7 +19,14 @@ UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
 # If this is a build on the `main` branch then test against the latest released version
 if [ "${UPSTREAM_BRANCH}" == "main" ]; then
   echo "BASELINE_BRANCH=main" | tee baseline.env
-  BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
+
+  PYPI_VERSION=$(curl https://pypi.org/pypi/ddtrace/json | jq -r .info.version)
+  if [[ "${PYPI_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    BASELINE_TAG="v${PYPI_VERSION}"
+  else
+    BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
+  fi
+
 
 # If this is a release tag (e.g. `v2.21.3`) then test against the latest version from that point (e.g. v2.21.2, or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
