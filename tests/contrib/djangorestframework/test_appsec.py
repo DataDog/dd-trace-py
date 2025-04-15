@@ -3,27 +3,50 @@ from urllib.parse import urlencode
 import django
 import pytest
 
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._utils import get_triggers
-from ddtrace.internal import core
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
 
 
+_init_finalize = _asm_request_context.finalize_asm_env
+_addresses_store = []
+
+
+def finalize_wrapper(env):
+    _addresses_store.append(env.waf_addresses)
+    _init_finalize(env)
+
+
+def patch_for_waf_addresses():
+    _addresses_store.clear()
+    _asm_request_context.finalize_asm_env = finalize_wrapper
+
+
+def unpatch_for_waf_addresses():
+    _asm_request_context.finalize_asm_env = _init_finalize
+
+
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")
 def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
-    with override_global_config(dict(_asm_enabled=True)):
-        # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer._recreate()
-        payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-        client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
-        root_span = test_spans.spans[0]
-        assert_span_http_status_code(root_span, 500)
-        query = dict(core.get_item("http.request.body", span=root_span))
+    try:
+        patch_for_waf_addresses()
+        with override_global_config(dict(_asm_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            tracer._recreate()
+            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            client.post("/users/", payload, content_type="application/x-www-form-urlencoded")
+            root_span = test_spans.spans[0]
+            assert_span_http_status_code(root_span, 500)
 
-        assert get_triggers(root_span) is None
-        assert root_span.get_tag("component") == "django"
-        assert root_span.get_tag("span.kind") == "server"
-        assert query == {"mytestingbody_key": "mytestingbody_value"}
+            query = _addresses_store[-1].get("http.request.body") if _addresses_store else None
+
+            assert get_triggers(root_span) is None
+            assert root_span.get_tag("component") == "django"
+            assert root_span.get_tag("span.kind") == "server"
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+    finally:
+        unpatch_for_waf_addresses()
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10), reason="requires django version >= 1.10")

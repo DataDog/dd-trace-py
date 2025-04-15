@@ -1,6 +1,7 @@
 # this module must not load any other unsafe appsec module directly
 
 import collections
+import json
 import logging
 import typing
 from typing import Any
@@ -11,7 +12,6 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
@@ -116,15 +116,17 @@ class Truncation_result:
 
 
 class Rasp_result:
-    __slots__ = ["sum_eval", "duration", "total_duration", "eval", "match", "timeout"]
+    __slots__ = ["blocked", "sum_eval", "duration", "total_duration", "eval", "match", "timeout", "durations"]
 
     def __init__(self):
+        self.blocked = False
         self.sum_eval = 0
         self.duration = 0.0
         self.total_duration = 0.0
         self.eval = collections.defaultdict(int)
         self.match = collections.defaultdict(int)
         self.timeout = collections.defaultdict(int)
+        self.durations = collections.defaultdict(float)
 
 
 class Telemetry_result:
@@ -145,7 +147,7 @@ class Telemetry_result:
         self.blocked = False
         self.triggered = False
         self.timeout = 0
-        self.version: Optional[str] = None
+        self.version: str = ""
         self.duration = 0.0
         self.total_duration = 0.0
         self.truncation = Truncation_result()
@@ -154,10 +156,9 @@ class Telemetry_result:
         self.error = 0
 
 
-def parse_response_body(raw_body):
+def parse_response_body(raw_body, headers):
     import xmltodict
 
-    from ddtrace.appsec import _asm_request_context
     from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
@@ -166,7 +167,6 @@ def parse_response_body(raw_body):
     if isinstance(raw_body, dict):
         return raw_body
 
-    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
@@ -308,8 +308,6 @@ def has_triggers(span) -> bool:
 
 
 def get_triggers(span) -> Any:
-    import json
-
     if asm_config._use_metastruct_for_triggers:
         return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
