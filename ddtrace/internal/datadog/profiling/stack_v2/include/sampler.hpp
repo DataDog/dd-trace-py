@@ -36,7 +36,7 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
-    void adapt_sampling_interval(double overhead);
+    void adapt_sampling_interval();
 
   public:
     // Singleton instance

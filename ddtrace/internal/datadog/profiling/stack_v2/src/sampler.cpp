@@ -60,7 +60,7 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 #endif
 
 void
-Sampler::adapt_sampling_interval(double target_overhead)
+Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
     struct timespec ts;
@@ -118,7 +118,7 @@ Sampler::adapt_sampling_interval(double target_overhead)
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(sampler_thread_delta / process_delta / target_overhead * current_interval);
+      static_cast<microsecond_t>(sampler_thread_delta / process_delta / g_target_overhead * current_interval);
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
@@ -155,8 +155,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
-            if (sample_time_now - interval_adjust_time_prev > milliseconds(1000)) {
-                adapt_sampling_interval(0.01); // 1% overhead
+            if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
+                adapt_sampling_interval();
                 interval_adjust_time_prev = sample_time_now;
             }
         }
