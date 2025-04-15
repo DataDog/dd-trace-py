@@ -3,9 +3,10 @@ from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
-import resource
-
+import tempfile
 import pytest
+import atexit
+import os
 
 from ddtrace.internal.symbol_db.symbols import Scope
 from ddtrace.internal.symbol_db.symbols import ScopeData
@@ -197,22 +198,30 @@ def test_symbols_to_json():
     }
 
 @pytest.mark.parametrize(
-    "num_attributes",
+    "file_size,num_attributes",
     [
-        5,
-        20,
-        50,
-        100,
-        1000,
+        (1000, 5),
+        (10_000, 50),
+        (100_000, 200),
+        (1_000_000, 1000),
     ]
 )
-def test_benchmark_module_get_from(benchmark, num_attributes):
+def test_benchmark_module_get_from(benchmark, file_size, num_attributes):
     """Benchmark performance of Scope._get_from with modules of different complexities."""
     # Create a module with the specified number of attributes
     module_name = f"test_module_{num_attributes}"
     test_module = ModuleType(module_name)
     test_module.__spec__ = ModuleSpec(module_name, None)
-    test_module.__spec__.origin = __file__
+
+    # Create temp files with the specified size
+    temp_file = tempfile.NamedTemporaryFile(delete=False)
+    for i in range(file_size):
+        temp_file.write(b"0")
+    temp_file.close()
+    test_module.__spec__.origin = temp_file.name
+
+    # Register cleanup to delete temp file after test
+    atexit.register(lambda: os.unlink(temp_file.name))
 
     # Add attributes
     for i in range(num_attributes):
@@ -221,7 +230,8 @@ def test_benchmark_module_get_from(benchmark, num_attributes):
     # Define a wrapper function that creates a fresh ScopeData object for each benchmark run
     def benchmark_wrapper():
         data = ScopeData(Path(__file__), set())
-        return Scope._get_from(test_module, data)
+        result = Scope._get_from(test_module, data)
+        return result
 
     # Run the benchmark
     result = benchmark(benchmark_wrapper)
@@ -235,6 +245,8 @@ def test_benchmark_module_get_from(benchmark, num_attributes):
     attr_names = {symbol.name for symbol in result.symbols}
     for i in range(num_attributes):
         assert f"attr_{i}" in attr_names
+
+    assert result.language_specifics["file_hash"] != ""
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
