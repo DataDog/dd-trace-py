@@ -32,7 +32,11 @@ class FlaskSQLi(bm.Scenario, FlaskScenarioMixin):
 
         def make_request(app):
             client = app.test_client()
-            return client.post("/sqli", headers=headers, data={"username": "shaquille_oatmeal", "password": "123456"})
+            return client.post(
+                "/sqli_with_errortracking",
+                headers=headers,
+                data={"username": "shaquille_oatmeal", "password": "123456"},
+            )
 
         # Scenario loop function
         def _(loops):

@@ -13,21 +13,11 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 
 
 class ErrorTrackingConfig(DDConfig):
-    __prefix__ = "dd.error.tracking.report.handled.errors"
+    __prefix__ = "dd.error.tracking.handled.errors"
 
     _report_handled_errors = DDConfig.v(str, "enabled", default="")
     # Specify the modules (user and third party mixed) for which we report handled exceptions
     _modules_to_report = DDConfig.v(list, "enabled.modules", parser=parse_modules, default=[])
-
-    # Report only handled exceptions if an unhandled exception occurs in the span
-    # Experimental feature: will likely be removed
-    _report_after_unhandled = DDConfig.v(bool, "after_unhandled", default=False)
-
-    """
-    At the moment, we are also logging the exceptions so ET can fingerprint the exceptions
-    It will be removed when Error Track is GA
-    """
-    _internal_logger = DDConfig.var(str, "logger", default="")
 
     if sys.version_info >= (3, 12):
         """
