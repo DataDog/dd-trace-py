@@ -631,7 +631,7 @@ def set_flattened_tags(
 
 
 def set_user(
-    tracer,  # type: Tracer
+    tracer,  # type: Any
     user_id,  # type: str
     name=None,  # type: Optional[str]
     email=None,  # type: Optional[str]
@@ -649,7 +649,7 @@ def set_user(
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
     if span is None:
-        span = tracer.current_root_span()
+        span = core.get_root_span()
     if span:
         if user_id:
             str_user_id = str(user_id)
