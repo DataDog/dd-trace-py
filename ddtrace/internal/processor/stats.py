@@ -9,11 +9,11 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._config import config
-from ddtrace.trace import Span
 from ddtrace.version import get_version
 
 from ...constants import _SPAN_MEASURED_KEY
