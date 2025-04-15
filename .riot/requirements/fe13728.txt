@@ -29,3 +29,5 @@ sqlparse==0.5.1
 tomli==2.0.1
 typing-extensions==4.12.2
 zipp==3.19.2
+
+# riot_venv_name: djangorestframework

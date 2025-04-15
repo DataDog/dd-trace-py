@@ -27,3 +27,5 @@ sqlalchemy==2.0.28
 tomli==2.0.1
 typing-extensions==4.10.0
 zipp==3.17.0
+
+# riot_venv_name: aiopg

@@ -38,3 +38,5 @@ typing-extensions==4.12.2
 urllib3==1.26.20
 werkzeug==3.1.3
 zipp==3.21.0
+
+# riot_venv_name: flask

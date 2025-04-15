@@ -25,3 +25,5 @@ sortedcontainers==2.4.0
 sqlalchemy==1.3.24
 tomli==2.2.1
 zipp==3.21.0
+
+# riot_venv_name: sqlalchemy

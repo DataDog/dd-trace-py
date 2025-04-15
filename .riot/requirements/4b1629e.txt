@@ -37,3 +37,5 @@ starlette==0.20.4
 tomli==2.0.2
 typing-extensions==4.12.2
 urllib3==2.2.3
+
+# riot_venv_name: starlette

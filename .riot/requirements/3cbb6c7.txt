@@ -24,3 +24,5 @@ redis==5.0.1
 rq==1.15.1
 sortedcontainers==2.4.0
 tomli==2.0.1
+
+# riot_venv_name: rq

@@ -26,3 +26,5 @@ stevedore==5.1.0
 tomli==2.0.1
 typing-extensions==4.9.0
 zipp==3.17.0
+
+# riot_venv_name: dogpile_cache

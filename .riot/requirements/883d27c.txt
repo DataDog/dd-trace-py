@@ -38,3 +38,5 @@ starlette==0.41.3
 tomli==2.2.1
 typing-extensions==4.12.2
 urllib3==2.2.3
+
+# riot_venv_name: fastapi

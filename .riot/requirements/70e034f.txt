@@ -22,3 +22,5 @@ pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 typing-extensions==3.10.0.2
 typing-inspect==0.6.0
+
+# riot_venv_name: molten

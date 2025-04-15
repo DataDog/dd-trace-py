@@ -36,3 +36,5 @@ sortedcontainers==2.4.0
 starlette==0.41.3
 typing-extensions==4.12.2
 urllib3==2.2.3
+
+# riot_venv_name: fastapi

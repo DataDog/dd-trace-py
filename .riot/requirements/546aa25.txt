@@ -41,3 +41,5 @@ urllib3==1.26.19
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==71.1.0
+
+# riot_venv_name: snowflake

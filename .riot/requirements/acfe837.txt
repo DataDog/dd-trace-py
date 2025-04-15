@@ -38,3 +38,5 @@ virtualenv==20.26.6
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==78.1.0
+
+# riot_venv_name: integration_registry

@@ -27,3 +27,5 @@ python-memcached==1.62
 redis==5.0.7
 sortedcontainers==2.4.0
 werkzeug==3.0.3
+
+# riot_venv_name: flask_cache

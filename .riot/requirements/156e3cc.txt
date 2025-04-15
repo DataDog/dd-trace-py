@@ -35,3 +35,5 @@ sqlalchemy==1.4.54
 starlette==0.21.0
 typing-extensions==4.12.2
 urllib3==2.2.3
+
+# riot_venv_name: starlette

@@ -14,6 +14,9 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
+from ddtrace.contrib.integration_registry.mappings import (
+    MODULE_TO_DEPENDENCY_MAPPING, INTEGRATION_TO_DEPENDENCY_MAPPING, DEPENDENCY_TO_INTEGRATION_MAPPING
+)
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
@@ -22,34 +25,7 @@ import riotfile  # noqa: E402
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
-excluded = {"coverage"}
-
-# map module => lockfile dependency
-module_dependency_mapping = {
-    "kafka": "confluent-kafka",
-    "consul": "python-consul",
-    "snowflake": "snowflake-connector-python",
-    "flask_cache": "flask-caching",
-    "graphql": "graphql-core",
-    "mysql": "mysql-connector-python",
-    "mysqldb": "mysqlclient",
-    "asyncio": "pytest-asyncio",
-    "sqlite3": "pysqlite3-binary",
-    "grpc": "grpcio",
-    "google_generativeai": "google-generativeai",
-    "psycopg2": "psycopg2-binary",
-    "cassandra": "cassandra-driver",
-    "rediscluster": "redis-py-cluster",
-    "dogpile_cache": "dogpile-cache",
-    "vertica": "vertica-python",
-    "aiohttp_jinja2": "aiohttp-jinja2",
-    "azure_functions": "azure-functions",
-    "pytest_bdd": "pytest-bdd",
-    "aws_lambda": "datadog-lambda",
-    "openai_agents": "openai-agents",
-}
-
-dependency_module_mapping = {v: k for k, v in module_dependency_mapping.items()}
+dependency_module_mapping = {v: k for k, v in MODULE_TO_DEPENDENCY_MAPPING.items()}
 
 supported_versions = []
 pinned_packages = set()
@@ -103,26 +79,60 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
                 lockfile_content = lockfile.read()
                 for module in modules:
                     if module in lockfile_content or (
-                        module in module_dependency_mapping and module_dependency_mapping[module] in lockfile_content
+                        (module in MODULE_TO_DEPENDENCY_MAPPING and MODULE_TO_DEPENDENCY_MAPPING[module] in lockfile_content)
+                        or _integration_to_dependency_mapping_contains(module, lockfile_content)
                     ):
                         envs |= {item.split(".")[0]}
                         break
     return envs
 
+def _integration_to_dependency_mapping_contains(module: str, lockfile_content: str) -> bool:
+    if not module in INTEGRATION_TO_DEPENDENCY_MAPPING:
+        return False
+    
+    for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING[module]:
+        if dependency in lockfile_content:
+            return True
 
+    return False
+
+VENV_TO_SUBVENVS = {}
 def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set[str]:
     """Return all packages have contribs implemented for them"""
     all_venvs = riotfile.venv.venvs
+    all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
 
-    for v in all_venvs:
-        package = v.name
-        if package not in modules:
-            continue
-        if not _venv_sets_latest_for_package(v, package):
-            pinned_packages.add(package)
+    packages_setting_latest = set()
+    def recurse_venvs(venvs: typing.List[riotfile.Venv]):
+        for venv in venvs:
+            package = venv.name
+            if package not in modules:
+                continue
+            if not _venv_sets_latest_for_package(venv, package) and not package in packages_setting_latest:
+                pinned_packages.add(package)
+            else:
+                packages_setting_latest.add(package)
+                if package in pinned_packages:
+                    pinned_packages.remove(package)
+            recurse_venvs(venv.venvs)
+    
+    recurse_venvs(all_venvs)
 
     packages = {m for m in modules if "." not in m and m not in pinned_packages}
     return packages
+
+
+def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
+    """Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since all contrib
+    venvs are nested within eachother, we will get a consistent integration name for each venv / child venv"""
+    for venv in all_venvs:
+        if venv.venvs:
+            for child_venv in venv.venvs:
+                if child_venv.name:
+                    VENV_TO_SUBVENVS[child_venv.name] = venv.name
+                child_venv.name = venv.name
+
+    return all_venvs
 
 
 def _get_all_modules(modules: typing.Set[str]) -> typing.Set[str]:
@@ -170,13 +180,38 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
     """Return the list of package versions that are tested, related to the modules"""
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
-    for line in lockfile_content:
+    venv_name_line = lockfile_content[-1]
+    integration = None
+    dependencies = []
+    if venv_name_line.startswith("# riot_venv_name:"):
+        venv_name = venv_name_line.split(":")[1].strip()
+
+        def get_integration_and_dependencies(venv_name: str) -> typing.Tuple[str, typing.List[str]]:
+            if venv_name in packages:
+                integration = venv_name
+                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(venv_name, integration)
+                return integration, dependencies
+            elif venv_name in DEPENDENCY_TO_INTEGRATION_MAPPING:
+                integration = DEPENDENCY_TO_INTEGRATION_MAPPING[venv_name]
+                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING[integration]
+                return integration, dependencies
+            elif venv_name in VENV_TO_SUBVENVS:
+                main_venv = VENV_TO_SUBVENVS[venv_name]
+                return get_integration_and_dependencies(main_venv)
+            else:
+                return None, []
+        integration, dependencies = get_integration_and_dependencies(venv_name)
+
+
+    for line in lockfile_content[:-1]:
         package, _, versions = line.partition("==")
+        package = package.split("[")[0] # strip optional package installs
         if package in packages:
+            lock_packages.append((package, versions))
+        if package in dependencies or package == integration:
             lock_packages.append((package, versions))
         elif package in dependency_module_mapping and dependency_module_mapping[package] in packages:
             lock_packages.append((dependency_module_mapping[package], versions))
-
     return lock_packages
 
 
@@ -201,9 +236,9 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
     Returns whether the Venv for the package uses `latest` or not.
     DFS traverse through the Venv, as it may have nested Venvs.
 
-    If the module name is in module_dependency_mapping, remap it.
+    If the module name is in MODULE_TO_DEPENDENCY_MAPPING, remap it.
     """
-    package = module_dependency_mapping.get(suite_name, suite_name)
+    package = MODULE_TO_DEPENDENCY_MAPPING.get(suite_name, suite_name)
 
     if package in venv.pkgs:
         if LATEST in venv.pkgs[package]:
@@ -274,22 +309,24 @@ def generate_supported_versions(contrib_packages, all_used_versions):
     """
     patched = {}
     for package in contrib_packages:
-        ordered = sorted([Version(v) for v in all_used_versions[package]], reverse=True)
-        if not ordered:
-            continue
-        json_format = {
-            "integration": package,
-            "minimum_tracer_supported": str(ordered[-1]),
-            "max_tracer_supported": str(ordered[0]),
-        }
+        for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING.get(package, [package]):
+            ordered = sorted([Version(v) for v in all_used_versions[dependency]], reverse=True)
+            if not ordered:
+                continue
+            json_format = {
+                "dependency": dependency or package,
+                "integration": package,
+                "minimum_tracer_supported": str(ordered[-1]),
+                "max_tracer_supported": str(ordered[0]),
+            }
 
-        if package in pinned_packages:
-            json_format["pinned"] = "true"
+            if package in pinned_packages:
+                json_format["pinned"] = "true"
 
-        if package not in patched:
-            patched[package] = _is_module_autoinstrumented(package)
-        json_format["auto-instrumented"] = patched[package]
-        supported_versions.append(json_format)
+            if package not in patched:
+                patched[package] = _is_module_autoinstrumented(package)
+            json_format["auto-instrumented"] = patched[package]
+            supported_versions.append(json_format)
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
     with open("supported_versions_output.json", "w") as file:

@@ -1,0 +1,76 @@
+#!/bin/bash
+set -e
+
+# Use first argument as RIOT_CMD if provided, otherwise default to 'riot'
+RIOT_CMD=${1:-riot}
+LOCKFILE_DIR=".riot/requirements"
+COMMENT_PREFIX="# riot_venv_name:"
+
+# --- Step 1: Build map of active hash -> venv name ---
+echo "Reading Riot environment list..."
+declare -A hash_to_name_map
+declare -i processed_lines=0
+declare -i skipped_lines=0
+
+# Read 'riot list' output line by line
+while IFS= read -r line; do
+    processed_lines+=1
+    # Attempt to extract hash and name using regex
+    if [[ "$line" =~ ^\[#[0-9]+\][[:space:]]+([a-f0-9]+)[[:space:]]+([^[:space:]]+) ]]; then
+        hash="${BASH_REMATCH[1]}"
+        name="${BASH_REMATCH[2]}"
+        hash_to_name_map["$hash"]="$name"
+    else
+        skipped_lines+=1
+        # Optional: Print skipped lines for debugging if needed
+        # echo "  DEBUG: Skipping line (doesn't match pattern): '$line'" >&2
+    fi
+done < <($RIOT_CMD -P list) # Feed the loop with riot list output
+
+echo "Processed $processed_lines lines from 'riot list'. Found ${#hash_to_name_map[@]} valid environments. Skipped $skipped_lines lines."
+if [ ${#hash_to_name_map[@]} -eq 0 ]; then
+    echo "Error: Could not find any valid environments in 'riot list' output. Aborting." >&2
+    exit 1
+fi
+
+# --- Step 2: Iterate through existing lockfiles and add comment if missing ---
+echo "Checking existing lockfiles in $LOCKFILE_DIR..."
+declare -i files_checked=0
+declare -i files_updated=0
+declare -i files_skipped=0
+
+# Check if lockfile directory exists
+if [ ! -d "$LOCKFILE_DIR" ]; then
+    echo "Warning: Lockfile directory '$LOCKFILE_DIR' not found. No files to update." >&2
+    exit 0
+fi
+
+shopt -s nullglob # Prevent loop running if no *.txt files exist
+for lockfile_path in "$LOCKFILE_DIR"/*.txt; do
+    files_checked+=1
+    file_hash=$(basename "$lockfile_path" .txt)
+
+    # Check if we have a name for this hash
+    if [[ -v hash_to_name_map["$file_hash"] ]]; then
+        venv_name="${hash_to_name_map["$file_hash"]}"
+        comment_line="${COMMENT_PREFIX} ${venv_name}"
+
+        # Check if the comment already exists in the file (quietly, match whole line exactly)
+        if ! grep -qFx "$comment_line" "$lockfile_path"; then
+            echo "  Appending name comment ('$venv_name') to $lockfile_path"
+            # Append the comment with a preceding newline for safety
+            printf "\n%s\n" "$comment_line" >> "$lockfile_path"
+            files_updated+=1
+        else
+            # echo "  Comment already exists in $lockfile_path" # Optional: verbose confirmation
+             : # Do nothing if comment exists
+        fi
+    else
+        echo "  Warning: No Venv name found for existing lockfile hash '$file_hash' ($lockfile_path). Skipping." >&2
+        files_skipped+=1
+    fi
+done
+shopt -u nullglob # Turn off nullglob
+
+echo "Checked $files_checked lockfiles. Updated $files_updated files. Skipped $files_skipped files (no matching venv name found)."
+echo "All done!"

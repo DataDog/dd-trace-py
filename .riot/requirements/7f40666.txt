@@ -25,3 +25,5 @@ pytz==2024.1
 six==1.16.0
 sortedcontainers==2.4.0
 sqlparse==0.5.1
+
+# riot_venv_name: djangorestframework

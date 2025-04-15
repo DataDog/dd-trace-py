@@ -22,3 +22,5 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 tornado==4.5.3
 zipp==3.17.0
+
+# riot_venv_name: opentracer

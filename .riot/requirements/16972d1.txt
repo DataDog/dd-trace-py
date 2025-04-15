@@ -26,3 +26,5 @@ tomli==2.0.1
 typing-extensions==3.10.0.2
 typing-inspect==0.6.0
 zipp==3.17.0
+
+# riot_venv_name: molten

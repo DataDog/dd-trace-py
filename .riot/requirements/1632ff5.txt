@@ -26,3 +26,5 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 vertica-python==0.7.4
 zipp==3.17.0
+
+# riot_venv_name: vertica

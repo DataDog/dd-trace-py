@@ -35,3 +35,5 @@ six==1.16.0
 sortedcontainers==2.4.0
 urllib3==1.26.20
 yarl==1.13.1
+
+# riot_venv_name: elasticsearch-async

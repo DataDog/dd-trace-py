@@ -27,3 +27,5 @@ pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 tomli==2.0.2
 uwsgi==2.0.27
+
+# riot_venv_name: profile-v2

@@ -60,3 +60,5 @@ typing-extensions==4.12.2
 uritemplate==4.1.1
 urllib3==2.2.3
 vertexai==1.71.1
+
+# riot_venv_name: google_generativeai

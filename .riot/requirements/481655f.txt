@@ -36,3 +36,5 @@ sortedcontainers==2.4.0
 tomlkit==0.12.5
 typing-extensions==4.12.2
 urllib3==2.2.2
+
+# riot_venv_name: snowflake

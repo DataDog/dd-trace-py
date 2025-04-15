@@ -19,3 +19,5 @@ pytest-randomly==3.15.0
 redis==3.0.1
 redis-py-cluster==2.0.0
 sortedcontainers==2.4.0
+
+# riot_venv_name: rediscluster

@@ -22,3 +22,5 @@ soupsieve==2.6
 waitress==3.0.0
 webob==1.8.8
 webtest==3.0.1
+
+# riot_venv_name: wsgi

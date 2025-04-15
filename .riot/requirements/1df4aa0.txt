@@ -33,3 +33,5 @@ sortedcontainers==2.4.0
 tzdata==2024.2
 vine==5.1.0
 wcwidth==0.2.13
+
+# riot_venv_name: celery

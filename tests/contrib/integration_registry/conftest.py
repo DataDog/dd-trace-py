@@ -108,6 +108,24 @@ def external_integration_names(registry_data: list[dict]) -> set[str]:
 
 
 @pytest.fixture(scope="module")
+def untested_integrations(registry_data: list[dict]) -> set[str]:
+    """Extracts names of integrations marked as 'is_tested: false'."""
+    # This fixture depends on registry_data (from conftest.py) and remains here
+    names = set()
+    for entry in registry_data:
+        name = entry.get("integration_name")
+        is_tested = entry.get("is_tested")
+        if name and isinstance(name, str) and is_tested is False:
+            names.add(name)
+
+    # TODO: wconnti27: remove this and ensure this list populates registry.yaml
+    from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
+    for name in EXCLUDED_FROM_TESTING:
+        names.add(name)
+    return names
+
+
+@pytest.fixture(scope="module")
 def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
     """
     Scans ddtrace/contrib/internal and returns a set of all directory names.
@@ -123,6 +141,13 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
     if not names:
          pytest.fail(f"No directories (excluding __pycache__) found in {internal_contrib_dir}")
     return names
+
+
+@pytest.fixture(scope="module")
+def riot_venvs() -> set[str]:
+    """Gets all Venv defined in riotfile.py."""
+    return riotfile.venv.venvs
+
 
 @pytest.fixture(scope="module")
 def riot_venv_names() -> set[str]:
@@ -141,4 +166,4 @@ def riot_venv_names() -> set[str]:
 
     if not names:
         pytest.fail("No integration Venv names found in riotfile.venv structure.")
-    return names 
+    return names

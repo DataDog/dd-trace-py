@@ -21,3 +21,5 @@ pytest-randomly==3.15.0
 redis==5.1.1
 rq==1.16.2
 sortedcontainers==2.4.0
+
+# riot_venv_name: rq

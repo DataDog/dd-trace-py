@@ -22,3 +22,5 @@ pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 typing-extensions==4.12.2
+
+# riot_venv_name: psycopg

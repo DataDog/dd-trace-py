@@ -22,3 +22,5 @@ pytest-randomly==3.16.0
 sortedcontainers==2.4.0
 sqlalchemy==2.0.40
 typing-extensions==4.13.1
+
+# riot_venv_name: sqlalchemy

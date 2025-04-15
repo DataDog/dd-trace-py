@@ -20,3 +20,5 @@ pytest-mock==3.14.0
 pytest-randomly==3.16.0
 sortedcontainers==2.4.0
 vine==5.1.0
+
+# riot_venv_name: kombu

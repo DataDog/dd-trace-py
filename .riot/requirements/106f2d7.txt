@@ -22,3 +22,5 @@ pytest-mock==3.14.0
 requests==2.31.0
 sortedcontainers==2.4.0
 urllib3==2.2.1
+
+# riot_venv_name: appsec
