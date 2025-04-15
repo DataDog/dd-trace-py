@@ -2,20 +2,13 @@
 
 import os
 from re import Match
-import sys
+from typing import Any
+from typing import Iterator
+from typing import Literal  # noqa:F401
+from typing import Tuple
 
 from _io import BytesIO
 from _io import StringIO
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
-from typing import Any
-from typing import Iterator
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -121,6 +114,10 @@ class APPSEC(metaclass=Constant_Class):
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
+    WAF_ERROR: Literal["_dd.appsec.waf.error"] = "_dd.appsec.waf.error"
+    RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
+    ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
+    ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
 
 
 TELEMETRY_OFF_NAME = "OFF"

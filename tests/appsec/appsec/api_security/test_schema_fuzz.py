@@ -4,6 +4,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
+from ddtrace.appsec import _metrics
 import ddtrace.appsec._constants as constants
 import ddtrace.appsec._ddwaf as ddwaf
 
@@ -12,7 +13,7 @@ def build_schema(obj):
     rules = {}
     with open(constants.DEFAULT.RULES, "r") as f_apisec:
         rules.update(json.load(f_apisec))
-    waf = ddwaf.DDWaf(rules, b"", b"")
+    waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
     ctx = waf._at_request_start()
     res = waf.run(
         ctx,

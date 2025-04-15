@@ -20,8 +20,6 @@ from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
 PY3 = sys.version_info[0] >= 3
-PY30_37 = sys.version_info >= (3, 0, 0) and sys.version_info < (3, 8, 0)
-PY38_PLUS = sys.version_info >= (3, 8, 0)
 PY39_PLUS = sys.version_info >= (3, 9, 0)
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
@@ -229,20 +227,14 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _is_string_node(node: Any) -> bool:
-        if PY30_37 and isinstance(node, ast.Bytes):
-            return True
-
-        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
+        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, IAST.TEXT_TYPES)):
             return True
 
         return False
 
     @staticmethod
     def _is_numeric_node(node: Any) -> bool:
-        if PY30_37 and isinstance(node, ast.Num):
-            return True
-
-        if PY38_PLUS and (isinstance(node, ast.Constant) and isinstance(node.value, (int, float))):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return True
 
         return False
@@ -318,10 +310,6 @@ class AstVisitor(ast.NodeTransformer):
         lineno = getattr(pos_from_node, "lineno", 1)
         col_offset = getattr(pos_from_node, "col_offset", 0)
 
-        if PY30_37:
-            # No end_lineno or end_pos_offset
-            return type_(lineno=lineno, col_offset=col_offset, **kwargs)
-
         # Py38+
         end_lineno = getattr(pos_from_node, "end_lineno", 1)
         end_col_offset = getattr(pos_from_node, "end_col_offset", 0)
@@ -395,9 +383,6 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _none_constant(from_node: Any) -> Any:  # noqa: B008
-        if PY30_37:
-            return ast.NameConstant(lineno=from_node.lineno, col_offset=from_node.col_offset, value=None)
-
         # 3.8+
         return ast.Constant(
             lineno=from_node.lineno,
@@ -474,8 +459,7 @@ class AstVisitor(ast.NodeTransformer):
         module_node.body.insert(insert_position, replacements_import)
         # Must be called here instead of the start so the line offset is already
         # processed
-        self.generic_visit(module_node)
-        return module_node
+        return self.generic_visit(module_node)
 
     def visit_FunctionDef(self, def_node: ast.FunctionDef) -> Any:
         """
@@ -687,7 +671,7 @@ class AstVisitor(ast.NodeTransformer):
         # Assign.targets, thus the manual copy
 
         func_arg1 = copy.deepcopy(augassign_node.target)
-        func_arg1.ctx = ast.Load()  # type: ignore[attr-defined]
+        func_arg1.ctx = ast.Load()
         func_arg2 = copy.deepcopy(augassign_node.value)
         func_arg2.ctx = ast.Load()  # type: ignore[attr-defined]
 

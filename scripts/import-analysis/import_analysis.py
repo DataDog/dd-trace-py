@@ -13,6 +13,8 @@ from pyrometry.flamegraph import FlameGraph
 
 microseconds = int
 
+Z_THRESHOLD = 3.0  # 3 sigma rule
+
 
 @dataclass
 class ImportStack:
@@ -137,9 +139,9 @@ def z_test(x: Measure, y: Measure) -> float:
 
 def main() -> None:
     x = [ImportFlameGraph.load(f) for f in Path.cwd().glob("import-pr-*.txt")]
-    y = [ImportFlameGraph.load(f) for f in Path.cwd().glob("import-main-*.txt")]
+    y = [ImportFlameGraph.load(f) for f in Path.cwd().glob("import-base-*.txt")]
 
-    # PR - main
+    # PR - base
     graphs: tuple[ImportFlameGraph, ImportFlameGraph, ImportFlameGraph, ImportFlameGraph] = decompose_4way(x, y)
 
     x_measure = Measure([fg.norm() / 1000 for fg in x], "ms")
@@ -156,14 +158,14 @@ def main() -> None:
 
     print("## Bootstrap import analysis")
     print()
-    print("Comparison of import times between this PR and main.")
+    print("Comparison of import times between this PR and base.")
     print()
     print("### Summary")
     print()
-    print(f"The average import time in this PR is: {str(x_measure)}.\n")
-    print(f"The average import time in main is: {str(y_measure)}.\n")
-    print(f"The import time difference between this PR and main is: {str(diff_m)}.\n")
-    if (abs(z)) <= 1.96:
+    print(f"The average import time from this PR is: {str(x_measure)}.\n")
+    print(f"The average import time from base is: {str(y_measure)}.\n")
+    print(f"The import time difference between this PR and base is: {str(diff_m)}.\n")
+    if abs(z) <= Z_THRESHOLD:
         print(f"The difference is not statistically significant (z = {z:.2f}).\n")
     print()
     print("### Import time breakdown")
@@ -180,7 +182,7 @@ def main() -> None:
     else:
         print("No import paths have changed significantly.")
 
-    if z > 1.96:
+    if z > Z_THRESHOLD:
         msg = f"Import time has increased significantly (z = {z:.2f})."
         raise ValueError(msg)
 

@@ -1,7 +1,7 @@
 from requests_mock import Adapter
 
-from ddtrace import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import get_128_bit_trace_id_from_headers
 
@@ -77,7 +77,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_true(self):
         # ensure distributed tracing can be enabled manually
-        cfg = config._get_from(self.session)
+        cfg = Pin._get_config(self.session)
         cfg["distributed_tracing"] = True
         adapter = Adapter()
         self.session.mount("mock", adapter)
@@ -101,7 +101,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_false(self):
         # ensure distributed tracing can be disabled manually
-        cfg = config._get_from(self.session)
+        cfg = Pin._get_config(self.session)
         cfg["distributed_tracing"] = False
         adapter = Adapter()
         self.session.mount("mock", adapter)
@@ -121,7 +121,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
         with self.override_global_config(dict(_apm_tracing_enabled=False, _asm_enabled=True)):
             assert asm_config._apm_opt_out
             self.tracer.enabled = False
-            cfg = config._get_from(self.session)
+            cfg = Pin._get_config(self.session)
             cfg["distributed_tracing"] = True
             adapter = Adapter()
             self.session.mount("mock", adapter)
@@ -149,7 +149,7 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
             assert not asm_config._apm_opt_out
             self.tracer.enabled = False
 
-            cfg = config._get_from(self.session)
+            cfg = Pin._get_config(self.session)
             cfg["distributed_tracing"] = True
             adapter = Adapter()
             self.session.mount("mock", adapter)
