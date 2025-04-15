@@ -1,5 +1,6 @@
 [[
   {
+    "error": 0,
     "name": "test",
     "service": "tests.appsec.appsec",
     "resource": "test",

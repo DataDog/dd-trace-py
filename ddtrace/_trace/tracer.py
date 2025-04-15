@@ -35,6 +35,7 @@ from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -309,6 +310,7 @@ class Tracer(object):
             self._config_on_disk = store_metadata(metadata)
         except Exception as e:
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
+        core.tracer = self  # type: ignore[assignment]
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
