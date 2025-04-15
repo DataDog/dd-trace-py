@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 from types import ModuleType
 import typing as t
+import resource
 
 import pytest
 
@@ -194,6 +195,46 @@ def test_symbols_to_json():
         "scopes": [],
         "language_specifics": {},
     }
+
+@pytest.mark.parametrize(
+    "num_attributes",
+    [
+        5,
+        20,
+        50,
+        100,
+        1000,
+    ]
+)
+def test_benchmark_module_get_from(benchmark, num_attributes):
+    """Benchmark performance of Scope._get_from with modules of different complexities."""
+    # Create a module with the specified number of attributes
+    module_name = f"test_module_{num_attributes}"
+    test_module = ModuleType(module_name)
+    test_module.__spec__ = ModuleSpec(module_name, None)
+    test_module.__spec__.origin = __file__
+
+    # Add attributes
+    for i in range(num_attributes):
+        setattr(test_module, f"attr_{i}", f"value_{i}")
+
+    # Define a wrapper function that creates a fresh ScopeData object for each benchmark run
+    def benchmark_wrapper():
+        data = ScopeData(Path(__file__), set())
+        return Scope._get_from(test_module, data)
+
+    # Run the benchmark
+    result = benchmark(benchmark_wrapper)
+
+    # Verify results
+    assert result is not None
+    assert result.scope_type == ScopeType.MODULE
+    assert result.name == module_name
+
+    # Check that our custom attributes are in the symbols
+    attr_names = {symbol.name for symbol in result.symbols}
+    for i in range(num_attributes):
+        assert f"attr_{i}" in attr_names
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
