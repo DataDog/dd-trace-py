@@ -8,8 +8,6 @@ import bm
 class DDtraceRun(bm.Scenario):
     ddtrace_run: bool
     http: bool
-    runtimemetrics: bool
-    telemetry: bool
     profiling: bool
     appsec: bool
     tracing: bool
@@ -17,12 +15,18 @@ class DDtraceRun(bm.Scenario):
     def run(self):
         # setup subprocess environment variables
         env = os.environ.copy()
-        env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtimemetrics)
         env["DD_APPSEC_ENABLED"] = str(self.appsec)
+        env.update(
+            {
+                "DD_PROFILING_ENABLED": str(self.profiling),
+                "DD_PROFILING_API_TIMEOUT": "0.1",
+                "DD_PROFILING_UPLOAD_INTERVAL": "10",
+            }
+        )
 
         # initialize subprocess args
         subp_cmd = []
-        code = "import ddtrace; ddtrace._monkey._patch_all()\n"
+        code = "import ddtrace.auto\n"
         if self.ddtrace_run:
             subp_cmd = ["ddtrace-run"]
             code = ""
@@ -42,14 +46,8 @@ httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, teleme
 httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, 'profiling/v1/input'))
 """
 
-        if self.telemetry:
-            code += "telemetry_writer.enable()\n"
-
         if self.tracing:
-            code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
-
-        if self.profiling:
-            code += "import ddtrace.profiling.auto\n"
+            code += "tracer.trace('test-x', service='bench-test').finish()\n"
 
         # stage code for execution in a subprocess
         subp_cmd += [sys.executable, "-c", code]
