@@ -37,7 +37,6 @@ from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-from ..internal.constants import DD_TRACE_BAGGAGE_TAG_ENABLED
 from ..internal.constants import DD_TRACE_BAGGAGE_TAG_KEYS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
@@ -1153,16 +1152,15 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
-                    if DD_TRACE_BAGGAGE_TAG_ENABLED:
-                        allowed_keys = set(k.strip() for k in DD_TRACE_BAGGAGE_TAG_KEYS.split(",") if k.strip())
-                        tag_all_keys = not allowed_keys
-
+                    if DD_TRACE_BAGGAGE_TAG_KEYS.strip():
+                        allowed_keys = {k.strip() for k in DD_TRACE_BAGGAGE_TAG_KEYS.split(",") if k.strip()}
                         for key, value in baggage_context.get_all_baggage_items().items():
-                            if tag_all_keys or key in allowed_keys:
-                                if key not in context._meta:
-                                    context._meta[key] = value
+                            if key in allowed_keys:
+                                prefixed_key = "baggage." + key
+                                if prefixed_key not in context._meta:
+                                    context._meta[prefixed_key] = value
                                 else:
-                                    log.debug("Skipping baggage tag '%s'; tag already set", key)
+                                    log.debug("Skipping baggage tag '%s'; tag already set", prefixed_key)
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
