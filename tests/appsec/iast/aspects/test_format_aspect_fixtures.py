@@ -5,6 +5,8 @@ import math
 from typing import Any
 from typing import NamedTuple
 
+from hypothesis import given
+from hypothesis.strategies import text
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -13,6 +15,7 @@ from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.iast_utils import _iast_patched_module
@@ -22,6 +25,11 @@ from tests.utils import override_global_config
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
 EscapeContext = NamedTuple("EscapeContext", [("id", Any), ("position", int)])
+
+
+@given(text())
+def test_format_aspect_str(text):
+    assert ddtrace_aspects.format_aspect("t-{}-t".format, 1, "t-{}-t", text) == "t-{}-t".format(text)
 
 
 class TestOperatorFormatReplacement(BaseReplacement):

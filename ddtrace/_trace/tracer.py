@@ -973,7 +973,7 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
 
-        self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
+        self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
 
     @staticmethod
     def _use_log_writer() -> bool:
