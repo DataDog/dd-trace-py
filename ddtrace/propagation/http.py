@@ -936,6 +936,7 @@ class _BaggageHeader:
 
         return Context(baggage=baggage)
 
+
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
