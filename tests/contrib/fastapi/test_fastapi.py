@@ -736,3 +736,41 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
 
             if test_headers["type"] == "distributed":
                 assert web_span.trace_id == 1
+
+def test_baggage_span_tagging_default(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": "usr.id=123,account.id=456,region=us-west"})
+
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    # Assume the request span is the first span in the first trace.
+    request_span = spans[0][0]
+
+    assert request_span.get_tag("baggage.usr.id") == "123"
+    assert request_span.get_tag("baggage.account.id") == "456"
+    # Since "region" is not in the default list, its baggage tag should not be present.
+    assert request_span.get_tag("baggage.region") is None
+
+def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
+    response = client.get("/", headers={})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
