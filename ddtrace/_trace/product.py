@@ -20,12 +20,14 @@ class Config(En):
     enabled = En.v(bool, "enabled", default=True)
     global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
 
-    if global_tags is not None:
+    if not global_tags:
         deprecate(
             "DD_TRACE_GLOBAL_TAGS is deprecated",
             message="Please migrate to using DD_TAGS instead",
             category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
         )
+    assert False, "forced error"
 
 
 _config = Config()

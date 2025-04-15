@@ -210,10 +210,6 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_global_tags.py"])
             assert out.startswith(b"Test success")
 
-    @pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C"), err=None)
-    def test_global_trace_tags_deprecation(self):
-
-
     def test_logs_injection(self):
         """Ensure logs injection works"""
         with self.override_env(dict(DD_LOGS_INJECTION="true")):
@@ -526,3 +522,10 @@ def test_ddtrace_run_and_auto_sitecustomize():
     # no additional modules imported / side-effects
     final_modules = set(sys.modules.keys())
     assert final_modules - starting_modules == set(["ddtrace.auto"])
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True,b:0,c:C"), err=None)
+def test_global_trace_tags_deprecation_warning():
+    """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
+    import ddtrace.auto;  # noqa: F401
+    from ddtrace import tracer # noqa: F401
+    tracer.trace("test").finish()
