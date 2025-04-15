@@ -155,6 +155,8 @@ ddtrace/contrib/internal/langgraph                      @DataDog/ml-observabilit
 ddtrace/contrib/_langgraph.py                           @DataDog/ml-observability
 ddtrace/contrib/internal/crewai                         @DataDog/ml-observability
 ddtrace/contrib/_crewai.py                              @DataDog/ml-observability
+ddtrace/contrib/internal/openai_agents                  @DataDog/ml-observability
+ddtrace/contrib/_openai_agents.py                       @DataDog/ml-observability
 tests/llmobs                                            @DataDog/ml-observability
 tests/contrib/openai                                    @DataDog/ml-observability
 tests/contrib/langchain                                 @DataDog/ml-observability
@@ -167,6 +169,7 @@ tests/contrib/google_generativeai                       @DataDog/ml-observabilit
 tests/contrib/vertexai                                  @DataDog/ml-observability
 tests/contrib/langgraph                                 @DataDog/ml-observability
 tests/contrib/crewai                                    @DataDog/ml-observability
+tests/contrib/openai_agents                             @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                @DataDog/ml-observability
 
 # Remote Config
