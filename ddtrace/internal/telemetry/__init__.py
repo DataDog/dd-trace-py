@@ -3,6 +3,7 @@ Instrumentation Telemetry API.
 This is normally started automatically when ``ddtrace`` is imported. It can be disabled by setting
 ``DD_INSTRUMENTATION_TELEMETRY_ENABLED`` variable to ``False``.
 """
+
 import os
 import typing as t
 
@@ -104,9 +105,9 @@ def get_config(
     return val
 
 
-if get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False):
+telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
+if telemetry_enabled:
     from .writer import TelemetryWriter
-
 else:
     from .noop_writer import NoOpTelemetryWriter as TelemetryWriter  # type: ignore[assignment]
 
