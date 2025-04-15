@@ -182,7 +182,7 @@ def mock_tracer_chat_completions(agents, openai, mock_tracer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture

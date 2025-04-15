@@ -47,18 +47,14 @@ def _score_metric_event():
 
 
 def test_writer_start(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key="<bad-api-key>", is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_eval_metric_writer.start()
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsEvalMetricWriter", INTAKE_ENDPOINT)])
     llmobs_eval_metric_writer.stop()
 
 
 def test_buffer_limit(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key="<bad-api-key>", is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     for _ in range(1001):
         llmobs_eval_metric_writer.enqueue({})
     mock_writer_logs.warning.assert_called_with(
@@ -68,9 +64,8 @@ def test_buffer_limit(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_metric_bad_api_key(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key="<bad-api-key>", is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
+
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.error.assert_called_with(
@@ -84,9 +79,7 @@ def test_send_metric_bad_api_key(mock_writer_logs):
 
 
 def test_send_metric_no_api_key(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key="", is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="")
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.warning.assert_called_with(
@@ -97,9 +90,7 @@ def test_send_metric_no_api_key(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_categorical_metric(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key=DD_API_KEY, is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
@@ -109,9 +100,7 @@ def test_send_categorical_metric(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_score_metric(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key=DD_API_KEY, is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
@@ -121,9 +110,7 @@ def test_send_score_metric(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_timed_events(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=0.01, timeout=1, site=DD_SITE, api_key=DD_API_KEY, is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(0.01, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_eval_metric_writer.start()
     mock_writer_logs.reset_mock()
 
@@ -143,9 +130,7 @@ def test_send_timed_events(mock_writer_logs):
 
 @pytest.mark.vcr_logs
 def test_send_multiple_events(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-        interval=1, timeout=1, site=DD_SITE, api_key=DD_API_KEY, is_agentless=True
-    )
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     mock_writer_logs.reset_mock()
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
@@ -171,7 +156,7 @@ ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_eval_metric_writer.send_sc
 ctx.__enter__()
 atexit.register(lambda: ctx.__exit__())
 llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-    interval=0.01, timeout=1, site="datad0g.com", api_key="<not-a-real-key>", is_agentless=True
+    0.01, 1, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>"
 )
 llmobs_eval_metric_writer.start()
 llmobs_eval_metric_writer.enqueue(_score_metric_event())

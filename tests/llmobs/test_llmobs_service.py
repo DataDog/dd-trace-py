@@ -889,20 +889,6 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         assert span_context["trace_id"] == format_trace_id(span.trace_id)
 
 
-def test_submit_evaluation_no_api_key_raises_warning(llmobs, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="")):
-        llmobs.submit_evaluation(
-            span_context={"span_id": "123", "trace_id": "456"},
-            label="toxicity",
-            metric_type="categorical",
-            value="high",
-        )
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-            "Ensure this configuration is set before running your application."
-        )
-
-
 def test_submit_evaluation_ml_app_raises_warning(llmobs, mock_llmobs_logs):
     with override_global_config(dict(_llmobs_ml_app="")):
         llmobs.submit_evaluation(

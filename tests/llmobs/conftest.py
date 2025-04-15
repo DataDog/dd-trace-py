@@ -179,7 +179,7 @@ def llmobs_env():
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
-    yield TestLLMObsSpanWriter(1.0, 1.0, api_key="<test-key>", is_agentless=True, _agentless_url=url)
+    yield TestLLMObsSpanWriter(1.0, 1.0, is_agentless=True, _api_key="<test-key>", _override_url=url)
 
 
 class LLMObsServer(BaseHTTPRequestHandler):

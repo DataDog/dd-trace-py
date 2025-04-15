@@ -10,7 +10,7 @@ from tests.llmobs._utils import _completion_event
 
 @pytest.fixture
 def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, "datad0g.com", "<not-a-real-key>", is_agentless=True)
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 def test_encode_span(llmobs_span_writer, mock_writer_logs):
