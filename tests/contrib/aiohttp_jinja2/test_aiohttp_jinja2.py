@@ -41,6 +41,7 @@ async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_cl
         # it should trace a template rendering
         request = await client.request("GET", "/template/")
         assert 200 == request.status
+        tracer.flush()
 
 
 @pytest.mark.parametrize("use_global_tracer", [True])
