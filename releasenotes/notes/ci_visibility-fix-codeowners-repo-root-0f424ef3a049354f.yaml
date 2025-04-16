@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where the ``CODEOWNERS`` file of the project being tested was looked up in
+    the current working directory rather than the repository root.
