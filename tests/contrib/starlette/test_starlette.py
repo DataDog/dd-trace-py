@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
-from ddtrace.internal import core
 from ddtrace.propagation import http as http_propagation
 from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
@@ -43,11 +42,9 @@ def tracer(engine):
     tracer = DummyTracer()
     Pin._override(engine, tracer=tracer)
     ddtrace.tracer = tracer
-    core.tracer = tracer
     starlette_patch()
     yield tracer
     ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
     starlette_unpatch()
 
 

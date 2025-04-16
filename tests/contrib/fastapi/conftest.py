@@ -4,7 +4,6 @@ import pytest
 import ddtrace
 from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
 from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
-from ddtrace.internal import core
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 
@@ -17,10 +16,8 @@ def tracer():
     tracer = DummyTracer()
 
     ddtrace.tracer = tracer
-    core.tracer = tracer
     fastapi_patch()
     yield tracer
-    core.tracer = original_tracer
     ddtrace.tracer = original_tracer
     fastapi_unpatch()
 

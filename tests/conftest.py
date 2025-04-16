@@ -30,7 +30,6 @@ import pytest
 
 import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
-from ddtrace.internal import core
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -139,14 +138,9 @@ def enable_crashtracking(auto_enable_crashtracking):
 @pytest.fixture
 def tracer(use_global_tracer):
     if use_global_tracer:
-        yield ddtrace.tracer
+        return ddtrace.tracer
     else:
-        original_tracer = ddtrace.tracer
-        ddtrace.tracer = DummyTracer()
-        core.tracer = ddtrace.tracer
-        yield DummyTracer()
-        ddtrace.tracer = original_tracer
-        core.tracer = original_tracer
+        return DummyTracer()
 
 
 @pytest.fixture
