@@ -19,7 +19,7 @@ variables:
   timeout: 1h
   dependencies: [ "baseline:build", "candidate" ]
   script: |
-    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    export BASE_REPORTS_DIR="$(pwd)/reports/" && (mkdir "${BASE_REPORTS_DIR}" || :)
 
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
@@ -28,16 +28,22 @@ variables:
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
     export PATH="$PATH:/platform/steps"
 
-    capture-hardware-software-info.sh
+    for $SCENARIO in $SCENARIOS;
+    do
+      export REPORTS_DIR="${BASE_REPORTS_DIR}/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
-    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
-    then
-      BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
-    else
-      run-benchmarks.sh
-    fi
+      capture-hardware-software-info.sh
 
-    analyze-results.sh
+      if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+      then
+        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+        analyze-results.sh
+      else
+        run-benchmarks.sh
+      fi
+
+      analyze-results.sh
+    end
 
     upload-results-to-s3.sh || :
   artifacts:
@@ -135,27 +141,21 @@ microbenchmarks:
   extends: .benchmarks
   parallel:
     matrix:
-      - SCENARIO:
-        - "span"
-        - "tracer"
-        - "sampling_rule_matches"
-        - "set_http_meta"
-        - "django_simple"
-        - "flask_simple"
-        - "flask_sqli"
-        - "core_api"
-        - "otel_span"
+      - SCENARIOS:
+        # Try to pack multiple quick benchmarks into one job
+        - "span tracer core_api"
+        - "otel_span rate_limiter"
+        - "set_http_meta sampling_rule_matches"
+        - "flask_simple flask_sqli django_simple"
         - "appsec_iast_aspects"
         - "appsec_iast_aspects_ospath"
         - "appsec_iast_aspects_re_module"
-        - "appsec_iast_aspects_split"
+        - "appsec_iast_aspects_split appsec_iast_propagation"
         - "appsec_iast_django_startup"
-        - "appsec_iast_propagation"
         # Flaky. Timeout errors
         # - "encoder"
         - "http_propagation_extract"
         - "http_propagation_inject"
-        - "rate_limiter"
         - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
