@@ -944,6 +944,9 @@ class LLMObs(Service):
                     error = "invalid_tags"
                     log.warning("span tags must be a dictionary of string key - primitive value pairs.")
                 else:
+                    session_id = tags.get("session_id")
+                    if session_id:
+                        span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
