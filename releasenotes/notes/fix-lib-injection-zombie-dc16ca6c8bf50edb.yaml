@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Avoid zombie process from telemetry sender on startup.

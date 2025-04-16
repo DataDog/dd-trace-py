@@ -14,7 +14,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -36,7 +35,7 @@ from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from ddtrace.trace import Context
 from ddtrace.trace import tracer as global_tracer
 from tests.subprocesstest import run_in_subprocess
@@ -250,7 +249,7 @@ class TracerTestCases(TracerTestCase):
             self.assertEqual(42, kw_param)
 
         # set the custom wrap factory after the wrapper has been called
-        self.tracer._configure(wrap_executor=wrap_executor)
+        self.tracer._wrap_executor = wrap_executor
 
         # call the function expecting that the custom tracing wrapper is used
         wrapped_function(42, kw_param=42)
@@ -274,7 +273,7 @@ class TracerTestCases(TracerTestCase):
             self.assertEqual(42, kw_param)
 
         # set the custom wrap factory after the wrapper has been called
-        self.tracer._configure(wrap_executor=wrap_executor)
+        self.tracer._wrap_executor = wrap_executor
 
         # call the function expecting that the custom tracing wrapper is used
         with self.trace("wrap.parent", service="webserver"):
@@ -611,37 +610,6 @@ def test_tracer_shutdown_no_timeout():
 
 
 @pytest.mark.subprocess()
-def test_tracer_configure_writer_stop_unstarted():
-    import mock
-
-    from ddtrace.trace import tracer as t
-
-    t._writer = mock.Mock(wraps=t._writer)
-    orig_writer = t._writer
-
-    # Stop should be called when replacing the writer.
-    t._configure(hostname="localhost", port=8126)
-    assert orig_writer.stop.called
-
-
-@pytest.mark.subprocess()
-def test_tracer_configure_writer_stop_started():
-    import mock
-
-    from ddtrace.trace import tracer as t
-
-    t._writer = mock.Mock(wraps=t._writer)
-    orig_writer = t._writer
-
-    # Do a write to start the writer
-    with t.trace("something"):
-        pass
-
-    t._configure(hostname="localhost", port=8126)
-    orig_writer.stop.assert_called_once_with()
-
-
-@pytest.mark.subprocess()
 def test_tracer_shutdown_timeout():
     import mock
 
@@ -877,8 +845,6 @@ class EnvTracerTestCase(TracerTestCase):
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
         assert isinstance(ddtrace.tracer._writer, LogWriter)
-        ddtrace.tracer._configure(enabled=True)
-        assert isinstance(ddtrace.tracer._writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
@@ -1029,6 +995,8 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
+    import ddtrace.auto  # noqa
+
     from ddtrace.constants import MANUAL_KEEP_KEY
     from ddtrace.trace import tracer
 
@@ -1117,7 +1085,7 @@ def test_filters(tracer, test_spans):
         def process_trace(self, trace):
             return None
 
-    tracer._configure(trace_processors=[FilterAll()])
+    tracer.configure(trace_processors=[FilterAll()])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1136,7 +1104,7 @@ def test_filters(tracer, test_spans):
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer._configure(trace_processors=[FilterMutate("boop", "beep")])
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1149,7 +1117,7 @@ def test_filters(tracer, test_spans):
     assert s2.get_tag("boop") == "beep"
 
     # Test multiple filters
-    tracer._configure(trace_processors=[FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")])
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1165,7 +1133,7 @@ def test_filters(tracer, test_spans):
         def process_trace(self, trace):
             _ = 1 / 0
 
-    tracer._configure(trace_processors=[FilterBroken()])
+    tracer.configure(trace_processors=[FilterBroken()])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -1174,7 +1142,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
 
-    tracer._configure(trace_processors=[FilterMutate("boop", "beep"), FilterBroken()])
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep"), FilterBroken()])
     with tracer.trace("root"):
         with tracer.trace("child"):
             pass
@@ -1217,7 +1185,20 @@ class TestPartialFlush(TracerTestCase):
         env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
-        self._test_partial_flush()
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 5
+        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
+
+        root.finish()
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1")
@@ -1254,41 +1235,6 @@ class TestPartialFlush(TracerTestCase):
         traces = self.pop_traces()
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
-
-    def test_partial_flush_configure(self):
-        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=5)
-        self.test_partial_flush()
-
-    def test_partial_flush_too_many_configure(self):
-        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=1)
-        self.test_partial_flush_too_many()
-
-    def test_partial_flush_too_few_configure(self):
-        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=6)
-        self.test_partial_flush_too_few()
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="false", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
-    )
-    def test_partial_flush_configure_precedence(self):
-        self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=5)
-        self.test_partial_flush()
-
-    def _test_partial_flush(self):
-        root = self.tracer.trace("root")
-        for i in range(5):
-            self.tracer.trace("child%s" % i).finish()
-
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 5
-        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
-
-        root.finish()
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        assert traces[0][0].name == "root"
 
 
 def test_unicode_config_vals():
@@ -1689,8 +1635,10 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_fork_manual_span_same_context():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.trace import tracer
@@ -1717,8 +1665,10 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
 def test_fork_manual_span_different_contexts():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.trace import tracer
@@ -1740,8 +1690,10 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_fork_pid():
+    import ddtrace.auto  # noqa
+
     import os
 
     from ddtrace.constants import PID
@@ -1818,20 +1770,20 @@ def test_tracer_memory_leak_span_processors():
 
 def test_top_level(tracer):
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span._is_top_level
         with tracer.trace("child") as child_span:
-            assert not _is_top_level(child_span)
+            assert not child_span._is_top_level
             with tracer.trace("subchild") as subchild_span:
-                assert not _is_top_level(subchild_span)
+                assert not subchild_span._is_top_level
             with tracer.trace("subchild2", service="svc-2") as subchild_span2:
-                assert _is_top_level(subchild_span2)
+                assert subchild_span2._is_top_level
 
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span._is_top_level
         with tracer.trace("child", service="child-svc") as child_span:
-            assert _is_top_level(child_span)
+            assert child_span._is_top_level
         with tracer.trace("child2", service="child-svc") as child_span2:
-            assert _is_top_level(child_span2)
+            assert child_span2._is_top_level
 
 
 def test_finish_span_with_ancestors(tracer):
@@ -1884,7 +1836,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
         ddtrace.config._reset()
         tracer = DummyTracer()
-        tracer._configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
+        tracer.configure(appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, apm_tracing_disabled=True)
         if sca_enabled == "true":
             assert bool(ddtrace.config._sca_enabled) is True
         assert tracer.enabled is False
@@ -1898,7 +1850,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
         ddtrace.config._reset()
-        tracer._configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
+        tracer.configure(appsec_enabled=False, iast_enabled=False, apm_tracing_disabled=False)
 
 
 def test_gc_not_used_on_root_spans():
@@ -1939,10 +1891,6 @@ def test_detect_agent_config_with_lambda_extension():
         assert isinstance(tracer._writer, AgentWriter)
         assert tracer._writer._sync_mode
 
-        tracer._configure(enabled=False)
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
-
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
@@ -1954,5 +1902,5 @@ def test_multiple_tracer_instances():
     with mock.patch("ddtrace._trace.tracer.log") as log:
         ddtrace.trace.Tracer()
     log.error.assert_called_once_with(
-        "Multiple Tracer instances can not be initialized. " "Use ``ddtrace.trace.tracer`` instead."
+        "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
     )

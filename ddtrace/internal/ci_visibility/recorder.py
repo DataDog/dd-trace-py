@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -84,6 +85,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -162,20 +164,21 @@ class CIVisibility(Service):
             if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
-                url = ddconfig._trace_agent_url
+                self.tracer = CIVisibilityTracer()
 
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
-                    url = env_agent_url
-
-                self.tracer = CIVisibilityTracer(context_provider=CIContextProvider(), url=url)
+                    self.tracer._agent_url = env_agent_url
+                self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
 
             # Partial traces are required for ITR to work in suite-level skipping for long test sessions, but we
             # assume that a tracer is already configured if it's been passed in.
-            self.tracer._configure(partial_flush_enabled=True, partial_flush_min_spans=TRACER_PARTIAL_FLUSH_MIN_SPANS)
+            self.tracer._partial_flush_enabled = True
+            self.tracer._partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
 
@@ -207,7 +210,7 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
-        self._unique_test_ids: Set[InternalTestId] = set()
+        self._known_test_ids: Set[InternalTestId] = set()
         self._test_properties: Dict[InternalTestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
@@ -301,11 +304,15 @@ class CIVisibility(Service):
             "API-provided settings: Early Flake Detection enabled: %s",
             self._api_settings.early_flake_detection.enabled,
         )
+        log.info(
+            "API-provided settings: Known Tests enabled: %s",
+            self._api_settings.known_tests_enabled,
+        )
         log.info("API-provided settings: Auto Test Retries enabled: %s", self._api_settings.flaky_test_retries_enabled)
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
-            self._codeowners = Codeowners()
+            self._codeowners = Codeowners(cwd=self._tags.get(ci.WORKSPACE_PATH))
         except ValueError:
             log.warning("CODEOWNERS file is not available")
         except Exception:
@@ -388,14 +395,15 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent.get_trace_url() if url is None else url,
+                intake_url=agent_config.trace_agent_url if url is None else url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
             )
         if writer is not None:
-            self.tracer._configure(writer=writer)
+            self.tracer._writer = writer
+            self.tracer._recreate()
 
     def _agent_evp_proxy_is_available(self) -> bool:
         try:
@@ -437,11 +445,18 @@ class CIVisibility(Service):
         return cls._instance._api_settings.skipping_enabled
 
     @classmethod
+    def is_known_tests_enabled(cls) -> bool:
+        if cls._instance is None:
+            return False
+        return cls._instance._api_settings.known_tests_enabled
+
+    @classmethod
     def is_efd_enabled(cls) -> bool:
         if cls._instance is None:
             return False
         return (
-            cls._instance._api_settings.early_flake_detection.enabled
+            cls._instance._api_settings.known_tests_enabled  # Known Tests Enabled takes precedence over EFD
+            and cls._instance._api_settings.early_flake_detection.enabled
             and ddconfig._test_visibility_early_flake_detection_enabled
         )
 
@@ -497,10 +512,10 @@ class CIVisibility(Service):
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
-    def _fetch_unique_tests(self) -> Optional[Set[InternalTestId]]:
+    def _fetch_known_tests(self) -> Optional[Set[InternalTestId]]:
         try:
             if self._api_client is not None:
-                return self._api_client.fetch_unique_tests()
+                return self._api_client.fetch_known_tests()
             log.warning("API client not initialized, cannot fetch unique tests")
         except Exception:
             log.debug("Error fetching unique tests", exc_info=True)
@@ -574,12 +589,14 @@ class CIVisibility(Service):
             "test skipping: %s, "
             "Early Flake Detection: %s, "
             "Auto Test Retries: %s, "
-            "Flaky Test Management: %s",
+            "Flaky Test Management: %s, "
+            "Known Tests: %s",
             cls._instance._collect_coverage_enabled,
             CIVisibility.test_skipping_enabled(),
             CIVisibility.is_efd_enabled(),
             CIVisibility.is_atr_enabled(),
             CIVisibility.is_test_management_enabled(),
+            CIVisibility.is_known_tests_enabled(),
         )
 
     @classmethod
@@ -602,33 +619,48 @@ class CIVisibility(Service):
         tracer_filters = self.tracer._user_trace_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            self.tracer._configure(trace_processors=tracer_filters)
+            self.tracer.configure(trace_processors=tracer_filters)
 
-        if self.test_skipping_enabled():
-            self._fetch_tests_to_skip()
-            if self._itr_data is None:
-                log.warning("Failed to fetch skippable items, no tests will be skipped.")
-                return
-            log.info("Intelligent Test Runner skipping level: %s", "suite" if self._suite_skipping_mode else "test")
-            log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
-            log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
+        def _task_fetch_tests_to_skip():
+            if self.test_skipping_enabled():
+                self._fetch_tests_to_skip()
+                if self._itr_data is None:
+                    log.warning("Failed to fetch skippable items, no tests will be skipped.")
+                    return
+                log.info("Intelligent Test Runner skipping level: %s", "suite" if self._suite_skipping_mode else "test")
+                log.info("Skippable items fetched: %s", len(self._itr_data.skippable_items))
+                log.info("ITR correlation ID: %s", self._itr_data.correlation_id)
 
-        if CIVisibility.is_efd_enabled():
-            unique_test_ids = self._fetch_unique_tests()
-            if unique_test_ids is None:
-                log.warning("Failed to fetch unique tests for Early Flake Detection")
+        def _task_fetch_known_tests():
+            if CIVisibility.is_known_tests_enabled():
+                known_test_ids = self._fetch_known_tests()
+                if known_test_ids is None:
+                    log.warning("Failed to fetch known tests for Early Flake Detection")
+                else:
+                    self._known_test_ids = known_test_ids
+                    log.info("Known tests fetched for Early Flake Detection: %s", len(self._known_test_ids))
             else:
-                self._unique_test_ids = unique_test_ids
-                log.info("Unique tests fetched for Early Flake Detection: %s", len(self._unique_test_ids))
-        else:
-            if (
-                self._api_settings.early_flake_detection.enabled
-                and not ddconfig._test_visibility_early_flake_detection_enabled
-            ):
-                log.warning(
-                    "Early Flake Detection is enabled by API but disabled by "
-                    "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
-                )
+                if (
+                    self._api_settings.early_flake_detection.enabled
+                    and not ddconfig._test_visibility_early_flake_detection_enabled
+                ):
+                    log.warning(
+                        "Early Flake Detection is enabled by API but disabled by "
+                        "DD_TEST_VISIBILITY_EARLY_FLAKE_DETECTION_ENABLED environment variable"
+                    )
+
+        def _task_fetch_test_management_tests():
+            if self._api_settings.test_management.enabled:
+                test_properties = self._fetch_test_management_tests()
+                if test_properties is None:
+                    log.warning("Failed to fetch quarantined tests from Test Management")
+                else:
+                    self._test_properties = test_properties
+
+        with ThreadPoolExecutor() as pool:
+            pool.submit(_task_fetch_tests_to_skip)
+            pool.submit(_task_fetch_known_tests)
+            pool.submit(_task_fetch_test_management_tests)
 
         if self._api_settings.flaky_test_retries_enabled and not asbool(
             os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
@@ -637,13 +669,6 @@ class CIVisibility(Service):
                 "Auto Test Retries is enabled by API but disabled by "
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED environment variable"
             )
-
-        if self._api_settings.test_management.enabled:
-            test_properties = self._fetch_test_management_tests()
-            if test_properties is None:
-                log.warning("Failed to fetch quarantined tests from Test Management")
-            else:
-                self._test_properties = test_properties
 
     def _stop_service(self) -> None:
         if self._should_upload_git_metadata and not self._git_client.metadata_upload_finished():
@@ -953,7 +978,7 @@ class CIVisibility(Service):
         client.set_metadata("test", capabilities.tags())
 
     @classmethod
-    def is_unique_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
+    def is_known_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
         instance = cls.get_instance()
         if instance is None:
             return False
@@ -961,10 +986,10 @@ class CIVisibility(Service):
         # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
         # because the current EFD usage would cause the session to be faulty even if the query was successful but
         # not unique tests exist. In this case, we assume all tests are unique.
-        if len(instance._unique_test_ids) == 0:
+        if len(instance._known_test_ids) == 0:
             return True
 
-        return test_id in instance._unique_test_ids
+        return test_id in instance._known_test_ids
 
     @classmethod
     def get_test_properties(cls, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
@@ -1036,6 +1061,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
         itr_test_skipping_level=instance._itr_skipping_level,
         itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
         coverage_enabled=CIVisibility.should_collect_coverage(),
+        known_tests_enabled=CIVisibility.is_known_tests_enabled(),
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
         test_management_settings=test_management_api_settings,
@@ -1231,10 +1257,10 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
     # New tests are currently only considered for EFD:
-    # - if known tests were fetched properly (enforced by is_unique_test)
+    # - if known tests were fetched properly (enforced by is_known_test)
     # - if they have no parameters
-    if CIVisibility.is_efd_enabled() and discover_args.test_id.parameters is None:
-        is_new = not CIVisibility.is_unique_test(discover_args.test_id)
+    if CIVisibility.is_known_tests_enabled() and discover_args.test_id.parameters is None:
+        is_new = not CIVisibility.is_known_test(discover_args.test_id)
     else:
         is_new = False
 

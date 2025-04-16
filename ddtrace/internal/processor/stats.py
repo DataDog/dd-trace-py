@@ -3,13 +3,12 @@ from collections import defaultdict
 import os
 import typing
 
-import ddtrace
-from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.span import _is_top_level
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._config import config
+from ddtrace.version import get_version
 
 from ...constants import _SPAN_MEASURED_KEY
 from .._encoding import packb
@@ -28,7 +27,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace._trace.span import Span  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -103,7 +102,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
         self._headers = {
             "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": get_version(),
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
         self._hostname = ""
@@ -128,8 +127,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        is_top_level = _is_top_level(span)
-        if not is_top_level and not _is_measured(span):
+        if not (is_top_level := span._is_top_level) and not _is_measured(span):
             return
 
         with self._lock:

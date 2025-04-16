@@ -1,22 +1,42 @@
-#!/usr/bin/env python3
 import logging
+import sys
 
+from hypothesis import given
+from hypothesis.strategies import one_of
 import pytest
 
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import TaintRange
+from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
+from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
+from tests.appsec.iast.iast_utils import non_empty_text
+from tests.appsec.iast.iast_utils import string_strategies
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking import TaintRange
-    from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-    from ddtrace.appsec._iast._taint_tracking import set_ranges
-    from ddtrace.appsec._iast._taint_tracking._context import reset_context
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@given(non_empty_text)
+def test_taint_pyobject(text_to_taint):
+    tainted_text = taint_pyobject(
+        text_to_taint, source_name="request_body", source_value=text_to_taint, source_origin=OriginType.PARAMETER
+    )
+    assert is_pyobject_tainted(tainted_text)
+
+
+@pytest.mark.skip_iast_check_logs
+@given(one_of(string_strategies))
+def test_taint_pyobject_all(text_to_taint):
+    tainted_text = taint_pyobject(
+        text_to_taint, source_name="request_body", source_value=text_to_taint, source_origin=OriginType.PARAMETER
+    )
+    assert tainted_text == text_to_taint
 
 
 def test_taint_ranges_as_evidence_info_nothing_tainted():
@@ -67,7 +87,7 @@ def test_call_to_set_ranges_directly_raises_a_exception(caplog):
     with pytest.raises(ValueError) as excinfo:
         set_ranges(
             input_str,
-            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER))],
+            [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
         )
     assert str(excinfo.value).startswith("iast::propagation::native::error::Tainted Map isn't initialized")
 

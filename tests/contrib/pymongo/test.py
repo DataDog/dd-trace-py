@@ -25,6 +25,7 @@ if pymongo.version_tuple >= (4, 9):
 else:
     from pymongo.database import Database
     from pymongo.server import Server
+from pymongo.monitoring import CommandListener
 
 
 def test_normalize_filter():
@@ -711,7 +712,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
-        tracer._configure(enabled=False)
+        tracer.enabled = False
 
         db = client.testdb
         db.drop_collection("teams")
@@ -884,3 +885,267 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
         assert spans[1].name == "pymongo.cmd"
+
+
+class CommandCapture(CommandListener):
+    def __init__(self):
+        self.started_commands = []
+        self.succeeded_commands = []
+        self.failed_commands = []
+
+    def started(self, event):
+        # Store command with its request_id for correlation
+        self.started_commands.append((event.request_id, event.command_name, event.command))
+
+    def succeeded(self, event):
+        self.succeeded_commands.append((event.request_id, event.command_name, event.reply))
+
+    def failed(self, event):
+        self.failed_commands.append((event.request_id, event.command_name, event.failure))
+
+    def clear(self):
+        self.started_commands = []
+        self.succeeded_commands = []
+        self.failed_commands = []
+
+
+class TestPymongoDBMInjection(TracerTestCase):
+    """
+    Test suite which checks that DBM comment injection works correctly for PyMongo
+    """
+
+    def setUp(self):
+        super(TestPymongoDBMInjection, self).setUp()
+        # Create and register the command listener BEFORE patching
+        self.command_capture = CommandCapture()
+        pymongo.monitoring.register(self.command_capture)
+        patch()
+        self.client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
+        Pin.get_from(self.client)._clone(tracer=self.tracer).onto(self.client)
+
+    def tearDown(self):
+        self.command_capture.clear()
+        unpatch()
+        self.client.close()
+        super(TestPymongoDBMInjection, self).tearDown()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="full", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
+        )
+    )
+    def test_dbm_propagation_full_mode(self):
+        """Test that DBM comment is injected when propagation mode is 'full'"""
+        # Skip tests for unsupported PyMongo versions
+        if pymongo.version_tuple < (3, 9):
+            self.skipTest("DBM propagation requires PyMongo 3.9+")
+
+        from ddtrace.settings._database_monitoring import dbm_config
+
+        assert dbm_config.propagation_mode == "full"
+
+        self.command_capture.clear()
+
+        # Perform a query operation
+        db = self.client["testdb"]
+        db.drop_collection("songs")
+        db.songs.insert_one({"name": "Name A", "artist": "Artist A"})
+
+        # Find operation should have DBM comment injected
+        result = db.songs.find_one({"name": "Name A"})
+        assert result is not None
+        assert result["name"] == "Name A"
+
+        # Check spans
+        spans = self.pop_spans()
+        assert len(spans) >= 6
+
+        # Filter for command spans
+        cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
+        assert len(cmd_spans) >= 3
+
+        # Check that the find span has the DBM trace injected tag
+        find_span = [s for s in cmd_spans if "find" in s.resource][0]
+        assert find_span.get_tag("_dd.dbm_trace_injected") == "true"
+        # Inspect captured commands
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is not None
+        assert (
+            find_commands[0].get("comment")
+            == "dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3',traceparent='%s'"
+            % find_span.context._traceparent
+        )
+
+        insert_span = [s for s in cmd_spans if "insert" in s.resource][0]
+        assert insert_span.get_tag("_dd.dbm_trace_injected") == "true"
+        insert_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "insert"]
+        assert len(insert_commands) > 0
+        assert insert_commands[0].get("insert") == "songs"
+        assert insert_commands[0].get("comment") is not None
+        assert (
+            insert_commands[0].get("comment")
+            == "dddbs='pymongo',dde='test_env',ddh='localhost',ddps='test_service',ddpv='1.2.3',traceparent='%s'"
+            % insert_span.context._traceparent
+        )
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="disabled"))
+    def test_dbm_propagation_disabled(self):
+        """Test that DBM comment is not injected when propagation mode is 'disabled'"""
+        from ddtrace.settings._database_monitoring import dbm_config
+
+        assert dbm_config.propagation_mode == "disabled"
+
+        self.command_capture.clear()
+        # Perform a query operation
+        db = self.client["testdb"]
+        db.drop_collection("songs")
+        db.songs.insert_one({"name": "Name A", "artist": "Artist A"})
+
+        # Find operation
+        result = db.songs.find_one({"name": "Name A"})
+        assert result is not None
+        assert result["name"] == "Name A"
+
+        # Check spans
+        spans = self.pop_spans()
+        assert len(spans) >= 6
+
+        # Filter for command spans
+        cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
+        assert len(cmd_spans) >= 3
+
+        # Check that the find span does not have the DBM trace injected tag
+        find_span = [s for s in cmd_spans if "find" in s.resource][0]
+        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is None
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
+        )
+    )
+    def test_dbm_propagation_service_mode(self):
+        """Test that DBM comment is injected with service info when propagation mode is 'service'"""
+        # Skip tests for unsupported PyMongo versions
+        if pymongo.version_tuple < (3, 9):
+            self.skipTest("DBM propagation requires PyMongo 3.9+")
+
+        from ddtrace.settings._database_monitoring import dbm_config
+
+        assert dbm_config.propagation_mode == "service"
+
+        self.command_capture.clear()
+
+        # Perform a query operation
+        db = self.client["testdb"]
+        db.drop_collection("songs")
+        db.songs.insert_one({"name": "Name A", "artist": "Artist A"})
+
+        # Find operation should have DBM comment injected with service info only
+        result = db.songs.find_one({"name": "Name A"})
+        assert result is not None
+        assert result["name"] == "Name A"
+
+        # Check spans
+        spans = self.pop_spans()
+        assert len(spans) >= 6
+
+        # Filter for command spans
+        cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
+        assert len(cmd_spans) >= 3
+
+        # Check that the find span does not have the DBM trace injected tag (service mode doesn't add this)
+        find_span = [s for s in cmd_spans if "find" in s.resource][0]
+        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is not None
+        assert find_commands[0].get("comment") == "dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3'"
+
+        # Test with custom str comment
+        self.command_capture.clear()
+        result = db.songs.find_one({"name": "Name A"}, comment="find songs")
+        assert result is not None
+        assert result["name"] == "Name A"
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is not None
+        assert (
+            find_commands[0].get("comment")
+            == "find songs,dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3'"
+        )
+
+        # Test with custom list comment
+        self.command_capture.clear()
+        result = db.songs.find_one({"name": "Name A"}, comment=["find songs", "test comment"])
+        assert result is not None
+        assert result["name"] == "Name A"
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is not None
+        assert find_commands[0].get("comment") == [
+            "find songs",
+            "test comment",
+            "dddbs='pymongo',dde='test_env',ddps='test_service',ddpv='1.2.3'",
+        ]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="service", DD_ENV="test_env", DD_VERSION="1.2.3", DD_SERVICE="test_service"
+        )
+    )
+    def test_dbm_propagation_disabled_on_old_pymongo(self):
+        """Test that DBM propagation is disabled on old PyMongo versions"""
+        # Skip tests for unsupported PyMongo versions
+        if pymongo.version_tuple >= (3, 9):
+            self.skipTest("Only test on PyMongo versions < 3.9")
+
+        from ddtrace.settings._database_monitoring import dbm_config
+
+        assert dbm_config.propagation_mode == "service"
+
+        self.command_capture.clear()
+
+        # Perform a query operation
+        db = self.client["testdb"]
+        db.drop_collection("songs")
+        db.songs.insert_one({"name": "Name A", "artist": "Artist A"})
+
+        # Find operation should have DBM comment injected with service info only
+        result = db.songs.find_one({"name": "Name A"})
+        assert result is not None
+        assert result["name"] == "Name A"
+
+        # Check spans
+        spans = self.pop_spans()
+        assert len(spans) >= 6
+
+        # Filter for command spans
+        cmd_spans = [s for s in spans if s.name == "pymongo.cmd"]
+        assert len(cmd_spans) >= 3
+
+        find_span = [s for s in cmd_spans if "find" in s.resource][0]
+        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is None
+
+        # Test with custom str comment
+        self.command_capture.clear()
+        result = db.songs.find_one({"name": "Name A"}, comment="find songs")
+        assert result is not None
+        assert result["name"] == "Name A"
+        find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
+        assert len(find_commands) > 0
+        assert find_commands[0].get("find") == "songs"
+        assert find_commands[0].get("comment") is not None
+        assert find_commands[0].get("comment") == "find songs"

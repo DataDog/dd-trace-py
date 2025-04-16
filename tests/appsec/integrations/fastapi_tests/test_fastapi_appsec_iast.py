@@ -15,8 +15,8 @@ import pytest
 from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
@@ -52,7 +52,7 @@ def _aux_appsec_prepare_tracer(tracer):
     oce.reconfigure()
 
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._configure(api_version="v0.4")
+    tracer._recreate()
 
 
 def get_response_body(response):

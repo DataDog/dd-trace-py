@@ -13,14 +13,15 @@ from ddtrace.appsec._iast.constants import RC2_DEF
 from ddtrace.appsec._iast.constants import RC4_DEF
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
-from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
-from .._metrics import increment_iast_span_metric
+from .._overhead_control_engine import oce
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
+from .._span_metrics import increment_iast_span_metric
 from ._base import VulnerabilityBase
 
 
@@ -131,11 +132,15 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
 
 @WeakCipher.wrap
 def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-    _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-    WeakCipher.report(
-        evidence_value="RC4",
-    )
+    if asm_config.is_iast_request_enabled:
+        WeakCipher.report(
+            evidence_value="RC4",
+        )
+        # Reports Span Metrics
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+        # Report Telemetry Metrics
+        _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
@@ -143,13 +148,16 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
 
 @WeakCipher.wrap
 def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if hasattr(instance, "_dd_weakcipher_algorithm"):
-        evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-        _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-        WeakCipher.report(
-            evidence_value=evidence,
-        )
+    if asm_config.is_iast_request_enabled:
+        if hasattr(instance, "_dd_weakcipher_algorithm"):
+            evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
+            WeakCipher.report(evidence_value=evidence)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
@@ -157,13 +165,18 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
 
 @WeakCipher.wrap
 def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    algorithm_name = instance.algorithm.name.lower()
-    if algorithm_name in get_weak_cipher_algorithms():
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
-        _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
-        WeakCipher.report(
-            evidence_value=algorithm_name,
-        )
+    if asm_config.is_iast_request_enabled:
+        algorithm_name = instance.algorithm.name.lower()
+        if algorithm_name in get_weak_cipher_algorithms():
+            WeakCipher.report(
+                evidence_value=algorithm_name,
+            )
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(WeakCipher.vulnerability_type)
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
