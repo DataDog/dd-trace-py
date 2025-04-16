@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "_dd.appsec.event_rules.errors": "{\"missing key 'conditions'\": [\"crs-913-110\"], \"missing key 'tags'\": [\"crs-942-100\"]}",
       "_dd.appsec.event_rules.version": "5.5.5",
