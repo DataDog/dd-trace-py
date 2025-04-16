@@ -3550,5 +3550,40 @@ def test_baggage_span_tags_default():
     assert "baggage.region" not in context._meta
 
 
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS=""),
+)
 def test_baggage_span_tags_empty():
-    pass
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "usr.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert "baggage.usr.id" not in context._meta
+    assert "baggage.correlation_id" not in context._meta
+    assert "baggage.region" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS="usr.id"),
+)
+def test_baggage_span_tags_specific_keys():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "usr.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert context._meta.get("baggage.usr.id") == "123"
+    assert "baggage.account.id" not in context._meta
+    assert "baggage.session.id" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS="usr.id,ACCOUNT.ID"),
+)
+def test_baggage_span_tags_case_sensitive():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "usr.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert context._meta.get("baggage.usr.id") == "123"
+    assert context._meta.get("baggage.ACCOUNT.ID") is None
+    assert "baggage.account.id" not in context._meta

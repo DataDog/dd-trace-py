@@ -37,7 +37,6 @@ from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-from ..internal.constants import DD_TRACE_BAGGAGE_TAG_KEYS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -1153,8 +1152,8 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
-                    if DD_TRACE_BAGGAGE_TAG_KEYS.strip():
-                        allowed_keys = {k.strip() for k in DD_TRACE_BAGGAGE_TAG_KEYS.split(",") if k.strip()}
+                    if config._baggage_tag_keys:
+                        allowed_keys = {k.strip() for k in config._baggage_tag_keys if k.strip()}
                         for key, value in baggage_context.get_all_baggage_items().items():
                             if key in allowed_keys:
                                 prefixed_key = "baggage." + key

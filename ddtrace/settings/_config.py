@@ -579,6 +579,9 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+        self._baggage_tag_keys = _get_config(
+            "DD_TRACE_BAGGAGE_TAG_KEYS", ["usr.id", "account.id", "session.id"], lambda x: x.strip().split(",")
+        )
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
@@ -650,7 +653,6 @@ class Config(object):
         self._lib_was_injected = False
         self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
-        self._baggage_tag_keys = _get_config("DD_TRACE_BAGGAGE_TAG_KEYS", "usr.id,account.id,session.id")
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
