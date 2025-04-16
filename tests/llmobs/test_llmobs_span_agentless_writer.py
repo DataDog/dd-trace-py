@@ -11,10 +11,11 @@ from tests.llmobs._utils import _large_event
 from tests.llmobs._utils import _oversized_llm_event
 from tests.llmobs._utils import _oversized_retrieval_event
 from tests.llmobs._utils import _oversized_workflow_event
+from tests.utils import override_global_config
 
 
 DD_SITE = "datad0g.com"
-DD_API_KEY = os.getenv("STG_API_KEY", default="<not-a-real-api-key>")
+DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 INTAKE_BASE_URL = "https://llmobs-intake.%s" % DD_SITE
 INTAKE_URL = "%s/api/v2/llmobs" % INTAKE_BASE_URL
 
@@ -101,9 +102,10 @@ def test_send_completion_bad_api_key(mock_writer_logs):
 
 
 def test_send_completion_no_api_key(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=True, _site=DD_SITE, _api_key="")
-    llmobs_span_writer.enqueue(_completion_event())
-    llmobs_span_writer.periodic()
+    with override_global_config(dict(_dd_api_key="")):
+        llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=True, _site=DD_SITE, _api_key="")
+        llmobs_span_writer.enqueue(_completion_event())
+        llmobs_span_writer.periodic()
     mock_writer_logs.warning.assert_called_with(
         "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
         "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "

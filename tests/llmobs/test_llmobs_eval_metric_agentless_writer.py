@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from tests.utils import override_global_config
 
 
 DD_SITE = "datad0g.com"
@@ -79,9 +80,10 @@ def test_send_metric_bad_api_key(mock_writer_logs):
 
 
 def test_send_metric_no_api_key(mock_writer_logs):
-    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="")
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
-    llmobs_eval_metric_writer.periodic()
+    with override_global_config(dict(_dd_api_key="")):
+        llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="")
+        llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+        llmobs_eval_metric_writer.periodic()
     mock_writer_logs.warning.assert_called_with(
         "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
         "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
