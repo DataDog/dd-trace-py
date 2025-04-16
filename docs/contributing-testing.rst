@@ -130,31 +130,43 @@ It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does 
 .. code-block:: python
 
     Venv(
-        name="asyncio",
-        command="pytest {cmdargs} tests/contrib/asyncio",
-        pys=select_pys(),
+        name="yaaredis",
+        command="pytest {cmdargs} tests/contrib/yaaredis",
         pkgs={
-            "pytest-asyncio": latest,
+            "pytest-asyncio": "==0.21.1",
+            "pytest-randomly": latest,
         },
-        env={
-            "DD_ENV_VARIABLE": "1",  # if needed
-        },
-    )
+        venvs=[
+            Venv(
+                pys=select_pys(min_version="3.8", max_version="3.9"),
+                pkgs={"yaaredis": ["~=2.0.0", latest]},
+            ),
+        ],
+    ),
 
 Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
-Next, we will need to add a new CircleCI job to run the newly added test suite at ``.circleci/config.templ.yml`` just like:
+Next, we will need to add a new CI job to run the newly added test suite. This change can be made in the
+``tests/contrib/suitespec.yml`` file:
 
-.. code-block:: python
+.. code-block:: yaml
 
-    asyncio:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'asyncio'
+    yaaredis:
+      parallelism: 1
+      paths:
+        - '@core'
+        - '@bootstrap'
+        - '@contrib'
+        - '@tracing'
+        - '@redis'
+        - tests/contrib/yaaredis/*
+        - tests/snapshots/tests.contrib.yaaredis.*
+      pattern: yaaredis$
+      runner: riot
+      services:
+        - redis
+      snapshot: true
 
-
-After this, check out ``tests/README.md`` for instructions on how to add new
-jobs to run the new tests in CI.
+See ``tests/README.md`` for more detail on adding new CI jobs.
 
 How do I update a Riot environment to use the latest version of a package?
 --------------------------------------------------------------------------
