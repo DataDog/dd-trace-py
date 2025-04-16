@@ -1,0 +1,20 @@
+name: All Green
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  all-green:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - uses: wechuli/allcheckspassed@e22f45a4f25f4cf821d1273705ac233355400db1
+        with:
+          delay: 5  # wait for this delay before starting
+          polling_interval: 1 # after a failure, how long do it wait before checking again
+          retries: 60  # how many retries before stopping 
+          checks_exclude: 'Bootstrap import analysis'
