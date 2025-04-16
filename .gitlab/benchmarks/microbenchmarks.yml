@@ -28,7 +28,7 @@ variables:
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
     export PATH="$PATH:/platform/steps"
 
-    for $SCENARIO in $SCENARIOS;
+    for SCENARIO in "${SCENARIO}";
     do
       export REPORTS_DIR="${BASE_REPORTS_DIR}/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
 
@@ -43,7 +43,7 @@ variables:
       fi
 
       analyze-results.sh
-    end
+    done
 
     upload-results-to-s3.sh || :
   artifacts:
