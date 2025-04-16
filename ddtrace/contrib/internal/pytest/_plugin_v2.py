@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import re
+import sys
 import typing as t
 
 import pytest
@@ -97,6 +98,15 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+
+XDIST_MASTER = False
+
+
+class PluginState:
+    is_controller = None
+
+
+state = PluginState()
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -227,6 +237,21 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
+def is_xdist_loaded(config):
+    return config.pluginmanager.hasplugin("xdist")
+
+
+def is_xdist_active(config):
+    return is_xdist_loaded(config) and (
+        hasattr(config, "workerinput")  # in a worker
+        or config.getoption("dist") != "no"  # in controller using -n or --dist
+    )
+
+
+def is_xdist_worker(config):
+    return hasattr(config, "workerinput")
+
+
 def pytest_configure(config: pytest_Config) -> None:
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
@@ -236,6 +261,30 @@ def pytest_configure(config: pytest_Config) -> None:
             removal_version="3.0.0",
             category=DDTraceDeprecationWarning,
         )
+
+    # pm = config.pluginmanager
+
+    # this_module = __import__(__name__)
+    # plugin_name = "my_custom_plugin"
+
+    # if pm.is_registered(this_module):
+    #     pm.unregister(this_module)
+
+    # pm.register(this_module, name=plugin_name)
+    # print("[MY PLUGIN] re-registered after xdist")
+
+    # for hookname, hook in pm.hook.__dict__.items():
+    #     if not hookname.startswith("_"):
+    #         print(f"{hookname}: {[impl.plugin_name for impl in hook.get_hookimpls()]}")
+
+    # if is_xdist_active(config) and not is_xdist_worker(config):
+    #     # If xdist is active but we're in the controller,
+    #     # we act like nothing is enabled
+    #     return
+    if is_xdist_active(config) and not is_xdist_worker(config):
+        state.is_controller = True
+        print("284 IS_CONTROLLER is set to True", file=sys.stderr)
+        return
 
     try:
         if is_enabled(config):
@@ -269,6 +318,14 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     if not is_test_visibility_enabled():
         return
 
+    # if XDIST_MASTER:
+    #     return
+    if state.is_controller:
+        print("322 IS_CONTROLLER is set to True", file=sys.stderr)
+        return
+    else:
+        print("322 IS_CONTROLLER is set to False", file=sys.stderr)
+
     log.debug("CI Visibility enabled - starting test session")
 
     try:
@@ -301,7 +358,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
     except Exception:  # noqa: E722
-        log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
+        log.debug("356 encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
@@ -648,8 +705,16 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 
 
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    # if not exitstatus == 1:
+    #     raise Exception("exitstatus should be 1, not %s" % exitstatus)
     if not is_test_visibility_enabled():
         return
+
+    if state.is_controller:
+        print("714 IS_CONTROLLER is set to True", file=sys.stderr)
+        return
+    else:
+        print("714 IS_CONTROLLER is set to False", file=sys.stderr)
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
@@ -676,21 +741,44 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     InternalTestSession.finish(force_finish_children=True)
 
 
-def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+@pytest.hookimpl(hookwrapper=True)
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> t.Generator[None, object, None]:
+    # print("dd pytest_sessionfinish1", file=sys.stderr)
     if not is_test_visibility_enabled():
         return
 
-    try:
-        _pytest_sessionfinish(session, exitstatus)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during session finish", exc_info=True)
+    if state.is_controller:
+        print("750 IS_CONTROLLER is set to True", file=sys.stderr)
+        yield
+    else:
+        print("750 IS_CONTROLLER is set to False", file=sys.stderr)
+        try:
+            _pytest_sessionfinish(session, exitstatus)
+            # print("dd pytest_sessionfinish2", file=sys.stderr)
+        except Exception:  # noqa: E722
+            log.debug("encountered error during session finish", exc_info=True)
+        finally:
+            # print("dd pytest_sessionfinish3", file=sys.stderr)
+            yield
+            # print("dd pytest_sessionfinish4", file=sys.stderr)
 
 
 def pytest_report_teststatus(
     report: pytest_TestReport,
 ) -> _pytest_report_teststatus_return_type:
+    # if not hasattr(report.item.config, "workerinput"):  # Only on controller
+    #     return
+
+    if state.is_controller:
+        print("773 IS_CONTROLLER is set to True", file=sys.stderr)
+        return
+    else:
+        print("773 IS_CONTROLLER is set to False", file=sys.stderr)
+
     if not is_test_visibility_enabled():
         return
+
+    # print(WORKER_ID, file=sys.stderr)
 
     if _pytest_version_supports_attempt_to_fix():
         test_status = attempt_to_fix_get_teststatus(report)

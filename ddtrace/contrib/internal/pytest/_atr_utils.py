@@ -86,7 +86,8 @@ def atr_handle_retries(
         keywords=item.keywords,
         when="call",
         longrepr=None,
-        outcome=final_outcomes[atr_outcome],
+        # outcome=final_outcomes[atr_outcome],
+        outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 

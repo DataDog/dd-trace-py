@@ -14,7 +14,7 @@ log = get_logger(__name__)
 @dataclasses.dataclass
 class AutoTestRetriesSettings:
     enabled: bool = False
-    max_retries: int = 5
+    max_retries: int = 1
     max_session_total_retries: int = 1000
 
 
