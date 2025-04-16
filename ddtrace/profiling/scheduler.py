@@ -8,13 +8,13 @@ from typing import List
 from typing import Optional
 from typing import Sequence  # noqa F401
 
-import ddtrace
 from ddtrace.internal import periodic
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
+from ddtrace.trace import tracer
 
 from .exporter import Exporter
 from .recorder import EventsType
@@ -32,7 +32,7 @@ class Scheduler(periodic.PeriodicService):
         recorder: Optional[Recorder] = None,
         exporters: Optional[List[Exporter]] = None,
         before_flush: Optional[Callable] = None,
-        tracer: Optional[Tracer] = ddtrace.tracer,
+        tracer: Optional[Tracer] = tracer,
         interval: float = config.upload_interval,
     ):
         super(Scheduler, self).__init__(interval=interval)

@@ -10,6 +10,7 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+import ddtrace._monkey
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
