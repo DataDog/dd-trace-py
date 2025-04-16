@@ -777,3 +777,15 @@ def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
     assert request_span.get_tag("baggage.usr.id") is None
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.session.id") is None
+
+def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    request_span.context.set_baggage_item("usr.id", "123")
+    # None of the baggage tags should be present since we only tag baggage during extraction from headers
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
