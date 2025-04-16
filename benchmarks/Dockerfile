@@ -63,4 +63,4 @@ ENV SCENARIO=${SCENARIO}
 ENV PROFILE_BENCHMARKS=0
 
 ENTRYPOINT ["/app/entrypoint"]
-CMD ["/app/benchmark"]
+CMD ["/app/benchmark"] d
