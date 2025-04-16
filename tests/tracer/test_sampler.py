@@ -17,9 +17,9 @@ from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
-from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -384,7 +384,7 @@ def test_sampling_rule_init_via_env():
     ],
 )
 def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
+    assert span.matches(rule) is span_expected_to_match_rule, "{} -> {} -> {}".format(
         rule, span, span_expected_to_match_rule
     )
 
@@ -404,7 +404,7 @@ def test_sampling_rule_matches_name(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
+    assert span.matches(rule) is span_expected_to_match_rule, "{} -> {} -> {}".format(
         rule, span, span_expected_to_match_rule
     )
 
@@ -468,7 +468,7 @@ def test_sampling_rule_matches_service(span, rule, span_expected_to_match_rule):
     ],
 )
 def test_sampling_rule_matches(span, rule, span_expected_to_match_rule):
-    assert rule.matches(span) is span_expected_to_match_rule, "{} -> {} -> {}".format(
+    assert span.matches(rule) is span_expected_to_match_rule, "{} -> {} -> {}".format(
         rule, span, span_expected_to_match_rule
     )
 

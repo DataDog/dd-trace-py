@@ -17,8 +17,6 @@ from ..internal.constants import MAX_UINT_64BITS
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
-from ..internal.sampling import _get_highest_precedence_rule_matching
-from ..internal.sampling import _set_sampling_tags
 from .sampling_rule import SamplingRule
 
 
@@ -169,9 +167,18 @@ class DatadogSampler:
         # Sort the sampling_rules list using a lambda function as the key
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
+    def _get_highest_precedence_rule_matching(self, span: Span) -> Optional[SamplingRule]:
+        if not (rules := self.rules):
+            return None
+
+        for rule in rules:
+            if span.matches(rule):
+                return rule
+        return None
+
     def sample(self, span: Span) -> bool:
         span._update_tags_from_context()
-        matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
+        matched_rule = self._get_highest_precedence_rule_matching(span)
         # Default sampling
         agent_service_based = False
         sampled = True
@@ -197,8 +204,7 @@ class DatadogSampler:
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
-        _set_sampling_tags(
-            span,
+        span._set_sampling_tags(
             sampled,
             sample_rate,
             sampling_mechanism,
