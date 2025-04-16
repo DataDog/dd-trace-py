@@ -440,6 +440,13 @@ def test_annotate_tag(llmobs):
         assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
 
 
+def test_annotate_tag_can_set_session_id(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"session_id": "1234567890"})
+        assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+        assert span._get_ctx_item(SESSION_ID) == "1234567890"
+
+
 def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags=12345)
@@ -1628,6 +1635,13 @@ def test_annotation_context_modifies_span_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
             assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+
+
+def test_annotation_context_can_update_session_id(llmobs):
+    with llmobs.annotation_context(tags={"session_id": "1234567890"}):
+        with llmobs.agent(name="test_agent") as span:
+            assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+            assert span._get_ctx_item(SESSION_ID) == "1234567890"
 
 
 def test_annotation_context_modifies_prompt(llmobs):
