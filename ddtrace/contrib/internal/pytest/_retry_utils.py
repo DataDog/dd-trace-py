@@ -44,7 +44,7 @@ def _get_retry_attempt_string(nodeid) -> str:
 
 def _get_outcome_from_retry(
     item: pytest.Item,
-    outcomes: RetryOutcomes,
+    retry_number: int,
 ) -> _TestOutcome:
 
     outcomes = RetryOutcomes(
@@ -66,7 +66,7 @@ def _get_outcome_from_retry(
     item._report_sections = []
 
     # Setup
-    setup_call, setup_report, setup_outcome = _retry_run_when(item, "setup", outcomes)
+    setup_call, setup_report, setup_outcome = _retry_run_when(item, "setup", outcomes, retry_number)
     if setup_outcome == outcomes.FAILED:
         _outcome_status = TestStatus.FAIL
         if setup_call.excinfo is not None:
@@ -80,7 +80,7 @@ def _get_outcome_from_retry(
 
     # Call
     if setup_outcome == outcomes.PASSED:
-        call_call, call_report, call_outcome = _retry_run_when(item, "call", outcomes)
+        call_call, call_report, call_outcome = _retry_run_when(item, "call", outcomes, retry_number)
         if call_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
             if call_call.excinfo is not None:
@@ -96,7 +96,7 @@ def _get_outcome_from_retry(
 
     # Teardown does not happen if setup skipped
     if not setup_outcome == outcomes.SKIPPED:
-        teardown_call, teardown_report, teardown_outcome = _retry_run_when(item, "teardown", outcomes)
+        teardown_call, teardown_report, teardown_outcome = _retry_run_when(item, "teardown", outcomes, retry_number)
         # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
         if teardown_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
@@ -114,7 +114,7 @@ def _get_outcome_from_retry(
     return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
 
 
-def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _pytest.reports.TestReport]:
+def _retry_run_when(item, when, outcomes: RetryOutcomes, retry_number: int) -> t.Tuple[CallInfo, _pytest.reports.TestReport]:
     hooks = {
         "setup": item.ihook.pytest_runtest_setup,
         "call": item.ihook.pytest_runtest_call,
@@ -132,7 +132,7 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     report.user_properties += [
         ("dd_retry_reason", "auto_test_retry"),
         ("dd_retry_outcome", report.outcome),
-        ("dd_retry_number", 42),
+        ("dd_retry_number", retry_number),
     ]
     original_outcome = report.outcome
     report.outcome = "retry"

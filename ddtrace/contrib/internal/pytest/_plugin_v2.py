@@ -28,6 +28,7 @@ from ddtrace.contrib.internal.pytest._utils import _get_session_command
 from ddtrace.contrib.internal.pytest._utils import _get_source_file_info
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_test_parameters_json
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip

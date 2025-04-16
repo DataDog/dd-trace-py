@@ -111,7 +111,6 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     retry_manager = ATRRetryManager(test_id)
 
     while retry_manager.should_retry():
-        breakpoint()
         retry_num = retry_manager.add_and_start_retry()
 
         with set_retry_num(item.nodeid, retry_num):
