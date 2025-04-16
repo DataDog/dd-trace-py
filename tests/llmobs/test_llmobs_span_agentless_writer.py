@@ -100,7 +100,7 @@ def test_send_completion_bad_api_key(mock_writer_logs):
     )
 
 
-def test_send_metric_no_api_key(mock_writer_logs):
+def test_send_completion_no_api_key(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(interval=1, timeout=1, is_agentless=True, _site=DD_SITE, _api_key="")
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
