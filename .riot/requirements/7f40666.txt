@@ -9,7 +9,7 @@ attrs==23.2.0
 coverage[toml]==7.6.0
 django==3.2.25
 django-configurations==2.5.1
-djangorestframework==3.11.2
+django[djangorestframework]==3.11.2
 hypothesis==6.45.0
 iniconfig==2.0.0
 mock==5.1.0
@@ -26,4 +26,4 @@ six==1.16.0
 sortedcontainers==2.4.0
 sqlparse==0.5.1
 
-# riot_venv_name: djangorestframework
+# riot_venv_name: django[djangorestframework]

@@ -3,37 +3,13 @@ set -e
 
 RIOT_CMD=${1:-riot}
 
-declare -A hash_to_name_map
+active_hashes=($($RIOT_CMD list --hash-only))
 
 echo "Building requirements lockfiles for riot hashes that don't have them"
-while IFS= read -r line; do
-    read -r _ read_hash read_name _ <<< "$line"
-
-    if [[ "$line" =~ ^\[#[0-9]+\][[:space:]]+([a-f0-9]+)[[:space:]]+([^[:space:]]+) ]]; then
-        hash="${BASH_REMATCH[1]}"
-        name="${BASH_REMATCH[2]}"
-    else
-        continue
-    fi
-
-    if [[ -z "$hash" || -z "$name" ]]; then
-        continue
-    fi
-
-    hash_to_name_map["$hash"]="$name"
-    lockfile=".riot/requirements/${hash}.txt"
-
-    if [[ ! -f "$lockfile" ]]; then
-        echo "  Generating $lockfile for environment '$name'..."
-        if $RIOT_CMD -P -v requirements "$hash"; then
-            echo "  Appending name comment to $lockfile"
-            printf "\n# riot_venv_name: %s\n" "$name" >> "$lockfile"
-        else
-            echo "  WARNING: Failed to generate requirements for hash $hash ('$name')" >&2
-        fi
-    fi
-
-done < <($RIOT_CMD -P list)
+for hash in "${active_hashes[@]}"
+do
+    [[ ! -f .riot/requirements/"$hash".txt ]] && $RIOT_CMD -P -v requirements "$hash"
+done
 
 echo "Removing requirements lockfiles for riot hashes that don't exist"
 for file in .riot/requirements/*.txt
@@ -44,5 +20,8 @@ do
         rm "$file"
     fi
 done
+
+echo "Adding venv name comments to lockfiles..."
+bash scripts/integration_registry/_add_integration_venv_name_to_riot_lockfiles "$RIOT_CMD"
 
 echo "All done!"

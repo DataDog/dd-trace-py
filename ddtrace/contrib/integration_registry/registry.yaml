@@ -520,7 +520,6 @@ integrations:
   is_external_package: true
   dependency_name:
   - psycopg
-  # - psycopg2 TODO: wconti27, figure out how to handle dependencies that are the same but have different names
   - psycopg2-binary
   tested_versions_by_dependency:
     psycopg:

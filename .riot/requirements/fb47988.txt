@@ -30,4 +30,4 @@ six==1.17.0
 sortedcontainers==2.4.0
 tomli==2.2.1
 
-# riot_venv_name: pytest-bdd
+# riot_venv_name: pytest_bdd

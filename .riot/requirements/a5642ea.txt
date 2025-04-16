@@ -39,4 +39,4 @@ urllib3==1.26.18
 yarl==1.9.4
 zipp==3.17.0
 
-# riot_venv_name: elasticsearch-async
+# riot_venv_name: elasticsearch[elasticsearch-async]

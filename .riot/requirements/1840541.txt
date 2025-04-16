@@ -26,4 +26,4 @@ six==1.16.0
 sortedcontainers==2.4.0
 urllib3==2.1.0
 
-# riot_venv_name: elasticsearch-opensearch
+# riot_venv_name: elasticsearch[elasticsearch-opensearch]

@@ -24,4 +24,4 @@ requests==2.31.0
 sortedcontainers==2.4.0
 urllib3==1.26.18
 
-# riot_venv_name: elasticsearch-opensearch
+# riot_venv_name: elasticsearch[elasticsearch-opensearch]

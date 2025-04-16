@@ -184,7 +184,7 @@ def _get_package_versions_from(env: str, packages: typing.Set[str]) -> typing.Li
     integration = None
     dependencies = []
     if venv_name_line.startswith("# riot_venv_name:"):
-        venv_name = venv_name_line.split(":")[1].strip()
+        venv_name = venv_name_line.split(":")[1].strip().split("[")[0]
 
         def get_integration_and_dependencies(venv_name: str) -> typing.Tuple[str, typing.List[str]]:
             if venv_name in packages:

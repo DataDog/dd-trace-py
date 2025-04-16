@@ -552,7 +552,7 @@ suites:
       - memcached
       - redis
     snapshot: true
-  django_hosts:
+  django[django_hosts]:
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -567,7 +567,7 @@ suites:
     pattern: django_hosts$
     runner: riot
     snapshot: true
-  djangorestframework:
+  django[djangorestframework]:
     parallelism: 2
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -700,7 +700,7 @@ suites:
       - tests/contrib/gevent/*
     runner: riot
     snapshot: false
-  graphene:
+  graphql[graphene]:
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1197,7 +1197,7 @@ suites:
       - '@appsec'
       - tests/contrib/subprocess/*
     runner: riot
-  test_logging:
+  logging:
     parallelism: 1
     paths:
       - '@bootstrap'

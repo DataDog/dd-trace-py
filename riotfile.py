@@ -676,96 +676,96 @@ venv = Venv(
                         "channels": latest,
                     },
                 ),
+            ],
+        ),
+        Venv(
+            name="django[django_hosts]",
+            command="pytest {cmdargs} tests/contrib/django_hosts",
+            pkgs={
+                "pytest-django[testing]": [
+                    "==3.10.0",
+                ],
+                "pytest-randomly": latest,
+                "setuptools": latest,
+            },
+            venvs=[
                 Venv(
-                    name="django_hosts",
-                    command="pytest {cmdargs} tests/contrib/django_hosts",
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "pytest-django[testing]": [
-                            "==3.10.0",
-                        ],
-                        "pytest-randomly": latest,
-                        "setuptools": latest,
+                        "django_hosts": "~=4.0",
+                        "django": "~=3.2",
                     },
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.8"),
-                            pkgs={
-                                "django_hosts": "~=4.0",
-                                "django": "~=3.2",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.8"),
-                            pkgs={
-                                "django_hosts": ["~=5.0", latest],
-                                "django": "~=4.0",
-                            },
-                        ),
-                    ],
                 ),
                 Venv(
-                    name="djangorestframework",
-                    command="pytest {cmdargs} tests/contrib/djangorestframework",
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "pytest-django[testing]": "==3.10.0",
-                        "pytest-randomly": latest,
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
                     },
-                    venvs=[
-                        Venv(
-                            # djangorestframework dropped support for Django 2.x in 3.14
-                            pys=select_pys(min_version="3.8", max_version="3.9"),
-                            pkgs={
-                                "django": ">=2.2,<2.3",
-                                "djangorestframework": ["==3.12.4", "==3.13.1"],
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.8"),
-                            pkgs={
-                                "django": "~=3.2",
-                                "djangorestframework": ">=3.11,<3.12",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.8"),
-                            pkgs={
-                                "django": ["~=4.0"],
-                                "djangorestframework": ["~=3.13", latest],
-                            },
-                        ),
-                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="django[djangorestframework]",
+            command="pytest {cmdargs} tests/contrib/djangorestframework",
+            pkgs={
+                "pytest-django[testing]": "==3.10.0",
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    # djangorestframework dropped support for Django 2.x in 3.14
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "django": ">=2.2,<2.3",
+                        "djangorestframework": ["==3.12.4", "==3.13.1"],
+                    },
                 ),
                 Venv(
-                    name="django_celery",
-                    command="pytest {cmdargs} tests/contrib/django_celery",
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        # The test app was built with Django 2. We don't need to test
-                        # other versions as the main purpose of these tests is to ensure
-                        # an error-free interaction between Django and Celery. We find
-                        # that we currently have no reasons for expanding this matrix.
-                        "celery": latest,
-                        "gevent": latest,
-                        "requests": latest,
-                        "typing-extensions": latest,
-                        "pytest-randomly": latest,
+                        "django": "~=3.2",
+                        "djangorestframework": ">=3.11,<3.12",
                     },
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.11"),
-                            pkgs={
-                                "sqlalchemy": "~=1.2.18",
-                                "django": "==2.2.1",
-                            },
-                        ),
-                        Venv(
-                            pys="3.12",
-                            pkgs={
-                                "sqlalchemy": latest,
-                                "django": latest,
-                            },
-                        ),
-                    ],
-                )
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": ["~=4.0"],
+                        "djangorestframework": ["~=3.13", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="django[celery]",
+            command="pytest {cmdargs} tests/contrib/django_celery",
+            pkgs={
+                # The test app was built with Django 2. We don't need to test
+                # other versions as the main purpose of these tests is to ensure
+                # an error-free interaction between Django and Celery. We find
+                # that we currently have no reasons for expanding this matrix.
+                "celery": latest,
+                "gevent": latest,
+                "requests": latest,
+                "typing-extensions": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={
+                        "sqlalchemy": "~=1.2.18",
+                        "django": "==2.2.1",
+                    },
+                ),
+                Venv(
+                    pys="3.12",
+                    pkgs={
+                        "sqlalchemy": latest,
+                        "django": latest,
+                    },
+                ),
             ],
         ),
         Venv(
@@ -802,47 +802,47 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.13.0", latest]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.0.1", latest]}),
+            ],
+        ),
+        Venv(
+            name="elasticsearch[multi]",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
+            venvs=[
                 Venv(
-                    name="elasticsearch-multi",
-                    command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
-                    venvs=[
-                        Venv(
-                            pys=select_pys(),
-                            pkgs={
-                                "elasticsearch": latest,
-                                "elasticsearch7": latest,
-                                "pytest-randomly": latest,
-                            },
-                        ),
-                    ],
-                ),
-                Venv(
-                    name="elasticsearch-async",
-                    command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
-                    env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
-                    venvs=[
-                        Venv(
-                            pys=select_pys(),
-                            pkgs={
-                                "elasticsearch[async]": latest,
-                                "elasticsearch7[async]": latest,
-                                "opensearch-py[async]": latest,
-                                "pytest-randomly": latest,
-                            },
-                        ),
-                    ],
-                ),
-                Venv(
-                    name="elasticsearch-opensearch",
-                    # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
-                    command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
                     pys=select_pys(),
                     pkgs={
-                        "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
+                        "elasticsearch": latest,
+                        "elasticsearch7": latest,
                         "pytest-randomly": latest,
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="elasticsearch[async]",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
+            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "elasticsearch[async]": latest,
+                        "elasticsearch7[async]": latest,
+                        "opensearch-py[async]": latest,
+                        "pytest-randomly": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="elasticsearch[opensearch]",
+            # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            pys=select_pys(),
+            pkgs={
+                "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="flask",
@@ -1022,6 +1022,25 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="psycopg[psycopg2]",
+            command="pytest {cmdargs} tests/contrib/psycopg2",
+            pkgs={
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="3.8",
+                    pkgs={"psycopg2-binary": "~=2.8.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
+                    # psycopg2-binary added support for Python 3.11 in 2.9.2
+                    pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
             pkgs={
@@ -1042,25 +1061,6 @@ venv = Venv(
                             pkgs={
                                 "pytest-asyncio": "==0.23.7",
                             },
-                        ),
-                    ],
-                ),
-                Venv(
-                    name="psycopg2",
-                    command="pytest {cmdargs} tests/contrib/psycopg2",
-                    pkgs={
-                        "pytest-randomly": latest,
-                    },
-                    venvs=[
-                        Venv(
-                            pys="3.8",
-                            pkgs={"psycopg2-binary": "~=2.8.0"},
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.12"),
-                            # psycopg2-binary added support for Python 3.9/3.10 in 2.9.1
-                            # psycopg2-binary added support for Python 3.11 in 2.9.2
-                            pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                         ),
                     ],
                 ),
@@ -1545,6 +1545,65 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest_bdd",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
+            pkgs={
+                "msgpack": latest,
+                "more_itertools": "<8.11.0",
+                "pytest-randomly": latest,
+                "pytest-bdd": [
+                    ">=4.0,<5.0",
+                    # FIXME: add support for v6.1
+                    ">=6.0,<6.1",
+                ],
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
+                            # FIXME: add support for v6.1
+                            ">=6.0,<6.1",
+                        ]
+                    },
+                    venvs=[
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                            },
+                        ),
+                    ],
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={
+                        "pytest-bdd": [
+                            # FIXME: add support for v6.1
+                            ">=6.0,<6.1",
+                        ]
+                    },
+                    venvs=[
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="pytest_benchmark",
             pys=select_pys(min_version="3.8", max_version="3.12"),
             command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
@@ -1615,43 +1674,54 @@ venv = Venv(
                         "grpcio": ["~=1.66.2", latest],
                     },
                 ),
+            ],
+        ),
+        Venv(
+            name="grpc[grpc_aio]",
+            command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
+            pkgs={
+                "googleapis-common-protos": latest,
+                "pytest-randomly": latest,
+            },
+            # grpc.aio support is broken and disabled by default
+            env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
+            venvs=[
                 Venv(
-                    name="grpc_aio",
-                    command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "googleapis-common-protos": latest,
-                        "pytest-randomly": latest,
+                        "grpcio": ["~=1.34.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.23.7",
                     },
-                    # grpc.aio support is broken and disabled by default
-                    env={"_DD_TRACE_GRPC_AIO_ENABLED": "true"},
-                    venvs=[
-                        Venv(
-                            pys=select_pys(min_version="3.8", max_version="3.9"),
-                            pkgs={
-                                "grpcio": ["~=1.34.0", "~=1.59.0"],
-                                "pytest-asyncio": "==0.23.7",
-                            },
-                        ),
-                        Venv(
-                            # grpcio added support for Python 3.10 in 1.41
-                            # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
-                            pys="3.10",
-                            pkgs={
-                                "grpcio": ["~=1.42.0", "~=1.59.0"],
-                                "pytest-asyncio": "==0.23.7",
-                            },
-                        ),
-                        Venv(
-                            # grpcio added support for Python 3.11 in 1.49
-                            pys="3.11",
-                            pkgs={
-                                "grpcio": ["~=1.49.0", "~=1.59.0"],
-                                "pytest-asyncio": "==0.23.7",
-                            },
-                        ),
-                    ],
+                ),
+                Venv(
+                    # grpcio added support for Python 3.10 in 1.41
+                    # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
+                    pys="3.10",
+                    pkgs={
+                        "grpcio": ["~=1.42.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.23.7",
+                    },
+                ),
+                Venv(
+                    # grpcio added support for Python 3.11 in 1.49
+                    pys="3.11",
+                    pkgs={
+                        "grpcio": ["~=1.49.0", "~=1.59.0"],
+                        "pytest-asyncio": "==0.23.7",
+                    },
                 ),
             ],
+        ),
+        Venv(
+            name="graphql[graphene]",
+            command="pytest {cmdargs} tests/contrib/graphene",
+            pys=select_pys(min_version="3.8"),
+            pkgs={
+                "graphene": ["~=3.0.0", latest],
+                "pytest-asyncio": "==0.21.1",
+                "graphql-relay": latest,
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="graphql",
@@ -1662,19 +1732,6 @@ venv = Venv(
                 "graphql-core": ["~=3.2.0", latest],
                 "pytest-randomly": latest,
             },
-            venvs=[
-                Venv(
-                    name="graphene",
-                    command="pytest {cmdargs} tests/contrib/graphene",
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={
-                        "graphene": ["~=3.0.0", latest],
-                        "pytest-asyncio": "==0.21.1",
-                        "graphql-relay": latest,
-                        "pytest-randomly": latest,
-                    },
-                ),
-            ]
         ),
         Venv(
             name="rq",

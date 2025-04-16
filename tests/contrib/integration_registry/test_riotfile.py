@@ -36,13 +36,15 @@ def test_contrib_tests_have_valid_contrib_venv_name(
         "dbapi",
         "dbapi_async",
         "integration_registry",
-        "test_logging",
         "gunicorn"
     ]
 
     failed_venvs = []
     for venv in riot_venvs:
         if venv.command and "tests/contrib" in venv.command:
+            # some venvs have sub-venvs in the form of venv-name[sub-venv-name], we only want the main one
+            # e.g. django[django_hosts] -> django
+            venv.name = venv.name.split("[")[0]
             if venv.name not in integration_dir_names:
                 if venv.name not in WHITE_LISTED_VENVS:
                     failed_venvs.append(venv)

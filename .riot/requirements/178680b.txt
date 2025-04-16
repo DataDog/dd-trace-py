@@ -37,4 +37,4 @@ tomli==2.0.1
 urllib3==1.26.18
 yarl==1.9.4
 
-# riot_venv_name: elasticsearch-async
+# riot_venv_name: elasticsearch[elasticsearch-async]

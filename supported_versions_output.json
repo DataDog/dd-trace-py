@@ -156,6 +156,7 @@
         "integration": "django",
         "minimum_tracer_supported": "2.2.1",
         "max_tracer_supported": "5.1.4",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -488,6 +489,7 @@
         "integration": "pytest_bdd",
         "minimum_tracer_supported": "4.1.0",
         "max_tracer_supported": "6.0.1",
+        "pinned": "true",
         "auto-instrumented": false
     },
     {
