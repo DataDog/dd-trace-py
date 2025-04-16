@@ -17,58 +17,64 @@ from ddtrace.internal.ci_visibility.constants import TEST_HAS_FAILED_ALL_RETRIES
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
-
+from dataclasses import dataclass
 
 log = get_logger(__name__)
 
+@dataclass
+class ATRSessionStatus:
+    total_retries: int = 0
+
 
 class ATRRetryManager:
-    TOTAL_ATR_RETRIES_IN_SESSION = "total_atr_retries_in_session"
-
     @classmethod
     def should_apply(cls, test: TestVisibilityTest) -> bool:
+        # ꙮ TODO: check max retries per session too?
         if not test.is_finished():
             log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
             return False
 
         return test._session_settings.atr_settings.enabled and test._status == TestStatus.FAIL
 
+    @staticmethod
+    def _get_session_status(test: TestVisibilityTest) -> ATRSessionStatus:
+        session = test.get_session()
+        session_status = session.stash_get("atr_session_status")
+        if not session_status:
+            session_status = ATRSessionStatus()
+            session.stash_set("atr_session_stats", session_status)
+        return session_status
+
     def __init__(self, test_id: TestId) -> None:
         self.test_id = test_id
         self.test = CIVisibility.get_test_by_id(test_id)
-        self.session = self.test.get_session()
+        self.session_status = ATRRetryManager._get_session_status(self.test)
         self.retries = []
 
-    def _max_retries_per_test_reached(self):
+    def _max_retries_per_test_reached(self) -> bool:
         return len(self.retries) >= self.test._session_settings.atr_settings.max_retries
 
-    def _max_retries_per_session_reached(self):
+    def _max_retries_per_session_reached(self) -> bool:
         return (
-            self._total_atr_retries_in_session() >= self.test._session_settings.atr_settings.max_session_total_retries
+            self.session_status.total_retries >= self.test._session_settings.atr_settings.max_session_total_retries
         )
 
-    def _total_atr_retries_in_session(self):
-        return self.session.stash_get(ATRRetryManager.TOTAL_ATR_RETRIES_IN_SESSION) or 0
-
-    def _count_atr_retry_in_session(self):
-        self.session.stash_set(ATRRetryManager.TOTAL_ATR_RETRIES_IN_SESSION, self._total_atr_retries_in_session() + 1)
-
-    def should_retry(self):
+    def should_retry(self) -> bool:
         return (
             not self._max_retries_per_test_reached()
             and not self._max_retries_per_session_reached()
             and self.get_final_status() == TestStatus.FAIL
         )
 
-    def add_and_start_retry(self):
-        retry_test = self.test._atr_make_retry_test()  # ꙮ TODO: make it not ATR-specific generic
+    def add_and_start_retry(self) -> int:
+        retry_test = self.test._make_retry_test(is_atr_retry=True)
         self.retries.append(retry_test)
-        self._count_atr_retry_in_session()
+        self.session_status.total_retries += 1
 
         retry_test.start()
         return len(self.retries)
 
-    def finish_retry(self, retry_number: int, status: TestStatus, skip_reason, exc_info: t.Optional[TestExcInfo]):
+    def finish_retry(self, retry_number: int, status: TestStatus, skip_reason, exc_info: t.Optional[TestExcInfo]) -> None:
         retry_test = self.retries[retry_number - 1]
         retry_test.set_status(status)  # needed to get the final status correctly below
 

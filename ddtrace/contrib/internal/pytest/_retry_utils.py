@@ -46,6 +46,15 @@ def _get_outcome_from_retry(
     item: pytest.Item,
     outcomes: RetryOutcomes,
 ) -> _TestOutcome:
+
+    outcomes = RetryOutcomes(
+        PASSED="passed",
+        FAILED="failed",
+        SKIPPED="skipped",
+        XFAIL="xfail",
+        XPASS="xpass",
+    )
+
     _outcome_status: t.Optional[TestStatus] = None
     _outcome_skip_reason: t.Optional[str] = None
     _outcome_exc_info: t.Optional[TestExcInfo] = None
@@ -57,8 +66,8 @@ def _get_outcome_from_retry(
     item._report_sections = []
 
     # Setup
-    setup_call, setup_report = _retry_run_when(item, "setup", outcomes)
-    if setup_report.outcome == outcomes.FAILED:
+    setup_call, setup_report, setup_outcome = _retry_run_when(item, "setup", outcomes)
+    if setup_outcome == outcomes.FAILED:
         _outcome_status = TestStatus.FAIL
         if setup_call.excinfo is not None:
             _outcome_exc_info = TestExcInfo(setup_call.excinfo.type, setup_call.excinfo.value, setup_call.excinfo.tb)
@@ -66,13 +75,13 @@ def _get_outcome_from_retry(
             item.stash[caplog_handler_key] = {}
             if tmppath_result_key is not None:
                 item.stash[tmppath_result_key] = {}
-    if setup_report.outcome == outcomes.SKIPPED:
+    if setup_outcome == outcomes.SKIPPED:
         _outcome_status = TestStatus.SKIP
 
     # Call
-    if setup_report.outcome == outcomes.PASSED:
-        call_call, call_report = _retry_run_when(item, "call", outcomes)
-        if call_report.outcome == outcomes.FAILED:
+    if setup_outcome == outcomes.PASSED:
+        call_call, call_report, call_outcome = _retry_run_when(item, "call", outcomes)
+        if call_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
             if call_call.excinfo is not None:
                 _outcome_exc_info = TestExcInfo(call_call.excinfo.type, call_call.excinfo.value, call_call.excinfo.tb)
@@ -80,15 +89,16 @@ def _get_outcome_from_retry(
                 item.stash[caplog_handler_key] = {}
                 if tmppath_result_key is not None:
                     item.stash[tmppath_result_key] = {}
-        elif call_report.outcome == outcomes.SKIPPED:
+        elif call_outcome == outcomes.SKIPPED:
             _outcome_status = TestStatus.SKIP
-        elif call_report.outcome == outcomes.PASSED:
+        elif call_outcome == outcomes.PASSED:
             _outcome_status = TestStatus.PASS
+
     # Teardown does not happen if setup skipped
-    if not setup_report.skipped:
-        teardown_call, teardown_report = _retry_run_when(item, "teardown", outcomes)
+    if not setup_outcome == outcomes.SKIPPED:
+        teardown_call, teardown_report, teardown_outcome = _retry_run_when(item, "teardown", outcomes)
         # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
-        if teardown_report.outcome == outcomes.FAILED:
+        if teardown_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
             if teardown_call.excinfo is not None:
                 _outcome_exc_info = TestExcInfo(
@@ -119,16 +129,24 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     else:
         call = CallInfo.from_call(lambda: hook(item=item), when=when)
     report = item.ihook.pytest_runtest_makereport(item=item, call=call)
-    if report.outcome == "passed":
-        report.outcome = outcomes.PASSED
-    elif report.outcome == "failed" or report.outcome == "error":
-        report.outcome = outcomes.FAILED
-    elif report.outcome == "skipped":
-        report.outcome = outcomes.SKIPPED
+    report.user_properties += [
+        ("dd_retry_reason", "auto_test_retry"),
+        ("dd_retry_outcome", report.outcome),
+        ("dd_retry_number", 42),
+    ]
+    original_outcome = report.outcome
+    report.outcome = "retry"
+    # if report.outcome == "passed":
+    #     report.outcome = outcomes.PASSED
+    # elif report.outcome == "failed" or report.outcome == "error":
+    #     report.outcome = outcomes.FAILED
+    # elif report.outcome == "skipped":
+    #     report.outcome = outcomes.SKIPPED
     # Only log for actual test calls, or failures
-    if when == "call" or "passed" not in report.outcome:
+
+    if when == "call" or "passed" not in original_outcome:
         item.ihook.pytest_runtest_logreport(report=report)
-    return call, report
+    return call, report, original_outcome
 
 
 class RetryTestReport(pytest_TestReport):
