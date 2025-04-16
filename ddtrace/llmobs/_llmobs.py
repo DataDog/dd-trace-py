@@ -103,13 +103,16 @@ class LLMObs(Service):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
+        agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),

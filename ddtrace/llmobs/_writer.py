@@ -99,14 +99,15 @@ class BaseLLMObsWriter(PeriodicService):
     BUFFER_LIMIT = 1000
     EVENT_TYPE = ""
     EVP_SUBDOMAIN_HEADER_VALUE = ""
+    AGENTLESS_BASE_URL = ""
+    AGENTLESS_ENDPOINT = ""
+    EVP_PROXY_ENDPOINT = ""
 
     def __init__(
         self,
         interval: float,
         timeout: float,
-        intake: str,
-        endpoint: str,
-        is_agentless: bool = True,
+        is_agentless: bool,
         _site: str = "",
         _api_key: str = "",
         _override_url: str = "",
@@ -116,18 +117,17 @@ class BaseLLMObsWriter(PeriodicService):
         self._buffer: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
         self._timeout: float = timeout
-        self._agentless: bool = (
-            config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else is_agentless
-        )
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
         self._override_url: str = _override_url
+
+        self._agentless: bool = is_agentless
         self._intake: str = _override_url or (
-            f"{intake}.{self._site}" if self._agentless else agent_config.trace_agent_url
+            f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
-        self._endpoint: str = endpoint
+        self._endpoint: str = self.AGENTLESS_ENDPOINT if is_agentless else self.EVP_PROXY_ENDPOINT
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
-        if self._agentless:
+        if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
@@ -146,6 +146,7 @@ class BaseLLMObsWriter(PeriodicService):
     def stop(self, timeout=None):
         super(BaseLLMObsWriter, self).stop(timeout=timeout)
         logger.debug("stopped %r to %r", self.__class__.__name__, self._url)
+        atexit.unregister(self.on_shutdown)
 
     def on_shutdown(self):
         self.periodic()
@@ -239,7 +240,7 @@ class BaseLLMObsWriter(PeriodicService):
 
     @property
     def _url(self) -> str:
-        return "{}{}".format(self._intake, self._endpoint)
+        return f"{self._intake}{self._endpoint}"
 
     def _data(self, events):
         """Return payload containing events to be encoded and submitted to LLM Observability."""
@@ -249,8 +250,6 @@ class BaseLLMObsWriter(PeriodicService):
         return self.__class__(
             interval=self._interval,
             timeout=self._timeout,
-            intake=self._intake,
-            endpoint=self._endpoint,
             is_agentless=self._agentless,
             _site=self._site,
             _api_key=self._api_key,
@@ -263,28 +262,9 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
     EVENT_TYPE = "evaluation_metric"
     EVP_SUBDOMAIN_HEADER_VALUE = EVAL_SUBDOMAIN_NAME
-
-    def __init__(
-        self,
-        interval: float,
-        timeout: float,
-        is_agentless: bool = True,
-        _site: str = "",
-        _api_key: str = "",
-        _override_url: str = "",
-    ) -> None:
-        intake = AGENTLESS_EVAL_BASE_URL if is_agentless else ""
-        endpoint = AGENTLESS_EVAL_ENDPOINT if is_agentless else EVP_PROXY_EVAL_ENDPOINT
-        super(LLMObsEvalMetricWriter, self).__init__(
-            interval,
-            timeout,
-            intake,
-            endpoint,
-            is_agentless=is_agentless,
-            _site=_site,
-            _api_key=_api_key,
-            _override_url=_override_url,
-        )
+    AGENTLESS_BASE_URL = AGENTLESS_EVAL_BASE_URL
+    AGENTLESS_ENDPOINT = AGENTLESS_EVAL_ENDPOINT
+    EVP_PROXY_ENDPOINT = EVP_PROXY_EVAL_ENDPOINT
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
         event_size = len(safe_json(event))
@@ -293,44 +273,15 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
-    def recreate(self):
-        return self.__class__(
-            interval=self._interval,
-            timeout=self._timeout,
-            is_agentless=self._agentless,
-            _site=self._site,
-            _api_key=self._api_key,
-            _override_url=self._override_url,
-        )
-
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes Span events to the Datadog LLMObs Span Endpoint."""
 
     EVENT_TYPE = "span"
     EVP_SUBDOMAIN_HEADER_VALUE = SPAN_SUBDOMAIN_NAME
-
-    def __init__(
-        self,
-        interval: float,
-        timeout: float,
-        is_agentless: bool = True,
-        _site: str = "",
-        _api_key: str = "",
-        _override_url: str = "",
-    ) -> None:
-        intake = AGENTLESS_SPAN_BASE_URL if is_agentless else ""
-        endpoint = AGENTLESS_SPAN_ENDPOINT if is_agentless else EVP_PROXY_SPAN_ENDPOINT
-        super(LLMObsSpanWriter, self).__init__(
-            interval,
-            timeout,
-            intake,
-            endpoint,
-            is_agentless=is_agentless,
-            _site=_site,
-            _api_key=_api_key,
-            _override_url=_override_url,
-        )
+    AGENTLESS_BASE_URL = AGENTLESS_SPAN_BASE_URL
+    AGENTLESS_ENDPOINT = AGENTLESS_SPAN_ENDPOINT
+    EVP_PROXY_ENDPOINT = EVP_PROXY_SPAN_ENDPOINT
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
@@ -352,16 +303,6 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
             for event in events
         ]
-
-    def recreate(self):
-        return self.__class__(
-            interval=self._interval,
-            timeout=self._timeout,
-            is_agentless=self._agentless,
-            _site=self._site,
-            _api_key=self._api_key,
-            _override_url=self._override_url,
-        )
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
