@@ -1,6 +1,6 @@
 FROM debian:buster-slim as base
 
-ARG PYTHON_VERSION=3.9.15
+ARG PYTHON_VERSION=3.12.10
 ARG PYENV_VERSION=2.4.1
 RUN apt-get update && apt-get install --no-install-recommends -y \
     make build-essential libssl-dev zlib1g-dev \
@@ -14,7 +14,7 @@ RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VER
 RUN pyenv install "$PYTHON_VERSION"
 
 FROM debian:buster-slim
-ARG PYTHON_VERSION=3.9.15
+ARG PYTHON_VERSION=3.12.10
 
 COPY --from=base /pyenv /pyenv
 ENV PYENV_ROOT "/pyenv"
