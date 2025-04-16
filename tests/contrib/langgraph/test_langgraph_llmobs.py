@@ -1,18 +1,6 @@
 import json
 
-
-def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
-    """
-    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
-    """
-    found = False
-    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
-    for span_link in to_span_event["span_links"]:
-        if span_link["span_id"] == expected_to_span_id:
-            assert span_link["attributes"] == {"from": from_io, "to": to_io}
-            found = True
-            break
-    assert found
+from tests.llmobs._utils import _assert_span_link
 
 
 def _find_span_by_name(llmobs_events, name):

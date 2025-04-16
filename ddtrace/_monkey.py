@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec import load_common_appsec_modules
+from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -52,7 +52,7 @@ PATCH_MODULES = {
     "grpc": True,
     "httpx": True,
     "kafka": True,
-    "langgraph": False,
+    "langgraph": True,
     "litellm": True,
     "mongoengine": True,
     "mysql": True,
@@ -105,12 +105,14 @@ PATCH_MODULES = {
     "openai": True,
     "langchain": True,
     "anthropic": True,
+    "crewai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "protobuf": config._data_streams_enabled,
 }
 
 
