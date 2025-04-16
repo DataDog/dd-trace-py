@@ -83,8 +83,9 @@ def test_send_metric_no_api_key(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.warning.assert_called_with(
-        "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-        "Ensure this configuration is set before running your application.",
+        "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
+        "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
+        "`LLMObs.enable(api_key=...)` before running your application."
     )
 
 

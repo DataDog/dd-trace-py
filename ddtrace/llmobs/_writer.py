@@ -109,6 +109,7 @@ class BaseLLMObsWriter(PeriodicService):
         is_agentless: bool = True,
         _site: str = "",
         _api_key: str = "",
+        _override_url: str = "",
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
@@ -120,15 +121,16 @@ class BaseLLMObsWriter(PeriodicService):
         )
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
-        self._intake: str = ""
-        self._endpoint: str = "" or endpoint
+        self._override_url: str = _override_url
+        self._intake: str = _override_url or (
+            f"{intake}.{self._site}" if self._agentless else agent_config.trace_agent_url
+        )
+        self._endpoint: str = endpoint
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
-        if is_agentless:
+        if self._agentless:
             self._headers["DD-API-KEY"] = self._api_key
-            self._intake = "{}.{}".format(intake, self._site)
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
-            self._intake = agent_config.trace_agent_url
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
@@ -183,8 +185,9 @@ class BaseLLMObsWriter(PeriodicService):
 
         if self._agentless and not self._headers.get("DD-API-KEY"):
             logger.warning(
-                "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                "Ensure this configuration is set before running your application."
+                "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
+                "LLM Observability data will not be sent. Ensure an API key is set either via DD_API_KEY or via "
+                "`LLMObs.enable(api_key=...)` before running your application."
             )
             return
         data = self._data(events)
@@ -251,6 +254,7 @@ class BaseLLMObsWriter(PeriodicService):
             is_agentless=self._agentless,
             _site=self._site,
             _api_key=self._api_key,
+            _override_url=self._override_url,
         )
 
 
@@ -267,11 +271,19 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         is_agentless: bool = True,
         _site: str = "",
         _api_key: str = "",
+        _override_url: str = "",
     ) -> None:
         intake = AGENTLESS_EVAL_BASE_URL if is_agentless else ""
         endpoint = AGENTLESS_EVAL_ENDPOINT if is_agentless else EVP_PROXY_EVAL_ENDPOINT
         super(LLMObsEvalMetricWriter, self).__init__(
-            interval, timeout, intake, endpoint, is_agentless=is_agentless, _site=_site, _api_key=_api_key
+            interval,
+            timeout,
+            intake,
+            endpoint,
+            is_agentless=is_agentless,
+            _site=_site,
+            _api_key=_api_key,
+            _override_url=_override_url,
         )
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
@@ -288,6 +300,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
             is_agentless=self._agentless,
             _site=self._site,
             _api_key=self._api_key,
+            _override_url=self._override_url,
         )
 
 
@@ -309,10 +322,15 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         intake = AGENTLESS_SPAN_BASE_URL if is_agentless else ""
         endpoint = AGENTLESS_SPAN_ENDPOINT if is_agentless else EVP_PROXY_SPAN_ENDPOINT
         super(LLMObsSpanWriter, self).__init__(
-            interval, timeout, intake, endpoint, is_agentless=is_agentless, _site=_site, _api_key=_api_key
+            interval,
+            timeout,
+            intake,
+            endpoint,
+            is_agentless=is_agentless,
+            _site=_site,
+            _api_key=_api_key,
+            _override_url=_override_url,
         )
-        if _override_url:
-            self._intake = _override_url
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
@@ -342,6 +360,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             is_agentless=self._agentless,
             _site=self._site,
             _api_key=self._api_key,
+            _override_url=self._override_url,
         )
 
 
