@@ -23,5 +23,3 @@ sortedcontainers==2.4.0
 tomli==2.0.2
 tzdata==2024.2
 vine==5.1.0
-
-# riot_venv_name: kombu

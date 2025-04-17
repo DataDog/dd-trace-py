@@ -34,5 +34,3 @@ tomli==2.0.1
 urllib3==2.2.2
 werkzeug==1.0.1
 zipp==3.19.2
-
-# riot_venv_name: telemetry

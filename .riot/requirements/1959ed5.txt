@@ -21,5 +21,3 @@ pytest-randomly==3.16.0
 sortedcontainers==2.4.0
 tzdata==2024.2
 vine==5.1.0
-
-# riot_venv_name: kombu

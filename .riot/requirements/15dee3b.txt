@@ -27,5 +27,3 @@ waitress==3.0.1
 webob==1.8.9
 webtest==3.0.1
 zipp==3.20.2
-
-# riot_venv_name: bottle

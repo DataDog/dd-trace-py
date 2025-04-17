@@ -31,5 +31,3 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 yarl==1.9.4
 zipp==3.20.0
-
-# riot_venv_name: aiohttp

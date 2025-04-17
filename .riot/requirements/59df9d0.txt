@@ -24,5 +24,3 @@ pytest-mock==3.12.0
 rich==13.6.0
 sortedcontainers==2.4.0
 toml==0.10.2
-
-# riot_venv_name: profile-diff

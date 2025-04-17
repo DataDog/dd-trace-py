@@ -32,5 +32,3 @@ sortedcontainers==2.4.0
 toml==0.10.2
 typing-extensions==4.11.0
 zipp==3.18.1
-
-# riot_venv_name: pytest

@@ -32,5 +32,3 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==2.2.2
 werkzeug==1.0.1
-
-# riot_venv_name: telemetry

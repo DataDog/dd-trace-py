@@ -23,5 +23,3 @@ redis-py-cluster==2.0.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 zipp==3.19.2
-
-# riot_venv_name: rediscluster

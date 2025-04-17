@@ -34,5 +34,3 @@ sortedcontainers==2.4.0
 urllib3==2.2.2
 wrapt==1.16.0
 yarl==1.9.4
-
-# riot_venv_name: aiobotocore

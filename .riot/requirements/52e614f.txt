@@ -26,5 +26,3 @@ sqlalchemy==2.0.40
 tomli==2.2.1
 typing-extensions==4.13.1
 zipp==3.21.0
-
-# riot_venv_name: sqlalchemy

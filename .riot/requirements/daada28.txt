@@ -18,5 +18,3 @@ pytest-mock==3.12.0
 pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 structlog==20.2.0
-
-# riot_venv_name: structlog

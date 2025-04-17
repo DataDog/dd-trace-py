@@ -16,5 +16,3 @@ pytest==8.3.4
 pytest-cov==6.0.0
 pytest-mock==3.14.0
 sortedcontainers==2.4.0
-
-# riot_venv_name: smoke_test

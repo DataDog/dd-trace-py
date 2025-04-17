@@ -24,5 +24,3 @@ redis==4.6.0
 sortedcontainers==2.4.0
 tomli==2.1.0
 zipp==3.21.0
-
-# riot_venv_name: redis

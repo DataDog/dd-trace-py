@@ -54,5 +54,3 @@ tomli==2.1.0
 typing-extensions==4.12.2
 urllib3==2.2.3
 vertexai==1.71.1
-
-# riot_venv_name: vertexai

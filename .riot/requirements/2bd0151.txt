@@ -43,5 +43,3 @@ sortedcontainers==2.4.0
 tenacity==9.0.0
 typing-extensions==4.12.2
 urllib3==2.3.0
-
-# riot_venv_name: langgraph

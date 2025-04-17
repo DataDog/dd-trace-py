@@ -30,5 +30,3 @@ zope-interface==7.2
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==75.7.0
-
-# riot_venv_name: gunicorn

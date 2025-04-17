@@ -20,5 +20,3 @@ pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==1.26.6
-
-# riot_venv_name: urllib3

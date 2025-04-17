@@ -84,5 +84,3 @@ vcrpy==6.0.2
 wrapt==1.17.2
 xxhash==3.5.0
 yarl==1.15.2
-
-# riot_venv_name: llmobs

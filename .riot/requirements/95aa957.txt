@@ -42,5 +42,3 @@ zope-interface==6.4.post2
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==71.1.0
-
-# riot_venv_name: pyramid

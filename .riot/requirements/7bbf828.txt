@@ -44,5 +44,3 @@ wheel==0.45.1
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==75.6.0
-
-# riot_venv_name: tracer-python-optimize

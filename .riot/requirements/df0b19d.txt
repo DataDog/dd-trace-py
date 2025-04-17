@@ -82,5 +82,3 @@ yarl==1.18.3
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
-
-# riot_venv_name: botocore

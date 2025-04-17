@@ -40,5 +40,3 @@ tomlkit==0.12.3
 typing-extensions==4.9.0
 urllib3==1.26.18
 zipp==3.17.0
-
-# riot_venv_name: snowflake

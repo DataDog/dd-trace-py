@@ -19,5 +19,3 @@ pytest-mock==3.14.0
 pytest-randomly==3.16.0
 redis==5.0.1
 sortedcontainers==2.4.0
-
-# riot_venv_name: redis

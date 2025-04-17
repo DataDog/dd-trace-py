@@ -27,5 +27,3 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 uwsgi==2.0.23
 zipp==3.17.0
-
-# riot_venv_name: profile

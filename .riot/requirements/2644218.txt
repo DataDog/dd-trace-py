@@ -20,5 +20,3 @@ pytest-cov==5.0.0
 pytest-mock==3.14.0
 sortedcontainers==2.4.0
 typing-extensions==4.12.2
-
-# riot_venv_name: debugger

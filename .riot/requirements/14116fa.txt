@@ -19,5 +19,3 @@ pytest-cov==5.0.0
 pytest-mock==3.14.0
 redis==5.0.8
 sortedcontainers==2.4.0
-
-# riot_venv_name: dramatiq

@@ -23,5 +23,3 @@ pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 sqlalchemy==2.0.28
 typing-extensions==4.10.0
-
-# riot_venv_name: aiopg

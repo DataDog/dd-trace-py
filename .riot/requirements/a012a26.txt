@@ -22,5 +22,3 @@ pytest-mock==3.14.0
 requests==2.32.3
 sortedcontainers==2.4.0
 urllib3==2.3.0
-
-# riot_venv_name: ddtrace_api

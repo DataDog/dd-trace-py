@@ -29,5 +29,3 @@ pytest-mock==3.14.0
 pytest-randomly==3.15.0
 sortedcontainers==2.4.0
 yarl==1.13.1
-
-# riot_venv_name: aiohttp_jinja2

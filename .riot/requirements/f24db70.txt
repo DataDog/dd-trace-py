@@ -28,5 +28,3 @@ sqlparse==0.5.3
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
-
-# riot_venv_name: django[django_hosts]

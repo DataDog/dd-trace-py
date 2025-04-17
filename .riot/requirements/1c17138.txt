@@ -8,7 +8,7 @@ attrs==23.2.0
 coverage[toml]==7.6.0
 django==2.2.28
 django-configurations==2.3.2
-django[djangorestframework]==3.12.4
+djangorestframework==3.12.4
 exceptiongroup==1.2.2
 hypothesis==6.45.0
 importlib-metadata==8.0.0
@@ -28,5 +28,3 @@ sortedcontainers==2.4.0
 sqlparse==0.5.1
 tomli==2.0.1
 zipp==3.19.2
-
-# riot_venv_name: django[djangorestframework]

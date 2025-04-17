@@ -35,5 +35,3 @@ tomli==2.1.0
 wcwidth==0.2.13
 werkzeug==0.16.1
 zipp==3.21.0
-
-# riot_venv_name: flask_cache

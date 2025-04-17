@@ -18,5 +18,3 @@ pytest-mock==3.14.0
 pytest-randomly==3.16.0
 sortedcontainers==2.4.0
 tornado==6.4.1
-
-# riot_venv_name: tornado

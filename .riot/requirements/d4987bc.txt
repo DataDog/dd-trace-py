@@ -26,5 +26,3 @@ sortedcontainers==2.4.0
 tomli==2.0.1
 urllib3==1.26.18
 zipp==3.17.0
-
-# riot_venv_name: elasticsearch[elasticsearch-multi]

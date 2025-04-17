@@ -39,5 +39,3 @@ urllib3==2.2.3
 vertica-python==0.6.14
 vine==1.3.0
 zipp==3.21.0
-
-# riot_venv_name: wait
