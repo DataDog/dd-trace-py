@@ -5,3 +5,7 @@ fixes:
     crash. The stack sampler could read off of an empty queue of frames after
     failing to resolve specific frame information, triggering undefined
     behavior.
+upgrades:
+  - |
+    profiling: Upgrades echion, improving the performance of the stack sampler
+    by reusing memory and reducing the frequency of memory allocation.
