@@ -1,4 +1,5 @@
 import atexit
+import http.client as httplib
 from typing import Any
 from typing import Dict
 from typing import List
@@ -11,7 +12,6 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
-import http.client as httplib
 
 import ddtrace
 from ddtrace import config
@@ -258,7 +258,7 @@ class BaseLLMObsWriter(PeriodicService):
 
 
 class LLMObsEvalMetricWriter(BaseLLMObsWriter):
-    """Writes Evaluation metric events to the Datadog LLMObs Evals Endpoint."""
+    """Writes custom evaluation metric events to the LLMObs Evals Endpoint."""
 
     EVENT_TYPE = "evaluation_metric"
     EVP_SUBDOMAIN_HEADER_VALUE = EVAL_SUBDOMAIN_NAME
@@ -275,7 +275,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
-    """Writes Span events to the Datadog LLMObs Span Endpoint."""
+    """Writes span events to the LLMObs Span Endpoint."""
 
     EVENT_TYPE = "span"
     EVP_SUBDOMAIN_HEADER_VALUE = SPAN_SUBDOMAIN_NAME
