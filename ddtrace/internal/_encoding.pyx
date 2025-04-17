@@ -138,12 +138,17 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         L = len(text)
         if L > MAX_SPAN_META_VALUE_LEN:
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
+            text = text[:MAX_SPAN_META_VALUE_LEN-14] + "<truncated>..."
+            L = len(text)
         ret = msgpack_pack_raw(pk, L)
         if ret == 0:
             ret = msgpack_pack_raw_body(pk, <char *> text, L)
         return ret
 
     if PyUnicode_Check(text):
+        if len(text) > MAX_SPAN_META_VALUE_LEN:
+            text = text[:MAX_SPAN_META_VALUE_LEN-14] + "<truncated>..."
+
         IF PY_MAJOR_VERSION >= 3:
             ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
             if ret == -2:
@@ -255,15 +260,14 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
+        # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
         if len(string) > self.MAX_SPAN_META_VALUE_LEN:
-            string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
-                len(string), self.MAX_SPAN_META_VALUE_LEN
-            )
+            string = string[:self.MAX_SPAN_META_VALUE_LEN-14-self.pk.length] + "<truncated>..."
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
                 "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
-                    string, self.pk.length, self.max_size
+                    string, (self.pk.length + len(string)), self.max_size
                 )
             )
 
