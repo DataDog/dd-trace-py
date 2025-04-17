@@ -14,6 +14,7 @@
   testagent:
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
+    entrypoint: ["sh", "-c", "retries=16; while [ $retries -gt 0 ]; do ddapm-test-agent; retries=$((retries-1)); done"]
     variables:
       LOG_LEVEL: INFO
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
