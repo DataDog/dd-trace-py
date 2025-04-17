@@ -127,22 +127,24 @@ class IntegrationRegistryManager:
 
             distribution_name = None
             if top_level_module:
+                # Get all package distributions that share this namespace
+                # This handles cases where multiple packages share the same namespace
+                # e.g., azure-storage-blob and azure-storage-queue both under azure.storage.*
                 pkg_dist_map = self.get_cached_packages_distributions()
                 distribution_names = pkg_dist_map.get(top_level_module, [])
                 if distribution_names:
-                    distribution_name = distribution_names[0]
+                    integration_name = self.get_integration_name_from_traceback(tb_string)
+                    if integration_name:
+                        # Update registry for each distribution in the namespace
+                        for distribution_name in distribution_names:
+                            update_key = f"{integration_name}:{distribution_name}"
+                            # ensure that we only update the registry once per integration/distribution pair
+                            if update_key not in self.updated_packages:
+                                with self.yaml_lock:
+                                    if self.yaml_cache is None:
+                                        self.yaml_cache = self.open_registry_yaml()
 
-            if top_level_module and distribution_name:
-                integration_name = self.get_integration_name_from_traceback(tb_string)
-                if integration_name:
-                    update_key = f"{integration_name}:{distribution_name}"
-                    # ensure that we only update the registry once per integration/distribution pair
-                    if update_key not in self.updated_packages:
-                        with self.yaml_lock:
-                            if self.yaml_cache is None:
-                                self.yaml_cache = self.open_registry_yaml()
-
-                            self.yaml_was_updated = self.update_registry_yaml(integration_name, distribution_name, update_key)
+                                    self.yaml_was_updated = self.update_registry_yaml(integration_name, distribution_name, update_key)
             
             self.processed_objects.add(obj)
 

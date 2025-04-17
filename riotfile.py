@@ -82,6 +82,8 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
 
 venv = Venv(
     pkgs={
+        "pyyaml": latest, # necessary for integration registry update script run after contrib tests
+        "riot": "==0.20.1", # necessary for integration registry update script run after contrib tests
         "mock": latest,
         "pytest": latest,
         "pytest-mock": latest,
@@ -89,8 +91,6 @@ venv = Venv(
         "pytest-cov": latest,
         "opentracing": latest,
         "hypothesis": "<6.45.1",
-        "pyyaml": latest,
-        "riot": latest, # necessary for integration registry update script run after contrib tests
     },
     env={
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
