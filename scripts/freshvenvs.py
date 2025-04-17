@@ -15,7 +15,8 @@ from packaging.version import Version
 from pip import _internal
 
 from ddtrace.contrib.integration_registry.mappings import (
-    MODULE_TO_DEPENDENCY_MAPPING, INTEGRATION_TO_DEPENDENCY_MAPPING, DEPENDENCY_TO_INTEGRATION_MAPPING
+    INTEGRATION_TO_DEPENDENCY_MAPPING,
+    DEPENDENCY_TO_INTEGRATION_MAPPING
 )
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -25,13 +26,10 @@ import riotfile  # noqa: E402
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
-dependency_module_mapping = {v: k for k, v in MODULE_TO_DEPENDENCY_MAPPING.items()}
-
 supported_versions = []
 pinned_packages = set()
 
 VENV_TO_SUBVENVS = {}
-VENV_HASH_TO_NAME = {}
 
 
 class Capturing(list):
@@ -82,8 +80,7 @@ def _get_riot_envs_including_any(modules: typing.Set[str]) -> typing.Set[str]:
                 lockfile_content = lockfile.read()
                 for module in modules:
                     if module in lockfile_content or (
-                        (module in MODULE_TO_DEPENDENCY_MAPPING and MODULE_TO_DEPENDENCY_MAPPING[module] in lockfile_content)
-                        or _integration_to_dependency_mapping_contains(module, lockfile_content)
+                        _integration_to_dependency_mapping_contains(module, lockfile_content)
                     ):
                         envs |= {item.split(".")[0]}
                         break
@@ -125,7 +122,7 @@ def _get_updatable_packages_implementing(modules: typing.Set[str]) -> typing.Set
 
 
 def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
-    """Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since all contrib
+    """Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
     venvs are nested within eachother, we will get a consistent integration name for each venv / child venv"""
     for venv in all_venvs:
         if venv.venvs:
@@ -239,8 +236,8 @@ def _get_package_versions_from(env: str, packages: typing.Set[str], riot_hash_to
             lock_packages.append((package, versions))
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
-        elif package in dependency_module_mapping and dependency_module_mapping[package] in packages:
-            lock_packages.append((dependency_module_mapping[package], versions))
+        elif package in DEPENDENCY_TO_INTEGRATION_MAPPING and DEPENDENCY_TO_INTEGRATION_MAPPING[package] in packages:
+            lock_packages.append((DEPENDENCY_TO_INTEGRATION_MAPPING[package], versions))
     return lock_packages
 
 
@@ -265,18 +262,19 @@ def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
     Returns whether the Venv for the package uses `latest` or not.
     DFS traverse through the Venv, as it may have nested Venvs.
 
-    If the module name is in MODULE_TO_DEPENDENCY_MAPPING, remap it.
+    If the module name is in INTEGRATION_TO_DEPENDENCY_MAPPING, remap it.
     """
-    package = MODULE_TO_DEPENDENCY_MAPPING.get(suite_name, suite_name)
+    packages = INTEGRATION_TO_DEPENDENCY_MAPPING.get(suite_name, [suite_name])
 
-    if package in venv.pkgs:
-        if LATEST in venv.pkgs[package]:
-            return True
-
-    if venv.venvs:
-        for child_venv in venv.venvs:
-            if _venv_sets_latest_for_package(child_venv, package):
+    for package in packages:
+        if package in venv.pkgs:
+            if LATEST in venv.pkgs[package]:
                 return True
+
+        if venv.venvs:
+            for child_venv in venv.venvs:
+                if _venv_sets_latest_for_package(child_venv, package):
+                    return True
 
     return False
 
