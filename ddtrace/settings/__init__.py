@@ -1,35 +1,36 @@
-from .._hooks import Hooks
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from ..vendor.debtcollector import deprecate
-from .exceptions import ConfigException
-from .http import HttpConfig
-from .integration import IntegrationConfig
-
-
-__all__ = [
-    "ConfigException",
-    "HttpConfig",
-    "Hooks",
-    "IntegrationConfig",
-]
-
-# Create a mapping of deprecated names to their values
-_deprecated_names = {
-    "ConfigException": ConfigException,
-    "HttpConfig": HttpConfig,
-    "Hooks": Hooks,
-    "IntegrationConfig": IntegrationConfig,
-}
 
 
 def __getattr__(name):
-    if name in _deprecated_names:
+    if name in set(
+        [
+            "ConfigException",
+            "HttpConfig",
+            "Hooks",
+            "IntegrationConfig",
+        ]
+    ):
         deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
             removal_version="4.0.0",  # TODO: update this to the correct version
+            category=DDTraceDeprecationWarning,
         )
-        return _deprecated_names[name]
+        if name == "ConfigException":
+            from ddtrace.settings.exceptions import ConfigException
+
+            return None
+        elif name == "HttpConfig":
+            from .http import HttpConfig
+
+            return HttpConfig
+        elif name == "Hooks":
+            from .._hooks import Hooks
+
+            return Hooks
+        elif name == "IntegrationConfig":
+            from .integration import IntegrationConfig
+
+            return IntegrationConfig
     raise AttributeError("'%s' has no attribute '%s'" % (__name__, name))
-
-
-def __dir__():
-    return list(__all__)

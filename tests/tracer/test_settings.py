@@ -179,28 +179,66 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
-@pytest.mark.subprocess(err=b"expected deprecation warning")
-def test_settings_deprecation():
-    import ddtrace.settings
+@pytest.mark.subprocess()
+def test_config_exception_deprecation():
+    import warnings
 
-    deprecated_names = [
-        "ConfigException",
-        "HttpConfig",
-        "Hooks",
-        "IntegrationConfig",
-    ]
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("default")
 
-    assert set(deprecated_names) == set(ddtrace.settings.__all__)
+        from ddtrace.settings import ConfigException
 
-    for name in deprecated_names:
-        with warnings.catch_warnings(record=True) as warns:
-            warnings.simplefilter("always")
+        assert len(warns) == 1
+        warn = warns[0]
 
-            delattr(ddtrace.settings, name)
-            getattr(ddtrace.settings, name)
+        assert issubclass(warn.category, DeprecationWarning)
+        assert "ddtrace.settings.ConfigException is deprecated" in str(warn.message)
+        assert "4.0.0" in str(warn.message)  # TODO: update the version
 
-            assert len(warns) == 1
-            warn = warns[0]
-            assert issubclass(warn.category, DeprecationWarning)
-            assert f"ddtrace.settings.{name} is deprecated" in str(warn.message)
-            assert "4.0.0" in str(warn.message)  # TODO: update the version
+
+@pytest.mark.subprocess()
+def test_http_config_deprecation():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("default")
+
+        from ddtrace.settings import HttpConfig
+
+        assert len(warns) == 1
+        warn = warns[0]
+        assert issubclass(warn.category, DeprecationWarning)
+        assert "ddtrace.settings.HttpConfig is deprecated" in str(warn.message)
+        assert "4.0.0" in str(warn.message)  # TODO: update the version
+
+
+@pytest.mark.subprocess()
+def test_hooks_deprecation():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("default")
+
+        from ddtrace.settings import Hooks
+
+        assert len(warns) == 1
+        warn = warns[0]
+        assert issubclass(warn.category, DeprecationWarning)
+        assert "ddtrace.settings.Hooks is deprecated" in str(warn.message)
+        assert "4.0.0" in str(warn.message)  # TODO: update the version
+
+
+@pytest.mark.subprocess()
+def test_integration_config_deprecation():
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("default")
+
+        from ddtrace.settings import IntegrationConfig
+
+        assert len(warns) == 1
+        warn = warns[0]
+        assert issubclass(warn.category, DeprecationWarning)
+        assert "ddtrace.settings.IntegrationConfig is deprecated" in str(warn.message)
+        assert "4.0.0" in str(warn.message)  # TODO: update the version
