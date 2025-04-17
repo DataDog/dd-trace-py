@@ -120,7 +120,7 @@
         "dependency": "celery",
         "integration": "celery",
         "minimum_tracer_supported": "5.3.6",
-        "max_tracer_supported": "5.4.0",
+        "max_tracer_supported": "5.5.1",
         "auto-instrumented": true
     },
     {
@@ -155,7 +155,7 @@
         "dependency": "django",
         "integration": "django",
         "minimum_tracer_supported": "2.2.1",
-        "max_tracer_supported": "5.1.4",
+        "max_tracer_supported": "5.2",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -178,7 +178,7 @@
         "dependency": "elasticsearch",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
-        "max_tracer_supported": "8.17.0",
+        "max_tracer_supported": "9.0.0",
         "auto-instrumented": true
     },
     {
@@ -220,14 +220,14 @@
         "dependency": "elastic-transport",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "8.11.0",
-        "max_tracer_supported": "8.15.0",
+        "max_tracer_supported": "8.17.1",
         "auto-instrumented": true
     },
     {
         "dependency": "opensearch-py",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "1.1.0",
-        "max_tracer_supported": "2.7.1",
+        "max_tracer_supported": "2.8.0",
         "auto-instrumented": true
     },
     {
@@ -276,7 +276,7 @@
         "dependency": "graphql-core",
         "integration": "graphql",
         "minimum_tracer_supported": "3.1.7",
-        "max_tracer_supported": "3.2.4",
+        "max_tracer_supported": "3.2.6",
         "auto-instrumented": true
     },
     {
@@ -311,7 +311,7 @@
         "dependency": "kombu",
         "integration": "kombu",
         "minimum_tracer_supported": "4.2.2.post1",
-        "max_tracer_supported": "5.4.2",
+        "max_tracer_supported": "5.5.3",
         "auto-instrumented": false
     },
     {
@@ -354,7 +354,7 @@
         "dependency": "mako",
         "integration": "mako",
         "minimum_tracer_supported": "1.1.6",
-        "max_tracer_supported": "1.3.8",
+        "max_tracer_supported": "1.3.10",
         "auto-instrumented": true
     },
     {
@@ -417,14 +417,14 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.2.1",
-        "max_tracer_supported": "3.2.6",
+        "max_tracer_supported": "3.2.3",
         "auto-instrumented": true
     },
     {
         "dependency": "psycopg2-binary",
         "integration": "psycopg",
         "minimum_tracer_supported": "2.8.6",
-        "max_tracer_supported": "2.9.9",
+        "max_tracer_supported": "2.9.10",
         "auto-instrumented": true
     },
     {
@@ -567,7 +567,7 @@
         "dependency": "urllib3",
         "integration": "urllib3",
         "minimum_tracer_supported": "1.25",
-        "max_tracer_supported": "2.3.0",
+        "max_tracer_supported": "2.4.0",
         "auto-instrumented": false
     },
     {
