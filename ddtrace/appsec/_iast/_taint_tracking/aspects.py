@@ -435,7 +435,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> Union[str, bytes, bytearray]:
+) -> TEXT_TYPES:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -449,8 +449,8 @@ def format_value_aspect(
             return format(new_text, format_spec)
         return format(new_text)
 
-    try:
-        if format_spec:
+    if format_spec:
+        try:
             # Apply formatting
             text_ranges = get_tainted_ranges(new_text)
             if text_ranges:
@@ -466,11 +466,11 @@ def format_value_aspect(
                     return ("{:%s}" % format_spec).format(new_text)
             else:
                 return ("{:%s}" % format_spec).format(new_text)
-        else:
-            return format(new_text)
-    except Exception as e:
-        iast_propagation_error_log(f"format_value_aspect. {e}")
-        return new_text
+        except Exception as e:
+            iast_propagation_error_log(f"format_value_aspect. {e}")
+            return ("{:%s}" % format_spec).format(new_text)
+
+    return format(new_text)
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
