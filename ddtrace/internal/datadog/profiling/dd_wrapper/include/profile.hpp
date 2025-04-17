@@ -54,7 +54,6 @@ class Profile
     void one_time_init_impl(SampleType type, unsigned int _max_nframes);
     bool cycle_buffers();
     void reset();
-    void postfork_child();
 
     // Getters
     size_t get_sample_type_length();

@@ -82,6 +82,7 @@ Datadog::SampleManager::postfork_child()
     }
 
     Datadog::Sample::profile_state.one_time_init_impl(type_mask, max_nframes);
+    Datadog::Sample::profile_state.cycle_buffers();
 }
 
 void

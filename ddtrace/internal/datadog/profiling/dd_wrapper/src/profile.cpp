@@ -175,6 +175,7 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
 
     // We need to initialize the profiles
     const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error initializing top half of profile storage" << std::endl;
         return;
@@ -207,11 +208,4 @@ Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
         return false;
     }
     return true;
-}
-
-void
-Datadog::Profile::postfork_child()
-{
-    new (&profile_mtx) std::mutex();
-    cycle_buffers();
 }
