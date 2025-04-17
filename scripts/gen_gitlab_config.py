@@ -164,22 +164,11 @@ def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
 
+    checks: list[tuple[str, str]] = []
+
     def check(name: str, command: str, paths: t.Set[str]) -> None:
         if pr_matches_patterns(paths):
-            with TESTS_GEN.open("a") as f:
-                print(f'"{name}":', file=f)
-                print("  extends: .testrunner", file=f)
-                print("  stage: precheck", file=f)
-                print("  needs: []", file=f)
-                print("  variables:", file=f)
-                print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
-                print("  script:", file=f)
-                print("    - pip cache info", file=f)
-                print(f"    - {command}", file=f)
-                print("  cache:", file=f)
-                print("    key: v1-precheck-pip-cache", file=f)
-                print("    paths:", file=f)
-                print("      - .cache", file=f)
+            checks.append((name, command))
 
     check(
         name="Style",
@@ -216,6 +205,26 @@ def gen_pre_checks() -> None:
         command="hatch run lint:suitespec-check",
         paths={"*"},
     )
+    if not checks:
+        return
+
+    with TESTS_GEN.open("a") as f:
+        print("prechecks:", file=f)
+        print("  extends: .testrunner", file=f)
+        print("  stage: setup", file=f)
+        print("  needs: []", file=f)
+        print("  variables:", file=f)
+        print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
+        print("  script:", file=f)
+        print("    - pip cache info", file=f)
+        for i, (name, command) in enumerate(checks):
+            print(f'echo -e "\e[0Ksection_start:`date +%s`:section_{i}\r\e[0K{name}"', file=f)
+            print(f"    - {command}", file=f)
+            print(f'echo -e "\e[0Ksection_end:`date +%s`:section_{i}\r\e[0K', file=f)
+        print("  cache:", file=f)
+        print("    key: v1-precheck-pip-cache", file=f)
+        print("    paths:", file=f)
+        print("      - .cache", file=f)
 
 
 def gen_appsec_iast_packages() -> None:
@@ -262,7 +271,8 @@ def gen_build_base_venvs() -> None:
             f"""
 build_base_venvs:
   extends: .testrunner
-  stage: riot
+  stage: setup
+  needs: []
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
