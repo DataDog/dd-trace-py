@@ -20,7 +20,7 @@ def __getattr__(name):
         if name == "ConfigException":
             from ddtrace.settings.exceptions import ConfigException
 
-            return None
+            return ConfigException
         elif name == "HttpConfig":
             from .http import HttpConfig
 
