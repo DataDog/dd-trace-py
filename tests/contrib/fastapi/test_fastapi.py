@@ -778,6 +778,7 @@ def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.session.id") is None
 
+
 def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     response = client.get("/", headers={"baggage": ""})
     assert response.status_code == 200
