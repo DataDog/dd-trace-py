@@ -69,5 +69,3 @@ def init_stack_v2():
             # updated with correct native_id so that the thread can be tracked
             # correctly in the echion stack_v2.
             thread._set_native_id()
-
-        stack_v2.set_adaptive_sampling(config.stack.v2_adaptive_sampling)

@@ -66,10 +66,10 @@ Sampler::adapt_sampling_interval()
     struct timespec ts;
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    uint64_t new_process_count = ts.tv_sec * 1e6 + ts.tv_nsec / 1000;
+    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
 
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    uint64_t new_sampler_thread_count = ts.tv_sec * 1e6 + ts.tv_nsec / 1000;
+    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
 #elif defined(__MACH__)
     // Get the process CPU time
     task_thread_times_info_data_t task_info_data;
@@ -102,6 +102,9 @@ Sampler::adapt_sampling_interval()
 #endif
     auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
     auto process_delta = static_cast<double>(new_process_count - process_count - sampler_thread_delta);
+    if (process_delta <= 0) {
+        process_delta = 1; // Avoid division by zero or negative values
+    }
 
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
@@ -118,7 +121,7 @@ Sampler::adapt_sampling_interval()
     // As the value could be small when the process is idle, we use a lower
     // bound of the sampling interval to avoid CPU spikes from the sampler.
     auto new_interval =
-      static_cast<microsecond_t>(sampler_thread_delta / process_delta / g_target_overhead * current_interval);
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / g_target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {

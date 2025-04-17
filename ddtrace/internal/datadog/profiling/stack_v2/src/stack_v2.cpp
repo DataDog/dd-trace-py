@@ -178,10 +178,8 @@ stack_v2_link_tasks(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-stack_v2_set_adaptive_sampling(PyObject* self, PyObject* args)
+stack_v2_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    (void)self;
-
     int do_adaptive_sampling = false;
 
     if (!PyArg_ParseTuple(args, "|p", &do_adaptive_sampling)) {
