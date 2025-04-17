@@ -1036,7 +1036,7 @@ def snapshot_context(
         tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._writer.agent_url)
-    print(f"\nꙮꙮꙮ {parsed.hostname=} {parsed.port=}\n", flush=True)
+    print(f"\nꙮꙮꙮ hostname={parsed.hostname} port={parsed.port}\n", flush=True)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
