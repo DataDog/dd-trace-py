@@ -400,3 +400,5 @@ class FakeApiRunnersSnapshotTestCase(TracerTestCase):
             replace_os_env=True,
         ):
             subprocess.run(["python", "fake_runner_atr_mix_fail.py"])
+
+# run!
