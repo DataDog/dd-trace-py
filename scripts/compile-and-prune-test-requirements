@@ -21,7 +21,4 @@ do
     fi
 done
 
-echo "Adding venv name comments to lockfiles..."
-bash scripts/integration_registry/_add_integration_venv_name_to_riot_lockfiles "$RIOT_CMD"
-
 echo "All done!"
