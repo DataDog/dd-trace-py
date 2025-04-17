@@ -173,15 +173,15 @@ def test_resource_name_too_large():
 
     assert t._writer._buffer_size == FOUR_KB
     s = t.trace("operation", service="foo")
-    # Maximum string length is set to 10% of the maximum buffer size
-    s.resource = "B" * int(0.1 * FOUR_KB + 1)
+    s.resource = "B" * int(FOUR_KB + 1)
     try:
         s.finish()
     except ValueError:
         pytest.fail()
     encoded_spans, size = t._writer._encoder.encode()
     assert size == 1
-    assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
+    assert b"failed to pack span" in encoded_spans
+    assert b"string table is full (current size: 4129, max size: 4096)" in encoded_spans
 
 
 @parametrize_with_all_encodings
