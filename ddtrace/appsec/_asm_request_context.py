@@ -284,7 +284,13 @@ def set_body_response(body_response):
     # local import to avoid circular import
     from ddtrace.appsec._utils import parse_response_body
 
-    set_waf_address(SPAN_DATA_NAMES.RESPONSE_BODY, lambda: parse_response_body(body_response))
+    set_waf_address(
+        SPAN_DATA_NAMES.RESPONSE_BODY,
+        lambda: parse_response_body(
+            body_response,
+            get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES),
+        ),
+    )
 
 
 def set_waf_address(address: str, value: Any) -> None:
@@ -656,12 +662,6 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
 
 
 def asm_listen():
-    from ddtrace.appsec._handlers import listen
-    from ddtrace.appsec._trace_utils import listen as trace_listen
-
-    listen()
-    trace_listen()
-
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)

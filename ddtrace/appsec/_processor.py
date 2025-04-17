@@ -86,7 +86,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
-        from ddtrace.appsec import load_appsec
+        from ddtrace.appsec._listeners import load_appsec
 
         load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
@@ -123,7 +123,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
                 self.metrics = metrics
                 self._ddwaf = DDWaf(
-                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+                    self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
@@ -251,7 +251,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # persistent addresses must be sent if api security is used
         force_keys = custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False) if custom_data else False
 
-        for key, waf_name in iter_data:  # type: ignore[attr-defined]
+        for key, waf_name in iter_data:
             if key in data_already_sent and not force_sent:
                 continue
             # ensure ephemeral addresses are sent, event when value is None

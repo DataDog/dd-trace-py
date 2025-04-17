@@ -46,7 +46,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 def run_llmobs_trace_filter(dummy_tracer):
     with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span.set_tag_str(SPAN_KIND, "llm")
-    return dummy_tracer._writer.pop()
+    return dummy_tracer._span_aggregator.writer.pop()
 
 
 def test_service_enable_proxy():
@@ -438,6 +438,13 @@ def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
         assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+
+
+def test_annotate_tag_can_set_session_id(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"session_id": "1234567890"})
+        assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+        assert span._get_ctx_item(SESSION_ID) == "1234567890"
 
 
 def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
@@ -1628,6 +1635,13 @@ def test_annotation_context_modifies_span_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
             assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+
+
+def test_annotation_context_can_update_session_id(llmobs):
+    with llmobs.annotation_context(tags={"session_id": "1234567890"}):
+        with llmobs.agent(name="test_agent") as span:
+            assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+            assert span._get_ctx_item(SESSION_ID) == "1234567890"
 
 
 def test_annotation_context_modifies_prompt(llmobs):
