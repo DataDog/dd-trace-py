@@ -227,7 +227,7 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _is_string_node(node: Any) -> bool:
-        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes, bytearray))):
+        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, IAST.TEXT_TYPES)):
             return True
 
         return False
@@ -671,7 +671,7 @@ class AstVisitor(ast.NodeTransformer):
         # Assign.targets, thus the manual copy
 
         func_arg1 = copy.deepcopy(augassign_node.target)
-        func_arg1.ctx = ast.Load()  # type: ignore[attr-defined]
+        func_arg1.ctx = ast.Load()
         func_arg2 = copy.deepcopy(augassign_node.value)
         func_arg2.ctx = ast.Load()  # type: ignore[attr-defined]
 

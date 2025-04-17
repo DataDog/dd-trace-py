@@ -8,24 +8,24 @@ stages:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
   # CI_DEBUG_SERVICES: "true"
 
 default:
   interruptible: true
 
+# trigger new commit cancel
 workflow:
   auto_cancel:
     on_new_commit: interruptible
-    on_job_failure: all
   rules:
     - if: $CI_COMMIT_BRANCH == 'main'
       auto_cancel:
         on_new_commit: none
-        on_job_failure: none
     - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       auto_cancel:
         on_new_commit: none
-        on_job_failure: none
     - when: always
 
 include:
@@ -51,6 +51,11 @@ tests-gen:
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
+ # Allow the child job to fail if explicitly asked
+ rules:
+   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+     allow_failure: true
+   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
@@ -60,6 +65,10 @@ run-tests-trigger:
 microbenchmarks:
   stage: benchmarks
   needs: [ "download_ddtrace_artifacts" ]
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
@@ -160,7 +169,7 @@ publish-lib-init-pinned-tags:
 configure_system_tests:
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,docker-ssi,lib-injection"
-    
+
 deploy_to_reliability_env:
   needs: []
 
