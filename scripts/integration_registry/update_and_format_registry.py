@@ -25,10 +25,6 @@ PATH_UPDATE_REGISTRY_SCRIPT = (
 
 def _run_script(script_path: pathlib.Path, *args: str) -> bool:
     """Executes a given Python script using the current interpreter and handles output/errors."""
-    if not script_path.is_file():
-        print(f"Error: Script not found: {script_path.relative_to(PROJECT_ROOT)}", file=sys.stderr)
-        return False
-
     command: List[str] = [sys.executable, str(script_path)] + list(args)
     script_name: str = script_path.name
     print(f" -> Running {script_path.relative_to(PROJECT_ROOT)} {' '.join(args)}...")
@@ -44,12 +40,6 @@ def _run_script(script_path: pathlib.Path, *args: str) -> bool:
             print(result.stderr.strip(), file=sys.stderr)
 
         return True
-    except FileNotFoundError:
-        print(
-            f"Error: Could not execute script. '{sys.executable}' or '{script_path.relative_to(PROJECT_ROOT)}' "
-            "not found?",
-            file=sys.stderr,
-        )
     except subprocess.TimeoutExpired:
         print(f"Error: {script_path.relative_to(PROJECT_ROOT)} timed out after 60 seconds.", file=sys.stderr)
     except subprocess.CalledProcessError as e:
@@ -77,19 +67,12 @@ def main() -> int:
         return 1
 
     # Step 2: Generate the supported versions table CSV
-    if PATH_GENERATE_TABLE_SCRIPT.is_file():
-        if not _run_script(PATH_GENERATE_TABLE_SCRIPT):
-            print(f"\nWorkflow aborted: {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
-            print("=" * 60)
-            return 1
-    else:
-        print(
-            f"\nWarning: Script {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} not found. "
-            "Skipping table generation."
-        )
-        print("         Ensure supported_versions_table.csv is up-to-date manually if depending on it.")
+    if not _run_script(PATH_GENERATE_TABLE_SCRIPT):
+        print(f"\nWorkflow aborted: {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+        print("=" * 60)
+        return 1
 
-    # Step 3: Update the registry YAML using the generated table
+    # Step 3: Update the registry YAML using the generated table of tested dependency versions
     if not _run_script(PATH_UPDATE_REGISTRY_SCRIPT):
         print(f"\nWorkflow aborted: {PATH_UPDATE_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)

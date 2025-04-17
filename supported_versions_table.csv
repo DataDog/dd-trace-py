@@ -57,7 +57,7 @@ mysqlclient,mysqldb,2.2.1,2.2.6,True
 openai,openai,1.0.0,1.70.0,True
 openai-agents,openai_agents,0.0.8,0.0.8,True
 protobuf,protobuf,3.19.0,6.30.2,False
-psycopg,psycopg,3.2.1,3.2.3,True
+psycopg,psycopg,3.2.1,3.2.6,True
 psycopg2-binary,psycopg,2.8.6,2.9.9,True
 pylibmc,pylibmc,1.6.3,1.6.3,True
 pymemcache,pymemcache,3.4.4,4.0.0,True

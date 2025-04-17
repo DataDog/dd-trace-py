@@ -19,9 +19,6 @@ INTEGRATION_START_KEY = "- integration_name:"
 
 def _read_file_lines(filepath: pathlib.Path) -> Optional[List[str]]:
     """Reads all lines from the file, handling potential errors."""
-    if not filepath.is_file():
-        print(f"  Error: File not found: {filepath.relative_to(ROOT_DIR)}", file=sys.stderr)
-        return None
     try:
         with open(filepath, "r", encoding="utf-8") as infile:
             return infile.readlines()
