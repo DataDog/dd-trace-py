@@ -204,10 +204,11 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
-        source_bytes = module_origin.read_bytes()
         source_git_hash = sha1()
-        source_git_hash.update(f"blob {len(source_bytes)}\0".encode())
-        source_git_hash.update(source_bytes)
+        source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
+        with module_origin.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                source_git_hash.update(chunk)
 
         return Scope(
             scope_type=ScopeType.MODULE,
