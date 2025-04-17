@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to pick up a fix which resolves a potential
+    crash. The stack sampler could read off of an empty queue of frames after
+    failing to resolve specific frame information, triggering undefined
+    behavior.
