@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev177+g0353d6365.d20250408",
+      "event_type": "span", "spans": [{"kind": "llm", "span_id": "12345678901", "trace_id":
+      "98765432101", "parent_id": "", "session_id": "98765432101", "name": "completion_span",
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
+      "start_ns": 1707763310981223236, "duration": 12345678900, "status": "ok", "meta":
+      {"span.kind": "llm", "model_name": "ada", "model_provider": "openai", "input":
+      {"messages": [{"content": "who broke enigma?"}]}, "output": {"messages": [{"content":
+      "\n\nThe Enigma code was broken by a team of codebreakers at Bletchley Park,
+      led by mathematician Alan Turing."}]}, "metadata": {"temperature": 0, "max_tokens":
+      256}}, "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens":
+      192}}]}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '2'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Tue, 08 Apr 2025 20:47:33 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+version: 1
