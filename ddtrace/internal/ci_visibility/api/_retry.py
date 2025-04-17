@@ -54,6 +54,7 @@ class ATRRetryManager:
         self.test = CIVisibility.get_test_by_id(test_id)
         self.session_status = ATRRetryManager._get_session_status(self.test)
         self.retries = []
+        self.session_status.attempts[self.test.get_status()] += 1
 
     def _max_retries_per_test_reached(self) -> bool:
         return len(self.retries) >= self.test._session_settings.atr_settings.max_retries
