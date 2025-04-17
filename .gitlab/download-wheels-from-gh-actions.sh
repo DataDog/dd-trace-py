@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
+CI_COMMIT_SHA="7d11f1a8063b4af80695ddc96e0ce30f4370a565"
+
 if [ -z "$CI_COMMIT_SHA" ]; then
   echo "Error: CI_COMMIT_SHA was not provided"
   exit 1
@@ -42,7 +44,7 @@ if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "comple
   echo "Waiting for workflow to finish"
 
   # Give time to the job to finish
-  sleep 300 # 5 minutes
+  sleep 5 # 5 minutes
 
   # wait for run to finish
   gh run watch $RUN_ID --interval 60 --exit-status 1 --repo DataDog/dd-trace-py
