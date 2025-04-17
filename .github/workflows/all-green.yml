@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   all-green:
     runs-on: ubuntu-latest
@@ -14,7 +18,13 @@ jobs:
     steps:
       - uses: wechuli/allcheckspassed@e22f45a4f25f4cf821d1273705ac233355400db1
         with:
-          delay: 5  # wait for this delay before starting
+          delay: 10  # wait for this delay before starting
           polling_interval: 1 # after a failure, how long do it wait before checking again
           retries: 60  # how many retries before stopping 
-          checks_exclude: 'Bootstrap import analysis'
+          checks_exclude: 'Bootstrap import analysis,require-checklist,Validate changelog'
+
+# Why some checks are excluded?
+#
+# - Bootstrap import analysis: TO BE ADDED (Success rate of 88% as of 2025-04-17)
+# - require-checklist: this job is triggered by a change on PR description, and already explcititly required
+# - Validate changelog: this job is triggered by a change on labels, and already explcititly required
