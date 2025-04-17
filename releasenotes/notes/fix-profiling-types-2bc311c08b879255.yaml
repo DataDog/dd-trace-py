@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Profiling: adds better state management when profiling types are registered, especially after fork.
+    This resolves rare issues with profiler configuration becoming invalid after fork.
