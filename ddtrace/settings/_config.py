@@ -14,8 +14,6 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
-from ddtrace.internal.telemetry import telemetry_enabled
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -530,7 +528,7 @@ class Config(object):
 
         self._health_metrics_enabled = _get_config("DD_TRACE_HEALTH_METRICS_ENABLED", False, asbool)
 
-        self._telemetry_enabled = telemetry_enabled
+        self._telemetry_enabled = _get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool)
         self._telemetry_heartbeat_interval = _get_config("DD_TELEMETRY_HEARTBEAT_INTERVAL", 60, float)
         self._telemetry_dependency_collection = _get_config("DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", True, asbool)
 
@@ -778,6 +776,8 @@ class Config(object):
             item = self._config[key]
             item.set_value_source(value, origin)
             if self._telemetry_enabled:
+                from ddtrace.internal.telemetry import telemetry_writer
+
                 telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
