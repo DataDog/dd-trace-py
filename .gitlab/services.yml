@@ -12,7 +12,7 @@
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
-    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.20.0
+    name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
     variables:
       LOG_LEVEL: INFO
