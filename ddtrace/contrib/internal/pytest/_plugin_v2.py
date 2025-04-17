@@ -86,8 +86,6 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
-    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
-    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
@@ -618,7 +616,6 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         atr_pytest_terminal_summary_post_yield(terminalreporter)
 
-    quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
@@ -706,7 +703,7 @@ def pytest_report_teststatus(
             return test_status
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
+        test_status = atr_get_teststatus(report)
         if test_status is not None:
             return test_status
 

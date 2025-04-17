@@ -18,12 +18,16 @@ from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.api import InternalTest
 from dataclasses import dataclass
+from dataclasses import field
+from collections import defaultdict
 
 log = get_logger(__name__)
 
 @dataclass
 class ATRSessionStatus:
     total_retries: int = 0
+    attempts: t.Dict[TestStatus, int] = field(default_factory=lambda: defaultdict(lambda: 0))
+
 
 
 class ATRRetryManager:
@@ -42,7 +46,7 @@ class ATRRetryManager:
         session_status = session.stash_get("atr_session_status")
         if not session_status:
             session_status = ATRSessionStatus()
-            session.stash_set("atr_session_stats", session_status)
+            session.stash_set("atr_session_status", session_status)
         return session_status
 
     def __init__(self, test_id: TestId) -> None:
@@ -82,6 +86,7 @@ class ATRRetryManager:
             retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
+        self.session_status.attempts[status] += 1
 
     def get_final_status(self) -> TestStatus:
         if self.test._status in [TestStatus.PASS, TestStatus.SKIP]:
