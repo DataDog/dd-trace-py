@@ -1153,12 +1153,11 @@ class HTTPPropagator(object):
                     else:
                         context = baggage_context
                     if config._baggage_tag_keys:
-                        allowed_keys = {k.strip() for k in config._baggage_tag_keys if k.strip()}
-                        for key, value in baggage_context.get_all_baggage_items().items():
-                            if key in allowed_keys:
-                                prefixed_key = "baggage." + key
+                        for baggage_tag_key in config._baggage_tag_keys:
+                            if stripped_key := baggage_tag_key.strip():
+                                prefixed_key = "baggage." + stripped_key
                                 if prefixed_key not in context._meta:
-                                    context._meta[prefixed_key] = value
+                                    context._meta[prefixed_key] = baggage_context.get_baggage_item(stripped_key)
                                 else:
                                     log.debug("Skipping baggage tag '%s'; tag already set", prefixed_key)
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
