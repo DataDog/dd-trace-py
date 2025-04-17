@@ -4,7 +4,7 @@ stages:
   - hatch
 
 variables:
-  RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
+  RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s -v
   REPO_LANG: python # "python" is used everywhere rather than "py"
   DD_PYTEST_USE_NEW_PLUGIN_BETA: "true"
   PYTEST_ADDOPTS: "-s"
