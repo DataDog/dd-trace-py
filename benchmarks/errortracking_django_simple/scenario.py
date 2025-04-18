@@ -3,7 +3,7 @@ import os
 import bm
 
 
-class DjangoSimple(bm.Scenario):
+class ErrorTrackingDjangoSimple(bm.Scenario):
     tracer_enabled: bool
     errortracking_enabled: str
     path: str
