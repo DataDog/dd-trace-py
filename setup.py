@@ -614,7 +614,14 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
             extra_compile_args=(
-                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"] + fast_build_args
+                debug_compile_args
+                # If NDEBUG is set, assert statements are compiled out. Make
+                # sure we explicitly set this for normal builds, and explicitly
+                # _unset_ it for debug builds in case the CFLAGS from sysconfig
+                # include -DNDEBUG
+                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c11"]
             ),

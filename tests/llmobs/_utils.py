@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
@@ -812,6 +813,16 @@ def _expected_span_link(span_event, link_from, link_to):
         "span_id": span_event["span_id"],
         "attributes": {"from": link_from, "to": link_to},
     }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+        super().enqueue(event)
 
 
 def _assert_span_link(from_span_event, to_span_event, from_io, to_io):

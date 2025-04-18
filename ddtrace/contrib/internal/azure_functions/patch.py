@@ -86,10 +86,11 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
 
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
+        resource_name = f"{trigger} {function_name}"
 
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
-            with create_context("azure.functions.patched_timer", pin, function_name) as ctx, ctx.span:
+            with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
                 ctx.set_item("trigger_span", ctx.span)
                 core.dispatch(
                     "azure.functions.trigger_call_modifier",

@@ -629,8 +629,6 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
-        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 

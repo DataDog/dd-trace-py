@@ -2,7 +2,12 @@
 import pytest
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack_v2.pprof"))
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack_v2.pprof",
+        _DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED="0",
+    )
+)
 def test_accuracy_stack_v2():
     import collections
     import os

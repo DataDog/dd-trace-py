@@ -31,6 +31,13 @@ class Sampler
     // One-time setup of echion
     void one_time_setup();
 
+    // Internal perf counters
+    uint64_t process_count = 0;
+    uint64_t sampler_thread_count = 0;
+
+    bool do_adaptive_sampling = true;
+    void adapt_sampling_interval();
+
   public:
     // Singleton instance
     static Sampler& get();
@@ -50,6 +57,7 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
 };
 
 } // namespace Datadog

@@ -2870,6 +2870,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                "jsonschema": latest,
                 "lz4": latest,
                 "pytest-cpp": latest,
                 #
