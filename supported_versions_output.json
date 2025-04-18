@@ -14,11 +14,10 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "aiohttp_jinja2",
+        "dependency": "aiohttp-jinja2",
         "integration": "aiohttp_jinja2",
         "minimum_tracer_supported": "1.5.1",
         "max_tracer_supported": "1.6",
-        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -59,6 +58,14 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "pytest-asyncio",
+        "integration": "asyncio",
+        "minimum_tracer_supported": "0.21.1",
+        "max_tracer_supported": "0.21.1",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "asyncpg",
         "integration": "asyncpg",
         "minimum_tracer_supported": "0.23.0",
@@ -73,7 +80,7 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "aws_lambda",
+        "dependency": "datadog-lambda",
         "integration": "aws_lambda",
         "minimum_tracer_supported": "6.105.0",
         "max_tracer_supported": "6.105.0",
@@ -175,6 +182,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "elastic-transport",
+        "integration": "elasticsearch",
+        "minimum_tracer_supported": "8.11.0",
+        "max_tracer_supported": "8.17.1",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "elasticsearch",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
@@ -217,13 +231,6 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "elastic-transport",
-        "integration": "elasticsearch",
-        "minimum_tracer_supported": "8.11.0",
-        "max_tracer_supported": "8.17.1",
-        "auto-instrumented": true
-    },
-    {
         "dependency": "opensearch-py",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "1.1.0",
@@ -241,7 +248,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.115.11",
+        "max_tracer_supported": "0.115.12",
         "auto-instrumented": true
     },
     {
@@ -252,7 +259,7 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "flask_cache",
+        "dependency": "flask-caching",
         "integration": "flask_cache",
         "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "2.3.0",
@@ -262,7 +269,7 @@
         "dependency": "gevent",
         "integration": "gevent",
         "minimum_tracer_supported": "20.12.1",
-        "max_tracer_supported": "24.11.1",
+        "max_tracer_supported": "25.4.1",
         "auto-instrumented": true
     },
     {
@@ -485,7 +492,7 @@
         "auto-instrumented": false
     },
     {
-        "dependency": "pytest_bdd",
+        "dependency": "pytest-bdd",
         "integration": "pytest_bdd",
         "minimum_tracer_supported": "4.1.0",
         "max_tracer_supported": "6.0.1",
@@ -540,6 +547,13 @@
         "minimum_tracer_supported": "1.2.19",
         "max_tracer_supported": "2.0.40",
         "auto-instrumented": false
+    },
+    {
+        "dependency": "pysqlite3-binary",
+        "integration": "sqlite3",
+        "minimum_tracer_supported": "0.5.2.post3",
+        "max_tracer_supported": "0.5.2.post3",
+        "auto-instrumented": true
     },
     {
         "dependency": "starlette",

@@ -336,7 +336,7 @@ def generate_supported_versions(contrib_packages, all_used_versions):
     """
     patched = {}
     for package in contrib_packages:
-        for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING.get(package, [package]):
+        for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(package, [package])):
             ordered = sorted([Version(v) for v in all_used_versions[dependency]], reverse=True)
             if not ordered:
                 continue

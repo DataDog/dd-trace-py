@@ -82,8 +82,6 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
 
 venv = Venv(
     pkgs={
-        "pyyaml": latest, # necessary for integration registry update script run after contrib tests
-        "riot": "==0.20.1", # necessary for integration registry update script run after contrib tests
         "mock": latest,
         "pytest": latest,
         "pytest-mock": latest,
@@ -2752,7 +2750,6 @@ venv = Venv(
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
                 "jsonschema": latest,
-                "riot": "==0.20.1",
             },
             # we only need to run this on one version of Python
             pys=["3.13"],
