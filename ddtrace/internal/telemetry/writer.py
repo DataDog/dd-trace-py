@@ -449,7 +449,7 @@ class TelemetryWriter(PeriodicService):
             del self._configuration_queue[configuration_name]
 
     def add_configuration(self, configuration_name, configuration_value, origin="unknown", config_id=None):
-        # type: (str, Any, str, Optional[str], Optional[str]) -> None
+        # type: (str, Any, str, Optional[str]) -> None
         """Creates and queues the name, origin, value of a configuration"""
         if isinstance(configuration_value, dict):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
