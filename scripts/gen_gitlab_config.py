@@ -191,7 +191,7 @@ def gen_pre_checks() -> None:
         paths={"docker*", "riotfile.py", "hatch.toml"},
     )
     check(
-        name="Style: Test snapshots",
+        name="Style: test snapshots",
         command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
         paths={"docker*", "tests/snapshots/*", "hatch.toml"},
     )
@@ -209,22 +209,32 @@ def gen_pre_checks() -> None:
         return
 
     with TESTS_GEN.open("a") as f:
-        print("prechecks:", file=f)
-        print("  extends: .testrunner", file=f)
-        print("  stage: setup", file=f)
-        print("  needs: []", file=f)
-        print("  variables:", file=f)
-        print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
-        print("  script:", file=f)
-        print("    - pip cache info", file=f)
+        f.write("""
+prechecks:
+  extends: .testrunner
+  stage: setup
+  needs: []
+  variables:
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+  script:
+    - >
+      echo -e "\e[0Ksection_start:`date +%s`:pip_cache_info\\r\e[0KPip cache info"
+      pip cache info
+      echo -e "\e[0Ksection_end:`date +%s`:pip_cache_info\\r\e[0K"
+        """)
         for i, (name, command) in enumerate(checks):
-            print(f'echo -e "\e[0Ksection_start:`date +%s`:section_{i}\r\e[0K{name}"', file=f)
-            print(f"    - {command}", file=f)
-            print(f'echo -e "\e[0Ksection_end:`date +%s`:section_{i}\r\e[0K', file=f)
-        print("  cache:", file=f)
-        print("    key: v1-precheck-pip-cache", file=f)
-        print("    paths:", file=f)
-        print("      - .cache", file=f)
+            f.write(f"""
+    - >
+      echo -e "\e[0Ksection_start:`date +%s`:section_{i}\\r\e[0K{name}"
+      {command}
+      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\e[0K"
+            """)
+        f.write("""
+  cache:
+    key: v1-precheck-pip-cache
+    paths:
+      - .cache
+        """)
 
 
 def gen_appsec_iast_packages() -> None:
