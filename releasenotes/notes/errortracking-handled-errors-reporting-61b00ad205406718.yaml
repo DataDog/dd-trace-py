@@ -1,0 +1,33 @@
+---
+#instructions:
+#    The style guide below provides explanations, instructions, and templates to write your own release note.
+#    Once finished, all irrelevant sections (including this instruction section) should be removed,
+#    and the release note should be committed with the rest of the changes.
+#
+#    The main goal of a release note is to provide a brief overview of a change and provide actionable steps to the user.
+#    The release note should clearly communicate what the change is, why the change was made, and how a user can migrate their code.
+#
+#    The release note should also clearly distinguish between announcements and user instructions. Use:
+#    * Past tense for previous/existing behavior (ex: ``resulted, caused, failed``)
+#    * Third person present tense for the change itself (ex: ``adds, fixes, upgrades``)
+#    * Active present infinitive for user instructions (ex: ``set, use, add``)
+#
+#    Release notes should:
+#    * Use plain language
+#    * Be concise
+#    * Include actionable steps with the necessary code changes
+#    * Include relevant links (bug issues, upstream issues or release notes, documentation pages)
+#    * Use full sentences with sentence-casing and punctuation.
+#    * Before using Datadog specific acronyms/terminology, a release note must first introduce them with a definition.
+#
+#    Release notes should not:
+#    * Be vague. Example: ``fixes an issue in tracing``.
+#    * Use overly technical language
+#    * Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash) whenever possible so that they don't break in the future.
+features:
+  - |
+    Error Tracking: Introduces automatic reporting of handled exceptions. Enabling the feature will report handled exceptions
+    to Error Tracking from the user code, the third party packages code, some specified modules or everything based on configuration.
+    This feature can be controlled using two environment variables:
+      - `DD_ERROR_TRACKING_HANDLED_ERRORS=all|user|third_party`
+      - `DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES=module1, module2, module3.submodule
