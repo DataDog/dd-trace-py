@@ -85,6 +85,7 @@ DEFAULT_TIMEOUT = 2.0
 # baggage
 DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
+BAGGAGE_TAG_PREFIX = "baggage."
 
 
 class SamplingMechanism(object):
