@@ -696,7 +696,7 @@ class LLMObs(Service):
             model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        return cls._instance._start_span(
+        return cls._instance.start_span(
             "llm",
             name,
             model_name=model_name,
@@ -726,7 +726,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
+        return cls._instance.start_span("tool", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod
     def task(
@@ -748,7 +748,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
+        return cls._instance.start_span("task", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod
     def agent(
@@ -770,7 +770,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span(
+        return cls._instance.start_span(
             "agent", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
 
@@ -794,7 +794,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span(
+        return cls._instance.start_span(
             "workflow", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
 
@@ -828,7 +828,7 @@ class LLMObs(Service):
             model_name = "custom"
         if model_provider is None:
             model_provider = "custom"
-        return cls._instance._start_span(
+        return cls._instance.start_span(
             "embedding",
             name,
             model_name=model_name,
@@ -858,7 +858,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        return cls._instance._start_span(
+        return cls._instance.start_span(
             "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
 
