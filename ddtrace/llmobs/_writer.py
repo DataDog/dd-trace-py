@@ -23,18 +23,16 @@ from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
-from ddtrace.llmobs._constants import AGENTLESS_EVAL_ENDPOINT
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
-from ddtrace.llmobs._constants import AGENTLESS_SPAN_ENDPOINT
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
+from ddtrace.llmobs._constants import EVAL_ENDPOINT
 from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
-from ddtrace.llmobs._constants import EVP_PROXY_EVAL_ENDPOINT
-from ddtrace.llmobs._constants import EVP_PROXY_SPAN_ENDPOINT
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
@@ -100,8 +98,7 @@ class BaseLLMObsWriter(PeriodicService):
     EVENT_TYPE = ""
     EVP_SUBDOMAIN_HEADER_VALUE = ""
     AGENTLESS_BASE_URL = ""
-    AGENTLESS_ENDPOINT = ""
-    EVP_PROXY_ENDPOINT = ""
+    ENDPOINT = ""
 
     def __init__(
         self,
@@ -125,7 +122,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._intake: str = _override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
-        self._endpoint: str = self.AGENTLESS_ENDPOINT if is_agentless else self.EVP_PROXY_ENDPOINT
+        self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
@@ -263,8 +260,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
     EVENT_TYPE = "evaluation_metric"
     EVP_SUBDOMAIN_HEADER_VALUE = EVAL_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EVAL_BASE_URL
-    AGENTLESS_ENDPOINT = AGENTLESS_EVAL_ENDPOINT
-    EVP_PROXY_ENDPOINT = EVP_PROXY_EVAL_ENDPOINT
+    ENDPOINT = EVAL_ENDPOINT
 
     def enqueue(self, event: LLMObsEvaluationMetricEvent) -> None:
         event_size = len(safe_json(event))
@@ -280,8 +276,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     EVENT_TYPE = "span"
     EVP_SUBDOMAIN_HEADER_VALUE = SPAN_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_SPAN_BASE_URL
-    AGENTLESS_ENDPOINT = AGENTLESS_SPAN_ENDPOINT
-    EVP_PROXY_ENDPOINT = EVP_PROXY_SPAN_ENDPOINT
+    ENDPOINT = SPAN_ENDPOINT
 
     def enqueue(self, event: LLMObsSpanEvent) -> None:
         raw_event_size = len(safe_json(event))
