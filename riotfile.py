@@ -679,7 +679,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="django[django_hosts]",
+            name="django:django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
                 "pytest-django[testing]": [
@@ -706,7 +706,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="django[djangorestframework]",
+            name="django:djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
@@ -738,7 +738,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="django[celery]",
+            name="django:celery",
             command="pytest {cmdargs} tests/contrib/django_celery",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
@@ -805,7 +805,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch[multi]",
+            name="elasticsearch:multi",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
             venvs=[
                 Venv(
@@ -819,7 +819,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch[async]",
+            name="elasticsearch:async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
             env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
@@ -835,7 +835,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch[opensearch]",
+            name="elasticsearch:opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
             pys=select_pys(),
@@ -1022,7 +1022,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="psycopg[psycopg2]",
+            name="psycopg:psycopg2",
             command="pytest {cmdargs} tests/contrib/psycopg2",
             pkgs={
                 "pytest-randomly": latest,
@@ -1677,7 +1677,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="grpc[grpc_aio]",
+            name="grpc:grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
                 "googleapis-common-protos": latest,
@@ -1713,7 +1713,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="graphql[graphene]",
+            name="graphql:graphene",
             command="pytest {cmdargs} tests/contrib/graphene",
             pys=select_pys(min_version="3.8"),
             pkgs={

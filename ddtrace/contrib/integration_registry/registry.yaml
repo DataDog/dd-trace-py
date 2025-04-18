@@ -344,7 +344,7 @@ integrations:
   tested_versions_by_dependency:
     graphql-core:
       min: 3.1.7
-      max: 3.2.6
+      max: 3.1.7
 
 - integration_name: grpc
   is_external_package: true

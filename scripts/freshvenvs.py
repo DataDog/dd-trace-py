@@ -107,7 +107,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
     packages_setting_latest = set()
     def recurse_venvs(venvs: typing.List[riotfile.Venv]):
         for venv in venvs:
-            package = venv.name.split("[")[0] if venv.name is not None else venv.name # strip optional package installs
+            package = venv.name.split(":")[0] if venv.name is not None else venv.name # strip optional package installs
             # Check if the package name is an integration as all contrib venvs are named after the integration
             if package not in contrib_modules:
                 continue
@@ -213,7 +213,7 @@ def _get_package_versions_from(env: str, contrib_modules: typing.Set[str], riot_
     integration = None
     dependencies = []
     if riot_hash_to_venv_name.get(env):
-        venv_name = riot_hash_to_venv_name[env].split("[")[0]
+        venv_name = riot_hash_to_venv_name[env].split(":")[0]
 
         def get_integration_and_dependencies(venv_name: str) -> typing.Tuple[str, typing.List[str]]:
             if venv_name in contrib_modules:
@@ -233,7 +233,7 @@ def _get_package_versions_from(env: str, contrib_modules: typing.Set[str], riot_
 
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        package = package.split("[")[0] # strip optional package installs
+        package = package.split("[")[0] # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
         elif package in DEPENDENCY_TO_INTEGRATION_MAPPING and DEPENDENCY_TO_INTEGRATION_MAPPING[package] == integration:
