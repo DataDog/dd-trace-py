@@ -283,10 +283,7 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            if COMPONENT in span._meta.keys():
-                integration_name = span._meta["component"]
-            else:
-                integration_name = span._span_api
+            integration_name = span._meta.get("component", span._span_api)
 
             self._span_metrics["spans_created"][(integration_name)] += 1
             self._send_span_count_metrics("spans_created")
