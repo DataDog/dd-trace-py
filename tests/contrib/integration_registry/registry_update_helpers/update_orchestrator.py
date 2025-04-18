@@ -4,6 +4,7 @@ import time
 import sys
 import tempfile
 import json
+from typing import Union
 
 
 LOCK_FILE_NAME = ".venv-registry-tools.lock"
@@ -58,18 +59,32 @@ def _ensure_tooling_venv(venv_path: str, project_root: str):
     except Exception: return False
 
 def _run_subprocess(cmd: list, timeout: int, cwd: str, description: str) -> bool:
-    """Helper to run subprocess, prints stderr on failure."""
+    """Helper to run subprocess, prints output, returns True on success."""
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+        process = subprocess.run(
+            cmd, check=True, capture_output=True, text=True,
+            timeout=timeout, cwd=cwd
+        )
+        if process.stdout:
+            print(f"\n\n--- stdout: {description} ---", file=sys.stdout)
+            print(process.stdout.strip(), file=sys.stdout)
+        if process.stderr:
+            print(f"\n\n--- stderr: {description} ---", file=sys.stdout)
+            print(process.stderr.strip(), file=sys.stdout)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
-        print(f"Stderr:\n{e.stderr}", file=sys.stderr)
+        # *** Handle exit code 1 specifically for Integration Registry Updater meaning no changes were made ***
+        if description == "Integration Registry Updater" and e.returncode == 1:
+             pass
+        else:
+             print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
+             if e.stderr:
+                 print(f"Stderr:\n{e.stderr}", file=sys.stderr)
         return False
     except Exception:
         return False
 
-def export_registry_data(data: dict, request) -> str | None:
+def export_registry_data(data: dict, request) -> Union[str, None]:
     data_file_path = None
     try:
         unique_id = f"pid{os.getpid()}"

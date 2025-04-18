@@ -23,6 +23,12 @@ class IntegrationRegistryManager:
         if self.packages_distributions is None:
             try:
                 self.packages_distributions = importlib.metadata.packages_distributions()
+            except AttributeError:
+                try:
+                    import importlib_metadata
+                    self.packages_distributions = importlib_metadata.packages_distributions()
+                except Exception:
+                    self.packages_distributions = {}
             except Exception:
                 self.packages_distributions = {}
         return self.packages_distributions
@@ -60,7 +66,7 @@ class IntegrationRegistryManager:
                 continue
 
             try:
-                obj_name = self.original_getattr(obj, '__name__')
+                obj_name = self.original_getattr(obj, '__module__')
                 top_level_module = obj_name.split('.', 1)[0]
             except Exception:
                 self.processed_objects.add(obj)
