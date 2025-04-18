@@ -11,11 +11,6 @@
 #include <mutex>
 #include <thread>
 
-#if defined(__linux__) || defined(__APPLE__)
-#include <unistd.h>
-#elif defined(_WIN32)
-#include <process.h>
-#endif
 
 // ----------------------------------------------------------------------------
 /**
@@ -271,12 +266,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             Py_DECREF(self->native_id);
 #if PY_VERSION_HEX >= 0x030b0000
             self->native_id = PyLong_FromLong((long)PyThreadState_Get()->native_thread_id);
-#else
-#if defined(__linux__) || defined(__APPLE__)
-            self->native_id = PyLong_FromLong((long)getpid());
-#elif defined(_WIN32)
-            self->native_id = PyLong_FromLong((long)_getpid());
-#endif
+#else // PY_VERSION_HEX < 0x030b0000
+            self->native_id = PyLong_FromLong((long)PyThread_get_thread_native_id());
 #endif // PY_VERSION_HEX >= 0x030b0000
 
             // Map the PeriodicThread object to its thread ID
