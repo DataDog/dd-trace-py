@@ -217,15 +217,15 @@ prechecks:
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
   script:
-    - >
-      echo -e "\e[0Ksection_start:`date +%s`:pip_cache_info\\r\e[0KPip cache info"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:pip_cache_info[collapsed=true]\\r\e[0KPip cache info"
       pip cache info
       echo -e "\e[0Ksection_end:`date +%s`:pip_cache_info\\r\e[0K"
         """)
         for i, (name, command) in enumerate(checks):
             f.write(f"""
-    - >
-      echo -e "\e[0Ksection_start:`date +%s`:section_{i}\\r\e[0K{name}"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\e[0K{name}"
       {command}
       echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\e[0K"
             """)
