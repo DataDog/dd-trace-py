@@ -2,7 +2,7 @@ import bm
 from bm.flask_utils import FlaskScenarioMixin
 
 
-class FlaskSQLi(bm.Scenario, FlaskScenarioMixin):
+class ErrorTrackingFlaskSQLi(bm.Scenario, FlaskScenarioMixin):
     # DEV: These should better go in FlaskScenarioMixin
     # but then the logic to get them wouldn't work
     tracer_enabled: bool
