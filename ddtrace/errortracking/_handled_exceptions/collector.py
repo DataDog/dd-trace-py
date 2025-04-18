@@ -3,6 +3,7 @@ import typing as t
 
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
+from ddtrace.internal import core
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
@@ -21,9 +22,17 @@ def _add_span_events(span: Span) -> None:
     """
     span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
     if span_exc_events:
+        print("ADDING SPAN EVENTS")
         span.set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
         span._events.extend(span_exc_events)
     HandledExceptionCollector.clear_exception_events(span.span_id)
+
+
+def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
+    exception_events = HandledExceptionCollector.get_exception_events(span.span_id)
+    print("OI HUGHIE")
+    if exception_events and exc_val in exception_events:
+        del exception_events[exc_val]
 
 
 class HandledExceptionCollector(Service):
@@ -43,6 +52,7 @@ class HandledExceptionCollector(Service):
         log.debug("Enabling %s", cls.__name__)
         cls._instance = cls()
         cls._instance.start()
+        core.on("span.exception", _on_span_exception)
 
         log.debug("%s enabled", cls.__name__)
 

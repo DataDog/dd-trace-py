@@ -14,7 +14,6 @@ class DjangoSimple(bm.Scenario):
         if self.errortracking_enabled:
             os.environ.update({"DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED": self.errortracking_enabled})
 
-
         # This will not work with gevent workers as the gevent hub has not been
         # initialized when this hook is called.
         if self.tracer_enabled:
