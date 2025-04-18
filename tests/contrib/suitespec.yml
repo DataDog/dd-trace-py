@@ -564,7 +564,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/django_hosts/*
       - tests/contrib/django_hosts/django_app/*
-    pattern: django_hosts$
+    pattern: django/[django_hosts/]
     runner: riot
     snapshot: true
   django[djangorestframework]:
@@ -581,6 +581,7 @@ suites:
       - '@django'
       - tests/contrib/djangorestframework/*
       - tests/contrib/djangorestframework/app/*
+    pattern: django/[djangorestframework/]
     runner: riot
     services:
       - memcached
@@ -709,6 +710,7 @@ suites:
       - '@tracing'
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
+    pattern: graphql/[graphene/]
     runner: riot
     snapshot: true
   graphql:

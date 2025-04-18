@@ -2746,6 +2746,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
+                "riot": latest,
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
