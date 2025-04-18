@@ -35,6 +35,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
@@ -1157,7 +1158,7 @@ class HTTPPropagator(object):
                             if (stripped_key := baggage_tag_key.strip()) and (
                                 (value := baggage_context.get_baggage_item(stripped_key)) is not None
                             ):
-                                prefixed_key = "baggage." + stripped_key
+                                prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
                                 if prefixed_key not in context._meta:
                                     context._meta[prefixed_key] = value
                                 else:
