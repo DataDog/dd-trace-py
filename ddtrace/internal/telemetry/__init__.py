@@ -12,6 +12,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import FLEET_CONFIG
+from ddtrace.settings._core import FLEET_CONFIG_IDS
 from ddtrace.settings._core import LOCAL_CONFIG
 from ddtrace.settings._core import DDConfig
 from ddtrace.settings._otel_remapper import ENV_VAR_MAPPINGS
@@ -26,7 +27,7 @@ telemetry_writer = TelemetryWriter()  # type: TelemetryWriter
 __all__ = ["telemetry_writer"]
 
 
-def report_config_telemetry(effective_env, val, source, otel_env):
+def report_config_telemetry(effective_env, val, source, otel_env, config_id):
     if effective_env == otel_env:
         # We only report the raw value for OpenTelemetry configurations, we should make this consistent
         raw_val = os.environ.get(effective_env, "").lower()
@@ -37,7 +38,7 @@ def report_config_telemetry(effective_env, val, source, otel_env):
                 _hiding_otel_config(otel_env, effective_env)
             else:
                 _invalid_otel_config(otel_env)
-        telemetry_writer.add_configuration(effective_env, val, source)
+        telemetry_writer.add_configuration(effective_env, val, source, config_id)
 
 
 def get_config(
@@ -59,12 +60,14 @@ def get_config(
     source = ""
     effective_env = ""
     val = None
+    config_id = None
     # Get configurations from fleet stable config
     for env in envs:
         if env in FLEET_CONFIG:
             source = "fleet_stable_config"
             effective_env = env
             val = FLEET_CONFIG[env]
+            config_id = FLEET_CONFIG_IDS.get(env)
             break
     # Get configurations from datadog env vars
     if val is None:
@@ -100,7 +103,7 @@ def get_config(
         source = "default"
     # Report telemetry
     if report_telemetry:
-        report_config_telemetry(effective_env, val, source, otel_env)
+        report_config_telemetry(effective_env, val, source, otel_env, config_id)
 
     return val
 
@@ -117,7 +120,7 @@ def report_configuration(config: DDConfig) -> None:
         for p in name.split("."):
             env_val = getattr(env_val, p)
 
-        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name))
+        telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id)
 
 
 def _invalid_otel_config(otel_env):

@@ -10,7 +10,7 @@ from envier import Env
 from ddtrace.internal.native import get_configuration_from_disk
 
 
-FLEET_CONFIG, LOCAL_CONFIG = get_configuration_from_disk()
+FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
 
 
 class ValueSource(str, Enum):
@@ -69,6 +69,11 @@ class DDConfig(Env):
                 value_source = ValueSource.UNKNOWN
 
             self._value_source[env_name] = value_source
+
+            if value_source == ValueSource.FLEET_STABLE_CONFIG:
+                self.config_id = FLEET_CONFIG_IDS.get(env_name)
+            else:
+                self.config_id = None
 
     def value_source(self, env_name: str) -> ValueSource:
         return self._value_source.get(env_name, ValueSource.UNKNOWN)
