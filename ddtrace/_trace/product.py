@@ -114,14 +114,16 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
-def apm_tracing_rc(lib_config):
-    base_rc_config: t.Dict[str, t.Any] = {n: None for n in config._config}
+def apm_tracing_rc(lib_config, dd_config):
+    base_rc_config: t.Dict[str, t.Any] = {n: None for n in dd_config._config}
 
     if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
         global_sampling_rate = lib_config.get("tracing_sampling_rate")
         trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
         # returns None if no rules
-        trace_sampling_rules = config._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
+        trace_sampling_rules = dd_config._convert_rc_trace_sampling_rules(
+            trace_sampling_rules, global_sampling_rate
+        )
         if trace_sampling_rules:
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
@@ -131,7 +133,7 @@ def apm_tracing_rc(lib_config):
     if "tracing_tags" in lib_config:
         tags = lib_config["tracing_tags"]
         if tags:
-            tags = config._format_tags(lib_config["tracing_tags"])
+            tags = dd_config._format_tags(lib_config["tracing_tags"])
         base_rc_config["tags"] = tags
 
     if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
@@ -140,15 +142,15 @@ def apm_tracing_rc(lib_config):
     if "tracing_header_tags" in lib_config:
         tags = lib_config["tracing_header_tags"]
         if tags:
-            tags = config._format_tags(lib_config["tracing_header_tags"])
+            tags = dd_config._format_tags(lib_config["tracing_header_tags"])
         base_rc_config["_trace_http_header_tags"] = tags
 
-    config._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+    dd_config._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
 
     # unconditionally handle the case where header tags have been unset
-    header_tags_conf = config._config["_trace_http_header_tags"]
+    header_tags_conf = dd_config._config["_trace_http_header_tags"]
     env_headers = header_tags_conf._env_value or {}
     code_headers = header_tags_conf._code_value or {}
     non_rc_header_tags = {**code_headers, **env_headers}
     selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-    config._http = HttpConfig(header_tags=selected_header_tags)
+    dd_config._http = HttpConfig(header_tags=selected_header_tags)
