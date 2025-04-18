@@ -290,10 +290,7 @@ class SpanAggregator(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
-            if COMPONENT in span._meta.keys():
-                integration_name = span._meta["component"]
-            else:
-                integration_name = span._span_api
+            integration_name = span._meta.get("component", span._span_api)
 
             self._span_metrics["spans_finished"][(integration_name)] += 1
 
