@@ -65,7 +65,6 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/vendored
     ${CMAKE_CURRENT_SOURCE_DIR}/include/util
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${echion_SOURCE_DIR}
