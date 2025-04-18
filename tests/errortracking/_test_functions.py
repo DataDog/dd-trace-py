@@ -22,7 +22,7 @@ def test_basic_multiple_except_f(a, value):
     return value
 
 
-def test_handled_same_error_multiple_times_f(value):
+def test_handle_same_error_multiple_times_f(value):
     try:
         try:
             raise ValueError("auto caught error")
@@ -32,6 +32,28 @@ def test_handled_same_error_multiple_times_f(value):
         value = 10
 
     return value
+
+
+def test_handled_same_error_different_type_f(value):
+    try:
+        try:
+            raise ValueError("auto caught error")
+        except ValueError as e:
+            raise RuntimeError(e)
+    except RuntimeError:
+        value = 10
+
+    return value
+
+
+def test_handled_then_raise_error_f(value):
+    try:
+        try:
+            raise ValueError("auto caught error")
+        except ValueError as e:
+            raise e
+    except Exception as e:
+        raise e
 
 
 def test_asyncio_error_f(value):
@@ -54,18 +76,6 @@ async def test_async_error_f(value):
         raise ValueError("this is an async error")
     except ValueError:
         value += "<async_error>"
-    return value
-
-
-def test_reraise_handled_error_f(value):
-    try:
-        try:
-            raise ValueError("auto caught error")
-        except ValueError as e:
-            raise RuntimeError(e)
-    except RuntimeError:
-        value = 10
-
     return value
 
 

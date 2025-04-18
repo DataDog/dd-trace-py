@@ -38,7 +38,11 @@ class ErrorTestCases(TracerTestCase):
             for args in multiple_calls:
                 f(*args)
         else:
-            f()
+            # One the test is raising an exception
+            try:
+                f()
+            except Exception:
+                value = 10
 
         HandledExceptionCollector.disable()
 
@@ -48,7 +52,7 @@ class ErrorTestCases(TracerTestCase):
             for j, event_attrs in enumerate(span_events):
                 self.spans[i].assert_span_event_attributes(j, event_attrs)
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_basic_try_except(self):
         self._run_error_test(
             "test_basic_try_except_f",
@@ -57,7 +61,7 @@ class ErrorTestCases(TracerTestCase):
             expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_basic_multiple_except(self):
         self._run_error_test(
             "test_basic_multiple_except_f",
@@ -70,19 +74,22 @@ class ErrorTestCases(TracerTestCase):
             multiple_calls=[[0], [1]],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
-    def test_handled_same_error_multiple_times(self):
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_handle_same_error_multiple_times(self):
         self._run_error_test(
-            "test_handled_same_error_multiple_times_f",
+            "test_handle_same_error_multiple_times_f",
             initial_value=0,
             expected_value=10,
             expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}]],
         )
+        # This asserts that the reported span event contained the info
+        # of the last time the error is handled
+        assert "line 30" in self.spans[0]._events[0].attributes["exception.stacktrace"]
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
-    def test_reraise_handled_error(self):
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_handled_same_error_different_type(self):
         self._run_error_test(
-            "test_reraise_handled_error_f",
+            "test_handled_same_error_different_type_f",
             initial_value=0,
             expected_value=10,
             expected_events=[
@@ -93,7 +100,16 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="all"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_handled_then_raise_error(self):
+        self._run_error_test(
+            "test_handled_then_raise_error_f",
+            initial_value=0,
+            expected_value=10,
+            expected_events=[[]],
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_async_error(self):
         self._run_error_test(
             "test_asyncio_error_f",
@@ -205,7 +221,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="user",
+            DD_ERROR_TRACKING_HANDLED_ERRORS="user",
         )
     )
     def test_user_code_reporting(self):
@@ -221,7 +237,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED="third_party",
+            DD_ERROR_TRACKING_HANDLED_ERRORS="third_party",
         )
     )
     def test_user_code_reporting_with_third_party(self):
@@ -233,7 +249,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="numpy,user_module",
+            DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="numpy,user_module",
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
@@ -243,7 +259,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             expected_events={"min_events": 2, "messages_present": ["module caught error", "<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="submodule"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="submodule"))
     def test_user_code_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
@@ -256,7 +272,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             use_submodules=True,
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED_MODULES="submodule.submodule_2"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="submodule.submodule_2"))
     def test_user_code_narrowed_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
