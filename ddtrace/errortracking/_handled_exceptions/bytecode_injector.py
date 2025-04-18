@@ -56,7 +56,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
     code, _ = inject_invocation(injection_context, original_code.co_filename, "my.package")
     try:
         code_to_instr.__code__ = code
-    except:  # noqa: E722
+    except Exception:
         log.debug("Could not set the code of %s", code_to_instr, exc_info=True)
 
 
