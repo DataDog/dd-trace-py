@@ -85,6 +85,7 @@ importlib-metadata,0
 importlib_metadata,0
 itsdangerous,<2.0
 jinja2,~=2.10.0
+jsonschema,0
 kombu,>=4.2.0
 langchain,==0.1.20
 langchain-anthropic,==0.1.11
