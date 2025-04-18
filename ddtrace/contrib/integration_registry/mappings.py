@@ -5,6 +5,7 @@ INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES = {
     "flask_cache": "flask-caching",
     "asyncio": "pytest-asyncio",
     "sqlite3": "pysqlite3-binary",
+    "botocore": "boto3",
     # "psycopg2": "psycopg2-binary",
     "aiohttp_jinja2": "aiohttp-jinja2",
     "pytest_bdd": "pytest-bdd",

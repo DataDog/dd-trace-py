@@ -80,7 +80,7 @@ class IntegrationRegistryManager:
                     for distribution_name in distribution_names:
                         update_key = f"{integration_name}:{distribution_name}"
                         if update_key not in self.updated_packages:
-                            self.pending_updates[integration_name]["dependency_name"].add(distribution_name)
+                            self.pending_updates[integration_name]["dependency_name"].add(distribution_name.lower())
                             self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)

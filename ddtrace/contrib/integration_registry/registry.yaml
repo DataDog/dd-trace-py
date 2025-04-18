@@ -14,8 +14,8 @@ integrations:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
-      min: 3.9.1
-      max: 3.11.16
+      min: 3.10.5
+      max: 3.10.9
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -65,7 +65,7 @@ integrations:
   - anthropic
   tested_versions_by_dependency:
     anthropic:
-      min: 0.26.0
+      min: 0.49.0
       max: 0.49.0
 
 - integration_name: aredis
@@ -133,9 +133,12 @@ integrations:
   dependency_name:
   - botocore
   tested_versions_by_dependency:
+    boto3:
+      min: 1.34.49
+      max: 1.37.5
     botocore:
-      min: 1.20.106
-      max: 1.37.26
+      min: 1.34.49
+      max: 1.37.5
 
 - integration_name: bottle
   is_external_package: true
@@ -162,7 +165,7 @@ integrations:
   tested_versions_by_dependency:
     celery:
       min: 5.3.6
-      max: 5.5.1
+      max: 5.4.0
 
 - integration_name: cherrypy
   is_external_package: true
@@ -291,14 +294,18 @@ integrations:
   - flask
   tested_versions_by_dependency:
     flask:
-      min: 0.12.5
+      min: 1.1.4
       max: 3.1.0
 
 - integration_name: flask_cache
   is_external_package: true
   dependency_name:
-  - flask_cache
+  - flask-cache
+  - flask-caching
   tested_versions_by_dependency:
+    flask-cache:
+      min: 0.13.1
+      max: 0.13.1
     flask-caching:
       min: 1.10.1
       max: 2.3.0
@@ -319,7 +326,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 20.12.1
-      max: 25.4.1
+      max: 24.11.1
 
 - integration_name: google_generativeai
   is_external_package: true
@@ -357,8 +364,8 @@ integrations:
   - httpx
   tested_versions_by_dependency:
     httpx:
-      min: 0.15.4
-      max: 0.28.1
+      min: 0.17.1
+      max: 0.27.2
 
 - integration_name: jinja2
   is_external_package: true
@@ -367,7 +374,7 @@ integrations:
   tested_versions_by_dependency:
     jinja2:
       min: 2.10.3
-      max: 3.1.6
+      max: 3.1.4
 
 - integration_name: kafka
   is_external_package: true
@@ -384,8 +391,8 @@ integrations:
   - kombu
   tested_versions_by_dependency:
     kombu:
-      min: 4.2.2.post1
-      max: 5.5.3
+      min: 4.6.11
+      max: 5.4.2
 
 - integration_name: langchain
   is_external_package: true
@@ -411,7 +418,7 @@ integrations:
   - litellm
   tested_versions_by_dependency:
     litellm:
-      min: 1.60.2
+      min: 1.65.1
       max: 1.65.1
 
 - integration_name: logbook
@@ -442,7 +449,7 @@ integrations:
   tested_versions_by_dependency:
     mako:
       min: 1.1.6
-      max: 1.3.10
+      max: 1.3.8
 
 - integration_name: mariadb
   is_external_package: true
@@ -496,7 +503,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 1.70.0
+      max: 1.60.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -513,8 +520,8 @@ integrations:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
-      min: 3.19.0
-      max: 6.30.2
+      min: 5.29.3
+      max: 6.30.1
 
 - integration_name: psycopg
   is_external_package: true
@@ -524,7 +531,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.2.1
-      max: 3.2.3
+      max: 3.2.1
     psycopg2-binary:
       min: 2.8.6
       max: 2.9.10
@@ -598,8 +605,8 @@ integrations:
   - pytest
   tested_versions_by_dependency:
     pytest:
-      min: 4.6.11
-      max: 8.3.5
+      min: 6.2.5
+      max: 8.1.1
 
 - integration_name: pytest_bdd
   is_external_package: true
@@ -622,8 +629,8 @@ integrations:
   - redis
   tested_versions_by_dependency:
     redis:
-      min: 2.10.6
-      max: 5.2.1
+      min: 4.6.0
+      max: 5.2.0
 
 - integration_name: rediscluster
   is_external_package: true
@@ -682,7 +689,7 @@ integrations:
   - sqlalchemy
   tested_versions_by_dependency:
     sqlalchemy:
-      min: 1.2.19
+      min: 1.3.24
       max: 2.0.40
 
 - integration_name: sqlite3
@@ -694,8 +701,8 @@ integrations:
   - starlette
   tested_versions_by_dependency:
     starlette:
-      min: 0.13.6
-      max: 0.46.1
+      min: 0.14.2
+      max: 0.39.2
 
 - integration_name: structlog
   is_external_package: true
@@ -704,7 +711,7 @@ integrations:
   tested_versions_by_dependency:
     structlog:
       min: 20.2.0
-      max: 25.1.0
+      max: 24.4.0
 
 - integration_name: subprocess
   is_external_package: false
@@ -715,7 +722,7 @@ integrations:
   - tornado
   tested_versions_by_dependency:
     tornado:
-      min: 4.5.3
+      min: 6.2.0
       max: 6.4.1
 
 - integration_name: unittest
@@ -731,7 +738,7 @@ integrations:
   tested_versions_by_dependency:
     urllib3:
       min: 1.25.0
-      max: 2.4.0
+      max: 2.2.3
 
 - integration_name: valkey
   is_external_package: true

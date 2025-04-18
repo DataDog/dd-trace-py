@@ -91,9 +91,12 @@ class RegistryUpdater:
                 entry = registry_map[integration_name]
                 if entry.get("is_external_package"):
                     current_deps_set = set(entry.get("dependency_name", []))
-                    merged_deps_set = current_deps_set.union(new_deps_set)
-                    entry["dependency_name"] = sorted(list(merged_deps_set))
-                    changed = True
+                    for dep in new_deps_set:
+                        dep_lower = dep.lower()
+                        if dep_lower not in current_deps_set:
+                            current_deps_set.add(dep_lower)
+                            changed = True
+                    entry["dependency_name"] = sorted(list(current_deps_set))
             else:
                 new_entry = {
                     "integration_name": integration_name,
