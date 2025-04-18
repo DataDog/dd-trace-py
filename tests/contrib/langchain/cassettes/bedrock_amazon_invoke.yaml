@@ -1,0 +1,76 @@
+interactions:
+- request:
+    body: '{"inputText": "can you explain what Datadog is to someone not in the tech
+      industry?", "textGenerationConfig": {"temperature": 0, "topP": 0.9, "stopSequences":
+      [], "maxTokenCount": 50}}'
+    headers:
+      Accept:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      Content-Length:
+      - '184'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC41MSBtZC9Cb3RvY29yZSMxLjM0LjUxIHVhLzIuMCBvcy9tYWNvcyMyMy42LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIGNmZy9y
+        ZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM0LjUx
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTA0MTFUMTQxMjM4Wg==
+      X-Amz-Security-Token:
+      - !!binary |
+        SVFvSmIzSnBaMmx1WDJWakVFY2FDWFZ6TFdWaGMzUXRNU0pHTUVRQ0lFVUtlU1lHVHd4b2JrVEk0
+        VnNUUm5Wa25XVGd6b1VvOUJVM1hJM0owdXRBQWlCNmgyaDRCT2VJK3lpb3gzcFZ5aE9TTVFDR2M0
+        MGFoUEVSS2tqK2tsTVlKaXFaQXdpLy8vLy8vLy8vLy84QkVBTWFERFl3TVRReU56STNPVGs1TUNJ
+        TXNwTEI5T1dwRitBQUdhcDFLdTBDUmR4dWpidmsxaFpOMllmcXliSno2TE5ON3UzRGFWbWZzZU1t
+        eEZEK1kyUTlleTJTTEpUU00xTUJ2MjRreW04Snd2aU0yK0dwMmdFMWJ2SkJQMm8wK2Y5U0l3anln
+        K0xZQ2FIejNsNmt2bzQzTlZkZWJ3WUVoYm9mWU1TM3dwN1VEOElnemhianpJN2JIRGQwT2hBWDZD
+        Ym9QSjVWRU5wQzZpL3pLVE1KLzJHQmhrNXpUdmtOMFZYRkhqYWh2TUN6bUpKR2VOYVUvRDY4aTVV
+        L3R6dVJwTDVKV0V4dzNZajR4bk01bkR1Y3ZqL25PV3VzaExuMzdKbStYVzkvc0RXTy9SeGhGUjVx
+        UG5RdUIvdkZWcEZGSkRwbjEzZTRKSGNnbHR4Zng5ejdVWFk5aENCOVIxZWJCRkpuMDBlN29wYlhE
+        V3RFbnVMWjV4QUEwdFh6dEYrRHpGbExXd0VRVmRJbmZJYmdLcXlUMEZGVWNCNlFlQU5IZTlrTWM1
+        NEdOV0cxeHVueGxUY2xwNXZLOWtoN1lGYzh5citqWk5paWZUdEgvRVJvODY5Y2ltT3dTU0NRWndN
+        OUlYeGd0amZNZ1N3dGQxL053T0k0bjRtSklvU1NCcWFseFdqUVNabGVLTm40cFZ2TjkxQXd0TVRr
+        dndZNnB3RXMybnNMMmhlbHBMTDJRQzU1UmdlMno3aFhiTzhNS2hmUmRJMWdKL3NVZUdiQmhqckJp
+        bUFBSkdqN2MrcWpJR3lxQTI4WHZqRUE3Vm11U1ZVM1hDYm0xa3lWZGlqaXpyN2l1dVlxVUlnSFRE
+        ZTU1Tm14QVM5eVF2eXI3dHEvelNjdGNTTjNRekJmK3I3MkZWUU1nUDhNR1dmY0s0Z2ZnUnFkN2E5
+        TzhnQnBvcTZ5NzV3NWFZMVh6UWV0dkpQcVd0M3dLRTBjazVqMi9yd0xTd3VyM1lFUkVBUmlINXk5
+        akE9PQ==
+      amz-sdk-invocation-id:
+      - !!binary |
+        ZWMyMWZjN2UtMmU0YS00ZjZmLTk2ZTktMjllYzMwNjIzZTJj
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/amazon.titan-tg1-large/invoke
+  response:
+    body:
+      string: '{"inputTextTokenCount":16,"results":[{"tokenCount":48,"outputText":"\nDatadog
+        is a monitoring and analytics platform for IT, DevOps, and business teams.
+        It collects and analyzes massive amounts of data in real time, providing insights
+        into the performance and health of applications, infrastructure, and services.","completionReason":"FINISH"}]}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '345'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 11 Apr 2025 14:12:41 GMT
+      X-Amzn-Bedrock-Input-Token-Count:
+      - '16'
+      X-Amzn-Bedrock-Invocation-Latency:
+      - '2126'
+      X-Amzn-Bedrock-Output-Token-Count:
+      - '48'
+      x-amzn-RequestId:
+      - dd3e068e-b7ff-4aba-b2c0-53215c361b52
+    status:
+      code: 200
+      message: OK
+version: 1
