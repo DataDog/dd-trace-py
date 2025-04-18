@@ -16,7 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 1h
+  timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -166,7 +166,6 @@ microbenchmarks:
 "microbenchmarks flaky":
   extends: .benchmarks
   allow_failure: true
-  timeout: 20m
   parallel:
     matrix:
       - SCENARIO:
