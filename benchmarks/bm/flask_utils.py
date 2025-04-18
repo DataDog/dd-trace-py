@@ -68,14 +68,14 @@ def create_app():
 
     @app.route("/sqli", methods=["POST"])
     def sqli():
-        sql = "SELECT 1 FROM sqlite_master WHERE name = '" + request.form["username"] + "'"
+        sql = f"SELECT 1 FROM sqlite_master WHERE name = '{request.form['username']}'"
         cur.execute(sql)
         return Response("OK")
 
     @app.route("/sqli_with_errortracking", methods=["POST"])
     def sqli_with_errortracking():
         try:
-            sql = "SELECT 1 FROM sqlite_master WHERE name = '" + request.form["username"] + "'"
+            sql = f"SELECT 1 FROM sqlite_master WHERE name = '{request.form['username']}'"
             cur.execute(sql)
             raise ValueError("there has been a sql error")
         except ValueError:
@@ -96,7 +96,7 @@ class FlaskScenarioMixin:
         )
 
         if self.errortracking_enabled:
-            os.environ.update({"DD_ERROR_TRACKING_HANDLED_ERRORS_ENABLED": self.errortracking_enabled})
+            os.environ.update({"DD_ERROR_TRACKING_HANDLED_ERRORS": self.errortracking_enabled})
 
         if self.profiler_enabled:
             os.environ.update(
