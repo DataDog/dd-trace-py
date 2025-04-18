@@ -4,6 +4,7 @@ supported_versions_table.csv.
 Preserves all other existing fields in registry.yaml.
 """
 
+from collections import defaultdict
 import csv
 import pathlib
 import subprocess
@@ -12,9 +13,8 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
-from collections import defaultdict
 from typing import Set
+from typing import Tuple
 
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
@@ -64,7 +64,9 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[
             csvfile.seek(0)
             reader = csv.DictReader(csvfile)
             col_integration = next((h for h in header if "integration" in h.lower()), None)
-            col_dependency = next((h for h in header if "dependency" in h.lower() and h.lower() != col_integration.lower()), None)
+            col_dependency = next(
+                (h for h in header if "dependency" in h.lower() and h.lower() != col_integration.lower()), None
+            )
             col_min = next((h for h in header if "minimum" in h.lower()), None)
             col_max = next((h for h in header if "max" in h.lower()), None)
 
@@ -75,7 +77,7 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[
                 max_version = row.get(col_max, "").strip()
                 integration_name = integration_name_raw.split("*")[0].strip().lower()
                 dependency_name = dependency_name_raw
-                
+
                 normalized_min = _normalize_version_string(min_version) if min_version else "N/A"
                 normalized_max = _normalize_version_string(max_version) if max_version else "N/A"
 
@@ -115,11 +117,13 @@ def _create_version_info_block(min_v: Optional[str], max_v: Optional[str]) -> Op
     return {"min": min_final or "N/A", "max": max_final or "N/A"}
 
 
-def _create_new_integration_entry(integration_name: str, dependency_version_map: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
+def _create_new_integration_entry(
+    integration_name: str, dependency_version_map: Dict[str, Dict[str, str]]
+) -> Dict[str, Any]:
     """Creates a new integration entry with version information."""
     dependency_name_list = sorted(list(dependency_version_map.keys()))
     new_version_map_for_yaml = {}
-    
+
     for dep_name, version_info in dependency_version_map.items():
         version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
         if version_block:
@@ -135,8 +139,7 @@ def _create_new_integration_entry(integration_name: str, dependency_version_map:
 
 
 def _update_and_add_integration_versions(
-    current_integrations: List[Dict[str, Any]],
-    new_versions: Dict[str, Dict[str, Dict[str, str]]]
+    current_integrations: List[Dict[str, Any]], new_versions: Dict[str, Dict[str, Dict[str, str]]]
 ) -> Tuple[List[Dict[str, Any]], int, int, int]:
     """
     Updates dependency versions using the nested structure and adds new integrations if needed.
@@ -149,9 +152,11 @@ def _update_and_add_integration_versions(
     existing_names: Set[str] = set()
 
     for entry in current_integrations:
-        if not isinstance(entry, dict): continue
+        if not isinstance(entry, dict):
+            continue
         integration_name = entry.get("integration_name")
-        if not integration_name: continue
+        if not integration_name:
+            continue
 
         existing_names.add(integration_name.lower())
         updated_entry = entry.copy()

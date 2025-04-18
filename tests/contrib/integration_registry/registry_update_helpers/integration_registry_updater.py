@@ -2,22 +2,24 @@ import json
 import pathlib
 import sys
 
-import yaml
 from filelock import FileLock
-from filelock import Timeout as FileLockTimeout
+import yaml
 
 
 class RegistryUpdater:
     """
     Handles loading, merging, and writing integration registry data using file locking.
     """
+
     def __init__(self):
         self.project_root = self._find_project_root()
         if not self.project_root:
             raise RuntimeError("Could not determine project root directory.")
 
         self.registry_yaml_path = self.project_root / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
-        self.registry_lock_path = self.project_root / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml.lock"
+        self.registry_lock_path = (
+            self.project_root / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml.lock"
+        )
         self.lock_timeout_seconds = 15
         self.lock = FileLock(self.registry_lock_path, timeout=self.lock_timeout_seconds)
 
@@ -25,7 +27,7 @@ class RegistryUpdater:
         """Finds the project root by searching upwards for marker files."""
         current_dir = pathlib.Path(__file__).parent
         for _ in range(5):
-            if (current_dir / 'pyproject.toml').exists() or (current_dir / '.git').exists():
+            if (current_dir / "pyproject.toml").exists() or (current_dir / ".git").exists():
                 return current_dir
             if current_dir.parent == current_dir:
                 break
@@ -58,11 +60,16 @@ class RegistryUpdater:
     def _needs_update(self, registry_data: dict, input_data: dict) -> bool:
         """Checks if input_data contains info not present in registry_data."""
         integrations_list = registry_data.get("integrations", [])
-        registry_map = {entry.get("integration_name"): entry for entry in integrations_list if isinstance(entry, dict) and entry.get("integration_name")}
+        registry_map = {
+            entry.get("integration_name"): entry
+            for entry in integrations_list
+            if isinstance(entry, dict) and entry.get("integration_name")
+        }
 
         for integration_name, updates in input_data.items():
             new_deps_set = set(updates.get("dependency_name", []))
-            if not new_deps_set: continue
+            if not new_deps_set:
+                continue
 
             if integration_name not in registry_map:
                 return True
@@ -80,12 +87,17 @@ class RegistryUpdater:
     def merge_data(self, registry_data: dict, input_data: dict) -> bool:
         """Merges dependency info from input_data into registry_data. Assumes check already done."""
         integrations_list = registry_data.setdefault("integrations", [])
-        registry_map = {entry.get("integration_name"): entry for entry in integrations_list if isinstance(entry, dict) and entry.get("integration_name")}
+        registry_map = {
+            entry.get("integration_name"): entry
+            for entry in integrations_list
+            if isinstance(entry, dict) and entry.get("integration_name")
+        }
         changed = False
 
         for integration_name, updates in input_data.items():
             new_deps_set = set(updates.get("dependency_name", []))
-            if not new_deps_set: continue
+            if not new_deps_set:
+                continue
 
             if integration_name in registry_map:
                 entry = registry_map[integration_name]
@@ -107,16 +119,20 @@ class RegistryUpdater:
                 changed = True
 
         if changed:
-             registry_data["integrations"] = sorted(integrations_list, key=lambda x: x.get("integration_name", ""))
+            registry_data["integrations"] = sorted(integrations_list, key=lambda x: x.get("integration_name", ""))
         return changed
 
     def write_registry_data(self, registry_data: dict) -> bool:
         """Safely writes the updated data back to registry YAML using a file lock."""
         try:
             with open(self.registry_yaml_path, "w", encoding="utf-8") as f:
-                 yaml.dump(
-                    registry_data, f, default_flow_style=False,
-                    sort_keys=False, indent=2, width=100,
+                yaml.dump(
+                    registry_data,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    indent=2,
+                    width=100,
                 )
             return True
         except Exception:
@@ -139,7 +155,8 @@ class RegistryUpdater:
             registry_data = self.load_registry_data()
 
             if not self._needs_update(registry_data, input_data):
-                if self.lock.is_locked: self.lock.release()
+                if self.lock.is_locked:
+                    self.lock.release()
                 return False
 
             self.merge_data(registry_data, input_data)
@@ -158,5 +175,5 @@ class RegistryUpdater:
                 self.lock.release()
             return False
         finally:
-             if not changes_made and self.lock.is_locked:
-                  self.lock.release()
+            if not changes_made and self.lock.is_locked:
+                self.lock.release()

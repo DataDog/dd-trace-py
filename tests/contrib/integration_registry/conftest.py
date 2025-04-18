@@ -1,10 +1,13 @@
 import json
 from pathlib import Path
-from typing import List, Set, Any
+from typing import Any
+from typing import List
+from typing import Set
 
 import pytest
-import riotfile
 import yaml
+
+import riotfile
 
 
 @pytest.fixture(scope="module")
@@ -120,6 +123,7 @@ def untested_integrations(registry_data: list[dict]) -> set[str]:
 
     # TODO: wconnti27: remove this and ensure this list populates registry.yaml
     from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
+
     for name in EXCLUDED_FROM_TESTING:
         names.add(name)
     return names
@@ -139,7 +143,7 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
             names.add(item.name)
 
     if not names:
-         pytest.fail(f"No directories (excluding __pycache__) found in {internal_contrib_dir}")
+        pytest.fail(f"No directories (excluding __pycache__) found in {internal_contrib_dir}")
     return names
 
 

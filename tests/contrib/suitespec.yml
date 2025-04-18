@@ -126,6 +126,8 @@ components:
   httpx:
     - ddtrace/contrib/_httpx.py
     - ddtrace/contrib/internal/httpx/*
+  integration_registry:
+    - ddtrace/contrib/integration_registry/*
   jinja2:
     - ddtrace/contrib/_jinja2.py
     - ddtrace/contrib/internal/jinja2/*
@@ -564,7 +566,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/django_hosts/*
       - tests/contrib/django_hosts/django_app/*
-    pattern: django:django_hosts$
+    pattern: django:django_hosts
     runner: riot
     snapshot: true
   django:djangorestframework:
@@ -775,6 +777,16 @@ suites:
     services:
       - httpbin_local
     snapshot: true
+  integration_registry:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@integration_registry'
+      - tests/contrib/integration_registry/*
+    runner: riot
+    snapshot: false
   jinja2:
     parallelism: 2
     paths:

@@ -1,7 +1,12 @@
-import pathlib
-from typing import Dict, List, Optional, DefaultDict
 from collections import defaultdict
+import pathlib
+from typing import DefaultDict
+from typing import Dict
+from typing import List
+from typing import Optional
+
 import yaml
+
 
 def get_integration_to_dependency_map(special_cases: Optional[Dict[str, str]] = None) -> DefaultDict[str, set]:
     REGISTRY_YAML_PATH = pathlib.Path("ddtrace/contrib/integration_registry/registry.yaml")
@@ -29,9 +34,7 @@ def get_integration_to_dependency_map(special_cases: Optional[Dict[str, str]] = 
     return dependency_map
 
 
-def invert_integration_to_dependency_map(
-    integration_to_deps: Dict[str, List[str]]
-) -> Dict[str, str]:
+def invert_integration_to_dependency_map(integration_to_deps: Dict[str, List[str]]) -> Dict[str, str]:
     dependency_to_integration_map: Dict[str, str] = {}
     for integration, dependency_list in integration_to_deps.items():
         for dependency in dependency_list:

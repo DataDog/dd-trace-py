@@ -1,6 +1,18 @@
-from .utils import get_integration_to_dependency_map, invert_integration_to_dependency_map
+from .utils import get_integration_to_dependency_map
+from .utils import invert_integration_to_dependency_map
 
-EXCLUDED_FROM_TESTING = {"coverage", "pytest_benchmark", "asgi", "wsgi", "boto", "aioredis", "pytest_bdd", "urllib", "webbrowser"}
+
+EXCLUDED_FROM_TESTING = {
+    "coverage",
+    "pytest_benchmark",
+    "asgi",
+    "wsgi",
+    "boto",
+    "aioredis",
+    "pytest_bdd",
+    "urllib",
+    "webbrowser",
+}
 INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES = {
     "flask_cache": "flask-caching",
     "asyncio": "pytest-asyncio",

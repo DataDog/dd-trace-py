@@ -20,7 +20,7 @@ integrations:
 - integration_name: aiohttp_jinja2
   is_external_package: true
   dependency_name:
-  - aiohttp_jinja2
+  - aiohttp-jinja2
   tested_versions_by_dependency:
     aiohttp-jinja2:
       min: 1.5.1
@@ -104,7 +104,7 @@ integrations:
 - integration_name: aws_lambda
   is_external_package: true
   dependency_name:
-  - aws_lambda
+  - datadog-lambda
   tested_versions_by_dependency:
     datadog-lambda:
       min: 6.105.0
@@ -344,7 +344,7 @@ integrations:
   tested_versions_by_dependency:
     graphql-core:
       min: 3.1.7
-      max: 3.1.7
+      max: 3.2.6
 
 - integration_name: grpc
   is_external_package: true
@@ -611,7 +611,7 @@ integrations:
 - integration_name: pytest_bdd
   is_external_package: true
   dependency_name:
-  - pytest_bdd
+  - pytest-bdd
   tested_versions_by_dependency:
     pytest-bdd:
       min: 4.1.0

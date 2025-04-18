@@ -1,14 +1,15 @@
 import pathlib
 
+
 def test_integrations_have_riot_envs(
     integration_dir_names: set[str],
     riot_venv_names: set[str],
     project_root: pathlib.Path,
     internal_contrib_dir: pathlib.Path,
-    untested_integrations: set[str]
-): 
+    untested_integrations: set[str],
+):
     """
-    Verify that every integration directory in ddtrace/contrib/internal has a 
+    Verify that every integration directory in ddtrace/contrib/internal has a
     corresponding Venv defined in riotfile.py.
     """
     missing_riot_envs = integration_dir_names - riot_venv_names - untested_integrations
@@ -19,25 +20,17 @@ def test_integrations_have_riot_envs(
         f"\nThe following integration directories in '{contrib_internal_rel_path}' "
         f"are MISSING a corresponding environment definition in 'riotfile.py':\n"
         f"  - " + "\n  - ".join(sorted(list(missing_riot_envs))) + "\n"
-        f"\nPlease add a Venv definition in riotfile.py with a matching 'name'."
+        "\nPlease add a Venv definition in riotfile.py with a matching 'name'."
     )
 
-def test_contrib_tests_have_valid_contrib_venv_name(
-    riot_venvs: set[str],
-    integration_dir_names: set[str]
-):
+
+def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: set[str], integration_dir_names: set[str]):
     """
     Verify that every riot venv with a test path that contains 'contrib' is an actual
     contrib directory.
     """
 
-    WHITE_LISTED_VENVS = [
-        "asynctest",
-        "dbapi",
-        "dbapi_async",
-        "integration_registry",
-        "gunicorn"
-    ]
+    WHITE_LISTED_VENVS = ["asynctest", "dbapi", "dbapi_async", "integration_registry", "gunicorn"]
 
     failed_venvs = []
     for venv in riot_venvs:
@@ -59,4 +52,3 @@ def test_contrib_tests_have_valid_contrib_venv_name(
             )
         failure_messages.append("*" * 100)
     assert failed_venvs == [], "\n".join(failure_messages)
-

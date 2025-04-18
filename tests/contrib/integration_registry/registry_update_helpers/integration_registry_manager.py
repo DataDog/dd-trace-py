@@ -1,7 +1,7 @@
 import builtins
+from collections import defaultdict
 import importlib.metadata
 import traceback
-from collections import defaultdict
 
 
 class IntegrationRegistryManager:
@@ -10,6 +10,7 @@ class IntegrationRegistryManager:
     Collects integration and distribution names based on traceback and metadata.
     Provides the collected data for external processing.
     """
+
     def __init__(self):
         self.updated_packages = set()
         self.packages_distributions = None
@@ -26,6 +27,7 @@ class IntegrationRegistryManager:
             except AttributeError:
                 try:
                     import importlib_metadata
+
                     self.packages_distributions = importlib_metadata.packages_distributions()
                 except Exception:
                     self.packages_distributions = {}
@@ -35,10 +37,7 @@ class IntegrationRegistryManager:
 
     def _is_valid_patch_call(self, tb_string):
         """Checks if the patch call originated from ddtrace.contrib.internal/*/patch.py."""
-        return any(
-            "ddtrace/contrib/internal" in line and "/patch.py" in line
-            for line in tb_string.splitlines()
-        )
+        return any("ddtrace/contrib/internal" in line and "/patch.py" in line for line in tb_string.splitlines())
 
     def _get_integration_name_from_traceback(self, tb_string):
         """Extracts integration name (directory name) from traceback string."""
@@ -66,8 +65,8 @@ class IntegrationRegistryManager:
                 continue
 
             try:
-                obj_name = self.original_getattr(obj, '__module__')
-                top_level_module = obj_name.split('.', 1)[0]
+                obj_name = self.original_getattr(obj, "__module__")
+                top_level_module = obj_name.split(".", 1)[0]
             except Exception:
                 self.processed_objects.add(obj)
                 continue
@@ -96,7 +95,7 @@ class IntegrationRegistryManager:
     def patch_getattr(self):
         """Patches builtins.getattr to intercept _datadog_patch access."""
         if self.original_getattr is not None:
-             return
+            return
         self.original_getattr = builtins.getattr
 
         def _wrapped_getattr(obj, name, *default):
@@ -112,7 +111,7 @@ class IntegrationRegistryManager:
 
                 if not is_processed and not is_patched:
                     tb = traceback.extract_stack()[:-1]
-                    tb_string = ''.join(traceback.format_list(tb))
+                    tb_string = "".join(traceback.format_list(tb))
                     self.patched_objects[obj] = tb_string
 
             if default:

@@ -1,9 +1,9 @@
+import json
 import os
 import subprocess
-import time
 import sys
 import tempfile
-import json
+import time
 from typing import Union
 
 
@@ -30,9 +30,13 @@ def acquire_lock(lock_file_path):
             return False
     return False
 
+
 def release_lock(lock_file_path):
-    try: os.remove(lock_file_path)
-    except Exception: pass
+    try:
+        os.remove(lock_file_path)
+    except Exception:
+        pass
+
 
 def _ensure_tooling_venv(venv_path: str, project_root: str):
     tooling_python = os.path.join(venv_path, "bin", "python")
@@ -49,22 +53,23 @@ def _ensure_tooling_venv(venv_path: str, project_root: str):
     try:
         cmd = ["python3", "-m", "venv", venv_path]
         subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=project_root)
-    except Exception: return False
+    except Exception:
+        return False
 
-    if not os.path.exists(tooling_python): return False
+    if not os.path.exists(tooling_python):
+        return False
     try:
         cmd = [tooling_python, "-m", "pip", "install"] + TOOLING_DEPS
         subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=project_root, timeout=pip_timeout)
         return True
-    except Exception: return False
+    except Exception:
+        return False
+
 
 def _run_subprocess(cmd: list, timeout: int, cwd: str, description: str) -> bool:
     """Helper to run subprocess, prints output, returns True on success."""
     try:
-        process = subprocess.run(
-            cmd, check=True, capture_output=True, text=True,
-            timeout=timeout, cwd=cwd
-        )
+        process = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout, cwd=cwd)
         if process.stdout:
             print(f"\n\n--- stdout: {description} ---", file=sys.stdout)
             print(process.stdout.strip(), file=sys.stdout)
@@ -75,14 +80,15 @@ def _run_subprocess(cmd: list, timeout: int, cwd: str, description: str) -> bool
     except subprocess.CalledProcessError as e:
         # *** Handle exit code 1 specifically for Integration Registry Updater meaning no changes were made ***
         if description == "Integration Registry Updater" and e.returncode == 1:
-             pass
+            pass
         else:
-             print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
-             if e.stderr:
-                 print(f"Stderr:\n{e.stderr}", file=sys.stderr)
+            print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
+            if e.stderr:
+                print(f"Stderr:\n{e.stderr}", file=sys.stderr)
         return False
     except Exception:
         return False
+
 
 def export_registry_data(data: dict, request) -> Union[str, None]:
     data_file_path = None
@@ -90,35 +96,39 @@ def export_registry_data(data: dict, request) -> Union[str, None]:
         unique_id = f"pid{os.getpid()}"
         worker_input = getattr(request.config, "workerinput", None)
         if worker_input and "workerid" in worker_input:
-             unique_id += f"_{worker_input['workerid']}"
+            unique_id += f"_{worker_input['workerid']}"
 
-        temp_dir = getattr(request.config, '_tmp_path_factory', None)
+        temp_dir = getattr(request.config, "_tmp_path_factory", None)
         base_dir = temp_dir.getbasetemp() if temp_dir else None
 
         fd, data_file_path = tempfile.mkstemp(
-            prefix=f'registry_data_{unique_id}_', suffix='.json',
-            dir=base_dir, text=True
+            prefix=f"registry_data_{unique_id}_", suffix=".json", dir=base_dir, text=True
         )
-        with open(fd, 'w', encoding='utf-8') as temp_f:
+        with open(fd, "w", encoding="utf-8") as temp_f:
             json.dump(data, temp_f)
 
         request.config._registry_session_data_file = data_file_path
         return data_file_path
     except Exception:
         if data_file_path and os.path.exists(data_file_path):
-            try: os.remove(data_file_path)
-            except OSError: pass
-        if hasattr(request.config, '_registry_session_data_file'):
-            delattr(request.config, '_registry_session_data_file')
+            try:
+                os.remove(data_file_path)
+            except OSError:
+                pass
+        if hasattr(request.config, "_registry_session_data_file"):
+            delattr(request.config, "_registry_session_data_file")
         return None
 
+
 def cleanup_session_data(session):
-     data_file_path = getattr(session.config, '_registry_session_data_file', None)
-     if data_file_path and os.path.exists(data_file_path):
-         try: os.remove(data_file_path)
-         except OSError: pass
-     if hasattr(session.config, '_registry_session_data_file'):
-         delattr(session.config, '_registry_session_data_file')
+    data_file_path = getattr(session.config, "_registry_session_data_file", None)
+    if data_file_path and os.path.exists(data_file_path):
+        try:
+            os.remove(data_file_path)
+        except OSError:
+            pass
+    if hasattr(session.config, "_registry_session_data_file"):
+        delattr(session.config, "_registry_session_data_file")
 
 
 def run_update_process(project_root: str, data_file_path: str):
@@ -132,15 +142,19 @@ def run_update_process(project_root: str, data_file_path: str):
     try:
         # Setup Tooling Venv
         try:
-            if not acquire_lock(venv_lock_file_path): return
+            if not acquire_lock(venv_lock_file_path):
+                return
             venv_lock_acquired = True
-            if not _ensure_tooling_venv(tooling_env_path, project_root): return
+            if not _ensure_tooling_venv(tooling_env_path, project_root):
+                return
         finally:
-            if venv_lock_acquired: release_lock(venv_lock_file_path)
+            if venv_lock_acquired:
+                release_lock(venv_lock_file_path)
 
         # Run Update Process
         tooling_python = os.path.join(tooling_env_path, "bin", "python")
-        if not os.path.exists(tooling_python): return
+        if not os.path.exists(tooling_python):
+            return
 
         escaped_path = data_file_path.replace("'", "'\\''")
         py_cmd = (
@@ -161,5 +175,7 @@ def run_update_process(project_root: str, data_file_path: str):
 
     finally:
         if os.path.exists(updater_lock_file_path):
-            try: os.remove(updater_lock_file_path)
-            except OSError: pass
+            try:
+                os.remove(updater_lock_file_path)
+            except OSError:
+                pass

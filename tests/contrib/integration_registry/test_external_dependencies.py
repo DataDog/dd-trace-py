@@ -1,6 +1,8 @@
 import subprocess
 import sys
-from typing import Any, Dict, List
+from typing import Any
+from typing import Dict
+from typing import List
 
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
@@ -14,7 +16,8 @@ def _validate_version_str(version_str: str, field_name: str, integration_name: s
             parse_version(version_str)
         except InvalidVersion:
             errors.append(
-                f"Integration '{integration_name}', Dependency '{dep_name}': Invalid SemVer format for '{field_name}': '{version_str}'."
+                f"Integration '{integration_name}', Dependency '{dep_name}': Invalid SemVer format for '{field_name}': "
+                f"'{version_str}'."
             )
     return errors
 
@@ -25,46 +28,69 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
     if not dependency_names:
         errors.append(f"External tested integration '{name}' is missing required field 'dependency_name'.")
     elif not isinstance(dependency_names, list) or not all(isinstance(d, str) and d for d in dependency_names):
-         errors.append(f"External integration '{name}' has an empty or invalid 'dependency_name' field (must be a non-empty list of strings).")
+        errors.append(
+            f"External integration '{name}' has an empty or invalid 'dependency_name' field (must be a non-empty "
+            + "list of strings)."
+        )
 
     version_map = entry.get("tested_versions_by_dependency")
     if not version_map:
-         if dependency_names:
-             errors.append(f"External tested integration '{name}' has 'dependency_name' but is missing 'tested_versions_by_dependency' map.")
+        if dependency_names:
+            errors.append(
+                f"External tested integration '{name}' has 'dependency_name' but is missing "
+                + "'tested_versions_by_dependency' map."
+            )
     elif not isinstance(version_map, dict):
-         errors.append(f"External integration '{name}' field 'tested_versions_by_dependency' is not a dictionary.")
-    elif dependency_names: # Only validate map content if dependency_names is valid
-         map_keys = set(version_map.keys())
-         dep_name_set = set(dependency_names)
+        errors.append(f"External integration '{name}' field 'tested_versions_by_dependency' is not a dictionary.")
+    elif dependency_names:  # Only validate map content if dependency_names is valid
+        map_keys = set(version_map.keys())
+        dep_name_set = set(dependency_names)
 
-         if map_keys != dep_name_set:
-              missing_in_map = dep_name_set - map_keys
-              extra_in_map = map_keys - dep_name_set
-              if missing_in_map:
-                   errors.append(f"Integration '{name}': Dependencies {sorted(list(missing_in_map))} listed in 'dependency_name' are missing from 'tested_versions_by_dependency' map.")
-              if extra_in_map:
-                   errors.append(f"Integration '{name}': Dependencies {sorted(list(extra_in_map))} found in 'tested_versions_by_dependency' map are not listed in 'dependency_name'.")
+        if map_keys != dep_name_set:
+            missing_in_map = dep_name_set - map_keys
+            extra_in_map = map_keys - dep_name_set
+            if missing_in_map:
+                errors.append(
+                    f"Integration '{name}': Dependencies {sorted(list(missing_in_map))} listed in 'dependency_name' "
+                    + "are missing from 'tested_versions_by_dependency' map."
+                )
+            if extra_in_map:
+                errors.append(
+                    f"Integration '{name}': Dependencies {sorted(list(extra_in_map))} found in "
+                    + "'tested_versions_by_dependency' map are not listed in 'dependency_name'."
+                )
 
-         for dep_name, version_info in version_map.items():
-              if not isinstance(version_info, dict):
-                   errors.append(f"Integration '{name}', Dependency '{dep_name}': Value in 'tested_versions_by_dependency' is not a dictionary.")
-                   continue
-              min_v = version_info.get("min")
-              max_v = version_info.get("max")
-              if min_v is None and max_v is None:
-                   errors.append(f"Integration '{name}', Dependency '{dep_name}': Version info block must contain at least 'min' or 'max'.")
-                   continue
+        for dep_name, version_info in version_map.items():
+            if not isinstance(version_info, dict):
+                errors.append(
+                    f"Integration '{name}', Dependency '{dep_name}': Value in 'tested_versions_by_dependency' is not a "
+                    + "dictionary."
+                )
+                continue
+            min_v = version_info.get("min")
+            max_v = version_info.get("max")
+            if min_v is None and max_v is None:
+                errors.append(
+                    f"Integration '{name}', Dependency '{dep_name}': Version info block must contain at least "
+                    + "'min' or 'max'."
+                )
+                continue
 
-              if min_v is not None:
-                   errors.extend(_validate_version_str(min_v, "min", name, dep_name))
-              if max_v is not None:
-                   errors.extend(_validate_version_str(max_v, "max", name, dep_name))
+            if min_v is not None:
+                errors.extend(_validate_version_str(min_v, "min", name, dep_name))
+            if max_v is not None:
+                errors.extend(_validate_version_str(max_v, "max", name, dep_name))
     return errors
 
 
 def _validate_non_external_entry(entry: Dict[str, Any], name: str) -> List[str]:
     errors = []
-    unexpected_fields = ["dependency_name", "tested_versions_by_dependency", "supported_version_min", "supported_version_max"]
+    unexpected_fields = [
+        "dependency_name",
+        "tested_versions_by_dependency",
+        "supported_version_min",
+        "supported_version_max",
+    ]
     for field in unexpected_fields:
         if field in entry:
             errors.append(f"Non-external integration '{name}' unexpectedly contains field '{field}'.")
@@ -87,9 +113,9 @@ def test_external_package_requirements(registry_data: list[dict]):
             # special case since we have a few external integrations that are not tested
             # (ie: aioredis which we plan to deprecate)
             if is_tested is not False:
-                 all_errors.extend(_validate_external_tested_entry(entry, name))
+                all_errors.extend(_validate_external_tested_entry(entry, name))
         else:
-             all_errors.extend(_validate_non_external_entry(entry, name))
+            all_errors.extend(_validate_non_external_entry(entry, name))
 
     assert not all_errors, "\n".join(all_errors)
 
