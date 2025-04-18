@@ -52,7 +52,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.internal.writer import TraceWriter
-from ddtrace.settings._config import Config
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -894,30 +893,3 @@ class Tracer(object):
                 forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
-
-    def _on_global_config_update(self, cfg: Config, items: List[str]) -> None:
-        # sampling configs always come as a pair
-        if "_trace_sampling_rules" in items:
-            self._sampler.set_sampling_rules(cfg._trace_sampling_rules)
-
-        if "tags" in items:
-            self._tags = cfg.tags.copy()
-
-        if "_tracing_enabled" in items:
-            if self.enabled:
-                if cfg._tracing_enabled is False:
-                    self.enabled = False
-            else:
-                # the product specification says not to allow tracing to be re-enabled remotely at runtime
-                if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
-                    self.enabled = True
-
-        if "_logs_injection" in items:
-            if config._logs_injection:
-                from ddtrace.contrib.internal.logging.patch import patch
-
-                patch()
-            else:
-                from ddtrace.contrib.internal.logging.patch import unpatch
-
-                unpatch()
