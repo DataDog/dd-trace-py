@@ -20,15 +20,6 @@ class Config(En):
     enabled = En.v(bool, "enabled", default=True)
     global_tags = En.v(dict, "global_tags", parser=parse_tags_str, default={})
 
-    if not global_tags:
-        deprecate(
-            "DD_TRACE_GLOBAL_TAGS is deprecated",
-            message="Please migrate to using DD_TAGS instead",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
-    assert False, "forced error"
-
 
 _config = Config()
 
@@ -55,6 +46,15 @@ def start():
     if _config.global_tags:
         from ddtrace.trace import tracer
 
+        # ddtrace library supports setting tracer tags using both DD_TRACE_GLOBAL_TAGS and DD_TAGS
+        # moving forward we should only support DD_TRACE_GLOBAL_TAGS.
+        # TODO(munir): Set dd_tags here
+        deprecate(
+            "DD_TRACE_GLOBAL_TAGS is deprecated",
+            message="Please migrate to using DD_TAGS instead",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
         tracer.set_tags(_config.global_tags)
 
 
