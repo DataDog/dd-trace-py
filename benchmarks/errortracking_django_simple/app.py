@@ -35,7 +35,7 @@ def empty_middleware(get_response):
         try:
             response = get_response(request)
             raise ValueError("this is a middleware")
-        except:
+        except ValueError:
             return response
 
     return middleware
@@ -81,7 +81,7 @@ def index(request):
     )
     try:
         raise ValueError("this is an error")
-    except:
+    except ValueError:
         return django.http.HttpResponse(index.render(Context({})))
 
 
