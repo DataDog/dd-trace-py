@@ -4,6 +4,8 @@ import time
 import mock
 import pytest
 
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs._utils import _chat_completion_event
 from tests.llmobs._utils import _completion_event
@@ -16,8 +18,7 @@ from tests.utils import override_global_config
 
 DD_SITE = "datad0g.com"
 DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
-INTAKE_BASE_URL = "https://llmobs-intake.%s" % DD_SITE
-INTAKE_URL = "%s/api/v2/llmobs" % INTAKE_BASE_URL
+INTAKE_URL = f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}{SPAN_ENDPOINT}"
 
 
 def test_writer_start(mock_writer_logs):
