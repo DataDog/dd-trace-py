@@ -11,6 +11,12 @@
 #include <mutex>
 #include <thread>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <unistd.h>
+#elif defined(_WIN32)
+#include <process.h>
+#endif
+
 // ----------------------------------------------------------------------------
 /**
  * Ensure that the GIL is held.
@@ -128,6 +134,7 @@ typedef struct periodic_thread
       double interval;
     PyObject* name;
     PyObject* ident;
+    PyObject* native_id;
 
     PyObject* _target;
     PyObject* _on_shutdown;
@@ -159,6 +166,7 @@ static PyMemberDef PeriodicThread_members[] = {
 
     { "name", T_OBJECT_EX, offsetof(PeriodicThread, name), 0, "thread name" },
     { "ident", T_OBJECT_EX, offsetof(PeriodicThread, ident), 0, "thread ID" },
+    { "native_id", T_OBJECT_EX, offsetof(PeriodicThread, native_id), 0, "thread native ID" },
 
     { "_ddtrace_profiling_ignore",
       T_OBJECT_EX,
@@ -188,6 +196,9 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     Py_INCREF(Py_None);
     self->ident = Py_None;
+
+    Py_INCREF(Py_None);
+    self->native_id = Py_None;
 
     Py_INCREF(Py_True);
     self->_ddtrace_profiling_ignore = Py_True;
@@ -256,6 +267,17 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         {
             Py_DECREF(self->ident);
             self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
+
+            Py_DECREF(self->native_id);
+#if PY_VERSION_HEX >= 0x030b0000
+            self->native_id = PyLong_FromLong((long)PyThreadState_Get()->native_thread_id);
+#else
+#if defined(__linux__) || defined(__APPLE__)
+            self->native_id = PyLong_FromLong((long)getpid());
+#elif defined(_WIN32)
+            self->native_id = PyLong_FromLong((long)_getpid());
+#endif
+#endif // PY_VERSION_HEX >= 0x030b0000
 
             // Map the PeriodicThread object to its thread ID
             PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
@@ -469,6 +491,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->_on_shutdown);
 
     Py_XDECREF(self->ident);
+    Py_XDECREF(self->native_id);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
     self->_thread = nullptr;

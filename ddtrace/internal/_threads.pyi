@@ -3,6 +3,7 @@ import typing as t
 class PeriodicThread:
     name: str
     ident: int
+    native_id: int
     interval: float
 
     def __init__(
