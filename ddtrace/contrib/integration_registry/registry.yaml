@@ -105,8 +105,12 @@ integrations:
   is_external_package: true
   dependency_name:
   - datadog-lambda
+  - datadog_lambda
   tested_versions_by_dependency:
     datadog-lambda:
+      min: 6.105.0
+      max: 6.105.0
+    datadog_lambda:
       min: 6.105.0
       max: 6.105.0
 

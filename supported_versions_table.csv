@@ -11,6 +11,7 @@ pytest-asyncio,asyncio *,0.21.1,0.21.1,True
 asyncpg,asyncpg,0.23.0,0.30.0,True
 avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
+datadog_lambda,aws_lambda,6.105.0,6.105.0,True
 azure-functions,azure_functions *,1.21.3,1.21.3,True
 boto3,botocore *,1.34.49,1.37.5,True
 botocore,botocore *,1.34.49,1.37.5,True

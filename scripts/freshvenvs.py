@@ -16,7 +16,8 @@ from pip import _internal
 
 from ddtrace.contrib.integration_registry.mappings import (
     INTEGRATION_TO_DEPENDENCY_MAPPING,
-    DEPENDENCY_TO_INTEGRATION_MAPPING
+    DEPENDENCY_TO_INTEGRATION_MAPPING,
+    INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES
 )
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -337,7 +338,12 @@ def generate_supported_versions(contrib_modules, all_used_versions):
     patched = {}
     for contrib_module in contrib_modules:
         for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module])):
-            ordered = sorted([Version(v) for v in all_used_versions[dependency]], reverse=True)
+            if dependency not in all_used_versions:
+                # try remapping for the special case
+                versions = all_used_versions[INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES.get(contrib_module)]
+            else:
+                versions = all_used_versions[dependency]
+            ordered = sorted([Version(v) for v in versions], reverse=True)
             if not ordered:
                 continue
             json_format = {

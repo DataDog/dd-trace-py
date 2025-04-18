@@ -87,6 +87,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "datadog_lambda",
+        "integration": "aws_lambda",
+        "minimum_tracer_supported": "6.105.0",
+        "max_tracer_supported": "6.105.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "azure-functions",
         "integration": "azure_functions",
         "minimum_tracer_supported": "1.21.3",

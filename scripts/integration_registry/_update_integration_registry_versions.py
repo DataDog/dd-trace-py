@@ -162,30 +162,50 @@ def _update_and_add_integration_versions(
         updated_entry = entry.copy()
 
         if updated_entry.get("is_external_package"):
-            dependency_version_map = new_versions.get(integration_name.lower())
+            new_dependency_version_map = new_versions.get(integration_name.lower())
 
-            if dependency_version_map:
-                new_version_map_for_yaml = {}
-                for dep_name, version_info in dependency_version_map.items():
+            if new_dependency_version_map:
+                original_tested_versions = updated_entry.get("tested_versions_by_dependency", {})
+                modified_tested_versions = original_tested_versions.copy() if original_tested_versions else {}
+                map_changed_by_merge = False
+
+                for dep_name, version_info in new_dependency_version_map.items():
                     version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
                     if version_block:
-                        new_version_map_for_yaml[dep_name] = version_block
+                        if modified_tested_versions.get(dep_name) != version_block:
+                            modified_tested_versions[dep_name] = version_block
+                            map_changed_by_merge = True
+                    elif dep_name in modified_tested_versions:
+                        del modified_tested_versions[dep_name]
+                        map_changed_by_merge = True
 
-                if new_version_map_for_yaml:
-                    if updated_entry.get("tested_versions_by_dependency") != new_version_map_for_yaml:
-                        updated_entry["tested_versions_by_dependency"] = new_version_map_for_yaml
+                if map_changed_by_merge:
+                    if modified_tested_versions:
+                        updated_entry["tested_versions_by_dependency"] = modified_tested_versions
+                        new_dep_list = sorted(list(modified_tested_versions.keys()))
+                        if updated_entry.get("dependency_name") != new_dep_list:
+                            updated_entry["dependency_name"] = new_dep_list
                         updated_count += 1
-                elif "tested_versions_by_dependency" in updated_entry:
-                    del updated_entry["tested_versions_by_dependency"]
-                    removed_count += 1
+                    elif "tested_versions_by_dependency" in updated_entry:
+                        del updated_entry["tested_versions_by_dependency"]
+                        if "dependency_name" in updated_entry:
+                            del updated_entry["dependency_name"]
+                        if original_tested_versions:
+                            removed_count += 1
 
-        elif "tested_versions_by_dependency" in updated_entry:
-            del updated_entry["tested_versions_by_dependency"]
-            removed_count += 1
+            elif updated_entry.get("tested_versions_by_dependency"):
+                current_map_keys = sorted(list(updated_entry["tested_versions_by_dependency"].keys()))
+                if updated_entry.get("dependency_name") != current_map_keys:
+                    updated_entry["dependency_name"] = current_map_keys
+
+        elif "tested_versions_by_dependency" in updated_entry or "dependency_name" in updated_entry:
+            data_existed = "tested_versions_by_dependency" in updated_entry
+            if "tested_versions_by_dependency" in updated_entry: del updated_entry["tested_versions_by_dependency"]
+            if "dependency_name" in updated_entry: del updated_entry["dependency_name"]
+            if data_existed: removed_count += 1
 
         final_integrations_list.append(updated_entry)
 
-    # Second pass: Add new integrations
     for integration_name_lower, dependency_version_map in new_versions.items():
         if integration_name_lower not in existing_names:
             print(f"  Info: Adding new integration '{integration_name_lower}' to registry.")
@@ -246,16 +266,9 @@ def main() -> int:
     """Reads existing registry, updates versions from CSV, adds entries, writes back, formats."""
     print("\n")
     new_supported_versions = _read_supported_versions(SUPPORTED_VERSIONS_CSV_PATH)
-    if new_supported_versions is None:
-        print("Aborting due to errors reading supported versions table.", file=sys.stderr)
-        return 1
     print("-" * 120)
 
     original_integrations = _read_registry_yaml(REGISTRY_YAML_PATH)
-    if original_integrations is None:
-        print("Aborting due to errors reading existing registry YAML.", file=sys.stderr)
-        return 1
-
     updated_integrations, updated_count, removed_count, added_count = _update_and_add_integration_versions(
         original_integrations, new_supported_versions
     )

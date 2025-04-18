@@ -18,10 +18,9 @@ INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES = {
     "asyncio": "pytest-asyncio",
     "sqlite3": "pysqlite3-binary",
     "botocore": "boto3",
-    # "psycopg2": "psycopg2-binary",
-    "aiohttp_jinja2": "aiohttp-jinja2",
     "pytest_bdd": "pytest-bdd",
-    "aws_lambda": "datadog-lambda",
+    "aws_lambda": "datadog-lambda", # datadog_lambda can be installed as datadog-lambda or datadog_lambda
+    "aiohttp_jinja2": "aiohttp_jinja2" # aiohttp_jinja2 can be installed as aiohttp-jinja2 or aiohttp_jinja2
 }
 
 INTEGRATION_TO_DEPENDENCY_MAPPING = get_integration_to_dependency_map(INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES)

@@ -554,7 +554,7 @@ suites:
       - memcached
       - redis
     snapshot: true
-  django:django_hosts:
+  django_hosts:
     parallelism: 2
     paths:
       - '@bootstrap'
