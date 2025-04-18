@@ -64,7 +64,7 @@ class PeriodicService(service.Service):
         )
         self._worker.start()
         if stack_v2.is_available and self._worker.native_id is not None:
-            stack_v2.register_thread(self._worker.ident, self._worker.native_id, self._worker.name) # type: ignore
+            stack_v2.register_thread(self._worker.ident, self._worker.native_id, self._worker.name)  # type: ignore
 
     def _stop_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
