@@ -1,19 +1,18 @@
-from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.symbol_db.remoteconfig import SymbolDatabaseAdapter
 from ddtrace.settings.symbol_db import config as symdb_config
 
 
-def bootstrap():
-    if symdb_config._force:
-        # Force the upload of symbols, ignoring RCM instructions.
-        from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
-
-        SymbolDatabaseUploader.install()
-    else:
+def register():
+    if not symdb_config._force and symdb_config.enabled:
         # Start the RCM subscriber to determine if and when to upload symbols.
-        remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter())
+        # DEV: Lazy-load the adapter to avoid the multiprocessing cost on
+        # startup.
+        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+        from ddtrace.internal.symbol_db.remoteconfig import SymbolDatabaseAdapter
+
+        remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter(), restart_on_fork=True)
 
 
-def restart():
+def unregister():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
     remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
-    remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", SymbolDatabaseAdapter())
