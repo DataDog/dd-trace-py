@@ -72,7 +72,8 @@ from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
-from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
+
+# from ddtrace.internal.test_visibility._atr_mixins import ATRTestMixin
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
@@ -1638,7 +1639,7 @@ def _on_atr_start_retry(test_id: InternalTestId, retry_number: int) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_atr_finish_retry(atr_finish_args: ATRTestMixin.ATRRetryFinishArgs) -> None:
+def _on_atr_finish_retry(atr_finish_args) -> None:
     CIVisibility.get_test_by_id(atr_finish_args.test_id).atr_finish_retry(
         atr_finish_args.retry_number, atr_finish_args.status, atr_finish_args.exc_info
     )

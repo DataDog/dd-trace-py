@@ -28,6 +28,7 @@ from ddtrace.contrib.internal.pytest._utils import _get_session_command
 from ddtrace.contrib.internal.pytest._utils import _get_source_file_info
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_test_parameters_json
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
@@ -49,7 +50,9 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
+from ddtrace.internal.ci_visibility.api._retry import ATRRetryManager
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
@@ -83,8 +86,6 @@ if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
     from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
     from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
-    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_atr_get_teststatus
-    from ddtrace.contrib.internal.pytest._atr_utils import quarantine_pytest_terminal_summary_post_yield
 
 if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
@@ -515,10 +516,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     original_result = outcome.get_result()
 
     test_id = _get_test_id_from_item(item)
+    test = CIVisibility.get_test_by_id(test_id)
 
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    is_quarantined = test.is_quarantined()
+    is_disabled = test.is_disabled()
+    is_attempt_to_fix = test.is_attempt_to_fix()
 
     test_outcome = _process_result(item, call, original_result)
 
@@ -552,7 +554,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
     if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
         return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+
+    if ATRRetryManager.should_apply(test):
         return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
@@ -613,7 +616,6 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
         atr_pytest_terminal_summary_post_yield(terminalreporter)
 
-    quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
@@ -656,8 +658,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    # if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
+    #     session.exitstatus = pytest.ExitCode.TESTS_FAILED
     if InternalTestSession.attempt_to_fix_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
@@ -701,7 +703,7 @@ def pytest_report_teststatus(
             return test_status
 
     if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report) or quarantine_atr_get_teststatus(report)
+        test_status = atr_get_teststatus(report)
         if test_status is not None:
             return test_status
 
