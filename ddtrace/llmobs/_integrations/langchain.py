@@ -172,8 +172,11 @@ class LangChainIntegration(BaseLLMIntegration):
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chat":
-            # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
-            is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
+            # langchain-openai will call a beta client if "response_format" is passed in the kwargs
+            # and streaming is not used, which we do not trace for the openai integration
+            is_workflow = is_workflow and not (
+                llmobs_integration == "openai" and ("response_format" in kwargs) and not kwargs.get("streaming", False)
+            )
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
@@ -716,7 +719,7 @@ class LangChainIntegration(BaseLLMIntegration):
         run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
         response_metadata = getattr(ai_message, "response_metadata", {}) or {}
-        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {}) or {}
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)

@@ -365,7 +365,13 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs={**kwargs, "streaming": getattr(instance, "streaming", False)},
+            response=chat_completions,
+            operation="chat",
+        )
         span.finish()
     return chat_completions
 
@@ -458,7 +464,13 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
+        integration.llmobs_set_tags(
+            span,
+            args=args,
+            kwargs={**kwargs, "streaming": getattr(instance, "streaming", False)},
+            response=chat_completions,
+            operation="chat",
+        )
         span.finish()
     return chat_completions
 
