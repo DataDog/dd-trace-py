@@ -46,6 +46,7 @@ module_dependency_mapping = {
     "azure_functions": "azure-functions",
     "pytest_bdd": "pytest-bdd",
     "aws_lambda": "datadog-lambda",
+    "openai_agents": "openai-agents",
 }
 
 dependency_module_mapping = {v: k for k, v in module_dependency_mapping.items()}
