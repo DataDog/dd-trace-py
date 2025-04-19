@@ -32,7 +32,7 @@ def _remap_otel_propagators(otel_value: str) -> Optional[str]:
     accepted_styles = []
     for style in otel_value.split(","):
         style = style.strip().lower()
-        if style in ["b3", "b3multi", "datadog", "tracecontext", "none"]:
+        if style in ["b3", "b3multi", "datadog", "tracecontext", "baggage", "none"]:
             if style not in accepted_styles:
                 accepted_styles.append(style)
         else:
