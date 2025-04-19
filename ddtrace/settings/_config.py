@@ -851,9 +851,11 @@ class Config(object):
         """
         rc_rules = self._remove_invalid_rules(rc_rules)
         for rule in rc_rules:
-            tags = rule.get("tags")
-            if tags:
-                rule["tags"] = self._tags_to_dict(tags)
+            if "tags" in rule:
+                # Remote config provides sampling rule tags as a list,
+                # but DD_TRACE_SAMPLING_RULES expects them as a dict.
+                # Here we convert tags to a dict to ensure a consistent format.
+                rule["tags"] = self._tags_to_dict(rule["tags"])
 
         if global_sample_rate is not None:
             rc_rules.append({"sample_rate": global_sample_rate})
