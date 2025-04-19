@@ -1,0 +1,14 @@
+baseline: &baseline
+  tracer_enabled: false
+  errortracking: ""
+tracer-enabled:
+  <<: *baseline
+  tracer_enabled: true
+errortracking-enabled-all:
+  <<: *baseline
+  tracer_enabled: true
+  errortracking_enabled: "all"
+errortracking-enabled-user:
+  <<: *baseline
+  tracer_enabled: true
+  errortracking_enabled: "user"
