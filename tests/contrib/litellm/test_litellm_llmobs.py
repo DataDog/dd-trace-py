@@ -199,7 +199,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_integrations_enabled=True)])
-    def test_completion_integrations_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, ddtrace_global_config):
+    def test_completion_integrations_enabled(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, ddtrace_global_config
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             import openai
 
