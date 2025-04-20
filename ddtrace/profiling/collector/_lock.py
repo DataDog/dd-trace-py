@@ -11,7 +11,6 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
@@ -20,9 +19,6 @@ from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.recorder import Recorder
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
-
-
-LOG = get_logger(__name__)
 
 
 class LockEventBase(event.StackBasedEvent):
@@ -170,8 +166,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                     self._self_recorder.push_event(event)
-            except Exception as e:
-                LOG.debug("Failed to record a lock acquire event: %s", e)
+            except Exception:
                 pass  # nosec
 
     def acquire(self, *args, **kwargs):
@@ -180,13 +175,23 @@ class _ProfiledLock(wrapt.ObjectProxy):
     def _release(self, inner_func, *args, **kwargs):
         # type (typing.Any, typing.Any) -> None
 
-        start = None
-        if hasattr(self, "_self_acquired_at"):
-            # _self_acquired_at is only set when the acquire was captured
-            # if it's not set, we're not capturing the release
-            start = self._self_acquired_at
+        # The underlying threading.Lock class is implemented using C code, and
+        # it doesn't have the __dict__ attribute. So we can't do
+        # self.__dict__.pop("_self_acquired_at", None) to remove the attribute.
+        # Instead, we need to use the following workaround to retrieve and
+        # remove the attribute.
+        start = getattr(self, "_self_acquired_at", None)
+        try:
+            # Though it should generally be avoided to call release() from
+            # multiple threads, it is possible to do so. In that scenario, the
+            # following statement code will raise an AttributeError. This should
+            # not be propagated to the caller and to the users. The inner_func
+            # will raise an RuntimeError as the threads are trying to release()
+            # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
-
+        except AttributeError:
+            # We just ignore the error, if the attribute is not found.
+            pass
         try:
             return inner_func(*args, **kwargs)
         finally:
@@ -343,12 +348,12 @@ class LockCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         """Start collecting lock usage."""
         self.patch()
-        super(LockCollector, self)._start_service()
+        super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self):
         # type: (...) -> None
         """Stop collecting lock usage."""
-        super(LockCollector, self)._stop_service()
+        super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
 
     def patch(self):

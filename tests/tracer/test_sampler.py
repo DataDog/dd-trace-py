@@ -92,7 +92,7 @@ class RateSamplerTest(unittest.TestCase):
         tracer = DummyTracer()
         # Since RateSampler does not set the sampling priority on a span, we will use a DatadogSampler
         # with rate limiting disabled.
-        tracer._sampler = DatadogSampler(default_sample_rate=0.5, rate_limit=-1)
+        tracer._sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.75)], rate_limit=-1)
 
         for i in range(10):
             span = tracer.trace(str(i))
@@ -108,6 +108,34 @@ class RateSamplerTest(unittest.TestCase):
                 assert sampled == tracer._sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
+
+    def test_deterministic_behavior_with_list_of_trace_ids(self):
+        """Test that specific trace IDs are consistently kept or dropped"""
+        sample_rate = 0.5
+        rule = SamplingRule(sample_rate=sample_rate)
+        rate = RateSampler(sample_rate=sample_rate)
+
+        test_cases = [
+            (6645412625895797507, False),
+            (8696342848850656916, True),
+            (14629469446186818297, False),
+            (13794769880582338323, True),
+            (18444899399302180861, False),
+            (18446744073709551615, False),
+            (10, False),
+        ]
+
+        for trace_id, expected_decision in test_cases:
+            span = Span(name="test.span", trace_id=trace_id)
+
+            for _ in range(10):
+                rule_sample_decision = rule.sample(span)
+                rate_sample_decision = rate.sample(span)
+                assert rule_sample_decision == rate_sample_decision == expected_decision, (
+                    f"Trace ID {trace_id} should be {'kept' if expected_decision else 'dropped'} "
+                    f"with sample rate {sample_rate}, but got SamplingRule:{rule_sample_decision} "
+                    f"and RateSampler:{rate_sample_decision}"
+                )
 
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
@@ -543,22 +571,9 @@ def test_datadog_sampler_init():
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10, "DatadogSampler initialized with a rate limit should hold that rate limit"
 
-    sampler = DatadogSampler(default_sample_rate=0.5)
-    assert (
-        sampler.limiter.rate_limit == DEFAULT_SAMPLING_RATE_LIMIT
-    ), "DatadogSampler initialized with default_sample_rate should hold the default rate limit"
-    assert sampler.rules == [
-        SamplingRule(sample_rate=0.5)
-    ], "DatadogSampler initialized with default_sample_rate should hold a SamplingRule with that rate"
-
     with override_global_config(dict(_trace_rate_limit="invalid-limit")):
         with pytest.raises(ValueError):
             DatadogSampler()
-
-    invalid_rules = (None, True, False, object(), 1, Exception())
-    for rule in invalid_rules:
-        with pytest.raises(TypeError):
-            DatadogSampler(rules=[rule])
 
     rule_1 = SamplingRule(sample_rate=1)
     rule_2 = SamplingRule(sample_rate=0.5, service="test")
@@ -570,17 +585,11 @@ def test_datadog_sampler_init():
         rule_3,
     ], "DatadogSampler holds rules in the order they were given during initialization"
 
-    sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3], default_sample_rate=0.75)
-    assert sampler.rules == [rule_1, rule_2, rule_3, SamplingRule(sample_rate=0.75)], (
-        "When default_sample_rate is set, DatadogSampler holds a rule with the default rate at the end "
-        "of its rule list"
-    )
-
 
 @mock.patch("ddtrace._trace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
 
     mock_sample.return_value = True
     dummy_tracer.trace("test").finish()
@@ -638,21 +647,19 @@ class MatchNoSample(SamplingRule):
     [
         (
             DatadogSampler(
-                default_sample_rate=1.0,
                 rules=[
                     NoMatch(0.5),
                     NoMatch(0.5),
                     NoMatch(0.5),
                 ],
             ),
-            USER_KEEP,
-            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
-            1.0,
+            AUTO_KEEP,
+            SamplingMechanism.DEFAULT,
+            None,
             None,
         ),
         (
             DatadogSampler(
-                default_sample_rate=1.0,
                 rules=[
                     NoMatch(0.5),
                     NoMatch(0.5),
@@ -666,7 +673,6 @@ class MatchNoSample(SamplingRule):
         ),
         (
             DatadogSampler(
-                default_sample_rate=1.0,
                 rules=[
                     MatchSample(0.5),
                     MatchNoSample(0.5),
@@ -680,7 +686,6 @@ class MatchNoSample(SamplingRule):
         ),
         (
             DatadogSampler(
-                default_sample_rate=1.0,
                 rules=[
                     NoMatch(0.5),
                     MatchNoSample(0.5),
@@ -691,25 +696,6 @@ class MatchNoSample(SamplingRule):
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
             0.5,
             None,
-        ),
-        (
-            DatadogSampler(
-                default_sample_rate=0,
-            ),
-            USER_REJECT,
-            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
-            0,
-            None,
-        ),
-        (
-            DatadogSampler(
-                default_sample_rate=1.0,
-                rate_limit=0,
-            ),
-            USER_REJECT,
-            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
-            1.0,
-            0.0,
         ),
         (
             DatadogSampler(
@@ -746,7 +732,7 @@ class MatchNoSample(SamplingRule):
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mechanism, rule, limit, dummy_tracer):
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
@@ -763,7 +749,7 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
 def test_datadog_sampler_tracer_child(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
 
     with dummy_tracer.trace("parent.span"):
         dummy_tracer.trace("child.span").finish()
@@ -789,7 +775,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
     dummy_tracer.start_span("test.span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "A tracer using a DatadogSampler should emit all of its spans"

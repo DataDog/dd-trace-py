@@ -1,6 +1,8 @@
 import functools
+import http.client as httplib
 import os
 import sys
+from urllib import parse
 
 import wrapt
 
@@ -11,8 +13,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -92,7 +92,7 @@ def _wrap_request(func, instance, args, kwargs):
     if should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
-    cfg = config._get_from(instance)
+    cfg = Pin._get_config(instance)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)

@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import subprocess
 import time
 
@@ -9,10 +8,10 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._iast_request_context import end_iast_context
 from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context import start_iast_context
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
@@ -29,6 +28,7 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -138,10 +138,6 @@ def iast_span_defaults(tracer):
             yield span
 
 
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
-
-
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
@@ -193,3 +189,11 @@ def configuration_endpoint():
 
     yield
     process.kill()
+
+
+@pytest.fixture(autouse=True)
+def clear_iast_env_vars():
+    os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
+    if IAST.DENY_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_DENY_MODULES")
+    yield

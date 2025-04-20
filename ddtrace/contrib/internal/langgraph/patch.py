@@ -1,4 +1,3 @@
-import os
 import sys
 
 import langgraph
@@ -224,8 +223,7 @@ def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs
 
 
 def patch():
-    should_patch = os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false").lower() in ("true", "1")
-    if not should_patch or getattr(langgraph, "_datadog_patch", False):
+    if getattr(langgraph, "_datadog_patch", False):
         return
 
     langgraph._datadog_patch = True

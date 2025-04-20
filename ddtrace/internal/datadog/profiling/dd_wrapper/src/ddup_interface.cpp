@@ -10,7 +10,11 @@
 
 #include <cstdlib>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <unordered_map>
 
 // State
@@ -24,7 +28,6 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
-    Datadog::CodeProvenance::postfork_child();
     Datadog::UploaderBuilder::postfork_child();
 }
 
@@ -142,9 +145,13 @@ ddup_start() // cppcheck-suppress unusedFunction
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
+#ifdef _WIN32
+        // NOTE: Windows does not have fork(), leaving this empty for now
+#else
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+#endif
 
         // Set the global initialization flag
         is_ddup_initialized = true;

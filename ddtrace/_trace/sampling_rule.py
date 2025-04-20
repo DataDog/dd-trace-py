@@ -1,10 +1,12 @@
+import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal.compat import pattern_type
-from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import SAMPLING_HASH_MODULO
+from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
@@ -14,7 +16,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
-KNUTH_FACTOR = 1111111111111111111
 
 
 class SamplingRule(object):
@@ -82,7 +83,7 @@ class SamplingRule(object):
     @sample_rate.setter
     def sample_rate(self, sample_rate: float) -> None:
         self._sample_rate = sample_rate
-        self._sampling_id_threshold = sample_rate * _MAX_UINT_64BITS
+        self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
     def _pattern_matches(self, prop, pattern):
         # If the rule is not set, then assume it matches
@@ -104,7 +105,7 @@ class SamplingRule(object):
                 return False
 
         # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, pattern_type):
+        if isinstance(pattern, re.Pattern):
             try:
                 return bool(pattern.match(str(prop)))
             except (ValueError, TypeError):
@@ -192,7 +193,7 @@ class SamplingRule(object):
         elif self.sample_rate == 0:
             return False
 
-        return ((span._trace_id_64bits * KNUTH_FACTOR) % _MAX_UINT_64BITS) <= self._sampling_id_threshold
+        return ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
     def _no_rule_or_self(self, val):
         if val is self.NO_RULE:
@@ -207,7 +208,7 @@ class SamplingRule(object):
     def choose_matcher(self, prop):
         # We currently support the ability to pass in a function, a regular expression, or a string
         # If a string is passed in we create a GlobMatcher to handle the matching
-        if callable(prop) or isinstance(prop, pattern_type):
+        if callable(prop) or isinstance(prop, re.Pattern):
             log.error(
                 "Using methods or regular expressions for SamplingRule matching is not supported: %s ."
                 "Please move to passing in a string for Glob matching.",

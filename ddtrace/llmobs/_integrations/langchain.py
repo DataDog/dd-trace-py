@@ -30,6 +30,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -109,7 +110,7 @@ class LangChainIntegration(BaseLLMIntegration):
     """Maps span to instances."""
 
     def record_instance(self, instance, span: Span):
-        if not self.llmobs_enabled or not self.span_linking_enabled:
+        if not self.llmobs_enabled:
             return
 
         instance = _extract_instance(instance)
@@ -124,7 +125,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
         spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
-        setattr(parent_instance, "_datadog_spans", spans)
+
+        try:
+            setattr(parent_instance, "_datadog_spans", spans)
+        except Exception:
+            parent_instance.__dict__["_datadog_spans"] = spans
 
     def _llmobs_set_tags(
         self,
@@ -141,9 +146,7 @@ class LangChainIntegration(BaseLLMIntegration):
             log.warning("Unsupported operation : %s", operation)
             return
 
-        if self.span_linking_enabled:
-            self._set_links(span)
-
+        self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
         self._llmobs_set_metadata(span, model_provider)
 
@@ -721,3 +724,7 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
+
+    def has_default_base_url(self, instance) -> bool:
+        openai_api_base = getattr(instance, "openai_api_base", None)
+        return not openai_api_base or is_openai_default_base_url(openai_api_base)

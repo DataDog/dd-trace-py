@@ -13,7 +13,7 @@ from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.settings import Config
+from ddtrace.settings._config import Config
 from tests.ci_visibility.api_client._util import _AGENTLESS
 from tests.ci_visibility.api_client._util import _EVP_PROXY
 from tests.ci_visibility.api_client._util import TestTestVisibilityAPIClientBase
@@ -43,6 +43,7 @@ def _patch_env_for_testing():
             "git.repository_url": "git@github.com:TestDog/dd-test-py.git",
             "git.commit.sha": "mytestcommitsha1234",
             "git.branch": "notmainbranch",
+            "git.commit.message": "message",
         },
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -117,9 +118,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
     ]
 
     git_data_parameters = [
-        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala"),
-        GitData(None, "shalessbranch", None),
-        GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None),
+        GitData("my_repo_url", "some_branch", "mycommitshaaaaaaalalala", "message"),
+        GitData(None, "shalessbranch", None, None),
+        GitData("git@gitbob.com:myorg/myrepo.git", "shalessbranch", None, None),
         None,
     ]
 
@@ -267,10 +268,10 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         "requests_mode_settings",
         request_mode_settings_parameters,
     )
-    def test_civisibility_api_client_unique_tests_do_request(
+    def test_civisibility_api_client_known_tests_do_request(
         self, requests_mode_settings, client_timeout, request_timeout
     ):
-        """Tests that the correct payload and headers are sent to the correct API URL for unique tests requests"""
+        """Tests that the correct payload and headers are sent to the correct API URL for known tests requests"""
         client = self._get_test_client(
             requests_mode=requests_mode_settings["mode"],
             api_key=requests_mode_settings.get("api_key"),
@@ -287,8 +288,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility._api_client.get_connection", return_value=mock_connection
         ) as mock_get_connection:
-            unique_tests = client.fetch_unique_tests()
-            assert unique_tests == set()
+            known_tests = client.fetch_known_tests()
+            assert known_tests == set()
             mock_get_connection.assert_called_once_with(
                 requests_mode_settings["expected_urls"]["tests"],
                 client_timeout if client_timeout is not None else 12.34,
@@ -356,7 +357,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         if "dd_env" not in _expected_config:
             _expected_config["dd_env"] = "none"
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing():
             try:
                 expected_client = AgentlessTestVisibilityAPIClient(
@@ -415,11 +416,14 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         if "dd_service" not in _expected_config:
             _expected_config["dd_service"] = "dd-test-py"
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
-        ), mock.patch("ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+        ), mock.patch(
+            "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+            "http://patchedagenturl:6218",
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(
@@ -516,13 +520,16 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "runtime.version": "1.2.3",
         }
 
-        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234")
+        git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://shouldntbeused:6218"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://shouldntbeused:6218",
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._agent_url", "http://patchedagenturl:6218"
+            "ddtrace.internal.ci_visibility.recorder.ddtrace.tracer._span_aggregator.writer.intake_url",
+            "http://patchedagenturl:6218",
         ):
             try:
                 expected_client = EVPProxyTestVisibilityAPIClient(

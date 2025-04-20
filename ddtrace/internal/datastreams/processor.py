@@ -15,17 +15,17 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-import ddtrace
-from ddtrace import config
 from ddtrace.internal import compat
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._config import config
+from ddtrace.version import get_version
 
 from .._encoding import packb
 from ..agent import get_connection
-from ..compat import get_connection_response
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
@@ -118,12 +118,17 @@ Bucket = NamedTuple(
 class DataStreamsProcessor(PeriodicService):
     """DataStreamsProcessor for computing, collecting and submitting data stream stats to the Datadog Agent."""
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
-        # type: (str, Optional[float], float, int) -> None
+    def __init__(
+        self,
+        agent_url: Optional[str] = None,
+        interval: Optional[float] = None,
+        timeout: float = 1.0,
+        retry_attempts: int = 3,
+    ):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
-        self._agent_url = agent_url
+        self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout
@@ -132,9 +137,10 @@ class DataStreamsProcessor(PeriodicService):
         self._buckets = defaultdict(
             lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
         )  # type: DefaultDict[int, Bucket]
+        self._version = get_version()
         self._headers = {
             "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Meta-Tracer-Version": self._version,
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
         }  # type: Dict[str, str]
@@ -263,12 +269,11 @@ class DataStreamsProcessor(PeriodicService):
 
         return serialized_buckets
 
-    def _flush_stats(self, payload):
-        # type: (bytes) -> None
+    def _flush_stats(self, payload: bytes) -> None:
         try:
             conn = get_connection(self._agent_url, self._timeout)
             conn.request("POST", self._endpoint, payload, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
         except Exception:
             log.debug("failed to submit pathway stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             raise
@@ -298,7 +303,7 @@ class DataStreamsProcessor(PeriodicService):
             return
         raw_payload = {
             "Service": self._service,
-            "TracerVersion": ddtrace.__version__,
+            "TracerVersion": self._version,
             "Lang": "python",
             "Stats": serialized_stats,
             "Hostname": self._hostname,

@@ -5,7 +5,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
@@ -43,19 +42,18 @@ static PyObject* object_string = NULL;
 
 #define ALLOC_TRACKER_MAX_COUNT UINT64_MAX
 
-// The data coordination primitives in this and related files are related to a crash we started seeing.
-// We don't have a precise understanding of the causal factors within the runtime that lead to this condition,
-// since the GIL alone was sufficient in the past for preventing this issue.
-// We add an option here to _add_ a crash, in order to observe this condition in a future diagnostic iteration.
-// **This option is _intended_ to crash the Python process** do not use without a good reason!
-static char g_crash_on_mutex_pass_str[] = "_DD_PROFILING_MEMALLOC_CRASH_ON_MUTEX_PASS";
-// The allocation profiler functions should (in theory) only be called when allocating Python
-// objects, which should (in theory) only be done with the GIL held. We have reason to believe
-// that this code is sometimes reached without the GIL held, since some crashes in the code
-// seem to go away with our own locking. This debug flag will make the profiler crash if
-// it detects the GIL is not held in places where we think it ought to be.
-static char g_crash_on_no_gil_str[] = "_DD_PROFILING_MEMALLOC_CRASH_ON_NO_GIL";
-static bool g_crash_on_no_gil = false;
+/* This lock protects access to global_alloc_tracker. The GIL is NOT sufficient
+   to protect our data structures from concurrent access. For one, the GIL is an
+   implementation detail and may go away in the future. Additionally, even if the
+   GIL is held on _entry_ to our C extension functions, making it safe to call
+   Python C API functions, the GIL can be released during Python C API calls if
+   we call back into interpreter code. This can happen if we allocate a Python
+   object (such as frame info), trigger garbage collection, and run arbitrary
+   destructors. When this happens, other threads can run python code, such as the
+   thread that aggregates and uploads the profile data and mutates the global
+   data structures. The GIL does not create critical sections for C extension
+   functions!
+ */
 static memlock_t g_memalloc_lock;
 
 static alloc_tracker_t* global_alloc_tracker;
@@ -98,31 +96,15 @@ __attribute__((constructor))
 static void
 memalloc_init()
 {
-    // Check if we should crash the process on mutex pass
-    bool crash_on_mutex_pass = memalloc_get_bool_env(g_crash_on_mutex_pass_str);
-    memlock_init(&g_memalloc_lock, crash_on_mutex_pass);
+    memlock_init(&g_memalloc_lock);
 #ifndef _WIN32
     pthread_atfork(memalloc_prefork, memalloc_postfork_parent, memalloc_postfork_child);
 #endif
-
-    g_crash_on_no_gil = memalloc_get_bool_env(g_crash_on_no_gil_str);
-}
-
-static void
-memalloc_assert_gil()
-{
-    if (g_crash_on_no_gil && !PyGILState_Check()) {
-        int* p = NULL;
-        *p = 0;
-        abort(); // should never reach here
-    }
 }
 
 static void
 memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
 {
-    memalloc_assert_gil();
-
     uint64_t alloc_count = atomic_add_clamped(&global_alloc_tracker->alloc_count, 1, ALLOC_TRACKER_MAX_COUNT);
 
     /* Return if we've reached the maximum number of allocations */
@@ -278,21 +260,21 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
-        PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %lu]", TRACEBACK_MAX_NFRAME);
+        PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %u]", TRACEBACK_MAX_NFRAME);
         return NULL;
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
     if (max_events < 1 || max_events > TRACEBACK_ARRAY_MAX_COUNT) {
-        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %lu]", TRACEBACK_ARRAY_MAX_COUNT);
+        PyErr_Format(PyExc_ValueError, "the number of events must be in range [1; %u]", TRACEBACK_ARRAY_MAX_COUNT);
         return NULL;
     }
 
     global_memalloc_ctx.max_events = (uint16_t)max_events;
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
-        PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %lu]", MAX_HEAP_SAMPLE_SIZE);
+        PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
         return NULL;
     }
 
@@ -344,8 +326,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
         return NULL;
     }
-
-    memalloc_assert_gil();
 
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     memalloc_tb_deinit();
@@ -405,8 +385,6 @@ iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSE
         PyErr_SetString(PyExc_RuntimeError, "failed to allocate IterEventsState");
         return NULL;
     }
-
-    memalloc_assert_gil();
 
     /* Reset the current traceback list. Do this outside lock so we can track it,
      * and avoid reentrancy/deadlock problems, if we start tracking the raw

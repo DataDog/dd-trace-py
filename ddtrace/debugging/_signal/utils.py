@@ -1,7 +1,17 @@
+from collections import Counter
+from collections import OrderedDict
+from collections import defaultdict
 from collections import deque
+from collections.abc import Collection
+from decimal import Decimal
 from itertools import islice
 from itertools import takewhile
+from types import BuiltinFunctionType
+from types import BuiltinMethodType
 from types import FrameType
+from types import FunctionType
+from types import MethodType
+from types import MethodWrapperType
 from types import TracebackType
 from typing import Any
 from typing import Callable
@@ -12,6 +22,9 @@ from typing import Optional
 from typing import Tuple
 from typing import Type
 
+from wrapt.wrappers import BoundFunctionWrapper
+from wrapt.wrappers import FunctionWrapper
+
 from ddtrace.debugging._probe.model import MAXFIELDS
 from ddtrace.debugging._probe.model import MAXLEN
 from ddtrace.debugging._probe.model import MAXLEVEL
@@ -20,18 +33,34 @@ from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
-from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
-from ddtrace.internal.compat import BUILTIN_MAPPING_TYPES
-from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
-from ddtrace.internal.compat import CALLABLE_TYPES
-from ddtrace.internal.compat import Collection
 from ddtrace.internal.compat import ExcInfoType
-from ddtrace.internal.compat import NoneType
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
+
+NoneType = type(None)
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, complex, Decimal])
+BUILTIN_MAPPING_TYPES = frozenset([dict, defaultdict, Counter, OrderedDict])
+BUILTIN_SEQUENCE_TYPES = frozenset([list, tuple, set, frozenset, deque])
+BUILTIN_CONTAINER_TYPES = BUILTIN_MAPPING_TYPES | BUILTIN_SEQUENCE_TYPES
+BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
+
+
+CALLABLE_TYPES = (
+    BuiltinMethodType,
+    BuiltinFunctionType,
+    FunctionType,
+    MethodType,
+    MethodWrapperType,
+    FunctionWrapper,
+    BoundFunctionWrapper,
+    property,
+    classmethod,
+    staticmethod,
+)
 
 
 @cached()

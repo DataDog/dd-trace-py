@@ -1,5 +1,5 @@
 stages:
-  - precheck
+  - setup
   - riot
   - hatch
 
@@ -17,15 +17,15 @@ include:
   extends: .testrunner
   stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
-  needs: []
+  needs: [ prechecks ]
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
   before_script:
     - !reference [.testrunner, before_script]
-    - pip install riot==0.20.1
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
+    - export DD_FAST_BUILD="1"
     - |
       envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#envs[@]} -eq 0 ]]; then
@@ -58,7 +58,7 @@ include:
 .test_base_riot:
   extends: .testrunner
   stage: riot
-  needs: [ build_base_venvs ]
+  needs: [ build_base_venvs, prechecks ]
   parallel: 4
   services:
     - !reference [.services, ddagent]
@@ -72,7 +72,7 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
+      hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
         exit 1

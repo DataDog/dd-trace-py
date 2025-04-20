@@ -77,10 +77,12 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     pkgs = get_package_distributions()
     while names == []:
         try:
-            return (
-                module_name,
-                importlib_metadata.distribution(module_name).version,
-            )
+            package = importlib_metadata.distribution(module_name)
+            metadata = package.metadata
+            name = metadata["name"]
+            version = metadata["version"]
+            if name and version:
+                return (name, version)
         except Exception:  # nosec
             pass
         names = pkgs.get(module_name, [])
@@ -159,13 +161,13 @@ def _root_module(path: Path) -> str:
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
-        import importlib.metadata as metadata
+        import importlib.metadata as importlib_metadata
     except ImportError:
-        import importlib_metadata as metadata  # type: ignore[no-redef]
+        import importlib_metadata as importlib_metadata  # type: ignore[no-redef]
 
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: metadata.PackagePath):
+    def is_namespace(f: importlib_metadata.PackagePath):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -188,17 +190,19 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in metadata.distributions():
-            if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
-                for f in dist.files:
-                    root = f.parts[0]
-                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                        continue
-                    if is_namespace(f):
-                        root = "/".join(f.parts[:2])
-                    if root not in mapping:
-                        mapping[root] = d
+        for dist in importlib_metadata.distributions():
+            if not (files := dist.files):
+                continue
+            metadata = dist.metadata
+            d = Distribution(name=metadata["name"], version=metadata["version"], path=None)
+            for f in files:
+                root = f.parts[0]
+                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                    continue
+                if is_namespace(f):
+                    root = "/".join(f.parts[:2])
+                if root not in mapping:
+                    mapping[root] = d
 
         return mapping
 

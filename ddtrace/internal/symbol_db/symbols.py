@@ -24,9 +24,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace import config
-from ddtrace.internal import compat
 from ddtrace.internal import packages
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
@@ -40,6 +38,7 @@ from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.symbol_db import config as symdb_config
 
 
@@ -497,11 +496,11 @@ class ScopeContext:
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
 
-        with connector(get_trace_url(), timeout=5.0)() as conn:
+        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
-            return compat.get_connection_response(conn)
+            return conn.getresponse()
 
     def __bool__(self) -> bool:
         return bool(self._scopes)

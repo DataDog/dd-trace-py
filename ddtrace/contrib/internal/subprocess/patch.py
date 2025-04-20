@@ -4,7 +4,7 @@ from fnmatch import fnmatch
 import os
 import re
 import shlex
-from threading import RLock
+from shlex import join
 from typing import Callable  # noqa:F401
 from typing import Deque  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -14,13 +14,13 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
-from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import shjoin
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -289,7 +289,7 @@ class SubprocessCmdLine:
 
     def _as_list_and_string(self) -> Tuple[List[str], str]:
         total_list = self.env_vars + [self.binary] + self.arguments
-        truncated_str = self.truncate_string(shjoin(total_list))
+        truncated_str = self.truncate_string(join(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
@@ -344,9 +344,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
         return ret
     except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.system: [args: %s kwargs: %s]", args, kwargs, exc_info=True
-        )
+        log.debug("Could not trace subprocess execution for os.system", exc_info=True)
         return wrapped(*args, **kwargs)
 
 
@@ -361,9 +359,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
         return ret
     except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.fork*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
-        )
+        log.debug("Could not trace subprocess execution for os.fork", exc_info=True)
         return wrapped(*args, **kwargs)
 
 
@@ -390,9 +386,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
                 span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
                 return ret
     except Exception:  # noqa:E722
-        log.debug(
-            "Could not trace subprocess execution for os.spawn*: [args: %s kwargs: %s]", args, kwargs, exc_info=True
-        )
+        log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
 
     return wrapped(*args, **kwargs)
 
@@ -426,7 +420,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
                 core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
     except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution: [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution", exc_info=True)
 
     return wrapped(*args, **kwargs)
 
@@ -452,5 +446,5 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
     except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution [args: %s kwargs: %s]", args, kwargs, exc_info=True)
+        log.debug("Could not trace subprocess execution", exc_info=True)
         return wrapped(*args, **kwargs)
