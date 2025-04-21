@@ -53,6 +53,7 @@ def get_line_and_hash(label: Text, vuln_type: Text, filename=None, fixed_line=No
 def _iast_patched_module_and_patched_source(module_name, new_module_object=False):
     module = importlib.import_module(module_name)
     module_path, patched_source = astpatch_module(module)
+    assert patched_source is not None
     compiled_code = compile(patched_source, module_path, "exec")
     module_changed = types.ModuleType(module_name) if new_module_object else module
     exec(compiled_code, module_changed.__dict__)

@@ -1,0 +1,163 @@
+from langchain.agents import AgentExecutor
+from langchain.agents import AgentType
+from langchain.agents import initialize_agent
+from langchain_community.tools.shell.tool import ShellTool
+from langchain_core.language_models.fake import FakeListLLM
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
+
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast.constants import VULN_CMDI
+from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.utils import override_env
+
+
+with override_env({"DD_IAST_ENABLED": "True"}):
+    from ddtrace.appsec._iast._taint_tracking import OriginType
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+
+TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+
+
+def test_prompt_template_format(iast_span_defaults):  # noqa: F811
+    template = PromptTemplate.from_template("{prompt}")
+    prompt = prepare_tainted_prompt()
+    result = template.format(prompt=prompt)
+    assert is_pyobject_tainted(result)
+
+
+async def test_prompt_template_aformat(iast_span_defaults):  # noqa: F811
+    template = PromptTemplate.from_template("{prompt}")
+    prompt = prepare_tainted_prompt()
+    result = await template.aformat(prompt=prompt)
+    assert is_pyobject_tainted(result)
+
+
+def test_chat_prompt_template_format(iast_span_defaults):  # noqa: F811
+    template = ChatPromptTemplate.from_messages([("system", "You are a helpful assistant."), ("user", "{prompt}")])
+    prompt = prepare_tainted_prompt()
+    result = template.format(prompt=prompt)
+    assert is_pyobject_tainted(result)
+
+
+async def test_chat_prompt_template_aformat(iast_span_defaults):  # noqa: F811
+    template = ChatPromptTemplate.from_messages([("system", "You are a helpful assistant."), ("user", "{prompt}")])
+    prompt = prepare_tainted_prompt()
+    result = await template.aformat(prompt=prompt)
+    assert is_pyobject_tainted(result)
+
+
+def test_llm_generate(iast_span_defaults):  # noqa: F811
+    llm = FakeListLLM(responses=["I am a fake LLM"])
+    prompt = prepare_tainted_prompt()
+    result = llm.invoke(prompt)
+    assert is_pyobject_tainted(result)
+
+
+async def test_llm_agenerate(iast_span_defaults):  # noqa: F811
+    llm = FakeListLLM(responses=["I am a fake LLM"])
+    prompt = prepare_tainted_prompt()
+    result = await llm.ainvoke(prompt)
+    assert is_pyobject_tainted(result)
+
+
+def test_cmdi_with_shelltool_invoke(iast_span_defaults):  # noqa: F811
+    shell = ShellTool()
+    cmd = taint_pyobject(
+        pyobject="true",
+        source_name="commands",
+        source_value="true",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    # label test_cmdi_with_shelltool_invoke
+    shell.invoke({"commands": cmd})
+
+    span_report = _get_span_report()
+    assert span_report
+
+
+async def test_cmdi_with_shelltool_ainvoke(iast_span_defaults):  # noqa: F811
+    shell = ShellTool()
+    cmd = taint_pyobject(
+        pyobject="true",
+        source_name="commands",
+        source_value="true",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    # label test_cmdi_with_shelltool_ainvoke
+    await shell.ainvoke({"commands": cmd})
+
+    span_report = _get_span_report()
+    assert span_report
+
+
+def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
+    agent = prepare_cmdi_agent()
+    prompt = prepare_tainted_prompt()
+    # label test_cmdi_with_agent_invoke
+    res = agent.invoke(prompt)
+    assert res["output"] == "4"
+
+    location = assert_cmdi()
+    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["line"]
+    assert location["method"] == "test_cmdi_with_agent_invoke"
+    assert location["class"] == ""
+
+
+async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
+    agent = prepare_cmdi_agent()
+    prompt = prepare_tainted_prompt()
+    # label test_cmdi_with_agent_ainvoke
+    res = await agent.ainvoke(prompt)
+    assert res["output"] == "4"
+
+    location = assert_cmdi()
+    # FIXME: Vulnerability here cannot be detected within the original user code, skip line and hash check.
+    assert location["path"] == "langchain_experimental/llm_bash/bash.py"
+    assert location["line"]
+    assert location["method"] == "_run"
+    assert location["class"] == ""
+
+
+def prepare_cmdi_agent() -> AgentExecutor:
+    responses = ["Action: terminal\nAction Input: echo Hello World", "Final Answer: 4"]
+    llm = FakeListLLM(responses=responses)
+    shell = ShellTool()
+    return initialize_agent([shell], llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True)
+
+
+def prepare_tainted_prompt() -> str:
+    string_to_taint = "I need to use the terminal tool to print a Hello World"
+    return taint_pyobject(
+        pyobject=string_to_taint,
+        source_name="prompt",
+        source_value=string_to_taint,
+        source_origin=OriginType.PARAMETER,
+    )
+
+
+def assert_cmdi():
+    span_report = _get_span_report()
+    assert span_report
+    data = span_report.build_and_scrub_value_parts()
+    vulnerability = data["vulnerabilities"][0]
+    source = data["sources"][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"source": 0, "value": "echo "},
+        {"pattern": "", "redacted": True, "source": 0},
+        {"source": 0, "value": "Hello World"},
+    ]
+    assert "value" not in vulnerability["evidence"].keys()
+    assert vulnerability["evidence"].get("pattern") is None
+    assert vulnerability["evidence"].get("redacted") is None
+    assert source["name"] == "prompt"
+    assert source["origin"] == OriginType.PARAMETER
+    assert "value" not in source.keys()
+
+    assert vulnerability["hash"]
+    return vulnerability["location"]
