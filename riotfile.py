@@ -2572,6 +2572,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
+                "fastapi": latest,
             },
         ),
         Venv(
