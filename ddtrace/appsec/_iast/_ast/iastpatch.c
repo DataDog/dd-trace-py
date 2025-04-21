@@ -17,9 +17,9 @@ static char** cached_packages = NULL;
 static size_t cached_packages_count = 0;
 
 /* Static Lists */
-static size_t static_allowlist_count = 8;
-static const char* static_allowlist[] = { "jinja2.",           "pygments.", "multipart.", "sqlalchemy.",
-                                          "python_multipart.", "attrs",     "jsonschema", "s3fs" };
+static size_t static_allowlist_count = 10;
+static const char* static_allowlist[] = { "jinja2.", "pygments.",   "multipart.", "sqlalchemy.", "python_multipart.",
+                                          "attrs.",  "jsonschema.", "s3fs.",      "mysql.",      "pymysql." };
 
 static size_t static_denylist_count = 145;
 static const char* static_denylist[] = { "django.apps.config.",

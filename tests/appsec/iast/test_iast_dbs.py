@@ -1,6 +1,8 @@
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
@@ -10,7 +12,10 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 
-mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_psycopg2")
+_ = _iast_patched_module("pymysql.connections")
+_ = _iast_patched_module("pymysql.converters")
+_ = _iast_patched_module("mysql.connector.conversion")
+mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_dbs")
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +33,7 @@ def test_adapt_list():
 
     value = mod.adapt_list(obj_list)
     assert value == b"ARRAY[1,'word',true]"
+    assert not get_tainted_ranges(value)
     assert not is_pyobject_tainted(value)
 
 
@@ -37,6 +43,7 @@ def test_lazy_taint_list():
 
     value = mod.adapt_list(lazy_list)
     assert value == b"ARRAY[1,'word',true]"
+    assert get_tainted_ranges(value)
     assert is_pyobject_tainted(value)
 
 
@@ -52,3 +59,39 @@ def test_sanitize_quote_ident():
     value = mod.sanitize_quote_ident(tainted)
     assert value == 'a-"\'; DROP TABLE users; --"'
     assert not is_pyobject_tainted(value)
+
+
+def test_sanitize_mysql_connector_scape():
+    sql = "'; DROP TABLE users; --"
+    tainted = taint_pyobject(
+        pyobject=sql,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=sql,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    value = mod.mysql_connector_scape(tainted)
+    ranges = get_tainted_ranges(value)
+    assert value == "a-\\'; DROP TABLE users; --"
+    assert len(ranges) > 0
+    for _range in ranges:
+        assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
+    assert is_pyobject_tainted(value)
+
+
+def test_sanitize_pymysql_escape_string():
+    sql = "'; DROP TABLE users; --"
+    tainted = taint_pyobject(
+        pyobject=sql,
+        source_name="test_add_aspect_tainting_left_hand",
+        source_value=sql,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    value = mod.pymysql_escape_string(tainted)
+    ranges = get_tainted_ranges(value)
+    assert value == "a-\\'; DROP TABLE users; --"
+    assert len(ranges) > 0
+    for _range in ranges:
+        assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
+    assert is_pyobject_tainted(value)
