@@ -148,6 +148,7 @@ def _prepare_attempts_strings(
         markedup_strings.append(terminalreporter._tw.markup(attempts_text, **markup_kwargs))
 
 
+@_debugme
 def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], terminalreporter: _pytest.terminal.TerminalReporter):
     # When there were no ATR attempts to retry tests, there is no need to report anything, but just in case, we clear
     # out any potential leftover data:
@@ -158,7 +159,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
     if not session_status.total_retries:
         return
 
-    terminalreporter.write_sep("=", f"Datadog {retry_class}", purple=True, bold=True)
+    terminalreporter.write_sep("=", retry_class.report_title, purple=True, bold=True)
     # Print summary info
     raw_summary_strings = []
     markedup_summary_strings = []
@@ -229,7 +230,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         markedup_summary_string = markedup_summary_string[:-4]
 
     # Print summary counts
-    terminalreporter.write_sep("_", "Datadog Auto Test Retries summary", purple=True, bold=True)
+    terminalreporter.write_sep("_", f"{retry_class.report_title} summary", purple=True, bold=True)
 
     if raw_summary_string:
         terminalreporter.write_sep(

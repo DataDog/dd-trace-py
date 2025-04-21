@@ -617,7 +617,8 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     #     efd_pytest_terminal_summary_post_yield(terminalreporter)
 
     # if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-    retry_pytest_terminal_summary_post_yield(terminalreporter)
+    retry_pytest_terminal_summary_post_yield(EFDRetryManager, terminalreporter)
+    retry_pytest_terminal_summary_post_yield(ATRRetryManager, terminalreporter)
 
     # attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
@@ -659,8 +660,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    # if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
+    #     session.exitstatus = pytest.ExitCode.TESTS_FAILED
     # if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
     #     session.exitstatus = pytest.ExitCode.TESTS_FAILED
     if InternalTestSession.attempt_to_fix_has_failed_tests():

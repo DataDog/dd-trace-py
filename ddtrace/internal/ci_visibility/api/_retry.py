@@ -53,6 +53,7 @@ class ATRSessionStatus:
 
 class ATRRetryManager(RetryManager):
     retry_reason = "auto_test_retry"
+    report_title = "Datadog Auto Test Retries"
 
     @classmethod
     def should_apply(cls, test: TestVisibilityTest) -> bool:
@@ -131,6 +132,7 @@ class EFDSessionStatus:
 
 class EFDRetryManager(RetryManager):
     retry_reason = "early_flake_detection"
+    report_title = "Datadog Early Flake Detection"
 
     @classmethod
     def should_apply(cls, test: TestVisibilityTest) -> bool:
