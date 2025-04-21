@@ -787,6 +787,7 @@ suites:
       - tests/contrib/integration_registry/*
     runner: riot
     snapshot: false
+    parallelism: 1
   jinja2:
     parallelism: 2
     paths:
