@@ -236,8 +236,8 @@ def patch():
 
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
-    from langgraph.utils.runnable import RunnableSeq
     from langgraph.utils.runnable import RunnableCallable
+    from langgraph.utils.runnable import RunnableSeq
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
@@ -256,8 +256,8 @@ def unpatch():
 
     from langgraph.pregel import Pregel
     from langgraph.pregel.loop import PregelLoop
-    from langgraph.utils.runnable import RunnableSeq
     from langgraph.utils.runnable import RunnableCallable
+    from langgraph.utils.runnable import RunnableSeq
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")

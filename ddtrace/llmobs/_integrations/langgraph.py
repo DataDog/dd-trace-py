@@ -71,9 +71,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             return suppress()
 
         return LangGraphRoutingContext(
-            state=LLMObsState.from_dict(state),
-            current_node_metadata=current_node_metadata,
-            args=args
+            state=LLMObsState.from_dict(state), current_node_metadata=current_node_metadata, args=args
         )
 
     def _llmobs_set_tags(
@@ -104,7 +102,9 @@ class LangGraphIntegration(BaseLLMIntegration):
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs.to_state_dict() if isinstance(inputs, LLMObsState) else inputs),
-                OUTPUT_VALUE: format_langchain_io(response.to_state_dict() if isinstance(response, LLMObsState) else response),
+                OUTPUT_VALUE: format_langchain_io(
+                    response.to_state_dict() if isinstance(response, LLMObsState) else response
+                ),
                 NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }

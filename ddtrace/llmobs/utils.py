@@ -194,9 +194,7 @@ class LLMObsState(dict):
 
     def to_state_dict(self):
         dict_keys = [key for key in self.keys() if key not in ("_proxy", "llmobs_service")]
-        return {
-            key: self[key] for key in dict_keys
-        }
+        return {key: self[key] for key in dict_keys}
 
     @staticmethod
     def from_state(llmobs_states: Union["LLMObsState", List["LLMObsState"]], state: Dict, service):
