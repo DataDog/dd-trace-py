@@ -135,6 +135,7 @@ integrations:
 - integration_name: botocore
   is_external_package: true
   dependency_name:
+  - boto3
   - botocore
   tested_versions_by_dependency:
     boto3:

@@ -17,7 +17,7 @@ class IntegrationRegistryManager:
         self.patched_objects = {}
         self.processed_objects = set()
         self.original_getattr = None
-        self.pending_updates = defaultdict(lambda: {"dependency_name": set()})
+        self.pending_updates = defaultdict(lambda: {"dependency_name": {}})
 
     def get_cached_packages_distributions(self):
         """Gets package->distribution mapping, caching the result."""
@@ -51,6 +51,15 @@ class IntegrationRegistryManager:
                 except (IndexError, Exception):
                     continue
         return None
+    
+    def _get_top_level_module_from_object(self, obj):
+        attrs = ['__module__', '__name__']
+        for attr in attrs:
+            try:
+                return self.original_getattr(obj, attr).split(".", 1)[0]
+            except Exception:
+                continue
+        return None
 
     def process_patched_objects(self):
         """
@@ -65,8 +74,7 @@ class IntegrationRegistryManager:
                 continue
 
             try:
-                obj_name = self.original_getattr(obj, "__module__")
-                top_level_module = obj_name.split(".", 1)[0]
+                top_level_module = self._get_top_level_module_from_object(obj)
             except Exception:
                 self.processed_objects.add(obj)
                 continue
@@ -79,18 +87,10 @@ class IntegrationRegistryManager:
                     for distribution_name in distribution_names:
                         update_key = f"{integration_name}:{distribution_name}"
                         if update_key not in self.updated_packages:
-                            self.pending_updates[integration_name]["dependency_name"].add(distribution_name.lower())
+                            self.pending_updates[integration_name]["dependency_name"][distribution_name] = top_level_module
                             self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)
-
-        for data in self.pending_updates.values():
-            if "dependency_name" in data:
-                data["dependency_name"] = sorted(list(data["dependency_name"]))
-
-    def get_processed_data_for_export(self) -> dict:
-        """Returns the processed update data."""
-        return dict(self.pending_updates)
 
     def patch_getattr(self):
         """Patches builtins.getattr to intercept _datadog_patch access."""

@@ -3,6 +3,7 @@ import pathlib
 import sys
 
 from filelock import FileLock
+import importlib
 import yaml
 
 
@@ -56,6 +57,47 @@ class RegistryUpdater:
                 return json.load(f)
         except Exception:
             return {}
+        
+    def _get_contrib_version(self, integration_name: str, top_level_module: str) -> str:
+        """
+        Returns the version of the module using the integration's get_version function.
+        """
+        try:
+            # Import the integration module
+            module_name = f"ddtrace.contrib.internal.{integration_name}.patch"
+            module = importlib.import_module(module_name)
+            if hasattr(module, "get_versions"):
+                return module.get_versions()[top_level_module]
+            if hasattr(module, "get_version"):
+                return module.get_version()
+        except Exception:
+            return None
+    
+    def _semver_compare(self, version1: str, version2: str) -> int:
+        """
+        Compares two semantic version strings (X.Y.Z format).
+        Returns:
+           1 if version1 > version2
+           0 if version1 == version2
+          -1 if version1 < version2
+        Handles basic X.Y.Z format, raises ValueError for invalid input.
+        """
+        if version1 == version2:
+            return 0
+
+        v1_parts = [int(p) for p in version1.split(".")]
+        v2_parts = [int(p) for p in version2.split(".")]
+
+        if v1_parts[0] > v2_parts[0]: return 1
+        if v1_parts[0] < v2_parts[0]: return -1
+
+        if v1_parts[1] > v2_parts[1]: return 1
+        if v1_parts[1] < v2_parts[1]: return -1
+
+        if v1_parts[2] > v2_parts[2]: return 1
+        if v1_parts[2] < v2_parts[2]: return -1
+
+        return 0
 
     def _needs_update(self, registry_data: dict, input_data: dict) -> bool:
         """Checks if input_data contains info not present in registry_data."""
@@ -67,8 +109,8 @@ class RegistryUpdater:
         }
 
         for integration_name, updates in input_data.items():
-            new_deps_set = set(updates.get("dependency_name", []))
-            if not new_deps_set:
+            new_deps = updates.get("dependency_name", {})
+            if not new_deps:
                 continue
 
             if integration_name not in registry_map:
@@ -78,10 +120,24 @@ class RegistryUpdater:
             if not entry.get("is_external_package"):
                 continue
 
-            current_deps_set = set(entry.get("dependency_name", []))
-            if not new_deps_set.issubset(current_deps_set):
-                return True
-
+            for dep, top_level_module in new_deps.items():
+                current_deps_set = set(entry.get("dependency_name", []))
+                if not dep in current_deps_set:
+                    return True
+                else:
+                    dep_version = self._get_contrib_version(integration_name, top_level_module)
+                    if dep_version is None:
+                        return False
+                    min_version = entry.get("tested_versions_by_dependency", {}).get(dep, None).get("min", None)
+                    if min_version is None:
+                        return True
+                    if self._semver_compare(dep_version, min_version) == -1:
+                        return True
+                    max_version = entry.get("tested_versions_by_dependency", {}).get(dep, {}).get("max", None)
+                    if max_version is None:
+                        return True
+                    if self._semver_compare(dep_version, max_version) == 1:
+                        return True 
         return False
 
     def merge_data(self, registry_data: dict, input_data: dict) -> bool:
@@ -163,13 +219,13 @@ class RegistryUpdater:
 
             changes_made = True
             if not self.write_registry_data(registry_data):
-                print("RegistryUpdater: Failed to write updated registry data.", file=sys.stderr)
+                print("\nIntegrationRegistryUpdater: Failed to write updated registry data.", file=sys.stderr)
                 return False
 
             return True
 
         except Exception as e:
-            print(f"RegistryUpdater: Error during run: {e}", file=sys.stderr)
+            print(f"\nIntegrationRegistryUpdater: Error during run: {e}", file=sys.stderr)
             # Ensure lock is released on any exception if still held (e.g., error between load and write)
             if self.lock.is_locked:
                 self.lock.release()
