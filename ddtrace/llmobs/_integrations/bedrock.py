@@ -219,13 +219,14 @@ class BedrockIntegration(BaseLLMIntegration):
                         )
 
             if "messageStop" in chunk:
+                metadata["stop_reason"] = chunk["messageStop"].get("stopReason", "")
                 messages.append(
                     get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
                 )
                 current_message = None
 
         # Handle the case where we didn't receive an explicit message stop event
-        if current_message is not None:
+        if current_message is not None and current_message.get("context_block_indices"):
             messages.append(
                 get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
             )

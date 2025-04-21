@@ -731,7 +731,7 @@ def get_final_message_converse_stream_message(
         if not tool_block:
             continue
         tool_call = {
-            "name": tool_block.get("toolName", ""),
+            "name": tool_block.get("name", ""),
             "tool_id": tool_block.get("toolUseId", ""),
         }
         tool_input = tool_block.get("input")
