@@ -4,8 +4,8 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
-
 from ddtrace.settings._config import _get_config
+
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
