@@ -15,6 +15,7 @@ from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 
+
 RetryOutcomes = "OBSOLETE"
 RetryTestReport = "OBSOLETE"
 
@@ -40,7 +41,6 @@ def _get_outcome_from_retry(
     item: pytest.Item,
     retry_number: int,
 ) -> _TestOutcome:
-
     class outcomes:
         PASSED = "passed"
         FAILED = "failed"

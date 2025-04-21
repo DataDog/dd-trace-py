@@ -28,7 +28,6 @@ from ddtrace.contrib.internal.pytest._utils import _get_session_command
 from ddtrace.contrib.internal.pytest._utils import _get_source_file_info
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_test_parameters_json
-from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
@@ -38,6 +37,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -51,6 +51,7 @@ from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.api._retry import ATRRetryManager
+from ddtrace.internal.ci_visibility.api._retry import EFDRetryManager
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
@@ -84,8 +85,8 @@ if _pytest_version_supports_efd():
 if _pytest_version_supports_atr():
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_failed_reports
     from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
-    from ddtrace.contrib.internal.pytest._atr_utils import atr_handle_retries
-    from ddtrace.contrib.internal.pytest._atr_utils import atr_pytest_terminal_summary_post_yield
+    from ddtrace.contrib.internal.pytest._atr_utils import handle_retries
+    from ddtrace.contrib.internal.pytest._atr_utils import retry_pytest_terminal_summary_post_yield
 
 if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
@@ -550,13 +551,15 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
-    if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
+    # if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+    #     return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
+    # if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+    #     return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
 
-    if ATRRetryManager.should_apply(test):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
+    for retry_class in [EFDRetryManager, ATRRetryManager]:
+        if retry_class.should_apply(test):
+            retry_manager = retry_class(test_id)
+            return handle_retries(retry_manager, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -610,13 +613,13 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
         ]
 
     # IMPORTANT: terminal summary functions mutate terminalreporter.stats
-    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
-        efd_pytest_terminal_summary_post_yield(terminalreporter)
+    # if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+    #     efd_pytest_terminal_summary_post_yield(terminalreporter)
 
-    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        atr_pytest_terminal_summary_post_yield(terminalreporter)
+    # if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+    retry_pytest_terminal_summary_post_yield(terminalreporter)
 
-    attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
+    # attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
     return
 

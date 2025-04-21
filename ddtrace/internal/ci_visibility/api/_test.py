@@ -406,7 +406,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def set_efd_abort_reason(self, reason: str) -> None:
         self._efd_abort_reason = reason
 
-
     def _make_retry_test(self, **kwargs) -> "TestVisibilityTest":
         retry_test = self.__class__(
             self.name,

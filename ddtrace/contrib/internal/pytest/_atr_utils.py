@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility.api._retry import ATRRetryManager
+from ddtrace.internal.ci_visibility.api._retry import RetryManager
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.logger import get_logger
@@ -27,8 +28,9 @@ def _debugme(f):
     def wrapped(*args, **kwargs):
         try:
             return f(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -38,13 +40,13 @@ def _debugme(f):
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
     TestStatus.PASS: "passed",
     TestStatus.FAIL: "failed",
+    TestStatus.SKIP: "skipped",
 }
 
 
-
 @_debugme
-def atr_handle_retries(
-    test_id: InternalTestId,
+def handle_retries(
+    retry_manager: RetryManager,
     item: pytest.Item,
     when: str,
     original_result: pytest_TestReport,
@@ -55,15 +57,15 @@ def atr_handle_retries(
     if when == "call":
         if test_outcome.status == TestStatus.FAIL:
             original_result.user_properties += [
-                ("dd_retry_reason", "auto_test_retry"),
+                ("dd_retry_reason", retry_manager.retry_reason),
                 ("dd_retry_outcome", original_result.outcome),
                 ("dd_retry_number", 0),
             ]
             original_result.outcome = "retry"
         return
 
-    atr_outcome = _atr_do_retries(item)
-    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
+    atr_outcome = _do_retries(retry_manager, item)
+    longrepr = InternalTest.stash_get(retry_manager.test_id, "failure_longrepr")
 
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
@@ -72,9 +74,7 @@ def atr_handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[atr_outcome],
-        user_properties=item.user_properties + [
-            ("dd_retry_reason", "auto_test_retry")
-        ]
+        user_properties=item.user_properties + [("dd_retry_reason", retry_manager.retry_reason)],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -83,12 +83,9 @@ def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) 
     return terminalreporter.getreports(_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED)
 
 
-
 @_debugme
-def _atr_do_retries(item: pytest.Item) -> TestStatus:
+def _do_retries(retry_manager: RetryManager, item: pytest.Item) -> TestStatus:
     test_id = _get_test_id_from_item(item)
-
-    retry_manager = ATRRetryManager(test_id)
 
     while retry_manager.should_retry():
         retry_num = retry_manager.add_and_start_retry()
@@ -106,7 +103,7 @@ def _atr_do_retries(item: pytest.Item) -> TestStatus:
     return retry_manager.get_final_status()
 
 
-def _atr_write_report_for_status(
+def _write_report_for_status(
     terminalreporter: _pytest.terminal.TerminalReporter,
     retry_reason: str,
     status_text: str,
@@ -133,7 +130,7 @@ def _atr_write_report_for_status(
             terminalreporter.write_line(line)
 
 
-def _atr_prepare_attempts_strings(
+def _prepare_attempts_strings(
     terminalreporter: _pytest.terminal.TerminalReporter,
     number_of_attempts: str,
     reports_text: str,
@@ -151,24 +148,24 @@ def _atr_prepare_attempts_strings(
         markedup_strings.append(terminalreporter._tw.markup(attempts_text, **markup_kwargs))
 
 
-def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
+def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], terminalreporter: _pytest.terminal.TerminalReporter):
     # When there were no ATR attempts to retry tests, there is no need to report anything, but just in case, we clear
     # out any potential leftover data:
-    # ꙮ Which data? This just returns.
+    #  ^ ꙮ Which data? This just returns.
 
-    session_status = ATRRetryManager._get_session_status(CIVisibility.get_session())
+    session_status = retry_class._get_session_status(CIVisibility.get_session())
 
     if not session_status.total_retries:
         return
 
-    terminalreporter.write_sep("=", "Datadog Auto Test Retries", purple=True, bold=True)
+    terminalreporter.write_sep("=", f"Datadog {retry_class}", purple=True, bold=True)
     # Print summary info
     raw_summary_strings = []
     markedup_summary_strings = []
 
-    _atr_write_report_for_status(
+    _write_report_for_status(
         terminalreporter,
-        retry_reason="auto_test_retry",
+        retry_reason=retry_class.retry_reason,
         status_text="failed",
         report_outcome=PYTEST_STATUS.FAILED,
         raw_strings=raw_summary_strings,
@@ -176,9 +173,9 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
         color="red",
     )
 
-    _atr_write_report_for_status(
+    _write_report_for_status(
         terminalreporter,
-        retry_reason="auto_test_retry",
+        retry_reason=retry_class.retry_reason,
         status_text="passed",
         report_outcome=PYTEST_STATUS.PASSED,
         raw_strings=raw_summary_strings,
@@ -189,30 +186,30 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     raw_attempt_strings = []
     markedup_attempts_strings = []
 
-    _atr_prepare_attempts_strings(
-        terminalreporter=    terminalreporter,
-        number_of_attempts=  session_status.attempts[TestStatus.FAIL],
-        reports_text=        "failed",
-        raw_strings=         raw_attempt_strings,
-        markedup_strings=    markedup_attempts_strings,
-        color=               "red",
-        bold=                True,
+    _prepare_attempts_strings(
+        terminalreporter=terminalreporter,
+        number_of_attempts=session_status.attempts[TestStatus.FAIL],
+        reports_text="failed",
+        raw_strings=raw_attempt_strings,
+        markedup_strings=markedup_attempts_strings,
+        color="red",
+        bold=True,
     )
-    _atr_prepare_attempts_strings(
-        terminalreporter=    terminalreporter,
-        number_of_attempts=  session_status.attempts[TestStatus.PASS],
-        reports_text=        "passed",
-        raw_strings=         raw_attempt_strings,
-        markedup_strings=    markedup_attempts_strings,
-        color=               "green",
+    _prepare_attempts_strings(
+        terminalreporter=terminalreporter,
+        number_of_attempts=session_status.attempts[TestStatus.PASS],
+        reports_text="passed",
+        raw_strings=raw_attempt_strings,
+        markedup_strings=markedup_attempts_strings,
+        color="green",
     )
-    _atr_prepare_attempts_strings(
-        terminalreporter=    terminalreporter,
-        number_of_attempts=  session_status.attempts[TestStatus.SKIP],
-        reports_text=        "skipped",
-        raw_strings=         raw_attempt_strings,
-        markedup_strings=    markedup_attempts_strings,
-        color=               "yellow",
+    _prepare_attempts_strings(
+        terminalreporter=terminalreporter,
+        number_of_attempts=session_status.attempts[TestStatus.SKIP],
+        reports_text="skipped",
+        raw_strings=raw_attempt_strings,
+        markedup_strings=markedup_attempts_strings,
+        color="yellow",
     )
 
     raw_summary_string = ". ".join(raw_summary_strings)
@@ -253,7 +250,7 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
 
 def get_user_property(report, key, default=None):
-    for (k, v) in report.user_properties:
+    for k, v in report.user_properties:
         if k == key:
             return v
     return default
@@ -268,18 +265,18 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         return (
             "retry",
             "r",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if retry_outcome == "failed":
         return (
             "retry",
             "R",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if retry_outcome == "skipped":
         return (
             "retry",
             "s",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     return None
