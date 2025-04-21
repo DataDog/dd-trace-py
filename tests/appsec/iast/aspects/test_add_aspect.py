@@ -23,6 +23,11 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+@given(one_of(string_strategies))
+def test_add_aspect(text):
+    assert ddtrace_aspects.add_aspect(text, text) == text + text
+
+
 @pytest.mark.parametrize(
     "obj1, obj2",
     [
@@ -38,11 +43,6 @@ from tests.utils import override_global_config
 )
 def test_add_aspect_successful(obj1, obj2):
     assert ddtrace_aspects.add_aspect(obj1, obj2) == obj1 + obj2
-
-
-@given(one_of(string_strategies))
-def test_add_aspect_text_successful(text):
-    assert ddtrace_aspects.add_aspect(text, text) == text + text
 
 
 @given(from_type(int))
