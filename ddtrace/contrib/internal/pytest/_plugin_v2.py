@@ -1,3 +1,4 @@
+import functools
 import os
 from pathlib import Path
 import re
@@ -101,6 +102,20 @@ OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 
+def _debugme(f):
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
+            raise
+
+    return wrapped
+
+
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -127,13 +142,13 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
-def _handle_test_management(item, test_id):
+def _handle_test_management(item, test):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
     """
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    is_quarantined = test.is_quarantined()
+    is_disabled = test.is_disabled()
+    is_attempt_to_fix = test.is_attempt_to_fix()
 
     if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
@@ -143,6 +158,7 @@ def _handle_test_management(item, test_id):
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
         # It should still have both disabled and quarantined event tags, though.
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+
     elif is_quarantined or (is_disabled and is_attempt_to_fix):
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [USER_PROPERTY_QUARANTINED]
@@ -307,6 +323,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         _disable_ci_visibility()
 
 
+@_debugme
 def _pytest_collection_finish(session) -> None:
     """Discover modules, suites, and tests that have been selected by pytest
 
@@ -365,28 +382,30 @@ def pytest_collection_finish(session) -> None:
         _disable_ci_visibility()
 
 
+@_debugme
 def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.CollectInContext]:
     test_id = _get_test_id_from_item(item)
-    suite_id = test_id.parent_id
-    module_id = suite_id.parent_id
+    test = CIVisibility.get_test_by_id(test_id)
+    suite = test.parent
+    module = suite.parent
 
     # TODO: don't re-start modules if already started
-    InternalTestModule.start(module_id)
-    InternalTestSuite.start(suite_id)
+    module.start()
+    suite.start()
 
     # DEV: pytest's fixtures resolution may change parameters between collection finish and test run
     parameters = _get_test_parameters_json(item)
     if parameters is not None:
-        InternalTest.set_parameters(test_id, parameters)
+        test.set_parameters(parameters)
 
-    InternalTest.start(test_id)
+    test.start()
 
-    _handle_test_management(item, test_id)
+    _handle_test_management(item, test)
     _handle_itr_should_skip(item, test_id)
 
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
+    item_will_skip = _pytest_marked_to_skip(item) or test.is_itr_skipped()
 
-    collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
+    collect_test_coverage = CIVisibility.should_collect_coverage() and not item_will_skip
 
     if collect_test_coverage:
         return _start_collecting_coverage()
@@ -394,8 +413,10 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     return None
 
 
+@_debugme
 def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     test_id = _get_test_id_from_item(item)
+    test = CIVisibility.get_test_by_id(test_id)
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
@@ -440,17 +461,19 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
+@_debugme
 def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
+    test = CIVisibility.get_test_by_id(test_id)
 
     has_exception = call.excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
     if getattr(result, "wasxfail", None):
-        InternalTest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
+        test.set_tag(XFAIL_REASON, result.wasxfail)
     elif "xfail" in getattr(result, "keywords", []) and getattr(result, "longrepr", None):
-        InternalTest.set_tag(test_id, XFAIL_REASON, result.longrepr)
+        test.set_tag(XFAIL_REASON, result.longrepr)
 
     # Only capture result if:
     # - there is an exception
@@ -462,22 +485,22 @@ def _process_result(item, call, result) -> _TestOutcome:
         return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
-    xfail_reason_tag = InternalTest.get_tag(test_id, XFAIL_REASON) if xfail else None
+    xfail_reason_tag = test.get_tag(XFAIL_REASON) if xfail else None
     has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
-        if InternalTest.was_skipped_by_itr(test_id):
+        if test.is_itr_skipped():
             # Items that were skipped by ITR already have their status and reason set
             return _TestOutcome()
 
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             if not item.config.option.runxfail:
-                InternalTest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
+                test.set_tag(test.RESULT, test.Status.XFAIL.value)
                 if xfail_reason_tag is None:
-                    InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                    test.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 return _TestOutcome(TestStatus.PASS)
 
         return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
@@ -486,29 +509,30 @@ def _process_result(item, call, result) -> _TestOutcome:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
             if xfail_reason_tag is None:
-                InternalTest.set_tag(test_id, XFAIL_REASON, "XFail")
-            InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+                test.set_tag(XFAIL_REASON, "XFail")
+            test.set_tag(test.RESULT, test.Status.XPASS.value)
 
         return _TestOutcome(TestStatus.PASS)
 
     if xfail and not has_skip_keyword and not item.config.option.runxfail:
         # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
         if xfail_reason_tag is None:
-            InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
-        InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
+            test.set_tag(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+        test.set_tag(test.RESULT, test.Status.XPASS.value)
         return _TestOutcome(TestStatus.FAIL)
 
     # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
     if call.when == "setup" and result.failed:
-        InternalTest.stash_set(test_id, "setup_failed", True)
+        test.stash_set("setup_failed", True)
     elif call.when == "teardown" and result.failed:
-        InternalTest.stash_set(test_id, "teardown_failed", True)
+        test.stash_set("teardown_failed", True)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
+@_debugme
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
     if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
@@ -535,8 +559,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         _set_benchmark_data_from_item(item)
 
     # Record a result if we haven't already recorded it:
-    if not InternalTest.is_finished(test_id):
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+    if not test.is_finished():
+        test.finish_test(status=test_outcome.status, reason=test_outcome.skip_reason, exc_info=test_outcome.exc_info)
 
     if original_result.failed and (is_quarantined or is_disabled):
         # Ensure test doesn't count as failed for pytest's exit status logic
@@ -544,11 +568,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         original_result.outcome = OUTCOME_QUARANTINED
 
     if original_result.failed or original_result.skipped:
-        InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
+        test.stash_set("failure_longrepr", original_result.longrepr)
 
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
-    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
+    if test.stash_get("setup_failed") or test.stash_get("teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
     # if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
@@ -577,6 +601,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
+@_debugme
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # Before yield gives us a chance to show failure reports (with the stack trace of the failing test), but they have
     # to be in terminalreporter.stats["failed"] to be shown. That, however, would make them count towards the final
@@ -584,19 +609,20 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
-    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
-        for failed_report in efd_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+    #     for failed_report in efd_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
-    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        for failed_report in atr_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+    #     for failed_report in atr_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
     return failed_reports_initial_size
 
 
+@_debugme
 def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size: t.Optional[int] = None):
     # After yield gives us a chance to:
     # - print our flaky test status summary
@@ -621,7 +647,6 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     retry_pytest_terminal_summary_post_yield(ATRRetryManager, terminalreporter)
 
     # attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
-
     return
 
 
@@ -656,6 +681,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     return
 
 
+@_debugme
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
@@ -695,6 +721,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         log.debug("encountered error during session finish", exc_info=True)
 
 
+@_debugme
 def pytest_report_teststatus(
     report: pytest_TestReport,
 ) -> _pytest_report_teststatus_return_type:
@@ -748,3 +775,10 @@ def pytest_ddtrace_get_item_test_name(item):
     """Extract name from item, prepending class if desired"""
     names = _get_names_from_item(item)
     return names.test
+
+
+# if True:
+#     _globals = globals()
+#     for name, f in list(_globals.items()):
+#         if callable(f) and name != "_debugme":
+#             _globals[name] = _debugme(f)

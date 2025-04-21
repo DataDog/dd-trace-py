@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._types import tmppath_result_key
+from ddtrace.internal.ci_visibility.api._retry import RetryManager
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -39,6 +40,7 @@ def _get_retry_attempt_string(nodeid) -> str:
 
 def _get_outcome_from_retry(
     item: pytest.Item,
+    retry_manager: RetryManager,
     retry_number: int,
 ) -> _TestOutcome:
     class outcomes:
@@ -59,7 +61,7 @@ def _get_outcome_from_retry(
     item._report_sections = []
 
     # Setup
-    setup_call, setup_report, setup_outcome = _retry_run_when(item, "setup", retry_number)
+    setup_call, setup_report, setup_outcome = _retry_run_when(retry_manager, item, "setup", retry_number)
     if setup_outcome == outcomes.FAILED:
         _outcome_status = TestStatus.FAIL
         if setup_call.excinfo is not None:
@@ -73,7 +75,7 @@ def _get_outcome_from_retry(
 
     # Call
     if setup_outcome == outcomes.PASSED:
-        call_call, call_report, call_outcome = _retry_run_when(item, "call", retry_number)
+        call_call, call_report, call_outcome = _retry_run_when(retry_manager, item, "call", retry_number)
         if call_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
             if call_call.excinfo is not None:
@@ -89,7 +91,7 @@ def _get_outcome_from_retry(
 
     # Teardown does not happen if setup skipped
     if not setup_outcome == outcomes.SKIPPED:
-        teardown_call, teardown_report, teardown_outcome = _retry_run_when(item, "teardown", retry_number)
+        teardown_call, teardown_report, teardown_outcome = _retry_run_when(retry_manager, item, "teardown", retry_number)
         # Only override the outcome if the teardown failed, otherwise defer to either setup or call outcome
         if teardown_outcome == outcomes.FAILED:
             _outcome_status = TestStatus.FAIL
@@ -107,7 +109,7 @@ def _get_outcome_from_retry(
     return _TestOutcome(status=_outcome_status, skip_reason=_outcome_skip_reason, exc_info=_outcome_exc_info)
 
 
-def _retry_run_when(item, when, retry_number: int) -> t.Tuple[CallInfo, _pytest.reports.TestReport]:
+def _retry_run_when(retry_manager, item, when, retry_number: int) -> t.Tuple[CallInfo, _pytest.reports.TestReport]:
     hooks = {
         "setup": item.ihook.pytest_runtest_setup,
         "call": item.ihook.pytest_runtest_call,
@@ -124,7 +126,7 @@ def _retry_run_when(item, when, retry_number: int) -> t.Tuple[CallInfo, _pytest.
         call = CallInfo.from_call(lambda: hook(item=item), when=when)
     report = item.ihook.pytest_runtest_makereport(item=item, call=call)
     report.user_properties += [
-        ("dd_retry_reason", "auto_test_retry"),
+        ("dd_retry_reason", retry_manager.retry_reason),
         ("dd_retry_outcome", report.outcome),
         ("dd_retry_number", retry_number),
     ]

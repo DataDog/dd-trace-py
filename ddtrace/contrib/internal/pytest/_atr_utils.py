@@ -91,7 +91,7 @@ def _do_retries(retry_manager: RetryManager, item: pytest.Item) -> TestStatus:
         retry_num = retry_manager.add_and_start_retry()
 
         with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _get_outcome_from_retry(item, retry_num)
+            retry_outcome = _get_outcome_from_retry(item, retry_manager, retry_num)
 
         retry_manager.finish_retry(
             retry_number=retry_num,
@@ -262,22 +262,23 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         return None
 
     retry_outcome = get_user_property(report, "dd_retry_outcome")
+    retry_reason = get_user_property(report, "dd_retry_reason")
     if retry_outcome == "passed":
         return (
             "retry",
             "r",
-            (f"RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
         )
     if retry_outcome == "failed":
         return (
             "retry",
             "R",
-            (f"RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
         )
     if retry_outcome == "skipped":
         return (
             "retry",
             "s",
-            (f"RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     return None
