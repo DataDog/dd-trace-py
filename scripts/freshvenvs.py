@@ -16,8 +16,7 @@ from pip import _internal
 
 from ddtrace.contrib.integration_registry.mappings import (
     INTEGRATION_TO_DEPENDENCY_MAPPING,
-    DEPENDENCY_TO_INTEGRATION_MAPPING,
-    INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES
+    DEPENDENCY_TO_INTEGRATION_MAPPING
 )
 
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
@@ -339,8 +338,12 @@ def generate_supported_versions(contrib_modules, all_used_versions):
     for contrib_module in contrib_modules:
         for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module])):
             if dependency not in all_used_versions:
-                # try remapping for the special case
-                versions = all_used_versions[INTEGRATION_TO_DEPENDENCY_MAPPING_SPECIAL_CASES.get(contrib_module)]
+                # special case, some dependencies such as dogpile_cache can be installed
+                # e.g. dogpile.cache or dogpile-cache or dogpile_cache, just use the one with versions
+                for dep in INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module]):
+                    if dep in all_used_versions:
+                        versions = all_used_versions[dep]
+                        break
             else:
                 versions = all_used_versions[dependency]
             ordered = sorted([Version(v) for v in versions], reverse=True)
@@ -360,6 +363,7 @@ def generate_supported_versions(contrib_modules, all_used_versions):
                 patched[contrib_module] = _is_module_autoinstrumented(contrib_module)
             json_format["auto-instrumented"] = patched[contrib_module]
             supported_versions.append(json_format)
+            versions = []
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
     with open("supported_versions_output.json", "w") as file:

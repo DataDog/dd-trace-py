@@ -28,8 +28,8 @@ def get_integration_to_dependency_map(special_cases: Optional[Dict[str, str]] = 
 
         dependency_map[integration_name] = valid_dependency_names
 
-    for special_case, dependency in special_cases.items():
-        dependency_map[special_case].add(dependency)
+    for dependency, integration in special_cases.items():
+        dependency_map[integration].add(dependency)
 
     return dependency_map
 

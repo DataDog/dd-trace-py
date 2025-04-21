@@ -29,7 +29,6 @@ def pytest_sessionfinish(session):
     data_file_path = getattr(session.config, "_registry_session_data_file", None)
 
     if not data_file_path or not os.path.exists(data_file_path):
-        print(f"\nWarning: Integration Registry data file missing ({data_file_path}). Skipping registry update.", file=sys.stderr)
         IntegrationUpdateOrchestrator.cleanup_session_data(session)
         return
 

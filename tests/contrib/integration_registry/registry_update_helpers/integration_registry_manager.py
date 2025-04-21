@@ -37,11 +37,13 @@ class IntegrationRegistryManager:
 
     def _is_valid_patch_call(self, tb_string):
         """Checks if the patch call originated from ddtrace.contrib.internal/*/patch.py."""
-        return any("ddtrace/contrib/internal" in line and "/patch.py" in line for line in tb_string.splitlines())
+        # reverse the lines to check the most recent patch call first since some integrations call other integrations patches
+        # e.g. mongoengine calls pymongo's patch
+        return any("ddtrace/contrib/internal" in line and "/patch.py" in line for line in reversed(tb_string.splitlines()))
 
     def _get_integration_name_from_traceback(self, tb_string):
         """Extracts integration name (directory name) from traceback string."""
-        for line in tb_string.splitlines():
+        for line in reversed(tb_string.splitlines()):
             if "ddtrace/contrib/internal/" in line:
                 try:
                     # e.g., ".../ddtrace/contrib/internal/flask/patch.py" -> "flask"
@@ -102,12 +104,8 @@ class IntegrationRegistryManager:
             og_getattr = self.original_getattr
 
             if name in ("_datadog_patch", "__datadog_patch"):
-                try:
-                    is_processed = obj in self.processed_objects
-                    is_patched = obj in self.patched_objects
-                except TypeError:
-                    is_processed = False
-                    is_patched = False
+                is_processed = obj in self.processed_objects
+                is_patched = obj in self.patched_objects
 
                 if not is_processed and not is_patched:
                     tb = traceback.extract_stack()[:-1]

@@ -11,7 +11,7 @@ class IntegrationUpdateOrchestrator:
     TOOLING_VENV_DIR = ".venv-registry-tools"
     TOOLING_DEPS = ["pyyaml", "riot", "filelock"]
     REGISTRY_UPDATER_MODULE = "tests.contrib.integration_registry.registry_update_helpers.integration_registry_updater"
-    REGISTRY_UPDATER_CLASS = "RegistryUpdater"
+    REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"
     UPDATER_LOCK_FILE = "ddtrace/contrib/integration_registry/registry.yaml.lock"
     LOCK_MAX_WAIT_SECONDS = 15
@@ -45,7 +45,7 @@ class IntegrationUpdateOrchestrator:
     def _ensure_tooling_venv(self):
         """Ensures the integration registry tools venv is created and up to date."""
         tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
-        pip_timeout = 90
+        pip_timeout = 20
 
         if os.path.exists(tooling_python):
             try:
@@ -58,7 +58,7 @@ class IntegrationUpdateOrchestrator:
 
         try:
             cmd = ["python3", "-m", "venv", self.tooling_env_path]
-            if not self._run_subprocess(cmd, 60, self.project_root, "venv creation", verbose=False):
+            if not self._run_subprocess(cmd, 20, self.project_root, "venv creation", verbose=False):
                 return False
         except Exception:
             return False
@@ -160,14 +160,17 @@ class IntegrationUpdateOrchestrator:
                 f"sys.exit(0 if success else 1);"
             )
             cmd_updater = [tooling_python, "-c", py_cmd]
-            updater_succeeded = self._run_subprocess(cmd_updater, 120, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False)
+            updater_succeeded = self._run_subprocess(cmd_updater, 20, self.project_root, self.REGISTRY_UPDATER_CLASS, verbose=False)
+            # from tests.contrib.integration_registry.registry_update_helpers.integration_registry_updater import IntegrationRegistryUpdater
+            # updater = IntegrationRegistryUpdater()
+            # updater_succeeded = updater.run(data_file_path)
 
             # 2. Run Main IntegrationRegistry Update/Format Script if we have changes to the registry
             if updater_succeeded:
                 script_path = os.path.join(self.project_root, self.MAIN_UPDATE_SCRIPT)
                 if os.path.exists(script_path):
                     cmd_main = [tooling_python, script_path]
-                    self._run_subprocess(cmd_main, 180, self.project_root, "Main Update Script", verbose=True)
+                    self._run_subprocess(cmd_main, 20, self.project_root, "Main Update Script", verbose=True)
 
         finally:
             # Cleanup updater's lock file

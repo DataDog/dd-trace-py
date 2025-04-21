@@ -1,15 +1,17 @@
 import json
 import pathlib
 import sys
+from typing import Union
 
 from filelock import FileLock
 import importlib
 import yaml
 
 
-class RegistryUpdater:
+class IntegrationRegistryUpdater:
     """
-    Handles loading, merging, and writing integration registry data using file locking.
+    Handles loading, merging, and writing integration registry data using file locking. Checks if the registry needs to be updated before
+    merging/writing.
     """
 
     def __init__(self):
@@ -24,7 +26,7 @@ class RegistryUpdater:
         self.lock_timeout_seconds = 15
         self.lock = FileLock(self.registry_lock_path, timeout=self.lock_timeout_seconds)
 
-    def _find_project_root(self) -> pathlib.Path | None:
+    def _find_project_root(self) -> Union[pathlib.Path, None]:
         """Finds the project root by searching upwards for marker files."""
         current_dir = pathlib.Path(__file__).parent
         for _ in range(5):
@@ -71,7 +73,7 @@ class RegistryUpdater:
             if hasattr(module, "get_version"):
                 return module.get_version()
         except Exception:
-            return None
+            return ""
     
     def _semver_compare(self, version1: str, version2: str) -> int:
         """
@@ -119,21 +121,20 @@ class RegistryUpdater:
             entry = registry_map[integration_name]
             if not entry.get("is_external_package"):
                 continue
-
             for dep, top_level_module in new_deps.items():
                 current_deps_set = set(entry.get("dependency_name", []))
-                if not dep in current_deps_set:
+                if not dep.lower() in current_deps_set:
                     return True
                 else:
                     dep_version = self._get_contrib_version(integration_name, top_level_module)
-                    if dep_version is None:
+                    if dep_version == "":
                         return False
-                    min_version = entry.get("tested_versions_by_dependency", {}).get(dep, None).get("min", None)
+                    min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)
                     if min_version is None:
                         return True
                     if self._semver_compare(dep_version, min_version) == -1:
                         return True
-                    max_version = entry.get("tested_versions_by_dependency", {}).get(dep, {}).get("max", None)
+                    max_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), {}).get("max", None)
                     if max_version is None:
                         return True
                     if self._semver_compare(dep_version, max_version) == 1:
