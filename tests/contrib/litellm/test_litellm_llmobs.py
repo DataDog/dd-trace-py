@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace._trace.pin import Pin
+from ddtrace._monkey import patch
 from tests.contrib.litellm.utils import async_consume_stream
 from tests.contrib.litellm.utils import consume_stream
 from tests.contrib.litellm.utils import get_cassette_name
@@ -198,11 +199,11 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_integrations_enabled=True)])
-    def test_completion_integrations_enabled(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, ddtrace_global_config
+    def test_completion_openai_enabled(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            patch(openai=True)
             import openai
 
             pin = Pin.get_from(openai)

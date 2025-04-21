@@ -56,7 +56,7 @@ def litellm(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
-def litellm_llmobs(mock_tracer, llmobs_span_writer, ddtrace_global_config):
+def litellm_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config(
         {
@@ -64,8 +64,7 @@ def litellm_llmobs(mock_tracer, llmobs_span_writer, ddtrace_global_config):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        enable_integrations = ddtrace_global_config.get("_llmobs_integrations_enabled", False)
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=enable_integrations)
+        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
