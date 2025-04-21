@@ -1,6 +1,10 @@
+from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
+
+from ddtrace.llmobs._constants import SPAN_LINKS
 
 
 # TypedDict was added to typing in python 3.8
@@ -10,6 +14,8 @@ except ImportError:
     from typing_extensions import TypedDict
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -89,3 +95,131 @@ class Documents:
                     raise TypeError("document score must be an integer or float.")
                 formatted_document["score"] = document_score
             self.documents.append(formatted_document)
+
+
+class LLMObsState(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.llmobs_service = kwargs.get("llmobs_service", None)
+        self.proxy: Dict[str, List[Span]] = kwargs.get("_proxy", {})
+
+        self.reading = False
+
+    def set_reading(self, carrier: Optional[Dict[str, Any]] = None, carrier_key: Optional[str] = None):
+        self.carrier = carrier
+        self.carrier_key = carrier_key
+
+        self.reading = True
+
+    def stop_reading(self):
+        self.reading = False
+
+        self.carrier = None
+        self.carrier_key = None
+
+    def __getitem__(self, key):
+        self._handle_get(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        self._handle_get(key)
+        return super().get(key, default)
+
+    def _handle_get(self, key: str):
+        if not self.reading:
+            return
+
+        from_spans_meta: Dict[str, Any] = self.proxy.get(key, None)
+
+        current_span: Span = self.llmobs_service._current_span()
+        existing_links = (
+            self.carrier.get(self.carrier_key, [])
+            if self.carrier is not None
+            else current_span._get_ctx_item(SPAN_LINKS) or []
+        )
+
+        if not from_spans_meta:
+            return
+
+        from_spans: Optional[List[Span]] = from_spans_meta.get("spans", None)
+        if from_spans is None:
+            return
+
+        for span in from_spans:
+            if span is None:
+                continue
+            existing_links.append(
+                {
+                    "trace_id": span["trace_id"],
+                    "span_id": span["span_id"],
+                    "attributes": {
+                        "source": "influence",
+                        "accessed_attribute": key,
+                    },
+                }
+            )
+
+        from_spans_meta["used"] = True
+
+        if self.carrier is not None:
+            self.carrier[self.carrier_key] = existing_links
+        else:
+            current_span._set_ctx_item(SPAN_LINKS, existing_links)
+
+    def _handle_set(self, key: str):
+        if key in ("_proxy", "llmobs_service"):
+            return
+
+        current_span: Span = self.llmobs_service._current_span()
+        spans_meta: Dict[str, Any] = self.proxy.setdefault(key, {})
+        spans: Optional[List[Span]] = spans_meta.get("spans", None)
+        if spans is None:
+            spans_meta["spans"] = [
+                {
+                    "trace_id": format_trace_id(current_span.trace_id),
+                    "span_id": str(current_span.span_id),
+                }
+            ]
+        else:
+            if spans_meta.get("used", False):
+                spans.clear()
+                del spans_meta["used"]
+            spans.append(
+                {
+                    "trace_id": format_trace_id(current_span.trace_id),
+                    "span_id": str(current_span.span_id),
+                }
+            )
+
+    def to_state_dict(self):
+        dict_keys = [key for key in self.keys() if key not in ("_proxy", "llmobs_service")]
+        return {
+            key: self[key] for key in dict_keys
+        }
+
+    @staticmethod
+    def from_state(llmobs_states: Union["LLMObsState", List["LLMObsState"]], state: Dict, service):
+        llmobs_proxies = llmobs_states if isinstance(llmobs_states, list) else [llmobs_states]
+
+        # merge spans of all llmobs_states
+        merged_llmobs_proxies: Dict[str, List[Span]] = {}
+        for llmobs_proxy in llmobs_proxies:
+            if llmobs_proxy is None:
+                continue
+            for key, value in llmobs_proxy.proxy.items():
+                if key not in merged_llmobs_proxies:
+                    merged_llmobs_proxies[key] = value
+                else:
+                    merged_llmobs_proxies[key]["spans"].extend(value["spans"])
+
+        return LLMObsState(state, _proxy=merged_llmobs_proxies, llmobs_service=service)
+
+    @staticmethod
+    def from_dict(state: Dict[str, Any]):
+        if isinstance(state, LLMObsState):
+            return state
+
+        proxy = state.pop("_proxy", {})
+        llmobs_service = state.pop("llmobs_service", None)
+        return LLMObsState(state, _proxy=proxy, llmobs_service=llmobs_service)

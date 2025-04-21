@@ -1,11 +1,9 @@
+from contextlib import suppress
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
-
-import json
-from ddtrace.llmobs._utils import safe_json
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -21,65 +19,39 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs.utils import LLMObsState
 from ddtrace.trace import Span
 
-from contextlib import suppress
-from collections import Counter
-
-class ProxyState(dict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self._accessed_items = []
-
-    def __getitem__(self, key):
-        self._accessed_items.append(key)
-        return super().__getitem__(key)
-    
-    def get(self, key, default=None):
-        self._accessed_items.append(key)
-        return super().get(key, default)
 
 class LangGraphRoutingContext:
-    def __init__(self, args, kwargs, router_name: str, node_metadata: dict):
-        self.args = list(args)
-        self.kwargs = kwargs
-        self.return_value = None
+    def __init__(self, state: LLMObsState, current_node_metadata: Dict[str, Any], args: tuple):
+        self.state = state
+        self.current_node_metadata = current_node_metadata
+        self.args = args
 
-        self.node_metadata = node_metadata
-        self.router_name = router_name
+    def get_args(self):
+        return (self.state, *self.args[1:])
 
     def __enter__(self):
         self._do_enter()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._do_exit()
-
-    async def __aenter__(self):
+    def __aenter__(self):
         self._do_enter()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_value, traceback):
         self._do_exit()
 
-    def set_return_value(self, return_value):
-        self.return_value = return_value
+    def __aexit__(self, exc_type, exc_value, traceback):
+        self._do_exit()
 
-    def get_fn_args(self):
-        return self.args
-    
     def _do_enter(self):
-        self.args[0] = ProxyState(self.args[0])
+        self.state.set_reading(carrier=self.current_node_metadata, carrier_key="influenced_by")
 
     def _do_exit(self):
-        state = dict(self.args[0])
-        routing_results = self.node_metadata.setdefault("routing_results", {})
+        self.state.stop_reading()
 
-        routing_results["router"] = self.router_name
-        routing_results["inputs"] = safe_json(state)
-        routing_results["accessed"] = safe_json(dict(Counter(self.args[0]._accessed_items)))
-        routing_results["outputs"] = safe_json(self.return_value)
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
@@ -88,7 +60,8 @@ class LangGraphIntegration(BaseLLMIntegration):
     def routing_context(self, node_name, args, kwargs) -> Union[LangGraphRoutingContext, suppress]:
         if not self.llmobs_enabled:
             return suppress()
-        
+
+        state = get_argument_value(args, kwargs, 0, "input")
         config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
         task_id = config.get("metadata", {}).get("langgraph_checkpoint_ns", "").split(":")[-1]
         current_node_metadata = self._graph_nodes_by_task_id.get(task_id, {})
@@ -96,8 +69,12 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if node_name in ("_write", "_route", "_control_branch") or (node_name == current_node_name):
             return suppress()
-        
-        return LangGraphRoutingContext(args, kwargs, node_name, current_node_metadata)
+
+        return LangGraphRoutingContext(
+            state=LLMObsState.from_dict(state),
+            current_node_metadata=current_node_metadata,
+            args=args
+        )
 
     def _llmobs_set_tags(
         self,
@@ -123,17 +100,18 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = invoked_node_span_links
         current_span_links = span._get_ctx_item(SPAN_LINKS) or []
 
-        # print(f"setting span links: {span_links}")
-
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
-                INPUT_VALUE: format_langchain_io(inputs),
-                OUTPUT_VALUE: format_langchain_io(response),
+                INPUT_VALUE: format_langchain_io(inputs.to_state_dict() if isinstance(inputs, LLMObsState) else inputs),
+                OUTPUT_VALUE: format_langchain_io(response.to_state_dict() if isinstance(response, LLMObsState) else response),
                 NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }
         )
+
+        print(f"\n\nsetting span links for {span._get_ctx_item(NAME)}: {span._get_ctx_item(SPAN_LINKS)}")
+
         if operation == "graph" and not _is_subgraph(span):
             self._graph_nodes_by_task_id.clear()
 
@@ -154,7 +132,8 @@ class LangGraphIntegration(BaseLLMIntegration):
             return
         finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
         for task_id, task in next_tasks.items():
-            self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
+            trigger_node_ids = self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
+            self._set_llmobs_state(task, task_id, next_tasks, finished_tasks, trigger_node_ids)
 
     def _handle_finished_graph(self, graph_span: Span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
@@ -168,14 +147,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         for task_id in finished_tasks.keys():
             graph_node = self._graph_nodes_by_task_id.get(task_id, {})
             graph_node_span = graph_node.get("span")
-            graph_node_routing_results = graph_node.get("routing_results", {})
-
+            graph_node_influenced_by = graph_node.get("influenced_by", {})
             output_span_links.append(
                 {
                     **graph_node_span,
-                    "attributes": {"from": "output", "to": "output", **graph_node_routing_results},
+                    "attributes": {"from": "output", "to": "output"},
                 }
             )
+            output_span_links.extend(graph_node_influenced_by)
         graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
         if graph_caller_span is not None and not is_subgraph_node:
@@ -217,10 +196,36 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_link = {
                 "span_id": trigger_node_span.get("span_id", ""),
                 "trace_id": trigger_node_span.get("trace_id", ""),
-                "attributes": {"from": "output", "to": "input", **trigger_node.get("routing_results", {})},
+                "attributes": {"from": "output", "to": "input"},
             }
             span_links = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
+
+            span_links.extend(trigger_node.get("influenced_by", []))
+
+        return trigger_node_ids
+
+    def _set_llmobs_state(self, task, task_id, next_tasks, finished_tasks, trigger_node_ids):
+        trigger_nodes = [finished_tasks.get(task_id) for task_id in trigger_node_ids if task_id]
+        old_llmobs_states = [getattr(trigger_node, "input", None) for trigger_node in trigger_nodes if trigger_node]
+        next_tasks[task_id] = task._replace(
+            input=LLMObsState.from_state(llmobs_states=old_llmobs_states, state=task.input, service=LLMObs._instance)
+        )
+
+    def get_llmobs_state(self, node_name: str, input_state, output_state: Optional[Dict[str, Any]] = None):
+        if (
+            not self.llmobs_enabled
+            or not isinstance(input_state, LLMObsState)
+            or not isinstance(output_state, dict)
+            or node_name in ("_write", "_route", "_control_branch")
+        ):
+            return output_state
+
+        for key in output_state.keys():
+            input_state._handle_set(key)
+
+        #  coerce the output state into an LLMObsState
+        return LLMObsState.from_state(llmobs_states=[input_state], state=output_state, service=LLMObs._instance)
 
 
 def _normalize_triggers(triggers, finished_tasks, next_task) -> List[str]:
