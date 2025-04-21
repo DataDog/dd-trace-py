@@ -1,3 +1,6 @@
+import os
+import tempfile
+
 import pytest
 
 
@@ -37,6 +40,31 @@ apm_configuration_default:
 
             # Ensure managed configuration takes precedence over local config and envars
             assert config.version == "c", f"Expected DD_VERSION to be 'c' but got {config.version}"
+
+
+def test_get_configuration_debug_logs(run_python_code_in_subprocess):
+    """
+    Verify stable config debug log enablement
+    """
+    # Create managed config
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="managed_config") as managed_config:
+        managed_config.write(
+            b"""
+apm_configuration_default:
+  DD_VERSION: "c"
+"""
+        )
+        managed_config.flush()
+
+        env = os.environ.copy()
+        env["DD_TRACE_DEBUG"] = "true"
+        env["_DD_SC_MANAGED_FILE_OVERRIDE"] = managed_config.name
+
+        _, err, status, _ = run_python_code_in_subprocess("from ddtrace import config", env=env)
+        assert status == 0, err
+        assert b"Read the following static config: StableConfig" in err
+        assert b'ConfigMap([(DdVersion, "c")]), tags: {}, rules: [] }' in err
+        assert b"configurator: Configurator { debug_logs: true }" in err
 
 
 @pytest.mark.subprocess(parametrize={"DD_VERSION": ["b", None]})
