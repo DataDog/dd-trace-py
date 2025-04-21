@@ -68,11 +68,7 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        config._subscribe(["_trace_sampling_rules"], _on_global_config_update)
-        config._subscribe(["_logs_injection"], _on_global_config_update)
-        config._subscribe(["tags"], _on_global_config_update)
-        config._subscribe(["_tracing_enabled"], _on_global_config_update)
-
+        apm_tracing_rc_subscribe(config)
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods
 
@@ -112,6 +108,12 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_CUSTOM_TAGS = 1 << 15
     APM_TRACING_ENABLED = 1 << 19
     APM_TRACING_SAMPLE_RULES = 1 << 29
+
+
+def apm_tracing_rc_subscribe(dd_config):
+    dd_config._subscribe(
+        ["_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled"], _on_global_config_update
+    )
 
 
 def apm_tracing_rc(lib_config, dd_config):
