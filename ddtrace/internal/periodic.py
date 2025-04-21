@@ -6,7 +6,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
-from ddtrace.internal.datadog.profiling import stack_v2
 
 
 @atexit.register
@@ -63,15 +62,11 @@ class PeriodicService(service.Service):
             on_shutdown=self.on_shutdown,
         )
         self._worker.start()
-        if stack_v2.is_available and self._worker.native_id is not None:
-            stack_v2.register_thread(self._worker.ident, self._worker.native_id, self._worker.name)  # type: ignore
 
     def _stop_service(self, *args, **kwargs):
         # type: (typing.Any, typing.Any) -> None
         """Stop the periodic collector."""
         if self._worker:
-            if stack_v2.is_available and self._worker.native_id is not None:
-                stack_v2.unregister_thread(self._worker.ident)  # type: ignore
             self._worker.stop()
         super(PeriodicService, self)._stop_service(*args, **kwargs)  # type: ignore[safe-super]
 
