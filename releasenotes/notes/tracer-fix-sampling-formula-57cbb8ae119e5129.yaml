@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: fixes an issue where the sampling decision was hardcoded to USER_KEEP when extracting
+    sampling priority from HTTP headers, if there was no `x-datadog-sampling-priority` header. The
+    sampling decision is now made using the updated sampling formula.
+upgrade:
+  - |
+    tracing: sampling formula updated to have the same as the one in the agent and other tracers.

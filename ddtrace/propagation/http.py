@@ -310,7 +310,10 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
+        sampling_priority = _extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
+            headers,
+        )
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -345,8 +348,6 @@ class _DatadogMultiHeader:
         try:
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)  # type: ignore[assignment]
-            else:
-                sampling_priority = sampling_priority
 
             if meta:
                 meta = validate_sampling_decision(meta)
