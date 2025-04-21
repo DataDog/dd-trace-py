@@ -2,6 +2,7 @@ import os
 import sys
 
 import litellm
+from litellm.proxy.route_llm_request import route_request
 
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
@@ -28,24 +29,6 @@ def get_version() -> str:
     return getattr(version_module, "version", "")
 
 
-@with_traced_module
-async def traced_run_endpoint_function(litellm, pin, func, instance, args, kwargs):
-    name = getattr(getattr(kwargs.get("dependant", None), "call", None), "__name__", "")
-    if name != "chat_completion":
-        return await func(*args, **kwargs)
-    integration = litellm._datadog_integration
-    span = integration.trace(
-        pin,
-        "chat_completion",
-        submit_to_llmobs=False,
-    )
-    try:
-        return await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
@@ -143,6 +126,10 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     return model, custom_llm_provider, dynamic_api_key, api_base
 
 
+@with_traced_module
+async def traced_proxy_request(litellm, pin, func, instance, args, kwargs):
+    return await func(*args, **kwargs)
+
 def patch():
     if getattr(litellm, "_datadog_patch", False):
         return
@@ -159,7 +146,7 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "litellm.main.get_llm_provider", traced_get_llm_provider(litellm))
-    wrap("fastapi.routing", "run_endpoint_function", traced_run_endpoint_function(litellm))
+    wrap("litellm", "proxy.route_llm_request.route_request", traced_proxy_request(litellm))
 
 
 def unpatch():
@@ -174,5 +161,6 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.litellm.main, "get_llm_provider")
+    unwrap(litellm.proxy.route_llm_request, "route_request")
 
     delattr(litellm, "_datadog_integration")
