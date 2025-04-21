@@ -121,9 +121,7 @@ def apm_tracing_rc(lib_config, dd_config):
         global_sampling_rate = lib_config.get("tracing_sampling_rate")
         trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
         # returns None if no rules
-        trace_sampling_rules = dd_config._convert_rc_trace_sampling_rules(
-            trace_sampling_rules, global_sampling_rate
-        )
+        trace_sampling_rules = dd_config._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
         if trace_sampling_rules:
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
