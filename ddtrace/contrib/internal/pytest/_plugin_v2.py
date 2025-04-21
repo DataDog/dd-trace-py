@@ -116,25 +116,27 @@ def _debugme(f):
     return wrapped
 
 
+@_debugme
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
     This function has the side effect of marking the test as skipped immediately if it should be skipped.
     """
-    if not InternalTestSession.is_test_skipping_enabled():
+    if not CIVisibility.test_skipping_enabled():
         return False
 
-    suite_id = test_id.parent_id
+    test = CIVisibility.get_test_by_id(test_id)
+    suite = test.parent
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    item_is_unskippable = suite.is_itr_unskippable(suite_id) or test.is_attempt_to_fix()
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    if suite.is_itr_skippable():
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
-            InternalTest.mark_itr_forced_run(test_id)
+            test.mark_itr_forced_run()
             return False
 
-        InternalTest.mark_itr_skipped(test_id)
+        test.mark_itr_skipped()
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
         return True
@@ -142,6 +144,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
+@_debugme
 def _handle_test_management(item, test):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
@@ -775,10 +778,3 @@ def pytest_ddtrace_get_item_test_name(item):
     """Extract name from item, prepending class if desired"""
     names = _get_names_from_item(item)
     return names.test
-
-
-# if True:
-#     _globals = globals()
-#     for name, f in list(_globals.items()):
-#         if callable(f) and name != "_debugme":
-#             _globals[name] = _debugme(f)
