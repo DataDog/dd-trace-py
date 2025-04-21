@@ -134,6 +134,19 @@ suites:
     services:
       - postgres
       - mysql
+  appsec_integrations_langchain:
+    parallelism: 15
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/langchain_tests/*
+    retry: 2
+    runner: hatch
   appsec_integrations_flask:
     parallelism: 17
     paths:
