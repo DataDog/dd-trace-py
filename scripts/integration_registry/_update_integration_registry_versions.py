@@ -200,9 +200,12 @@ def _update_and_add_integration_versions(
 
         elif "tested_versions_by_dependency" in updated_entry or "dependency_name" in updated_entry:
             data_existed = "tested_versions_by_dependency" in updated_entry
-            if "tested_versions_by_dependency" in updated_entry: del updated_entry["tested_versions_by_dependency"]
-            if "dependency_name" in updated_entry: del updated_entry["dependency_name"]
-            if data_existed: removed_count += 1
+            if "tested_versions_by_dependency" in updated_entry:
+                del updated_entry["tested_versions_by_dependency"]
+            if "dependency_name" in updated_entry:
+                del updated_entry["dependency_name"]
+            if data_existed:
+                removed_count += 1
 
         final_integrations_list.append(updated_entry)
 

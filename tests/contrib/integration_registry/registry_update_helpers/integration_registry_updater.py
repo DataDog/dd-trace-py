@@ -1,17 +1,17 @@
+import importlib
 import json
 import pathlib
 import sys
 from typing import Union
 
 from filelock import FileLock
-import importlib
 import yaml
 
 
 class IntegrationRegistryUpdater:
     """
-    Handles loading, merging, and writing integration registry data using file locking. Checks if the registry needs to be updated before
-    merging/writing.
+    Handles loading, merging, and writing integration registry data using file locking. Checks if the registry needs
+    to be updated before merging/writing.
     """
 
     def __init__(self):
@@ -59,7 +59,7 @@ class IntegrationRegistryUpdater:
                 return json.load(f)
         except Exception:
             return {}
-        
+
     def _get_contrib_version(self, integration_name: str, top_level_module: str) -> str:
         """
         Returns the version of the module using the integration's get_version function.
@@ -74,7 +74,7 @@ class IntegrationRegistryUpdater:
                 return module.get_version()
         except Exception:
             return ""
-    
+
     def _semver_compare(self, version1: str, version2: str) -> int:
         """
         Compares two semantic version strings (X.Y.Z format).
@@ -90,14 +90,20 @@ class IntegrationRegistryUpdater:
         v1_parts = [int(p) for p in version1.split(".")]
         v2_parts = [int(p) for p in version2.split(".")]
 
-        if v1_parts[0] > v2_parts[0]: return 1
-        if v1_parts[0] < v2_parts[0]: return -1
+        if v1_parts[0] > v2_parts[0]:
+            return 1
+        if v1_parts[0] < v2_parts[0]:
+            return -1
 
-        if v1_parts[1] > v2_parts[1]: return 1
-        if v1_parts[1] < v2_parts[1]: return -1
+        if v1_parts[1] > v2_parts[1]:
+            return 1
+        if v1_parts[1] < v2_parts[1]:
+            return -1
 
-        if v1_parts[2] > v2_parts[2]: return 1
-        if v1_parts[2] < v2_parts[2]: return -1
+        if v1_parts[2] > v2_parts[2]:
+            return 1
+        if v1_parts[2] < v2_parts[2]:
+            return -1
 
         return 0
 
@@ -123,7 +129,7 @@ class IntegrationRegistryUpdater:
                 continue
             for dep, top_level_module in new_deps.items():
                 current_deps_set = set(entry.get("dependency_name", []))
-                if not dep.lower() in current_deps_set:
+                if dep.lower() not in current_deps_set:
                     return True
                 else:
                     dep_version = self._get_contrib_version(integration_name, top_level_module)
@@ -138,7 +144,7 @@ class IntegrationRegistryUpdater:
                     if max_version is None:
                         return True
                     if self._semver_compare(dep_version, max_version) == 1:
-                        return True 
+                        return True
         return False
 
     def merge_data(self, registry_data: dict, input_data: dict) -> bool:

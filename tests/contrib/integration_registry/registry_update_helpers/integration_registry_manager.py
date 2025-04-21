@@ -37,9 +37,12 @@ class IntegrationRegistryManager:
 
     def _is_valid_patch_call(self, tb_string):
         """Checks if the patch call originated from ddtrace.contrib.internal/*/patch.py."""
-        # reverse the lines to check the most recent patch call first since some integrations call other integrations patches
-        # e.g. mongoengine calls pymongo's patch
-        return any("ddtrace/contrib/internal" in line and "/patch.py" in line for line in reversed(tb_string.splitlines()))
+        # reverse the lines to check the most recent patch call first since some integrations call
+        # other integrations patches:
+        #   e.g. mongoengine calls pymongo's patch
+        return any(
+            "ddtrace/contrib/internal" in line and "/patch.py" in line for line in reversed(tb_string.splitlines())
+        )
 
     def _get_integration_name_from_traceback(self, tb_string):
         """Extracts integration name (directory name) from traceback string."""
@@ -53,9 +56,9 @@ class IntegrationRegistryManager:
                 except (IndexError, Exception):
                     continue
         return None
-    
+
     def _get_top_level_module_from_object(self, obj):
-        attrs = ['__module__', '__name__']
+        attrs = ["__module__", "__name__"]
         for attr in attrs:
             try:
                 return self.original_getattr(obj, attr).split(".", 1)[0]
@@ -89,7 +92,9 @@ class IntegrationRegistryManager:
                     for distribution_name in distribution_names:
                         update_key = f"{integration_name}:{distribution_name}"
                         if update_key not in self.updated_packages:
-                            self.pending_updates[integration_name]["dependency_name"][distribution_name] = top_level_module
+                            self.pending_updates[integration_name]["dependency_name"][
+                                distribution_name
+                            ] = top_level_module
                             self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)

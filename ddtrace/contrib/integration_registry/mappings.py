@@ -25,7 +25,7 @@ DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "datadog-lambda": "aws_lambda",
     "datadog_lambda": "aws_lambda",
     "aiohttp-jinja2": "aiohttp_jinja2",
-    "aiohttp_jinja2": "aiohttp_jinja2"
+    "aiohttp_jinja2": "aiohttp_jinja2",
 }
 
 INTEGRATION_TO_DEPENDENCY_MAPPING = get_integration_to_dependency_map(DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES)
