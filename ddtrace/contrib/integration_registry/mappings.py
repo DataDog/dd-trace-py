@@ -20,7 +20,7 @@ DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "dogpile.cache": "dogpile_cache",
     "dogpile_cache": "dogpile_cache",
     "dogpile-cache": "dogpile_cache",
-    "boto3": "boto",
+    "boto3": "botocore",
     "pytest-bdd": "pytest_bdd",
     "datadog-lambda": "aws_lambda",
     "datadog_lambda": "aws_lambda",
