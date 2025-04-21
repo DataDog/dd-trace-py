@@ -32,11 +32,8 @@ from ddtrace.contrib.internal.pytest._utils import _get_test_parameters_json
 from ddtrace.contrib.internal.pytest._utils import _is_enabled_early
 from ddtrace.contrib.internal.pytest._utils import _is_test_unskippable
 from ddtrace.contrib.internal.pytest._utils import _pytest_marked_to_skip
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
@@ -76,23 +73,10 @@ from ddtrace.vendor.debtcollector import deprecate
 
 if _pytest_version_supports_retries():
     from ddtrace.contrib.internal.pytest._retry_utils import get_retry_num
+    from ddtrace.contrib.internal.pytest._retry_utils import retry_get_teststatus
+    from ddtrace.contrib.internal.pytest._retry_utils import handle_retries
+    from ddtrace.contrib.internal.pytest._retry_utils import retry_pytest_terminal_summary_post_yield
 
-if _pytest_version_supports_efd():
-    from ddtrace.contrib.internal.pytest._efd_utils import efd_get_failed_reports
-    from ddtrace.contrib.internal.pytest._efd_utils import efd_get_teststatus
-    from ddtrace.contrib.internal.pytest._efd_utils import efd_handle_retries
-    from ddtrace.contrib.internal.pytest._efd_utils import efd_pytest_terminal_summary_post_yield
-
-if _pytest_version_supports_atr():
-    from ddtrace.contrib.internal.pytest._atr_utils import atr_get_failed_reports
-    from ddtrace.contrib.internal.pytest._atr_utils import atr_get_teststatus
-    from ddtrace.contrib.internal.pytest._atr_utils import handle_retries
-    from ddtrace.contrib.internal.pytest._atr_utils import retry_pytest_terminal_summary_post_yield
-
-if _pytest_version_supports_attempt_to_fix():
-    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_get_teststatus
-    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_handle_retries
-    from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
 
@@ -296,12 +280,12 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         command = _get_session_command(session)
 
         library_capabilities = LibraryCapabilities(
-            early_flake_detection="1" if _pytest_version_supports_efd() else None,
-            auto_test_retries="1" if _pytest_version_supports_atr() else None,
+            early_flake_detection="1" if _pytest_version_supports_retries() else None,
+            auto_test_retries="1" if _pytest_version_supports_retries() else None,
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="2" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="2" if _pytest_version_supports_retries() else None,
         )
 
         InternalTestSession.discover(
@@ -318,8 +302,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         InternalTestSession.set_library_capabilities(library_capabilities)
 
         InternalTestSession.start()
-        if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
-            log.warning("Early Flake Detection disabled: pytest version is not supported")
 
     except Exception:  # noqa: E722
         log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
@@ -731,20 +713,9 @@ def pytest_report_teststatus(
     if not is_test_visibility_enabled():
         return
 
-    if _pytest_version_supports_attempt_to_fix():
-        test_status = attempt_to_fix_get_teststatus(report)
-        if test_status:
-            return test_status
-
-    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        test_status = atr_get_teststatus(report)
-        if test_status is not None:
-            return test_status
-
-    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
-        test_status = efd_get_teststatus(report)
-        if test_status is not None:
-            return test_status
+    test_status = retry_get_teststatus(report)
+    if test_status is not None:
+        return test_status
 
     user_properties = getattr(report, "user_properties", [])
     is_quarantined = USER_PROPERTY_QUARANTINED in user_properties

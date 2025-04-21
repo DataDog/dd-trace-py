@@ -1,3 +1,4 @@
+import functools
 import typing as t
 
 import _pytest
@@ -25,6 +26,7 @@ log = get_logger(__name__)
 
 
 def _debugme(f):
+    @functools.wraps(f)
     def wrapped(*args, **kwargs):
         try:
             return f(*args, **kwargs)
