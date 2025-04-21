@@ -283,7 +283,7 @@ def test_custom_writer():
         def flush_queue(self) -> None:
             pass
 
-    tracer._writer = CustomWriter()
+    tracer._span_aggregator.writer = CustomWriter()
     info = debug.collect(tracer)
 
     assert info.get("agent_url") == "CUSTOM"
@@ -396,5 +396,5 @@ def test_partial_flush_log():
 def test_partial_flush_log_subprocess():
     from ddtrace.trace import tracer
 
-    assert tracer._partial_flush_enabled is True
-    assert tracer._partial_flush_min_spans == 2
+    assert tracer._span_aggregator.partial_flush_enabled is True
+    assert tracer._span_aggregator.partial_flush_min_spans == 2

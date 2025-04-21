@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Introduces support for submitting custom evaluations to LLM Observability via agent proxy mode.
