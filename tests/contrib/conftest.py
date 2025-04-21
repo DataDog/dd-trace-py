@@ -6,8 +6,6 @@ import pytest
 from tests.contrib.integration_registry.registry_update_helpers.integration_registry_manager import registry_manager
 from tests.contrib.integration_registry.registry_update_helpers.integration_update_orchestrator import (
     IntegrationUpdateOrchestrator,
-    cleanup_session_data,
-    export_registry_data,
 )
 
 
@@ -32,7 +30,7 @@ def pytest_sessionfinish(session):
 
     if not data_file_path or not os.path.exists(data_file_path):
         print(f"\nWarning: Integration Registry data file missing ({data_file_path}). Skipping registry update.", file=sys.stderr)
-        cleanup_session_data(session)
+        IntegrationUpdateOrchestrator.cleanup_session_data(session)
         return
 
     project_root = str(session.config.rootdir)
@@ -42,6 +40,6 @@ def pytest_sessionfinish(session):
         orchestrator = IntegrationUpdateOrchestrator(project_root)
         orchestrator.run(data_file_path)
     except Exception as e:
-        print(f"Critical error during registry update orchestration: {e}", file=sys.stderr)
+        print(f"\nCritical error during registry update orchestration: {e}", file=sys.stderr)
     finally:
-        cleanup_session_data(session)
+        IntegrationUpdateOrchestrator.cleanup_session_data(session)
