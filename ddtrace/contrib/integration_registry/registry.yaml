@@ -14,7 +14,7 @@ integrations:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
-      min: 3.10.5
+      min: 3.10.6
       max: 3.10.9
 
 - integration_name: aiohttp_jinja2
