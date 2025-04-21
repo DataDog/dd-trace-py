@@ -34,9 +34,8 @@ def set_retry_num(nodeid: str, retry_num: int):
         yield
 
 
-def _get_retry_attempt_string(nodeid) -> str:
-    retry_number = get_retry_num(nodeid)
-    return "ATTEMPT {} ".format(retry_number) if retry_number is not None else "INITIAL ATTEMPT "
+def _get_retry_attempt_string(retry_number) -> str:
+    return "ATTEMPT {} ".format(retry_number) if retry_number else "INITIAL ATTEMPT "
 
 
 def _get_outcome_from_retry(
@@ -148,9 +147,6 @@ import typing as t
 import _pytest
 import pytest
 
-from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
-from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
@@ -405,22 +401,23 @@ def retry_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus
 
     retry_outcome = get_user_property(report, "dd_retry_outcome")
     retry_reason = get_user_property(report, "dd_retry_reason")
+    retry_number = get_user_property(report, "dd_retry_number")
     if retry_outcome == "passed":
         return (
             RETRY_OUTCOME,
             "r",
-            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(retry_number)}PASSED", {"green": True}),
         )
     if retry_outcome == "failed":
         return (
             RETRY_OUTCOME,
             "R",
-            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(retry_number)}FAILED", {"yellow": True}),
         )
     if retry_outcome == "skipped":
         return (
             RETRY_OUTCOME,
             "s",
-            (f"{retry_reason} RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"{retry_reason} RETRY {_get_retry_attempt_string(retry_number)}SKIPPED", {"yellow": True}),
         )
     return None
