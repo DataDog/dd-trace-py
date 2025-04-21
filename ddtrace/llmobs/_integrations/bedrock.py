@@ -219,7 +219,6 @@ class BedrockIntegration(BaseLLMIntegration):
                         )
 
             if "messageStop" in chunk:
-                metadata["stop_reason"] = chunk["messageStop"].get("stopReason", "")
                 messages.append(
                     get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
                 )

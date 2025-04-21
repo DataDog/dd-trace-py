@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where converse stream calls contained an extra empty output message.
+  - |
+    LLM Observability: This fix resolves an issue where converse stream calls contained empty tool call names.

@@ -835,7 +835,6 @@ class TestLLMObsBedrock:
                 }
             ],
             metadata={
-                "stop_reason": "tool_use",
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
