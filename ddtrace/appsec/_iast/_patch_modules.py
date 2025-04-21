@@ -2,6 +2,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 
 
@@ -56,11 +57,11 @@ def patch_iast(patch_modules=IAST_PATCH):
     #         sqli_sanitizer,
     #     )
     # )
-    # when_imported("werkzeug.utils")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "werkzeug.utils",
-    #         "secure_filename",
-    #         path_traversal_sanitizer,
-    #     )
-    # )
+    when_imported("werkzeug.utils")(
+        lambda _: try_wrap_function_wrapper(
+            "werkzeug.utils",
+            "secure_filename",
+            path_traversal_sanitizer,
+        )
+    )
     when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
