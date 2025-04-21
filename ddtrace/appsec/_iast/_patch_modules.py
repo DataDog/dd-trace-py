@@ -48,6 +48,16 @@ def patch_iast(patch_modules=IAST_PATCH):
             sqli_sanitizer,
         )
     )
+
+    # Additional MySQL sanitizers
+    when_imported("pymysql.converters")(
+        lambda _: try_wrap_function_wrapper(
+            "pymysql.converters",
+            "escape_string",
+            sqli_sanitizer,
+        )
+    )
+
     # when_imported("werkzeug.utils")(
     #     lambda _: try_wrap_function_wrapper(
     #         "werkzeug.utils",

@@ -95,3 +95,21 @@ def test_sanitize_pymysql_escape_string():
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
     assert is_pyobject_tainted(value)
+
+
+def test_sanitize_pymysql_converters_escape():
+    sql = "'; DROP TABLE users; --"
+    tainted = taint_pyobject(
+        pyobject=sql,
+        source_name="test_sanitize_pymysql_converters",
+        source_value=sql,
+        source_origin=OriginType.PARAMETER,
+    )
+
+    value = mod.pymysql_converters_escape_string(tainted)
+    ranges = get_tainted_ranges(value)
+    assert value == "a-\\'; DROP TABLE users; --"
+    assert len(ranges) > 0
+    for _range in ranges:
+        assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
+    assert is_pyobject_tainted(value)
