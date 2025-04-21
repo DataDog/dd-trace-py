@@ -1617,7 +1617,7 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
-            "sampling_priority": 2,
+            "sampling_priority": None,
             "dd_origin": "synthetics",
             "meta": {"_dd.p.dm": "-3"},
         },
@@ -2256,7 +2256,7 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 9291375655657946024,
             "span_id": 10,
-            "sampling_priority": 2,
+            "sampling_priority": None,
             "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
         },
     ),
