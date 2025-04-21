@@ -199,7 +199,7 @@ def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
 
     hash_to_name = {}
     for line in output.splitlines():
-        match = re.match(r'\\[#\\d+\\]\\s+([a-f0-9]+)\\s+(\\S+)', line)
+        match = re.match(r'\[#\d+\]\s+([a-f0-9]+)\s+(\S+)', line)
         if match:
             venv_hash, venv_name = match.groups()
             hash_to_name[venv_hash] = venv_name.lower()
@@ -342,6 +342,7 @@ def generate_supported_versions(contrib_modules, all_used_versions):
     patched = {}
     for contrib_module in contrib_modules:
         for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module])):
+            versions = []
             if dependency not in all_used_versions:
                 # special case, some dependencies such as dogpile_cache can be installed
                 # e.g. dogpile.cache or dogpile-cache or dogpile_cache, just use the one with versions
@@ -368,7 +369,6 @@ def generate_supported_versions(contrib_modules, all_used_versions):
                 patched[contrib_module] = _is_module_autoinstrumented(contrib_module)
             json_format["auto-instrumented"] = patched[contrib_module]
             supported_versions.append(json_format)
-            versions = []
 
     supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
     with open("supported_versions_output.json", "w") as file:
