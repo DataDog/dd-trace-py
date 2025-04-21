@@ -57,14 +57,40 @@ class IntegrationRegistryManager:
                     continue
         return None
 
-    def _get_top_level_module_from_object(self, obj):
+    def _get_full_module_from_object(self, obj):
+        """Gets the full module name from the object, e.g., 'google.generativeai' or 'redis'."""
         attrs = ["__module__", "__name__"]
         for attr in attrs:
             try:
-                return self.original_getattr(obj, attr).split(".", 1)[0]
+                module_name = self.original_getattr(obj, attr)
+                # Return if we got a non-empty string
+                if isinstance(module_name, str) and module_name:
+                    return module_name
             except Exception:
                 continue
         return None
+
+    def _distribution_contains_module(self, distribution_name: str, full_module_name: str) -> bool:
+        """Checks if a distribution's files contain the specified module."""
+        try:
+            dist_files = importlib.metadata.files(distribution_name)
+            if not dist_files:
+                return False
+
+            # Module path components (e.g., ['google', 'generativeai'])
+            module_parts = full_module_name.split('.')
+            # Possible file paths for the module
+            # e.g., google/generativeai.py or google/generativeai/__init__.py
+            expected_path_py = "/".join(module_parts) + ".py"
+            expected_path_init = "/".join(module_parts) + "/__init__.py"
+
+            for file in dist_files:
+                file_path = str(file)
+                if file_path.endswith(expected_path_py) or file_path.endswith(expected_path_init):
+                    return True
+        except Exception:
+            return False
+        return False
 
     def process_patched_objects(self):
         """
@@ -79,23 +105,26 @@ class IntegrationRegistryManager:
                 continue
 
             try:
-                top_level_module = self._get_top_level_module_from_object(obj)
+                full_module_name = self._get_full_module_from_object(obj)
             except Exception:
                 self.processed_objects.add(obj)
                 continue
 
-            if top_level_module:
-                distribution_names = pkg_dist_map.get(top_level_module, [])
+            if full_module_name:
+                top_level_module = full_module_name.split('.', 1)[0]
+                candidate_distribution_names = pkg_dist_map.get(top_level_module, [])
                 integration_name = self._get_integration_name_from_traceback(tb_string)
 
-                if integration_name and distribution_names:
-                    for distribution_name in distribution_names:
-                        update_key = f"{integration_name}:{distribution_name}"
-                        if update_key not in self.updated_packages:
-                            self.pending_updates[integration_name]["dependency_name"][
-                                distribution_name
-                            ] = top_level_module
-                            self.updated_packages.add(update_key)
+                if integration_name and candidate_distribution_names:
+                    for distribution_name in candidate_distribution_names:
+                        # Check if this specific distribution actually contains the patched module
+                        if self._distribution_contains_module(distribution_name, full_module_name):
+                            update_key = f"{integration_name}:{distribution_name}"
+                            if update_key not in self.updated_packages:
+                                self.pending_updates[integration_name]["dependency_name"][
+                                    distribution_name
+                                ] = top_level_module
+                                self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)
 

@@ -1,27 +1,26 @@
 import argparse
-from collections import defaultdict
 import datetime as dt
-from http.client import HTTPSConnection
-from io import StringIO
 import json
-from operator import itemgetter
 import os
 import pathlib
 import sys
 import typing
+from collections import defaultdict
+from http.client import HTTPSConnection
+from io import StringIO
+from operator import itemgetter
 from typing import Optional
 
 from packaging.version import Version
 from pip import _internal
 
-from ddtrace.contrib.integration_registry.mappings import (
-    INTEGRATION_TO_DEPENDENCY_MAPPING,
-    DEPENDENCY_TO_INTEGRATION_MAPPING
-)
-
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 import riotfile  # noqa: E402
 
+from ddtrace.contrib.integration_registry.mappings import (
+    DEPENDENCY_TO_INTEGRATION_MAPPING,
+    INTEGRATION_TO_DEPENDENCY_MAPPING,
+)
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
@@ -89,7 +88,7 @@ def _get_riot_envs_including_any(contrib_modules: typing.Set[str]) -> typing.Set
 
 
 def _integration_to_dependency_mapping_contains(integration: str, lockfile_content: str) -> bool:
-    if not integration in INTEGRATION_TO_DEPENDENCY_MAPPING:
+    if integration not in INTEGRATION_TO_DEPENDENCY_MAPPING:
         return False
     
     for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING[integration]:
@@ -111,7 +110,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
             # Check if the package name is an integration as all contrib venvs are named after the integration
             if package not in contrib_modules:
                 continue
-            if not _venv_sets_latest_for_package(venv, package) and not package in packages_setting_latest:
+            if not _venv_sets_latest_for_package(venv, package) and package not in packages_setting_latest:
                 pinned_packages.add(package)
             else:
                 packages_setting_latest.add(package)
@@ -180,15 +179,16 @@ def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Op
 
 def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
     """Get a mapping of riot hash to venv name."""
-    import riot
     import re
     from io import StringIO
-    
+
+    import riot
+
     ctx = riot.Session.from_config_file("riotfile.py")
     old_stdout = sys.stdout
     result = StringIO()
     sys.stdout = result
-    
+
     try:
         pattern = re.compile(r"^.*$")
         venv_pattern = re.compile(r"^.*$")
@@ -196,17 +196,19 @@ def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
         output = result.getvalue()
     finally:
         sys.stdout = old_stdout
-    
+
     hash_to_name = {}
     for line in output.splitlines():
-        match = re.match(r'\[#\d+\]\s+([a-f0-9]+)\s+(\S+)', line)
+        match = re.match(r'\\[#\\d+\\]\\s+([a-f0-9]+)\\s+(\\S+)', line)
         if match:
             venv_hash, venv_name = match.groups()
             hash_to_name[venv_hash] = venv_name.lower()
     return hash_to_name
 
 
-def _get_package_versions_from(env: str, contrib_modules: typing.Set[str], riot_hash_to_venv_name: typing.Dict[str, str]) -> typing.List[typing.Tuple[str, str]]:
+def _get_package_versions_from(
+    env: str, contrib_modules: typing.Set[str], riot_hash_to_venv_name: typing.Dict[str, str]
+) -> typing.List[typing.Tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
@@ -236,7 +238,10 @@ def _get_package_versions_from(env: str, contrib_modules: typing.Set[str], riot_
         package = package.split("[")[0] # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
-        elif package in DEPENDENCY_TO_INTEGRATION_MAPPING and DEPENDENCY_TO_INTEGRATION_MAPPING[package] == integration:
+        elif (
+            package in DEPENDENCY_TO_INTEGRATION_MAPPING
+            and DEPENDENCY_TO_INTEGRATION_MAPPING[package] == integration
+        ):
             lock_packages.append((DEPENDENCY_TO_INTEGRATION_MAPPING[package], versions))
     return lock_packages
 

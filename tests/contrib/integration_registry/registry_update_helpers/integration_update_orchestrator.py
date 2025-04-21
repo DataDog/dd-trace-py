@@ -85,9 +85,10 @@ class IntegrationUpdateOrchestrator:
                     print(f"\n--- stderr: {description} ---\n{process.stderr.strip()}", file=sys.stdout)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
             if e.stderr:
-                print(f"Stderr:\n{e.stderr}", file=sys.stderr)
+                # Only print stderr if it exists since the registry update command returns a non-zero exit code
+                # when no changes are needed
+                print(f"Error: {description} failed (code {e.returncode}).", file=sys.stderr)
             return False
         except Exception:
             return False
