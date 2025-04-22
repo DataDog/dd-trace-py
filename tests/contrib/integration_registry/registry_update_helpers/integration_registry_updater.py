@@ -60,21 +60,6 @@ class IntegrationRegistryUpdater:
         except Exception:
             return {}
 
-    def _get_contrib_version(self, integration_name: str, top_level_module: str) -> str:
-        """
-        Returns the version of the module using the integration's get_version function.
-        """
-        try:
-            # Import the integration module
-            module_name = f"ddtrace.contrib.internal.{integration_name}.patch"
-            module = importlib.import_module(module_name)
-            if hasattr(module, "get_versions"):
-                return module.get_versions()[top_level_module]
-            if hasattr(module, "get_version"):
-                return module.get_version()
-        except Exception:
-            return ""
-
     def _semver_compare(self, version1: str, version2: str) -> int:
         """
         Compares two semantic version strings (X.Y.Z format).
@@ -117,7 +102,7 @@ class IntegrationRegistryUpdater:
         }
 
         for integration_name, updates in input_data.items():
-            new_deps = updates.get("dependency_name", {})
+            new_deps = updates
             if not new_deps:
                 continue
 
@@ -127,12 +112,12 @@ class IntegrationRegistryUpdater:
             entry = registry_map[integration_name]
             if not entry.get("is_external_package"):
                 continue
-            for dep, top_level_module in new_deps.items():
+            for dep, dep_info in new_deps.items():
                 current_deps_set = set(entry.get("dependency_name", []))
                 if dep.lower() not in current_deps_set:
                     return True
                 else:
-                    dep_version = self._get_contrib_version(integration_name, top_level_module)
+                    dep_version = dep_info.get("version")
                     if dep_version == "":
                         return False
                     min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)

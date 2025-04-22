@@ -627,13 +627,6 @@
         "auto-instrumented": true
     },
     {
-        "dependency": "google-cloud-aiplatform",
-        "integration": "vertexai",
-        "minimum_tracer_supported": "1.71.1",
-        "max_tracer_supported": "1.71.1",
-        "auto-instrumented": true
-    },
-    {
         "dependency": "vertexai",
         "integration": "vertexai",
         "minimum_tracer_supported": "1.71.1",

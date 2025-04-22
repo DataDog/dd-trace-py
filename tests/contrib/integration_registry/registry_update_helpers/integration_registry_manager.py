@@ -17,7 +17,10 @@ class IntegrationRegistryManager:
         self.patched_objects = {}
         self.processed_objects = set()
         self.original_getattr = None
-        self.pending_updates = defaultdict(lambda: {"dependency_name": {}})
+        self.pending_updates = defaultdict(lambda: defaultdict(lambda: {
+            "top_level_module": "",
+            "version": "",
+        }))
 
     def get_cached_packages_distributions(self):
         """Gets package->distribution mapping, caching the result."""
@@ -121,9 +124,10 @@ class IntegrationRegistryManager:
                         if self._distribution_contains_module(distribution_name, full_module_name):
                             update_key = f"{integration_name}:{distribution_name}"
                             if update_key not in self.updated_packages:
-                                self.pending_updates[integration_name]["dependency_name"][
-                                    distribution_name
-                                ] = top_level_module
+                                self.pending_updates[integration_name][distribution_name] = {
+                                    "top_level_module": top_level_module,
+                                    "version": importlib.metadata.version(distribution_name),
+                                }
                                 self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)

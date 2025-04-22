@@ -253,13 +253,13 @@ integrations:
 - integration_name: elasticsearch
   is_external_package: true
   dependency_name:
+  - elastic-transport
   - elasticsearch
   - elasticsearch1
   - elasticsearch2
   - elasticsearch5
   - elasticsearch6
   - elasticsearch7
-  - elastic-transport
   - opensearch-py
   tested_versions_by_dependency:
     elastic-transport:

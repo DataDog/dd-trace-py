@@ -87,7 +87,6 @@ structlog,structlog,20.2.0,24.4.0,False
 tornado,tornado *,6.2,6.4.1,False
 urllib3,urllib3,1.25,2.2.3,False
 valkey,valkey,6.0.2,6.0.2,True
-google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
 vertexai,vertexai,1.71.1,1.71.1,True
 vertica-python,vertica *,0.6.14,0.7.4,True
 yaaredis,yaaredis,2.0.4,3.0.0,True
