@@ -11,7 +11,7 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._utils import _hash_user_id
 import ddtrace.constants as constants
-from ddtrace.contrib.internal.trace_utils import set_user
+from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user
 from ddtrace.internal import core

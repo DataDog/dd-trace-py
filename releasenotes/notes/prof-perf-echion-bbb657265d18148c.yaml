@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    profiling: Upgrades echion to pick up fixes which enables the stack sampler
+    to avoid extra calls to ``process_vm_readv()`` syscalls for Python frame
+    objects for Python versions 3.11+.
+upgrade:
+  - |
+    profiling: Upgrades echion, improving the performance of stack sampler by
+    replacing proc filesystem reads with ``clock_gettime()``.
+

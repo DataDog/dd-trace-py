@@ -12,12 +12,10 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -158,8 +156,6 @@ class Telemetry_result:
 
 def parse_response_body(raw_body, headers):
     import xmltodict
-
-    from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
         return
