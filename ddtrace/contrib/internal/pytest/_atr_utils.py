@@ -25,9 +25,6 @@ class _ATR_RETRY_OUTCOMES:
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
-    # ATR_ATTEMPT_PASSED = "passed"
-    # ATR_ATTEMPT_FAILED = "failed"
-    # ATR_ATTEMPT_SKIPPED = "skipped"
     ATR_FINAL_PASSED = "passed"
     ATR_FINAL_FAILED = "failed"
 
@@ -86,7 +83,7 @@ def atr_handle_retries(
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords=item.keywords,
+        keywords={k: 1 for k in item.keywords},
         when="call",
         longrepr=None,
         outcome=final_outcomes[atr_outcome],
