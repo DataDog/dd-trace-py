@@ -17,10 +17,14 @@ class IntegrationRegistryManager:
         self.patched_objects = {}
         self.processed_objects = set()
         self.original_getattr = None
-        self.pending_updates = defaultdict(lambda: defaultdict(lambda: {
-            "top_level_module": "",
-            "version": "",
-        }))
+        self.pending_updates = defaultdict(
+            lambda: defaultdict(
+                lambda: {
+                    "top_level_module": "",
+                    "version": "",
+                }
+            )
+        )
 
     def get_cached_packages_distributions(self):
         """Gets package->distribution mapping, caching the result."""
@@ -81,7 +85,7 @@ class IntegrationRegistryManager:
                 return False
 
             # Module path components (e.g., ['google', 'generativeai'])
-            module_parts = full_module_name.split('.')
+            module_parts = full_module_name.split(".")
             # Possible file paths for the module
             # e.g., google/generativeai.py or google/generativeai/__init__.py
             expected_path_py = "/".join(module_parts) + ".py"
@@ -114,7 +118,7 @@ class IntegrationRegistryManager:
                 continue
 
             if full_module_name:
-                top_level_module = full_module_name.split('.', 1)[0]
+                top_level_module = full_module_name.split(".", 1)[0]
                 candidate_distribution_names = pkg_dist_map.get(top_level_module, [])
                 integration_name = self._get_integration_name_from_traceback(tb_string)
 
@@ -163,7 +167,6 @@ class IntegrationRegistryManager:
             builtins.getattr = self.original_getattr
             self.original_getattr = None
 
-    
     def cleanup_post_session(self):
         self.patched_objects.clear()
         self.processed_objects.clear()
