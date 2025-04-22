@@ -25,16 +25,19 @@ class _ATR_RETRY_OUTCOMES:
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
-    ATR_FINAL_PASSED = "dd_atr_final_passed"
-    ATR_FINAL_FAILED = "dd_atr_final_failed"
+    # ATR_ATTEMPT_PASSED = "passed"
+    # ATR_ATTEMPT_FAILED = "failed"
+    # ATR_ATTEMPT_SKIPPED = "skipped"
+    ATR_FINAL_PASSED = "passed"
+    ATR_FINAL_FAILED = "failed"
 
 
 class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_ATTEMPT_PASSED = "dd_quarantine_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_quarantine_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_quarantine_atr_attempt_skipped"
-    ATR_FINAL_PASSED = "dd_quarantine_atr_final_passed"
-    ATR_FINAL_FAILED = "dd_quarantine_atr_final_failed"
+    ATR_FINAL_PASSED = "passed"
+    ATR_FINAL_FAILED = "failed"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
@@ -86,9 +89,11 @@ def atr_handle_retries(
         keywords=item.keywords,
         when="call",
         longrepr=None,
-        # outcome=final_outcomes[atr_outcome],
-        outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
+        outcome=final_outcomes[atr_outcome],
+        # outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
     )
+    # TODO(@gnufede): keep investigation from here
+    # breakpoint()
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
@@ -174,25 +179,25 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     raw_summary_strings = []
     markedup_summary_strings = []
 
-    _atr_write_report_for_status(
-        terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
-        status_text="failed",
-        report_outcome=PYTEST_STATUS.FAILED,
-        raw_strings=raw_summary_strings,
-        markedup_strings=markedup_summary_strings,
-        color="red",
-    )
+    # _atr_write_report_for_status(
+    #     terminalreporter,
+    #     status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+    #     status_text="failed",
+    #     report_outcome=PYTEST_STATUS.FAILED,
+    #     raw_strings=raw_summary_strings,
+    #     markedup_strings=markedup_summary_strings,
+    #     color="red",
+    # )
 
-    _atr_write_report_for_status(
-        terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-        status_text="passed",
-        report_outcome=PYTEST_STATUS.PASSED,
-        raw_strings=raw_summary_strings,
-        markedup_strings=markedup_summary_strings,
-        color="green",
-    )
+    # _atr_write_report_for_status(
+    #     terminalreporter,
+    #     status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+    #     status_text="passed",
+    #     report_outcome=PYTEST_STATUS.PASSED,
+    #     raw_strings=raw_summary_strings,
+    #     markedup_strings=markedup_summary_strings,
+    #     color="green",
+    # )
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
@@ -279,10 +284,10 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True}))
+    # if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
+    #     return (_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True}))
+    # if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
+    #     return (_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True}))
     return None
 
 
@@ -305,18 +310,18 @@ def quarantine_atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
             "q",
             (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"blue": True}),
         )
-    if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-        return (
-            _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-            ".",
-            ("QUARANTINED FINAL STATUS: PASSED", {"blue": True}),
-        )
-    if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-        return (
-            _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
-            "F",
-            ("QUARANTINED FINAL STATUS: FAILED", {"blue": True}),
-        )
+    # if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
+    #     return (
+    #         _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+    #         ".",
+    #         ("QUARANTINED FINAL STATUS: PASSED", {"blue": True}),
+    #     )
+    # if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
+    #     return (
+    #         _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+    #         "F",
+    #         ("QUARANTINED FINAL STATUS: FAILED", {"blue": True}),
+    #     )
     return None
 
 
@@ -324,7 +329,7 @@ def quarantine_pytest_terminal_summary_post_yield(terminalreporter: _pytest.term
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED, None)
-    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, [])
-    terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, [])
+    # terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, [])
+    # terminalreporter.stats.pop(_QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, [])
 
     # TODO: report list of fully failed quarantined tests, possibly inside the ATR report.
