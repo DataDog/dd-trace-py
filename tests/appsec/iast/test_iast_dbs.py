@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
@@ -23,6 +24,7 @@ def iast_create_context():
     with override_global_config(
         dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
+        patch_iast()
         _start_iast_context_and_oce()
         yield
         _end_iast_context_and_oce()
