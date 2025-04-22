@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
@@ -16,7 +15,7 @@ from tests.utils import override_global_config
 _ = _iast_patched_module("pymysql.connections")
 _ = _iast_patched_module("pymysql.converters")
 _ = _iast_patched_module("mysql.connector.conversion")
-mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_dbs")
+mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_dbs", should_patch_iast=True)
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +23,6 @@ def iast_create_context():
     with override_global_config(
         dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
-        patch_iast()
         _start_iast_context_and_oce()
         yield
         _end_iast_context_and_oce()
@@ -112,6 +110,7 @@ def test_sanitize_pymysql_converters_escape():
     ranges = get_tainted_ranges(value)
     assert value == "a-\\'; DROP TABLE users; --"
     assert len(ranges) > 0
+    print(ranges)
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
     assert is_pyobject_tainted(value)
