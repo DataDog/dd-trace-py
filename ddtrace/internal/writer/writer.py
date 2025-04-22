@@ -704,7 +704,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         :return: A configured TraceExporter instance.
         """
         # Shutdown the existing exporter if it exists
-        if hasattr(self, '_exporter') and self._exporter is not None:
+        if hasattr(self, "_exporter") and self._exporter is not None:
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
         stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
@@ -736,6 +736,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         self._exporter = self._create_exporter()
 
     def recreate(self):
+        self._exporter.drop()
         return self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,

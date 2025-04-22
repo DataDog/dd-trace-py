@@ -104,7 +104,7 @@ impl TraceExporterBuilderPy {
     }
 
     fn set_test_session_token(mut slf: PyRefMut<'_, Self>, token: &'_ str) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.set_test_session_token(token);
+        //slf.try_as_mut()?.set_test_session_token(token);
         Ok(slf.into())
     }
 
@@ -218,6 +218,11 @@ impl TraceExporterPy {
             Ok(_) => Ok(()),
             Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
         }
+    }
+
+    fn drop(&mut self) -> PyResult<()> {
+        drop(self.inner.take());
+        Ok(())
     }
 }
 

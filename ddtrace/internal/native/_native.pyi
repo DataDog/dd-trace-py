@@ -127,6 +127,8 @@ class TraceExporter:
         """
         ...
 
+    def drop(self) -> None:...
+
 class TraceExporterBuilder:
     """
     TraceExporterBuilder is a class responsible for building a TraceExporter.
