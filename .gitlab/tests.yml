@@ -1,5 +1,5 @@
 stages:
-  - precheck
+  - setup
   - riot
   - hatch
 
@@ -17,7 +17,7 @@ include:
   extends: .testrunner
   stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
-  needs: []
+  needs: [ prechecks ]
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
   before_script:
@@ -58,7 +58,7 @@ include:
 .test_base_riot:
   extends: .testrunner
   stage: riot
-  needs: [ build_base_venvs ]
+  needs: [ build_base_venvs, prechecks ]
   parallel: 4
   services:
     - !reference [.services, ddagent]
