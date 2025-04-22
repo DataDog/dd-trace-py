@@ -17,7 +17,6 @@ from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
-from .._trace.pin import Pin
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -106,6 +105,7 @@ INTEGRATION_CONFIGS = frozenset(
         "unittest",
         "falcon",
         "langgraph",
+        "litellm",
         "aioredis",
         "test_visibility",
         "redis",
@@ -169,6 +169,7 @@ INTEGRATION_CONFIGS = frozenset(
         "logbook",
         "genai",
         "openai",
+        "crewai",
         "logging",
         "cassandra",
         "boto",
@@ -190,6 +191,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_client",
         "grpc_aio_server",
         "yaaredis",
+        "openai_agents",
     }
 )
 
@@ -627,8 +629,6 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
-        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -643,7 +643,6 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
-        self._llmobs_auto_span_linking_enabled = _get_config("_DD_LLMOBS_AUTO_SPAN_LINKING_ENABLED", False, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False
@@ -675,19 +674,6 @@ class Config(object):
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
-
-    def _get_from(self, obj):
-        """Retrieves the configuration for the given object.
-        Any object that has an attached `Pin` must have a configuration
-        and if a wrong object is given, an empty `dict` is returned
-        for safety reasons.
-        """
-        pin = Pin.get_from(obj)
-        if pin is None:
-            log.debug("No configuration found for %s", obj)
-            return {}
-
-        return pin._config
 
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default

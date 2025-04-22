@@ -8,10 +8,10 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import end_iast_context
-from ddtrace.appsec._iast._iast_request_context import set_iast_request_enabled
-from ddtrace.appsec._iast._iast_request_context import start_iast_context
+from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
+from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch

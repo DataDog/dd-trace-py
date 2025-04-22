@@ -1,6 +1,9 @@
 import os
+from pathlib import PosixPath
 import sys
 
+from hypothesis import given
+from hypothesis.strategies import text
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -176,9 +179,129 @@ def test_ospathjoin_last_slash_tainted():
     assert get_tainted_ranges(res) == [TaintRange(0, 4, Source("test_ospath", "/bar", OriginType.PARAMETER))]
 
 
+@given(text())
+def test_ospathbasename_no_exceptions(string_):
+    assert os.path.basename(PosixPath(string_)) == ospathbasename_aspect(PosixPath(string_))
+    assert os.path.basename(string_) == ospathbasename_aspect(string_)
+
+
+def test_ospathbasename_wrong_arg():
+    with pytest.raises(TypeError):
+        _ = os.path.basename(42, "333")
+
+    with pytest.raises(TypeError):
+        _ = os.path.basename(42)
+
+    with pytest.raises(TypeError):
+        _ = os.path.basename(["a", "b", "c"])
+
+    with pytest.raises(TypeError):
+        _ = ospathbasename_aspect(42, "333")
+
+    with pytest.raises(TypeError):
+        _ = ospathbasename_aspect(42)
+
+    with pytest.raises(TypeError):
+        _ = ospathbasename_aspect(["a", "b", "c"])
+
+
+@given(text())
+def test_ospathdirname_no_exceptions(string_):
+    assert os.path.dirname(PosixPath(string_)) == ospathdirname_aspect(PosixPath(string_))
+    assert os.path.dirname(string_) == ospathdirname_aspect(string_)
+
+
+def test_ospathdirname_wrong_arg():
+    with pytest.raises(TypeError):
+        _ = os.path.dirname(42, "333")
+
+    with pytest.raises(TypeError):
+        _ = os.path.dirname(42)
+
+    with pytest.raises(TypeError):
+        _ = os.path.dirname(["a", "b", "c"])
+
+    with pytest.raises(TypeError):
+        _ = ospathdirname_aspect(42, "333")
+
+    with pytest.raises(TypeError):
+        _ = ospathdirname_aspect(42)
+
+    with pytest.raises(TypeError):
+        _ = ospathdirname_aspect(["a", "b", "c"])
+
+
+@given(text())
+def test_ospathjoin_no_exceptions(string_):
+    assert os.path.join(PosixPath(string_), string_) == ospathjoin_aspect(PosixPath(string_), string_)
+    assert os.path.join(PosixPath(string_)) == ospathjoin_aspect(PosixPath(string_))
+    assert os.path.join(string_) == ospathjoin_aspect(string_)
+
+
 def test_ospathjoin_wrong_arg():
+    def iterator_with_exception():
+        for i in range(5):
+            yield i
+        raise ValueError("there is a problem in iterator_with_exception")
+
+    with pytest.raises(TypeError):
+        _ = os.path.join("root", 42, "foobar")
+
+    with pytest.raises(TypeError):
+        _ = os.path.join(("a", "b"))
+
+    with pytest.raises(TypeError):
+        _ = os.path.join([PosixPath("a"), PosixPath("b")])
+
+    with pytest.raises(ValueError):
+        _ = os.path.join("".join(iterator_with_exception()))
+
+    with pytest.raises(TypeError):
+        _ = os.path.join([PosixPath("a"), PosixPath("b")])
+
     with pytest.raises(TypeError):
         _ = ospathjoin_aspect("root", 42, "foobar")
+
+    with pytest.raises(TypeError):
+        _ = ospathjoin_aspect(("a", "b"))
+
+    with pytest.raises(TypeError):
+        _ = ospathjoin_aspect([PosixPath("a"), PosixPath("b")])
+
+    with pytest.raises(ValueError):
+        _ = ospathjoin_aspect("".join(iterator_with_exception()))
+
+
+@given(text())
+def test_ospathnormcase_no_exceptions(string_):
+    assert os.path.normcase(PosixPath(string_)) == ospathnormcase_aspect(PosixPath(string_))
+    assert os.path.normcase(string_) == ospathnormcase_aspect(string_)
+
+
+@given(text())
+def test_ospathsplit_no_exceptions(string_):
+    assert os.path.split(PosixPath(string_)) == ospathsplit_aspect(PosixPath(string_))
+    assert os.path.split(string_) == ospathsplit_aspect(string_)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12) and os.name != "nt", reason="Requires Python 3.12 or Windows")
+@given(text())
+def test_ospathsplitdrive_no_exceptions(string_):
+    assert os.path.splitdrive(PosixPath(string_)) == ospathsplitdrive_aspect(PosixPath(string_))
+    assert os.path.splitdrive(string_) == ospathsplitdrive_aspect(string_)
+
+
+@given(text())
+def test_ospathsplitext_no_exceptions(string_):
+    assert os.path.splitext(PosixPath(string_)) == ospathsplitext_aspect(PosixPath(string_))
+    assert os.path.splitext(string_) == ospathsplitext_aspect(string_)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Requires Python 3.12")
+@given(text())
+def test_ospathsplitroot_no_exceptions(string_):
+    assert os.path.splitroot(PosixPath(string_)) == ospathsplitroot_aspect(PosixPath(string_))
+    assert os.path.splitroot(string_) == ospathsplitroot_aspect(string_)
 
 
 def test_ospathjoin_bytes_nottainted():
@@ -253,11 +376,6 @@ def test_ospathbasename_nottainted():
     res = ospathbasename_aspect("/foo/bar/baz")
     assert res == "baz"
     assert not get_tainted_ranges(res)
-
-
-def test_ospathbasename_wrong_arg():
-    with pytest.raises(TypeError):
-        _ = ospathbasename_aspect(42)
 
 
 def test_ospathbasename_bytes_tainted():
@@ -401,11 +519,6 @@ def test_ospathdirname_nottainted():
     res = ospathdirname_aspect("/foo/bar/baz")
     assert res == "/foo/bar"
     assert not get_tainted_ranges(res)
-
-
-def test_ospathdirname_wrong_arg():
-    with pytest.raises(TypeError):
-        _ = ospathdirname_aspect(42)
 
 
 def test_ospathdirname_bytes_tainted():

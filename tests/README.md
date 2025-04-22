@@ -44,6 +44,7 @@ The suite schema is as follows:
     timeout: # The timeout for the job
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
+    services: # The services to start before running the suite, defined in .gitlab/services.yml
 ```
 
 For example
@@ -58,11 +59,13 @@ suites:
     retry: 2
     pattern: profile$|profile-v2
     paths:
-    - '@bootstrap'
-    - '@core'
-    - '@profiling'
-    - tests/profiling/*
-    - tests/profiling_v2/*
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - tests/profiling/*
+      - tests/profiling_v2/*
+    services:
+      - redis
 ```
 
 Components do not need to be declared within the same `suitespec.yml` file. They
