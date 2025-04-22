@@ -14,6 +14,7 @@ This library powers [Distributed Tracing](https://docs.datadoghq.com/tracing/),
  [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/),
  [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/),
  and more.
+ 
 
 To get started with tracing, check out the [product documentation][setup docs] or the [glossary][visualization docs].
 
