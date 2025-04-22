@@ -340,7 +340,7 @@ class DataStreamsProcessor(PeriodicService):
             # reset context of current thread every time we decode
             self._current_context.value = ctx
             return ctx
-        except (EOFError, TypeError):
+        except (EOFError, TypeError, struct.error):
             return self.new_pathway()
 
     def decode_pathway_b64(self, data):
