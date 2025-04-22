@@ -939,7 +939,8 @@ def test_encode_large_resource_name_v0_5():
     original_span_resource = "resource" * repetition
     # size of the pkg length for this one test span - not sure if there's a better way
     pkg_length = 34
-    truncated_span_resource = original_span_resource[: MAX_SPAN_META_VALUE_LEN - 14 - pkg_length] + "<truncated>..."
+    truncated_span_resource = original_span_resource[: MAX_SPAN_META_VALUE_LEN - 14 - pkg_length + 1] + "<truncated>..."
+
     assert len(items[0][0][2:3][0]) == len(truncated_span_resource)
     assert items[0][0][2:3] == (bytes(truncated_span_resource, "utf-8"),)
     assert isinstance(spans, bytes)
@@ -962,7 +963,7 @@ def test_encode_large_resource_name_v0_5():
         assert isinstance(spans, bytes)
         assert len(items[0]) == 1
         # However: if the buffer has been exceeded we will still drop the payload
-        assert "string table is full (current size: 24999, max size: 1024)." in str(err)
+        assert "string table is full (current size: 25000, max size: 1024)." in str(err)
 
 
 def test_encode_large_resource_name_v0_4():
@@ -1004,4 +1005,4 @@ def test_encode_large_resource_name_v0_4():
         assert isinstance(spans, bytes)
         assert len(items[0]) == 1
         # However: if the buffer has been exceeded we will still drop the payload
-        assert "BufferItemTooLarge" in str(err)
+        assert isinstance(err, BufferItemTooLarge)
