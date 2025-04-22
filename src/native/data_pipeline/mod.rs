@@ -5,7 +5,6 @@ use data_pipeline::trace_exporter::{
     TraceExporterOutputFormat,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
-use tinybytes::Bytes;
 mod exceptions;
 
 /// A wrapper arround [TraceExporterBuilder]
@@ -186,15 +185,13 @@ impl TraceExporterPy {
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
         py.allow_threads(move || {
-            let slice: &[u8] = &data;
-            let slice: &'static [u8] = unsafe { std::mem::transmute(slice) };
             match self
                 .inner
                 .as_ref()
                 .ok_or(PyValueError::new_err(
                     "TraceExporter has already been consumed",
                 ))?
-                .send(Bytes::from_static(slice), trace_count)
+                .send(&data, trace_count)
             {
                 Ok(res) => Ok(res.body),
                 Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
