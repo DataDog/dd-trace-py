@@ -431,9 +431,8 @@ def _inject():
                 )
 
                 # Track whether library was successful
-                from ddtrace import config
-
-                config._lib_was_injected = True
+                ddtrace.config._lib_was_injected = True
+                ddtrace.internal.telemetry.telemetry_writer.add_configuration("lib_injection_successful", True, "code")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
