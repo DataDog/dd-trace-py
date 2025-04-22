@@ -76,6 +76,7 @@ The registry is automatically updated through two main mechanisms:
 When adding a new integration:
 
 1. Create the integration directory and implementation in `ddtrace/contrib/internal/`
+    - Ensure the patched module has `_datadog_patch=True`. The integration registry test code uses this attribute to determine which dependencies are patched, and that within the `patch()` function, the integration uses `getattr(module, '_datadog_patch') is True`.
 2. Add tests and a corresponding riot test suite in `riotfile.py`
 3. Run the test suite - this will automatically:
    * Add the integration to the registry

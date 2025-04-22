@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.pytest_bdd._plugin import _get_step_func_args_json
@@ -26,6 +27,7 @@ class TestPytest(PytestTestCaseBase):
 
         emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
+    @pytest.mark.no_getattr_patch
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
         self.testdir.makefile(
