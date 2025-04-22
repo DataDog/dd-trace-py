@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where tool call names were not being captured for converse stream calls.
+    LLM Observability: This fix resolves an issue where tool call names were not being captured for bedrock `converse_stream` calls.
   - |
-    LLM Observability: This fix resolves an issue where converse stream calls contained an extra empty output message.
+    LLM Observability: This fix resolves an issue where bedrock `converse_stream` calls contained an extra empty output message.
