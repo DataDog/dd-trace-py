@@ -160,6 +160,7 @@ requests-mock,>=1.4
 responses,~=0.16.0
 respx,0
 rich,0
+riot,==0.20.1
 rq,~=1.8.0
 ruamel.yaml,0
 sanic,~=20.12
