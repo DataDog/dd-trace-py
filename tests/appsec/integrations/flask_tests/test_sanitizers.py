@@ -9,7 +9,6 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 
-_ = _iast_patched_module("werkzeug.utils")
 mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_file_paths")
 
 
