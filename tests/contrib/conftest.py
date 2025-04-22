@@ -9,18 +9,30 @@ from tests.contrib.integration_registry.registry_update_helpers.integration_upda
 )
 
 
-@pytest.fixture(scope="session", autouse=True)
-def process_patches_at_end(request):
-    """Manages registry data collection/export and manager cleanup."""
-    registry_manager.patch_getattr()
+@pytest.fixture(scope="function", autouse=True)
+def manage_registry_patching(request):
+    """Conditionally patches getattr before each test and cleans up patch afterwards."""
+    should_patch = not request.node.get_closest_marker("no_getattr_patch")
+    if should_patch:
+        registry_manager.patch_getattr()
 
+    yield  # allows test function to run
+
+    # Always restore getattr and clear per-test state
+    registry_manager.cleanup_patch()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def export_registry_data_at_end(request):
+    """Processes and exports accumulated registry data at the end of the session."""
     yield  # allows test session to run
 
     # Process any modules that were patched and save the data for export
     registry_manager.process_patched_objects()
     if len(registry_manager.pending_updates) > 0:
         IntegrationUpdateOrchestrator.export_registry_data(registry_manager.pending_updates, request)
-    registry_manager.cleanup()
+    # Always cleanup after session
+    registry_manager.cleanup_post_session()
 
 
 def pytest_sessionfinish(session):

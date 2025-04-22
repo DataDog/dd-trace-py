@@ -648,6 +648,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
+    @pytest.mark.no_getattr_patch
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():

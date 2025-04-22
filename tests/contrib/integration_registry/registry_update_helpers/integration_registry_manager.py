@@ -157,16 +157,20 @@ class IntegrationRegistryManager:
 
         builtins.getattr = _wrapped_getattr
 
-    def cleanup(self):
+    def cleanup_patch(self):
         """Restores getattr and clears internal state."""
         if self.original_getattr:
             builtins.getattr = self.original_getattr
             self.original_getattr = None
+
+    
+    def cleanup_post_session(self):
         self.patched_objects.clear()
         self.processed_objects.clear()
         self.updated_packages.clear()
         self.pending_updates.clear()
         self.packages_distributions = None
+        self.cleanup_patch()
 
 
 registry_manager = IntegrationRegistryManager()
