@@ -20,7 +20,7 @@ from ddtrace.contrib.integration_registry.mappings import (
 )
 import riotfile  # noqa: E402
 
-sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))import riotfile  # noqa: E402
+sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
 from ddtrace.contrib.integration_registry.mappings import (
     DEPENDENCY_TO_INTEGRATION_MAPPING,
