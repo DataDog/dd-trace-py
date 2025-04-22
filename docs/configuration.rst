@@ -948,3 +948,24 @@ Live Debugging
 --------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
+
+Error Tracking
+--------------
+.. ddtrace-configuration-options::
+  DD_ERROR_TRACKING_HANDLED_ERRORS:
+      type: String
+      default: ""
+
+      description: |
+          Report automatically handled errors to Error Tracking.
+          Handled errors are also attached to spans through span events.
+
+          Possible values are: ``user|third_party|all``. Report handled exceptions
+          of user code, third party packages or both.
+
+  DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES:
+      type: String
+      default: ""
+
+      description: |
+          Comma-separated list of Python modules for which we report handled errors.

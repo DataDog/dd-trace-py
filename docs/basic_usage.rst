@@ -139,3 +139,49 @@ the ``set_asyncio_event_loop_policy`` method::
 
   prof = Profiler()
   prof.set_asyncio_event_loop_policy()
+
+Error Tracking
+~~~~~~~~~~~~~~
+
+Automatic Instrumentation
+-------------------------
+
+.. important::
+
+  This feature is available on Python3.10+ and ddtrace 3.6.0+
+
+To enable automatic reporting of handled errors, you can set one of the two environment variables:
+
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS`` = ``user|third_party|all``. Report handled errors of: user code, third party packages or both.
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES`` = ``module1, module2...``. List of modules for which you want to report handled errors.
+
+Handled errors will be report in Error Tracking and attached to spans through span events.
+
+If you are on Python3.10 or Python3.11 and you want to instrument ``__main__`` module, you need to add::
+
+  from ddtrace.errortracking._handled_exceptions.bytecode_reporting import instrument_main
+
+  if __name__ == "__main__":
+    instrument_main()
+
+This code should be added after the functions definitions with handled errors.
+
+Manual Instrumentation
+----------------------
+
+You can report handled errors manually using ``span.record_exception(e)``::
+
+  from ddtrace import tracer
+
+  try:
+    raise ValueError("foo")
+  except ValueError as e:
+    span = tracer.current_span()
+    if span:
+      span.record_exception(e)
+
+This call will create a span event on the span with the error information and will report
+the error to Error Tracking.
+You can also provide additional attributes using::
+
+  span.record_exception(e, {"foo": "bar"})
