@@ -262,7 +262,6 @@ def _inject():
     EXECUTABLES_DENY_LIST = build_denied_executables()
     integration_incomp = False
     runtime_incomp = False
-    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     spec = None
     try:
         # `find_spec` is only available in Python 3.4+
