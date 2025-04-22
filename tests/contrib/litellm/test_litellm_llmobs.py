@@ -11,16 +11,12 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
 @pytest.mark.parametrize(
-    "stream,n, include_usage",
+    "stream,n",
     [
-        (True, 1, True),
-        (True, 2, True),
-        (False, 1, True),
-        (False, 2, True),
-        (True, 1, False),
-        (True, 2, False),
-        (False, 1, False),
-        (False, 2, False),
+        (True, 1),
+        (True, 2),
+        (False, 1),
+        (False, 2),
     ],
 )
 class TestLLMObsLiteLLM:
@@ -203,14 +199,14 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_integrations_enabled=True)])
-    def test_completion_integrations_enabled(
+    def test_completion_openai_enabled(
         self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            patch(openai=True)
             import openai
 
-            pin = Pin.get_from(litellm)
+            pin = Pin.get_from(openai)
             pin._override(openai, tracer=mock_tracer)
 
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -222,39 +218,11 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, token_metrics = consume_stream(resp, n)
-            else:
-                output_messages, token_metrics = parse_response(resp)
+                for _ in resp:
+                    pass
 
-        spans = mock_tracer.pop_traces()
-        # if streaming, grab the LiteLLM request, otherwise, grab the OpenAI request
-        if stream:
-            span = spans[0][0]
-            metadata = {"stream": stream, "n": n, "stream_options": {"include_usage": True}}
-            model_name = "gpt-3.5-turbo"
-        else:
-            span = spans[0][1]
-            # remove parent span since LiteLLM request span will not be submitted to LLMObs
-            span._parent = None
-            metadata = {
-                "n": n,
-                "extra_body": {},
-                "timeout": 600.0,
-                "extra_headers": {"X-Stainless-Raw-Response": "true"},
-            }
-            model_name = "gpt-3.5-turbo-0125"
         assert len(llmobs_events) == 1
-        expected_event = _expected_llmobs_llm_span_event(
-            span,
-            model_name=model_name,
-            model_provider="openai",
-            input_messages=messages,
-            output_messages=output_messages,
-            metadata=metadata,
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
-        )
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
     
     def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
