@@ -102,7 +102,7 @@ class LLMObsState(dict):
         super().__init__(*args, **kwargs)
 
         self.llmobs_service = kwargs.get("llmobs_service", None)
-        self.proxy: Dict[str, List[Span]] = kwargs.get("_proxy", {})
+        self.proxy: Dict[str, Dict[str, Any]] = kwargs.get("_proxy", {})
 
         self.reading = False
 
@@ -130,19 +130,19 @@ class LLMObsState(dict):
         if not self.reading:
             return
 
-        from_spans_meta: Dict[str, Any] = self.proxy.get(key, None)
+        from_spans_meta: Optional[Dict[str, Any]] = self.proxy.get(key, None)
 
         current_span: Span = self.llmobs_service._current_span()
         existing_links = (
             self.carrier.get(self.carrier_key, [])
-            if self.carrier is not None
+            if self.carrier is not None and self.carrier_key is not None
             else current_span._get_ctx_item(SPAN_LINKS) or []
         )
 
         if not from_spans_meta:
             return
 
-        from_spans: Optional[List[Span]] = from_spans_meta.get("spans", None)
+        from_spans: Optional[List[Dict[str, Any]]] = from_spans_meta.get("spans", None)
         if from_spans is None:
             return
 
@@ -162,7 +162,7 @@ class LLMObsState(dict):
 
         from_spans_meta["used"] = True
 
-        if self.carrier is not None:
+        if self.carrier is not None and self.carrier_key is not None:
             self.carrier[self.carrier_key] = existing_links
         else:
             current_span._set_ctx_item(SPAN_LINKS, existing_links)
@@ -173,7 +173,7 @@ class LLMObsState(dict):
 
         current_span: Span = self.llmobs_service._current_span()
         spans_meta: Dict[str, Any] = self.proxy.setdefault(key, {})
-        spans: Optional[List[Span]] = spans_meta.get("spans", None)
+        spans: Optional[List[Dict[str, Any]]] = spans_meta.get("spans", None)
         if spans is None:
             spans_meta["spans"] = [
                 {
@@ -201,7 +201,7 @@ class LLMObsState(dict):
         llmobs_proxies = llmobs_states if isinstance(llmobs_states, list) else [llmobs_states]
 
         # merge spans of all llmobs_states
-        merged_llmobs_proxies: Dict[str, List[Span]] = {}
+        merged_llmobs_proxies: Dict[str, Dict[str, Any]] = {}
         for llmobs_proxy in llmobs_proxies:
             if llmobs_proxy is None:
                 continue
@@ -214,8 +214,8 @@ class LLMObsState(dict):
         return LLMObsState(state, _proxy=merged_llmobs_proxies, llmobs_service=service)
 
     @staticmethod
-    def from_dict(state: Dict[str, Any]):
-        if isinstance(state, LLMObsState):
+    def from_dict(state: Optional[Dict[str, Any]]):
+        if isinstance(state, LLMObsState) or state is None:
             return state
 
         proxy = state.pop("_proxy", {})

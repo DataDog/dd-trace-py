@@ -643,6 +643,9 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_llm_influenced_control_enabled = _get_config(
+            "DD_LLMOBS_LLM_INFLUENCED_CONTROL_ENABLED", False, asbool
+        )
 
         self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
         self._lib_was_injected = False

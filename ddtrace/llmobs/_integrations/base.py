@@ -35,6 +35,11 @@ class BaseLLMIntegration:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled
 
+    @property
+    def llm_influenced_control_enabled(self) -> bool:
+        """Return whether LLM influenced control is enabled."""
+        return config._llmobs_llm_influenced_control_enabled
+
     def is_pc_sampled_span(self, span: Span) -> bool:
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return False

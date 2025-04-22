@@ -58,20 +58,22 @@ class LangGraphIntegration(BaseLLMIntegration):
     _graph_nodes_by_task_id: Dict[str, Any] = {}  # maps task_id to dictionary of name, span, and span_links
 
     def routing_context(self, node_name, args, kwargs) -> Union[LangGraphRoutingContext, suppress]:
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not self.llm_influenced_control_enabled:
             return suppress()
 
-        state = get_argument_value(args, kwargs, 0, "input")
+        state: Optional[Dict[str, Any]] = get_argument_value(args, kwargs, 0, "input")
         config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
         task_id = config.get("metadata", {}).get("langgraph_checkpoint_ns", "").split(":")[-1]
-        current_node_metadata = self._graph_nodes_by_task_id.get(task_id, {})
+        current_node_metadata: Dict[str, Any] = self._graph_nodes_by_task_id.get(task_id, {})
         current_node_name = current_node_metadata.get("name", None)
 
         if node_name in ("_write", "_route", "_control_branch") or (node_name == current_node_name):
             return suppress()
 
         return LangGraphRoutingContext(
-            state=LLMObsState.from_dict(state), current_node_metadata=current_node_metadata, args=args
+            state=LLMObsState.from_dict(state),
+            current_node_metadata=current_node_metadata,
+            args=args,
         )
 
     def _llmobs_set_tags(
@@ -110,8 +112,6 @@ class LangGraphIntegration(BaseLLMIntegration):
             }
         )
 
-        print(f"\n\nsetting span links for {span._get_ctx_item(NAME)}: {span._get_ctx_item(SPAN_LINKS)}")
-
         if operation == "graph" and not _is_subgraph(span):
             self._graph_nodes_by_task_id.clear()
 
@@ -133,7 +133,8 @@ class LangGraphIntegration(BaseLLMIntegration):
         finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
         for task_id, task in next_tasks.items():
             trigger_node_ids = self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
-            self._set_llmobs_state(task, task_id, next_tasks, finished_tasks, trigger_node_ids)
+            if self.llm_influenced_control_enabled:
+                self._set_llmobs_state(task, task_id, next_tasks, finished_tasks, trigger_node_ids)
 
     def _handle_finished_graph(self, graph_span: Span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.

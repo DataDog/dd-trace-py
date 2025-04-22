@@ -211,7 +211,7 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
 def traced_runnable_callable_invoke(langgraph, pin, func, instance, args, kwargs):
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    if not integration.llmobs_enabled:
+    if not integration.llmobs_enabled or not integration.llm_influenced_control_enabled:
         return func(*args, **kwargs)
 
     node_name = getattr(instance, "name", None) or getattr(getattr(instance, "func", None), "__name__", None)
