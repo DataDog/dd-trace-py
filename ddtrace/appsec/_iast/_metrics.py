@@ -61,11 +61,7 @@ def _set_iast_error_metric(msg: Text) -> None:
             res.extend(result[1:])
 
             stack_trace = "".join(res)
-
-        tags = {
-            "lib_language": "python",
-        }
-        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
+        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
     except Exception:
         log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
