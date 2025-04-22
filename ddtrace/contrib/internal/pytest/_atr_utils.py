@@ -20,6 +20,10 @@ from ddtrace.internal.test_visibility.api import InternalTest
 
 log = get_logger(__name__)
 
+# PASSED = "passed"
+# FAILED = "failed"
+# SKIPPED = "skipped"
+
 
 class _ATR_RETRY_OUTCOMES:
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
@@ -87,6 +91,7 @@ def atr_handle_retries(
         when="call",
         longrepr=None,
         outcome=final_outcomes[atr_outcome],
+        user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")]
         # outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
     )
     # TODO(@gnufede): keep investigation from here
@@ -114,6 +119,13 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     return InternalTest.atr_get_final_status(test_id)
 
 
+def get_user_property(report, key, default=None):
+    for k, v in report.user_properties:
+        if k == key:
+            return v
+    return default
+
+
 def _atr_write_report_for_status(
     terminalreporter: _pytest.terminal.TerminalReporter,
     status_key: str,
@@ -123,8 +135,16 @@ def _atr_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
+    retry_reason="auto_test_retry",
 ):
-    reports = terminalreporter.getreports(status_key)
+    # reports = terminalreporter.getreports(status_key)
+
+    reports = [
+        report
+        for report in terminalreporter.getreports(report_outcome)
+        if get_user_property(report, "dd_retry_reason") == retry_reason
+    ]
+
     markup_kwargs = {color: True}
     if reports:
         text = f"{len(reports)} {status_text}"
@@ -134,15 +154,15 @@ def _atr_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-            report.outcome = report_outcome
-            # Do not re-append a report if a report already exists for the item in the reports
-            for existing_reports in terminalreporter.stats.get(report_outcome, []):
-                if existing_reports.nodeid == report.nodeid:
-                    break
-            else:
-                terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        if delete_reports:
-            del terminalreporter.stats[status_key]
+        #     report.outcome = report_outcome
+        #     # Do not re-append a report if a report already exists for the item in the reports
+        #     for existing_reports in terminalreporter.stats.get(report_outcome, []):
+        #         if existing_reports.nodeid == report.nodeid:
+        #             break
+        #     else:
+        #         terminalreporter.stats.setdefault(report_outcome, []).append(report)
+        # if delete_reports:
+        #     del terminalreporter.stats[status_key]
 
 
 def _atr_prepare_attempts_strings(
@@ -176,25 +196,25 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     raw_summary_strings = []
     markedup_summary_strings = []
 
-    # _atr_write_report_for_status(
-    #     terminalreporter,
-    #     status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
-    #     status_text="failed",
-    #     report_outcome=PYTEST_STATUS.FAILED,
-    #     raw_strings=raw_summary_strings,
-    #     markedup_strings=markedup_summary_strings,
-    #     color="red",
-    # )
+    _atr_write_report_for_status(
+        terminalreporter,
+        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+        status_text="failed",
+        report_outcome=PYTEST_STATUS.FAILED,
+        raw_strings=raw_summary_strings,
+        markedup_strings=markedup_summary_strings,
+        color="red",
+    )
 
-    # _atr_write_report_for_status(
-    #     terminalreporter,
-    #     status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-    #     status_text="passed",
-    #     report_outcome=PYTEST_STATUS.PASSED,
-    #     raw_strings=raw_summary_strings,
-    #     markedup_strings=markedup_summary_strings,
-    #     color="green",
-    # )
+    _atr_write_report_for_status(
+        terminalreporter,
+        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+        status_text="passed",
+        report_outcome=PYTEST_STATUS.PASSED,
+        raw_strings=raw_summary_strings,
+        markedup_strings=markedup_summary_strings,
+        color="green",
+    )
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
