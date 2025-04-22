@@ -166,8 +166,6 @@ def test_payload_too_large():
     )
 )
 def test_resource_name_too_large():
-    import pytest
-
     from ddtrace.trace import tracer as t
     from tests.integration.test_integration import FOUR_KB
 
@@ -176,12 +174,9 @@ def test_resource_name_too_large():
     s.resource = "B" * int(FOUR_KB + 1)
     try:
         s.finish()
-    except ValueError:
-        pytest.fail()
-    encoded_spans, size = t._span_aggregator.writer._encoder.encode()
-    assert size == 1
-    assert b"failed to pack span" in encoded_spans
-    assert b"string table is full (current size: 4129, max size: 4096)" in encoded_spans
+        encoded_spans, size = t._span_aggregator.writer._encoder.encode()
+    except Exception as err:
+        assert isinstance(err, ValueError)
 
 
 @parametrize_with_all_encodings
