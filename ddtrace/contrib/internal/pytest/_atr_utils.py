@@ -84,12 +84,14 @@ def atr_handle_retries(
 
     atr_outcome = _atr_do_retries(item, outcomes)
 
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
+
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords={k: 1 for k in item.keywords},
         when="call",
-        longrepr=None,
+        longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
         user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")]
         # outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
