@@ -719,7 +719,7 @@ def get_final_message_converse_stream_message(
     Returns:
         Dict containing the processed message with content and optional tool calls
     """
-    indices = sorted(message.get("context_block_indices", []))
+    indices = sorted(message.get("content_block_indicies", []))
     message_output = {"role": message["role"]}
 
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
