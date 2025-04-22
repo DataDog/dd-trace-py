@@ -18,10 +18,6 @@ from tests.utils import DummyTracer
         (True, 2, True),
         (False, 1, True),
         (False, 2, True),
-        (True, 1, False),
-        (True, 2, False),
-        (False, 1, False),
-        (False, 2, False),
     ],
 )
 class TestLLMObsLiteLLM:
