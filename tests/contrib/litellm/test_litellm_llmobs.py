@@ -199,8 +199,34 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_openai_enabled(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
+    def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+                api_base="http://0.0.0.0:4000",
+            )
+            if stream:
+                consume_stream(resp, n)
+
+        # client side requests made to the proxy are not submitted to LLMObs
+        assert len(llmobs_events) == 0
+
+@pytest.mark.parametrize(
+    "stream,n",
+    [
+        (True, 1),
+        (True, 2),
+        (False, 1),
+        (False, 2),
+    ],
+)
+def test_completion_openai_enabled(
+        litellm, request_vcr, llmobs_events, mock_tracer, stream, n
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
@@ -251,20 +277,3 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
         assert llmobs_events[0] == expected_event
-
-    def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
-        with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
-            messages = [{"content": "Hey, what is up?", "role": "user"}]
-            resp = litellm.completion(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                stream=stream,
-                n=n,
-                stream_options={"include_usage": True},
-                api_base="http://0.0.0.0:4000",
-            )
-            if stream:
-                consume_stream(resp, n)
-
-        # client side requests made to the proxy are not submitted to LLMObs
-        assert len(llmobs_events) == 0
