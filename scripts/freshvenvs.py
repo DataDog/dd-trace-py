@@ -1,31 +1,25 @@
 import argparse
-import json
-import os
-import pathlib
-import sys
-import typing
-
 from collections import defaultdict
 import datetime as dt
 from http.client import HTTPSConnection
 from io import StringIO
-from packaging.version import Version
-from pip import _internal
+import json
 from operator import itemgetter
+import os
+import pathlib
+import sys
+import typing
 from typing import Optional
 
-from ddtrace.contrib.integration_registry.mappings import (
-    DEPENDENCY_TO_INTEGRATION_MAPPING,
-    INTEGRATION_TO_DEPENDENCY_MAPPING,
-)
+from packaging.version import Version
+from pip import _internal
+
+from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
+from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
 import riotfile  # noqa: E402
 
-sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
-from ddtrace.contrib.integration_registry.mappings import (
-    DEPENDENCY_TO_INTEGRATION_MAPPING,
-    INTEGRATION_TO_DEPENDENCY_MAPPING,
-)
+sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
@@ -182,8 +176,8 @@ def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Op
 
 def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
     """Get a mapping of riot hash to venv name."""
-    import re
     from io import StringIO
+    import re
 
     import riot
 
