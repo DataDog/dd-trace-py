@@ -64,4 +64,21 @@ def patch_iast(patch_modules=IAST_PATCH):
             path_traversal_sanitizer,
         )
     )
+    # TODO: werkzeug.utils.safe_join propagation doesn't work because strip("._") which is not yet supported by IAST
+    # when_imported("werkzeug.utils")(
+    #     lambda _: try_wrap_function_wrapper(
+    #         "werkzeug.utils",
+    #         "safe_join",
+    #         path_traversal_sanitizer,
+    #     )
+    # )
+    # TODO: os.path.normpath propagation is not yet supported by IAST
+    # when_imported("os.path")(
+    #     lambda _: try_wrap_function_wrapper(
+    #         "os.path",
+    #         "normpath",
+    #         path_traversal_sanitizer,
+    #     )
+    # )
+
     when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
