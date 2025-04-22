@@ -1,21 +1,26 @@
 import argparse
-import datetime as dt
 import json
 import os
 import pathlib
 import sys
 import typing
+
 from collections import defaultdict
+import datetime as dt
 from http.client import HTTPSConnection
 from io import StringIO
+from packaging.version import Version
+from pip import _internal
 from operator import itemgetter
 from typing import Optional
 
-from packaging.version import Version
-from pip import _internal
-
-sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
+from ddtrace.contrib.integration_registry.mappings import (
+    DEPENDENCY_TO_INTEGRATION_MAPPING,
+    INTEGRATION_TO_DEPENDENCY_MAPPING,
+)
 import riotfile  # noqa: E402
+
+sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))import riotfile  # noqa: E402
 
 from ddtrace.contrib.integration_registry.mappings import (
     DEPENDENCY_TO_INTEGRATION_MAPPING,
@@ -27,8 +32,6 @@ LATEST = ""
 
 supported_versions = []
 pinned_packages = set()
-
-VENV_TO_SUBVENVS = {}
 
 
 class Capturing(list):
@@ -90,7 +93,7 @@ def _get_riot_envs_including_any(contrib_modules: typing.Set[str]) -> typing.Set
 def _integration_to_dependency_mapping_contains(integration: str, lockfile_content: str) -> bool:
     if integration not in INTEGRATION_TO_DEPENDENCY_MAPPING:
         return False
-    
+
     for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING[integration]:
         if dependency in lockfile_content:
             return True
@@ -117,7 +120,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
                 if package in pinned_packages:
                     pinned_packages.remove(package)
             recurse_venvs(venv.venvs)
-    
+
     recurse_venvs(all_venvs)
 
     packages = {m for m in contrib_modules if "." not in m and m not in pinned_packages}
@@ -125,18 +128,18 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
 
 
 def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
-    """Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
+    """
+    Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
     venvs are nested within eachother, we will get a consistent integration name for each venv / child venv. Also
-    lowercase the package names to ensure consistent lookups."""
+    lowercase the package names to ensure consistent lookups.
+    """
     def _lower_pkg_names(venv: riotfile.Venv):
         venv.pkgs = {k.lower(): v for k, v in venv.pkgs.items()}
-    
+
     for venv in all_venvs:
         _lower_pkg_names(venv)
         if venv.venvs:
             for child_venv in venv.venvs:
-                if child_venv.name:
-                    VENV_TO_SUBVENVS[child_venv.name] = venv.name
                 child_venv.name = venv.name
 
     return all_venvs
@@ -226,9 +229,6 @@ def _get_package_versions_from(
                 integration = DEPENDENCY_TO_INTEGRATION_MAPPING[venv_name]
                 dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING[integration]
                 return integration, dependencies
-            elif venv_name in VENV_TO_SUBVENVS:
-                main_venv = VENV_TO_SUBVENVS[venv_name]
-                return get_integration_and_dependencies(main_venv)
             else:
                 return None, []
         integration, dependencies = get_integration_and_dependencies(venv_name)
