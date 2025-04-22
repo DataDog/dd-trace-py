@@ -1,6 +1,5 @@
 from importlib.machinery import ModuleSpec
 from pathlib import Path
-import sys
 from types import ModuleType
 import typing as t
 
@@ -23,7 +22,6 @@ def test_symbol_from_code():
     assert {s.name for s in symbols if s.symbol_type == SymbolType.LOCAL} == {"loc"}
 
 
-@pytest.mark.skipif(sys.version_info > (3, 12), reason="fails on 3.13")
 def test_symbols_class():
     class Sup:
         pass

@@ -74,7 +74,7 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
         remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
     # ensure exploit prevention patches are loaded by one-click activation
     if asm_config._asm_enabled:
-        from ddtrace.appsec import load_common_appsec_modules
+        from ddtrace.appsec._listeners import load_common_appsec_modules
 
         load_common_appsec_modules()
 

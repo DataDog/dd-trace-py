@@ -43,6 +43,7 @@ class Scheduler(periodic.PeriodicService):
         self._last_export: int = 0  # Overridden in _start_service
         self._tracer = tracer
         self._export_libdd_enabled: bool = config.export.libdd_enabled
+        self._enable_code_provenance: bool = config.code_provenance
 
     def _start_service(self):
         # type: (...) -> None
@@ -63,7 +64,7 @@ class Scheduler(periodic.PeriodicService):
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
         if self._export_libdd_enabled:
-            ddup.upload(self._tracer)
+            ddup.upload(self._tracer, self._enable_code_provenance)
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
