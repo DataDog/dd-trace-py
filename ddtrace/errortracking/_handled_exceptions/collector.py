@@ -22,7 +22,6 @@ def _add_span_events(span: Span) -> None:
     """
     span_exc_events = list(HandledExceptionCollector.get_exception_events(span.span_id).values())
     if span_exc_events:
-        print("ADDING SPAN EVENTS")
         span.set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
         span._events.extend(span_exc_events)
     HandledExceptionCollector.clear_exception_events(span.span_id)
@@ -30,7 +29,6 @@ def _add_span_events(span: Span) -> None:
 
 def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
     exception_events = HandledExceptionCollector.get_exception_events(span.span_id)
-    print("OI HUGHIE")
     if exception_events and exc_val in exception_events:
         del exception_events[exc_val]
 

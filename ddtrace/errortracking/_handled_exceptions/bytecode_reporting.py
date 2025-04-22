@@ -106,7 +106,7 @@ _injector: HandledExceptionReportingInjector | None = None
 
 def instrument_main() -> None:
     """
-    __main__module is never imported, therefore we can instrument
+    __main__ module is never imported, therefore we can instrument
     its function only after the def code is executed. This is a helper
     function in case a client really need to instrument its main file.
     This is also the reason why _injector is a global object
