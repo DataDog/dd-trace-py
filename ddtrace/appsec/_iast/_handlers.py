@@ -10,15 +10,13 @@ from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
-from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
-from ddtrace.appsec._iast._patch import _patched_dictionary
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal.logger import get_logger
@@ -100,12 +98,12 @@ def _on_flask_patch(flask_version):
             try_wrap_function_wrapper(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
-                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+                functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
             try_wrap_function_wrapper(
                 "werkzeug.wrappers.request",
                 "Request.get_json",
-                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+                functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
 
             _set_metric_iast_instrumented_source(OriginType.BODY)
@@ -354,7 +352,7 @@ def _on_iast_fastapi_patch():
     try_wrap_function_wrapper(
         "starlette.requests",
         "cookie_parser",
-        functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
+        functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
     )
     _set_metric_iast_instrumented_source(OriginType.COOKIE)
     _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
@@ -535,3 +533,26 @@ def _on_werkzeug_render_debugger_html(html):
         set_iast_stacktrace_reported(True)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
+    def receive(self):
+        """This pattern comes from a Request._receive property, which returns a callable"""
+
+        async def wrapped_property_call():
+            body = await self._receive()
+            return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
+
+        return wrapped_property_call
+
+    # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
+    wrapped(*args, **kwargs)
+    instance.__class__.receive = property(receive)
+
+
+async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
+    result = await wrapped(*args, **kwargs)
+
+    return taint_pyobject(
+        result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
+    )

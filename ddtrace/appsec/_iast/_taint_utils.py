@@ -524,3 +524,9 @@ if asm_config._iast_lazy_taint:
             return LazyTaintDict(main_obj, (origin_key, origin_value), override_pyobject_tainted)
         elif isinstance(main_obj, abc.Sequence):
             return LazyTaintList(main_obj, (origin_key, origin_value), override_pyobject_tainted)
+
+
+def taint_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
+    result = original_func(*args, **kwargs)
+
+    return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)

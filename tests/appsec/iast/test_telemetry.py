@@ -142,7 +142,11 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer):
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
-    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
+    filtered_metrics = [
+        metric["metric"]
+        for metric in generate_metrics
+        if metric["metric"] not in ["executed.sink", "instrumented.sink"]
+    ]
     assert filtered_metrics == ["instrumented.propagation"]
 
 

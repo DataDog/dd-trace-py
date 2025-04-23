@@ -17,11 +17,10 @@ static char** cached_packages = NULL;
 static size_t cached_packages_count = 0;
 
 /* Static Lists */
-static size_t static_allowlist_count = 8;
-static const char* static_allowlist[] = { "jinja2.",           "pygments.", "multipart.", "sqlalchemy.",
-                                          "python_multipart.", "attrs",     "jsonschema", "s3fs" };
+static const char* static_allowlist[] = { "jinja2.", "pygments.",   "multipart.", "sqlalchemy.", "python_multipart.",
+                                          "attrs.",  "jsonschema.", "s3fs.",      "mysql.",      "pymysql." };
+static const size_t static_allowlist_count = sizeof(static_allowlist) / sizeof(static_allowlist[0]);
 
-static size_t static_denylist_count = 145;
 static const char* static_denylist[] = { "django.apps.config.",
                                          "django.apps.registry.",
                                          "django.conf.",
@@ -167,8 +166,8 @@ static const char* static_denylist[] = { "django.apps.config.",
                                          "django_filters.rest_framework.filterset.",
                                          "django_filters.utils.",
                                          "django_filters.widgets." };
+static const size_t static_denylist_count = sizeof(static_denylist) / sizeof(static_denylist[0]);
 
-static size_t static_stdlib_count = 215;
 static const char* static_stdlib_denylist[] = {
     "__future__",   "_ast",        "_compression", "_thread",
     "abc",          "aifc",        "argparse",     "array",
@@ -225,6 +224,7 @@ static const char* static_stdlib_denylist[] = {
     "xml",          "xmlrpc",      "zipapp",       "zipfile",
     "zipimport",    "zlib",        "zoneinfo",
 };
+static const size_t static_stdlib_denylist_count = sizeof(static_stdlib_denylist) / sizeof(static_stdlib_denylist[0]);
 
 /* --- Helper function: str_in_list ---
    Returns 1 (true) if string is in a list of chars.
@@ -448,7 +448,7 @@ init_globals(void)
     }
 
     builtin_count = (size_t)PyTuple_Size(builtin_names);
-    builtins_denylist_count = static_stdlib_count + builtin_count;
+    builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
     builtins_denylist = malloc(builtins_denylist_count * sizeof(char*));
     if (!builtins_denylist) {
@@ -456,7 +456,7 @@ init_globals(void)
         return -1;
     }
     /* Copy static stdlib names */
-    for (i = 0; i < static_stdlib_count; i++) {
+    for (i = 0; i < static_stdlib_denylist_count; i++) {
         char* dup = strdup(static_stdlib_denylist[i]);
         if (!dup)
             return -1;
@@ -478,7 +478,7 @@ init_globals(void)
                 for (char* p = dup; *p; p++) {
                     *p = tolower(*p);
                 }
-                builtins_denylist[static_stdlib_count + i] = dup;
+                builtins_denylist[static_stdlib_denylist_count + i] = dup;
             }
         }
     }
