@@ -713,7 +713,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     return
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Report flaky or failed tests"""
     try:
