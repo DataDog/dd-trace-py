@@ -100,27 +100,25 @@ def _debugme(f):
     return wrapped
 
 
-@_debugme
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
     This function has the side effect of marking the test as skipped immediately if it should be skipped.
     """
-    if not CIVisibility.test_skipping_enabled():
+    if not InternalTestSession.is_test_skipping_enabled():
         return False
 
-    test = CIVisibility.get_test_by_id(test_id)
-    suite = test.parent
+    suite_id = test_id.parent_id
 
-    item_is_unskippable = suite.is_itr_unskippable(suite_id) or test.is_attempt_to_fix()
+    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
 
-    if suite.is_itr_skippable():
+    if InternalTestSuite.is_itr_skippable(suite_id):
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
-            test.mark_itr_forced_run()
+            InternalTest.mark_itr_forced_run(test_id)
             return False
 
-        test.mark_itr_skipped()
+        InternalTest.mark_itr_skipped(test_id)
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
         return True
@@ -128,14 +126,13 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
-@_debugme
-def _handle_test_management(item, test):
+def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
     """
-    is_quarantined = test.is_quarantined()
-    is_disabled = test.is_disabled()
-    is_attempt_to_fix = test.is_attempt_to_fix()
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
@@ -370,27 +367,27 @@ def pytest_collection_finish(session) -> None:
 @_debugme
 def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.CollectInContext]:
     test_id = _get_test_id_from_item(item)
+    suite_id = test_id.parent_id
+    module_id = suite_id.parent_id
     test = CIVisibility.get_test_by_id(test_id)
-    suite = test.parent
-    module = suite.parent
 
     # TODO: don't re-start modules if already started
-    module.start()
-    suite.start()
+    InternalTestModule.start(module_id)
+    InternalTestSuite.start(suite_id)
 
     # DEV: pytest's fixtures resolution may change parameters between collection finish and test run
     parameters = _get_test_parameters_json(item)
     if parameters is not None:
-        test.set_parameters(parameters)
+        InternalTest.set_parameters(test_id, parameters)
 
-    test.start()
+    InternalTest.start(test_id)
 
-    _handle_test_management(item, test)
+    _handle_test_management(item, test_id)
     _handle_itr_should_skip(item, test_id)
 
-    item_will_skip = _pytest_marked_to_skip(item) or test.is_itr_skipped()
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
 
-    collect_test_coverage = CIVisibility.should_collect_coverage() and not item_will_skip
+    collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
     if collect_test_coverage:
         return _start_collecting_coverage()
@@ -446,19 +443,17 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
-@_debugme
 def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
-    test = CIVisibility.get_test_by_id(test_id)
 
     has_exception = call.excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
     if getattr(result, "wasxfail", None):
-        test.set_tag(XFAIL_REASON, result.wasxfail)
+        InternalTest.set_tag(test_id, XFAIL_REASON, result.wasxfail)
     elif "xfail" in getattr(result, "keywords", []) and getattr(result, "longrepr", None):
-        test.set_tag(XFAIL_REASON, result.longrepr)
+        InternalTest.set_tag(test_id, XFAIL_REASON, result.longrepr)
 
     # Only capture result if:
     # - there is an exception
@@ -470,22 +465,22 @@ def _process_result(item, call, result) -> _TestOutcome:
         return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
-    xfail_reason_tag = test.get_tag(XFAIL_REASON) if xfail else None
+    xfail_reason_tag = InternalTest.get_tag(test_id, XFAIL_REASON) if xfail else None
     has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
-        if test.is_itr_skipped():
+        if InternalTest.was_skipped_by_itr(test_id):
             # Items that were skipped by ITR already have their status and reason set
             return _TestOutcome()
 
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             if not item.config.option.runxfail:
-                test.set_tag(test.RESULT, test.Status.XFAIL.value)
+                InternalTest.set_tag(test_id, test.RESULT, test.Status.XFAIL.value)
                 if xfail_reason_tag is None:
-                    test.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                    InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 return _TestOutcome(TestStatus.PASS)
 
         return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
@@ -494,23 +489,23 @@ def _process_result(item, call, result) -> _TestOutcome:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
             if xfail_reason_tag is None:
-                test.set_tag(XFAIL_REASON, "XFail")
-            test.set_tag(test.RESULT, test.Status.XPASS.value)
+                InternalTest.set_tag(test_id, XFAIL_REASON, "XFail")
+            InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
 
         return _TestOutcome(TestStatus.PASS)
 
     if xfail and not has_skip_keyword and not item.config.option.runxfail:
         # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
         if xfail_reason_tag is None:
-            test.set_tag(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
-        test.set_tag(test.RESULT, test.Status.XPASS.value)
+            InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+        InternalTest.set_tag(test_id, test.RESULT, test.Status.XPASS.value)
         return _TestOutcome(TestStatus.FAIL)
 
     # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
     if call.when == "setup" and result.failed:
-        test.stash_set("setup_failed", True)
+        InternalTest.stash_set(test_id, "setup_failed", True)
     elif call.when == "teardown" and result.failed:
-        test.stash_set("teardown_failed", True)
+        InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
 
@@ -528,9 +523,9 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     test_id = _get_test_id_from_item(item)
     test = CIVisibility.get_test_by_id(test_id)
 
-    is_quarantined = test.is_quarantined()
-    is_disabled = test.is_disabled()
-    is_attempt_to_fix = test.is_attempt_to_fix()
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     test_outcome = _process_result(item, call, original_result)
 
@@ -544,8 +539,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         _set_benchmark_data_from_item(item)
 
     # Record a result if we haven't already recorded it:
-    if not test.is_finished():
-        test.finish_test(status=test_outcome.status, reason=test_outcome.skip_reason, exc_info=test_outcome.exc_info)
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     if original_result.failed and (is_quarantined or is_disabled):
         # Ensure test doesn't count as failed for pytest's exit status logic
@@ -553,11 +548,11 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         original_result.outcome = OUTCOME_QUARANTINED
 
     if original_result.failed or original_result.skipped:
-        test.stash_set("failure_longrepr", original_result.longrepr)
+        InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
 
     # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
     # NOTE: this mutates the original result's outcome
-    if test.stash_get("setup_failed") or test.stash_get("teardown_failed"):
+    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
         return
     # if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
