@@ -355,8 +355,8 @@ def generate_supported_versions(contrib_modules, all_used_versions):
             json_format = {
                 "dependency": dependency or contrib_module,
                 "integration": contrib_module,
-                "minimum_tracer_supported": str(ordered[-1]),
-                "max_tracer_supported": str(ordered[0]),
+                "minimum_tracer_tested": str(ordered[-1]),
+                "maximum_tracer_tested": str(ordered[0]),
             }
 
             if contrib_module in pinned_packages:
@@ -372,6 +372,33 @@ def generate_supported_versions(contrib_modules, all_used_versions):
         json.dump(supported_versions_output, file, indent=4)
 
 
+def _get_version_floor(version: str) -> str:
+    """
+    Get the version floor for a given version.
+    """
+    major = version.split(".")[0]
+    return f">={major}.0.0"
+
+
+def add_implied_support_versions():
+    """
+    Add implied support versions to the supported_versions_output.json file.
+    """
+    with open("supported_versions_output.json", "r") as file:
+        supported_versions = json.load(file)
+
+    for dep_info in supported_versions:
+        pinned = dep_info.get("pinned", False)
+
+        if pinned:
+            dep_info["maximum_tracer_supported"] = dep_info["maximum_tracer_tested"]
+
+        dep_info["minimum_tracer_supported"] = _get_version_floor(dep_info["minimum_tracer_tested"])
+
+    with open("supported_versions_output.json", "w") as file:
+        json.dump(supported_versions, file, indent=4)
+
+
 def main():
     args = parse_args()
     contribs = _get_contrib_modules()
@@ -385,6 +412,7 @@ def main():
     elif args.mode == "generate":
         all_used_versions = _get_all_used_versions(envs, contribs, riot_hash_to_venv_name)
         generate_supported_versions(contribs, all_used_versions)
+        add_implied_support_versions()
 
 
 if __name__ == "__main__":

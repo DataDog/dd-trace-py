@@ -66,21 +66,32 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[
             col_dependency = next(
                 (h for h in header if "dependency" in h.lower() and h.lower() != col_integration.lower()), None
             )
-            col_min = next((h for h in header if "minimum" in h.lower()), None)
-            col_max = next((h for h in header if "max" in h.lower()), None)
+            col_tested_min = next((h for h in header if "minimum_tracer_tested" in h.lower()), None)
+            col_tested_max = next((h for h in header if "maximum_tracer_tested" in h.lower()), None)
+            col_supported_min = next((h for h in header if "minimum_tracer_supported" in h.lower()), None)
+            col_supported_max = next((h for h in header if "maximum_tracer_supported" in h.lower()), None)
 
             for row_num, row in enumerate(reader, 2):
                 integration_name_raw = row.get(col_integration, "").strip()
                 dependency_name_raw = row.get(col_dependency, "").strip()
-                min_version = row.get(col_min, "").strip()
-                max_version = row.get(col_max, "").strip()
+                tested_min_version = row.get(col_tested_min, "").strip()
+                tested_max_version = row.get(col_tested_max, "").strip()
+                supported_min_version = row.get(col_supported_min, "").strip()
+                supported_max_version = row.get(col_supported_max, "").strip()
                 integration_name = integration_name_raw.split("*")[0].strip().lower()
                 dependency_name = dependency_name_raw
 
-                normalized_min = _normalize_version_string(min_version) if min_version else "N/A"
-                normalized_max = _normalize_version_string(max_version) if max_version else "N/A"
+                normalized_tested_min = _normalize_version_string(tested_min_version) if tested_min_version else "N/A"
+                normalized_tested_max = _normalize_version_string(tested_max_version) if tested_max_version else "N/A"
+                normalized_supported_min = _normalize_version_string(supported_min_version) if supported_min_version else "N/A"
+                normalized_supported_max = _normalize_version_string(supported_max_version) if supported_max_version else "N/A"
 
-                supported_data[integration_name][dependency_name] = {"min": normalized_min, "max": normalized_max}
+                supported_data[integration_name][dependency_name] = {
+                    "tested_min": normalized_tested_min,
+                    "tested_max": normalized_tested_max,
+                    "supported_min": normalized_supported_min,
+                    "supported_max": normalized_supported_max,
+                }
 
     except Exception as e:
         print(f"Error reading supported versions file {filepath.relative_to(PROJECT_ROOT)}: {e}", file=sys.stderr)
@@ -107,15 +118,6 @@ def _read_registry_yaml(filepath: pathlib.Path) -> Optional[List[Dict[str, Any]]
         return None
 
 
-def _create_version_info_block(min_v: Optional[str], max_v: Optional[str]) -> Optional[Dict[str, str]]:
-    """Creates the {'min': ..., 'max': ...} block, returning None if both are None/N/A."""
-    min_final = min_v if min_v and min_v != "N/A" else None
-    max_final = max_v if max_v and max_v != "N/A" else None
-    if min_final is None and max_final is None:
-        return None
-    return {"min": min_final or "N/A", "max": max_final or "N/A"}
-
-
 def _create_new_integration_entry(
     integration_name: str, dependency_version_map: Dict[str, Dict[str, str]]
 ) -> Dict[str, Any]:
@@ -124,9 +126,8 @@ def _create_new_integration_entry(
     new_version_map_for_yaml = {}
 
     for dep_name, version_info in dependency_version_map.items():
-        version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
-        if version_block:
-            new_version_map_for_yaml[dep_name] = version_block
+        if version_info:
+            new_version_map_for_yaml[dep_name] = version_info
 
     new_entry = {
         "integration_name": integration_name,
@@ -169,14 +170,14 @@ def _update_and_add_integration_versions(
                 map_changed_by_merge = False
 
                 for dep_name, version_info in new_dependency_version_map.items():
-                    version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
-                    if version_block:
-                        if modified_tested_versions.get(dep_name) != version_block:
-                            modified_tested_versions[dep_name] = version_block
+                    if version_info:
+                        if modified_tested_versions.get(dep_name) != version_info:
+                            modified_tested_versions[dep_name] = version_info
                             map_changed_by_merge = True
-                    elif dep_name in modified_tested_versions:
-                        del modified_tested_versions[dep_name]
-                        map_changed_by_merge = True
+                        # if we no longer have a version for a dependency, remove it
+                        elif dep_name in modified_tested_versions:
+                            del modified_tested_versions[dep_name]
+                            map_changed_by_merge = True
 
                 if map_changed_by_merge:
                     if modified_tested_versions:
@@ -185,6 +186,7 @@ def _update_and_add_integration_versions(
                         if updated_entry.get("dependency_name") != new_dep_list:
                             updated_entry["dependency_name"] = new_dep_list
                         updated_count += 1
+                    # if we no longer have any dependencies, remove the entry
                     elif "tested_versions_by_dependency" in updated_entry:
                         del updated_entry["tested_versions_by_dependency"]
                         if "dependency_name" in updated_entry:
@@ -196,15 +198,6 @@ def _update_and_add_integration_versions(
                 current_map_keys = sorted(list(updated_entry["tested_versions_by_dependency"].keys()))
                 if updated_entry.get("dependency_name") != current_map_keys:
                     updated_entry["dependency_name"] = current_map_keys
-
-        elif "tested_versions_by_dependency" in updated_entry or "dependency_name" in updated_entry:
-            data_existed = "tested_versions_by_dependency" in updated_entry
-            if "tested_versions_by_dependency" in updated_entry:
-                del updated_entry["tested_versions_by_dependency"]
-            if "dependency_name" in updated_entry:
-                del updated_entry["dependency_name"]
-            if data_existed:
-                removed_count += 1
 
         final_integrations_list.append(updated_entry)
 
