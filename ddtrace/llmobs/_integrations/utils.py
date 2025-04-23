@@ -816,7 +816,7 @@ class OaiSpanAdapter:
         try:
             messages, _ = self.llmobs_input_messages()
             if messages and len(messages) > 0:
-                return messages[0].get("content")
+                return messages[-1].get("content")
         except (AttributeError, IndexError):
             from ddtrace.internal.logger import get_logger
 

@@ -20,7 +20,7 @@ from tests.appsec.integrations.flask_tests.utils import _request_200
 
 
 def _get_agent_client():
-    parsed = parse.urlparse(tracer._writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     return conn
 
