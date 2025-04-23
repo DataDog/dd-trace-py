@@ -37,8 +37,7 @@ def _normalize_version_string(v_str: str) -> str:
         if v.micro is None:
             if v.minor is None:
                 return f"{v.major}.0.0"
-            else:
-                return f"{v.major}.{v.minor}.0"
+            return f"{v.major}.{v.minor}.0"
         parts = v_str.split(".")
         if len(parts) < 3:
             if len(parts) == 1:

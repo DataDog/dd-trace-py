@@ -52,8 +52,6 @@ class IntegrationUpdateOrchestrator:
                 cmd = [tooling_python, "-m", "pip", "install", "-U"] + self.TOOLING_DEPS
                 if self._run_subprocess(cmd, pip_timeout, self.project_root, "pip install -U", verbose=False):
                     return True
-                else:
-                    return True
             except Exception:
                 return True
 

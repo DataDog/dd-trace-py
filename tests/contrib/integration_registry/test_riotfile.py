@@ -43,7 +43,7 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: set[str], integr
                     failed_venvs.append(venv)
 
     if failed_venvs:
-        failure_messages = ["\n" + "*" * 100]
+        failure_messages = [f"\n{'*' * 100}"]
         for venv in failed_venvs:
             failure_messages.append(
                 f"Venv '{venv.name}' has a test command that contains 'tests/contrib': {venv.command}, but "

@@ -70,8 +70,7 @@ def main() -> int:
     if _write_file_lines(REGISTRY_YAML_PATH, output_lines):
         print(f"Successfully applied formatting to {REGISTRY_YAML_PATH.name}")
         return 0
-    else:
-        return 1
+    return 1
 
 
 if __name__ == "__main__":

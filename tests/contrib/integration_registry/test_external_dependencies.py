@@ -30,7 +30,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
     elif not isinstance(dependency_names, list) or not all(isinstance(d, str) and d for d in dependency_names):
         errors.append(
             f"External integration '{name}' has an empty or invalid 'dependency_name' field (must be a non-empty "
-            + "list of strings)."
+            "list of strings)."
         )
 
     version_map = entry.get("tested_versions_by_dependency")
@@ -38,7 +38,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
         if dependency_names:
             errors.append(
                 f"External tested integration '{name}' has 'dependency_name' but is missing "
-                + "'tested_versions_by_dependency' map."
+                "'tested_versions_by_dependency' map."
             )
     elif not isinstance(version_map, dict):
         errors.append(f"External integration '{name}' field 'tested_versions_by_dependency' is not a dictionary.")
@@ -52,19 +52,19 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
             if missing_in_map:
                 errors.append(
                     f"Integration '{name}': Dependencies {sorted(list(missing_in_map))} listed in 'dependency_name' "
-                    + "are missing from 'tested_versions_by_dependency' map."
+                    "are missing from 'tested_versions_by_dependency' map."
                 )
             if extra_in_map:
                 errors.append(
                     f"Integration '{name}': Dependencies {sorted(list(extra_in_map))} found in "
-                    + "'tested_versions_by_dependency' map are not listed in 'dependency_name'."
+                    "'tested_versions_by_dependency' map are not listed in 'dependency_name'."
                 )
 
         for dep_name, version_info in version_map.items():
             if not isinstance(version_info, dict):
                 errors.append(
                     f"Integration '{name}', Dependency '{dep_name}': Value in 'tested_versions_by_dependency' is not a "
-                    + "dictionary."
+                    "dictionary."
                 )
                 continue
             min_v = version_info.get("min")
@@ -72,7 +72,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
             if min_v is None and max_v is None:
                 errors.append(
                     f"Integration '{name}', Dependency '{dep_name}': Version info block must contain at least "
-                    + "'min' or 'max'."
+                    "'min' or 'max'."
                 )
                 continue
 
@@ -142,7 +142,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
             if not isinstance(dependency_names, list):
                 errors.append(
                     f"External integration '{integration_name}' has invalid dependency_name (not a list): "
-                    + f"{dependency_names}"
+                    f"{dependency_names}"
                 )
                 continue
 
@@ -150,7 +150,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                 if not isinstance(dep_name, str) or not dep_name:
                     errors.append(
                         f"External integration '{integration_name}' has invalid item in dependency_name list: "
-                        + f"{dep_name}"
+                        f"{dep_name}"
                     )
                     continue
 
@@ -179,7 +179,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                 except FileNotFoundError:
                     pytest.fail(
                         "Could not execute pip command. Ensure Python environment is correctly set up. Command: "
-                        + f"{' '.join(command)}"
+                        f"{' '.join(command)}"
                     )
                 except Exception as e:
                     errors.append(

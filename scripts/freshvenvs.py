@@ -16,10 +16,11 @@ from pip import _internal
 
 from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
 from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
-import riotfile  # noqa: E402
 
-
+# add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
+
+import riotfile  # noqa: E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
@@ -103,7 +104,8 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
     packages_setting_latest = set()
     def recurse_venvs(venvs: typing.List[riotfile.Venv]):
         for venv in venvs:
-            package = venv.name.split(":")[0] if venv.name is not None else venv.name # strip optional package installs
+            # split venv name by ":" since some venvs are named after the integration:subintegration
+            package = venv.name.split(":")[0] if venv.name is not None else venv.name
             # Check if the package name is an integration as all contrib venvs are named after the integration
             if package not in contrib_modules:
                 continue

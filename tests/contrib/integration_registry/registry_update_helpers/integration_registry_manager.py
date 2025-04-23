@@ -122,17 +122,19 @@ class IntegrationRegistryManager:
                 candidate_distribution_names = pkg_dist_map.get(top_level_module, [])
                 integration_name = self._get_integration_name_from_traceback(tb_string)
 
-                if integration_name and candidate_distribution_names:
-                    for distribution_name in candidate_distribution_names:
-                        # Check if this specific distribution actually contains the patched module
-                        if self._distribution_contains_module(distribution_name, full_module_name):
-                            update_key = f"{integration_name}:{distribution_name}"
-                            if update_key not in self.updated_packages:
-                                self.pending_updates[integration_name][distribution_name] = {
-                                    "top_level_module": top_level_module,
-                                    "version": importlib.metadata.version(distribution_name),
-                                }
-                                self.updated_packages.add(update_key)
+                if not (integration_name and candidate_distribution_names):
+                    continue
+
+                for distribution_name in candidate_distribution_names:
+                    # Check if this specific distribution actually contains the patched module
+                    if self._distribution_contains_module(distribution_name, full_module_name):
+                        update_key = f"{integration_name}:{distribution_name}"
+                        if update_key not in self.updated_packages:
+                            self.pending_updates[integration_name][distribution_name] = {
+                                "top_level_module": top_level_module,
+                                "version": importlib.metadata.version(distribution_name),
+                            }
+                            self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)
 
@@ -156,8 +158,7 @@ class IntegrationRegistryManager:
 
             if default:
                 return og_getattr(obj, name, default[0])
-            else:
-                return og_getattr(obj, name)
+            return og_getattr(obj, name)
 
         builtins.getattr = _wrapped_getattr
 

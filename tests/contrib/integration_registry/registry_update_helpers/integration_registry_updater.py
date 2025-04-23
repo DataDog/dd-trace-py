@@ -115,20 +115,20 @@ class IntegrationRegistryUpdater:
                 current_deps_set = set(entry.get("dependency_name", []))
                 if dep.lower() not in current_deps_set:
                     return True
-                else:
-                    dep_version = dep_info.get("version")
-                    if dep_version == "":
-                        return False
-                    min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)
-                    if min_version is None:
-                        return True
-                    if self._semver_compare(dep_version, min_version) == -1:
-                        return True
-                    max_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), {}).get("max", None)
-                    if max_version is None:
-                        return True
-                    if self._semver_compare(dep_version, max_version) == 1:
-                        return True
+
+                dep_version = dep_info.get("version")
+                if dep_version == "":
+                    return False
+                min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)
+                if min_version is None:
+                    return True
+                if self._semver_compare(dep_version, min_version) == -1:
+                    return True
+                max_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), {}).get("max", None)
+                if max_version is None:
+                    return True
+                if self._semver_compare(dep_version, max_version) == 1:
+                    return True
         return False
 
     def merge_data(self, registry_data: dict, input_data: dict) -> bool:
