@@ -6,6 +6,7 @@ import ddtrace
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.telemetry.data import update_imported_dependencies
 
+
 ddtrace_version = tuple(ddtrace.__version__.split("."))
 
 if ddtrace_version < ("3", "5", "0"):
