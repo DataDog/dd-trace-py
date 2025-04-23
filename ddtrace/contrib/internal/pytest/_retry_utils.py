@@ -131,7 +131,9 @@ def _retry_run_when(item, when, outcomes: RetryOutcomes) -> t.Tuple[CallInfo, _p
     return call, report
 
 
-class RetryTestReport(pytest_TestReport):
+# DEV: It is important that the report class name are "TestReport" to avoid issues with pytest serialization logic:
+# https://github.com/pytest-dev/pytest/blob/65c8e8a09e56acbb992a4cad462f01cfd82617d0/src/_pytest/reports.py#L415
+class TestReport(pytest_TestReport):
     """
     A RetryTestReport behaves just like a normal pytest TestReport, except that the the failed/passed/skipped
     properties are aware of retry final states (dd_efd_final_*, etc). This affects the test counts in JUnit XML output,
