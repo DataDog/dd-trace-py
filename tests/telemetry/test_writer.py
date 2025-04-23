@@ -283,6 +283,8 @@ import ddtrace.settings.exception_replay
     env["DD_API_SECURITY_ENABLED"] = "False"
     env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
     env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
+    env["DD_INJECT_FORCE"] = "true"
+    env["DD_INJECTION_ENABLED"] = "true"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
