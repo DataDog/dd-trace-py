@@ -93,11 +93,8 @@ def atr_handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
-        user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")]
-        # outcome=outcomes.FAILED if atr_outcome == TestStatus.FAIL else outcomes.PASSED,
+        user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")],
     )
-    # TODO(@gnufede): keep investigation from here
-    # breakpoint()
     item.ihook.pytest_runtest_logreport(report=final_report)
 
 
@@ -139,8 +136,6 @@ def _atr_write_report_for_status(
     delete_reports: bool = True,
     retry_reason="auto_test_retry",
 ):
-    # reports = terminalreporter.getreports(status_key)
-
     reports = [
         report
         for report in terminalreporter.getreports(report_outcome)
@@ -156,15 +151,6 @@ def _atr_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-        #     report.outcome = report_outcome
-        #     # Do not re-append a report if a report already exists for the item in the reports
-        #     for existing_reports in terminalreporter.stats.get(report_outcome, []):
-        #         if existing_reports.nodeid == report.nodeid:
-        #             break
-        #     else:
-        #         terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        # if delete_reports:
-        #     del terminalreporter.stats[status_key]
 
 
 def _atr_prepare_attempts_strings(

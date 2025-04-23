@@ -98,15 +98,6 @@ _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$"
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
-XDIST_MASTER = False
-
-
-class PluginState:
-    is_controller = None
-
-
-state = PluginState()
-
 
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
@@ -236,21 +227,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
-def is_xdist_loaded(config):
-    return config.pluginmanager.hasplugin("xdist")
-
-
-def is_xdist_active(config):
-    return is_xdist_loaded(config) and (
-        hasattr(config, "workerinput")  # in a worker
-        or config.getoption("dist") != "no"  # in controller using -n or --dist
-    )
-
-
-def is_xdist_worker(config):
-    return hasattr(config, "workerinput")
-
-
 def pytest_configure(config: pytest_Config) -> None:
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
@@ -260,10 +236,6 @@ def pytest_configure(config: pytest_Config) -> None:
             removal_version="3.0.0",
             category=DDTraceDeprecationWarning,
         )
-
-    if is_xdist_active(config) and not is_xdist_worker(config):
-        state.is_controller = True
-        return
 
     try:
         if is_enabled(config):
@@ -329,7 +301,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
     except Exception:  # noqa: E722
-        log.debug("356 encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
+        log.debug("encountered error during session start, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
 
 
@@ -707,8 +679,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     InternalTestSession.finish(force_finish_children=True)
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> t.Generator[None, object, None]:
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
@@ -716,8 +687,6 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> t.Generato
         _pytest_sessionfinish(session, exitstatus)
     except Exception:  # noqa: E722
         log.debug("encountered error during session finish", exc_info=True)
-    finally:
-        yield
 
 
 def pytest_report_teststatus(
