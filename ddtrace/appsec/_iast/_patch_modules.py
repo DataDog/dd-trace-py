@@ -35,36 +35,40 @@ def patch_iast(patch_modules=IAST_PATCH):
             cmdi_sanitizer,
         )
     )
-    when_imported("psycopg2.adapt")(
+    
+    # SQL sanitizers
+    when_imported("mysql.connector.conversion")(
         lambda _: try_wrap_function_wrapper(
-            "psycopg2.adapt",
-            "quote_ident",
+            "mysql.connector.conversion",
+            "MySQLConverter.escape",
             sqli_sanitizer,
         )
     )
-    when_imported("psycopg2.extensions")(
+    when_imported("pymysql")(
         lambda _: try_wrap_function_wrapper(
-            "psycopg2.extensions",
-            "quote_ident",
+            "pymysql.connections",
+            "Connection.escape_string",
             sqli_sanitizer,
         )
     )
-    # TODO: APPSEC-56947 task
-    # when_imported("mysql.connector.conversion")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "mysql.connector.conversion",
-    #         "MySQLConverter.escape",
-    #         sqli_sanitizer,
-    #     )
-    # )
-    when_imported("werkzeug.utils")(
+
+    when_imported("pymysql.converters")(
+        lambda _: try_wrap_function_wrapper(
+            "pymysql.converters",
+            "escape_string",
+            sqli_sanitizer,
+        )
+    )
+
+   # Path Traversal sanitizers
+   when_imported("werkzeug.utils")(
         lambda _: try_wrap_function_wrapper(
             "werkzeug.utils",
             "secure_filename",
             path_traversal_sanitizer,
         )
     )
-    # TODO: werkzeug.utils.safe_join propagation doesn't work because strip("._") which is not yet supported by IAST
+    
     # when_imported("werkzeug.utils")(
     #     lambda _: try_wrap_function_wrapper(
     #         "werkzeug.utils",
