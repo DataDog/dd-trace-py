@@ -163,11 +163,11 @@ class SamplingRule(object):
                 # Other patterns always return false.
                 if isinstance(value, float):
                     if not value.is_integer():
-                        if self._tag_value_matchers[tag_key].pattern == "*":
+                        if all(c == "*" for c in self._tag_value_matchers[tag_key].pattern):
                             tag_match = True
+                            continue
                         else:
                             return False
-                        continue
                     else:
                         value = int(value)
 
