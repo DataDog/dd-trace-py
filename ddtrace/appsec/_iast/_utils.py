@@ -21,5 +21,5 @@ def _is_iast_propagation_debug_enabled():
     return asm_config._iast_propagation_debug
 
 
-def _request_tainted():
+def _num_objects_tainted_in_request():
     return num_objects_tainted()
