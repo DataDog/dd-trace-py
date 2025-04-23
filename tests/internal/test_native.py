@@ -14,6 +14,7 @@ def test_get_configuration_from_disk_managed_stable_config_priority():
     with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="managed_config") as managed_config:
         managed_config.write(
             b"""
+config_id: "123"
 apm_configuration_default:
   DD_VERSION: "c"
 """

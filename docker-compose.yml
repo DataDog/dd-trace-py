@@ -1,6 +1,4 @@
-version: "3"
 # remember to use this compose file __ONLY__ for development/testing purposes
-
 services:
     elasticsearch:
         image: elasticsearch:7.17.13
