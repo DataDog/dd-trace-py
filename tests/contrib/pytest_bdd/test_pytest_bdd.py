@@ -1,8 +1,6 @@
 import json
 import os
 
-import pytest
-
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.pytest_bdd._plugin import _get_step_func_args_json
 from ddtrace.contrib.internal.pytest_bdd._plugin import get_version
