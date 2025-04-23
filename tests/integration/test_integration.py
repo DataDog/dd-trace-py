@@ -158,27 +158,6 @@ def test_payload_too_large():
         log.error.assert_not_called()
 
 
-@skip_if_testagent
-@pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_API_VERSION="v0.5",
-        DD_TRACE_WRITER_BUFFER_SIZE_BYTES=str(FOUR_KB),
-    )
-)
-def test_resource_name_too_large():
-    from ddtrace.trace import tracer as t
-    from tests.integration.test_integration import FOUR_KB
-
-    assert t._span_aggregator.writer._buffer_size == FOUR_KB
-    s = t.trace("operation", service="foo")
-    s.resource = "B" * int(FOUR_KB + 1)
-    try:
-        s.finish()
-        encoded_spans, size = t._span_aggregator.writer._encoder.encode()
-    except Exception as err:
-        assert isinstance(err, ValueError)
-
-
 @parametrize_with_all_encodings
 def test_large_payload_is_sent_without_warning_logs():
     import mock

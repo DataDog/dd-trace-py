@@ -236,10 +236,8 @@ cdef class MsgpackStringTable(StringTable):
     cdef stdint.uint32_t _sp_id
     cdef object _lock
     cdef size_t _reset_size
-    cdef int MAX_SPAN_META_VALUE_LEN
 
     def __init__(self, max_size):
-        self.MAX_SPAN_META_VALUE_LEN = MAX_SPAN_META_VALUE_LEN
         self.pk.buf_size = min(max_size, 1 << 20)
         self.pk.buf = <char*> PyMem_Malloc(self.pk.buf_size)
         if self.pk.buf == NULL:
@@ -261,13 +259,13 @@ cdef class MsgpackStringTable(StringTable):
         cdef int ret
 
         # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
-        if len(string) > self.MAX_SPAN_META_VALUE_LEN:
-            string = string[:self.MAX_SPAN_META_VALUE_LEN-14-self.pk.length] + "<truncated>..."
+        if len(string) > MAX_SPAN_META_VALUE_LEN:
+            string = string[:MAX_SPAN_META_VALUE_LEN-14-self.pk.length] + "<truncated>..."
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
-                "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
-                    string, (self.pk.length + len(string)), self.max_size
+                "Cannot insert '%s': string table is full (current size: %d, size after insert: %d, max size: %d)." % (
+                    string, self.pk.length, (self.pk.length + len(string)), self.max_size
                 )
             )
 

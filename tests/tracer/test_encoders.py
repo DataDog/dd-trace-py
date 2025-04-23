@@ -963,7 +963,7 @@ def test_encode_large_resource_name_v0_5():
         assert isinstance(spans, bytes)
         assert len(items[0]) == 1
         # However: if the buffer has been exceeded we will still drop the payload
-        assert "string table is full (current size: 25000, max size: 1024)." in str(err)
+        assert "string table is full (current size: 33, size after insert: 25000, max size: 1024)." in str(err)
 
 
 def test_encode_large_resource_name_v0_4():
