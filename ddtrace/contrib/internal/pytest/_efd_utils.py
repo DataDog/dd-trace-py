@@ -4,7 +4,6 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import TestReport as RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -24,22 +23,22 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 log = get_logger(__name__)
 
 
-class _EFD_RETRY_OUTCOMES:
+class _EFD_RETRY_OUTCOMES(PYTEST_STATUS):
     EFD_ATTEMPT_PASSED = "dd_efd_attempt_passed"
     EFD_ATTEMPT_FAILED = "dd_efd_attempt_failed"
     EFD_ATTEMPT_SKIPPED = "dd_efd_attempt_skipped"
-    EFD_FINAL_PASSED = "dd_efd_final_passed"
-    EFD_FINAL_FAILED = "dd_efd_final_failed"
-    EFD_FINAL_SKIPPED = "dd_efd_final_skipped"
+    # EFD_FINAL_PASSED = "dd_efd_final_passed"
+    # EFD_FINAL_FAILED = "dd_efd_final_failed"
+    # EFD_FINAL_SKIPPED = "dd_efd_final_skipped"
     EFD_FINAL_FLAKY = "dd_efd_final_flaky"
 
 
 _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
-    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
-    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
-    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
+    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.PASSED,
+    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.FAILED,
+    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.SKIPPED,
     EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
 }
 
@@ -88,7 +87,7 @@ def efd_handle_retries(
     efd_outcome = _efd_do_retries(item)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
@@ -186,7 +185,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
+        _EFD_RETRY_OUTCOMES.FAILED,
         "failed",
         PYTEST_STATUS.FAILED,
         raw_summary_strings,
@@ -196,7 +195,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
+        _EFD_RETRY_OUTCOMES.PASSED,
         "passed",
         PYTEST_STATUS.PASSED,
         raw_summary_strings,
@@ -206,7 +205,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
+        _EFD_RETRY_OUTCOMES.SKIPPED,
         "skipped",
         PYTEST_STATUS.SKIPPED,
         raw_summary_strings,
@@ -325,12 +324,12 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
+    # if report.outcome == _EFD_RETRY_OUTCOMES.PASSED:
+    #     return (_EFD_RETRY_OUTCOMES.PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+    # if report.outcome == _EFD_RETRY_OUTCOMES.FAILED:
+    #     return (_EFD_RETRY_OUTCOMES.FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
+    # if report.outcome == _EFD_RETRY_OUTCOMES.SKIPPED:
+    #     return (_EFD_RETRY_OUTCOMES.SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY:
         # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
         # count of terminal summary
