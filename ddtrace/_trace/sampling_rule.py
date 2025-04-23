@@ -157,7 +157,7 @@ class SamplingRule(object):
             if value is None:
                 value = metrics.get(tag_key)
                 if value is None:
-                    return False
+                    continue
                 # Floats: Matching floating point values with a non-zero decimal part is not supported.
                 # For floating point values with a non-zero decimal part, any all * pattern always returns true.
                 # Other patterns always return false.
