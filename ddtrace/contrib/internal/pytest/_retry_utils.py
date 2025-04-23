@@ -206,9 +206,12 @@ def handle_retries(
         original_result.outcome = RETRY_OUTCOME
         return
 
-    outcome = _do_retries(retry_manager, item)
+    outcome, retry_outcome = _do_retries(retry_manager, item)
     longrepr = InternalTest.stash_get(retry_manager.test_id, "failure_longrepr")
-
+    final_user_properties = [
+        ("dd_retry_reason", retry_manager.retry_reason),
+        ("dd_retry_outcome", retry_outcome or _FINAL_OUTCOMES[outcome]),
+    ]
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
@@ -216,7 +219,7 @@ def handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[outcome],
-        user_properties=item.user_properties + [("dd_retry_reason", retry_manager.retry_reason)],
+        user_properties=item.user_properties + final_user_properties,
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -320,6 +323,16 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="green",
+    )
+
+    _write_report_for_status(
+        terminalreporter,
+        retry_reason=retry_class.retry_reason,
+        status_text="flaky",
+        report_outcome=PYTEST_STATUS.PASSED,
+        raw_strings=raw_summary_strings,
+        markedup_strings=markedup_summary_strings,
+        color="purple",
     )
 
     raw_attempt_strings = []

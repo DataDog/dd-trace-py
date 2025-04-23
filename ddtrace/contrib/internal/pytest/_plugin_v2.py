@@ -100,6 +100,7 @@ def _debugme(f):
     return wrapped
 
 
+@_debugme
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -126,6 +127,7 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
+@_debugme
 def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
@@ -203,6 +205,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
     yield
 
 
+@_debugme
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     """Performs the bare-minimum to determine whether or ModuleCodeCollector should be enabled
 
@@ -267,6 +270,7 @@ def pytest_unconfigure(config: pytest_Config) -> None:
     _disable_ci_visibility()
 
 
+@_debugme
 def pytest_sessionstart(session: pytest.Session) -> None:
     if not is_test_visibility_enabled():
         return
@@ -353,6 +357,7 @@ def _pytest_collection_finish(session) -> None:
         log.warning("Early Flake Detection disabled: too many new tests detected")
 
 
+@_debugme
 def pytest_collection_finish(session) -> None:
     if not is_test_visibility_enabled():
         return
@@ -443,6 +448,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
+@_debugme
 def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 

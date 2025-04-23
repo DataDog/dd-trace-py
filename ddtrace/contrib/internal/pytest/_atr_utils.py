@@ -119,6 +119,7 @@ def _write_report_for_status(
         report
         for report in terminalreporter.getreports(report_outcome)
         if get_user_property(report, "dd_retry_reason") == retry_reason
+        and get_user_property(report, "dd_retry_outcome") == status_text
     ]
 
     markup_kwargs = {color: True}
@@ -166,6 +167,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
     raw_summary_strings = []
     markedup_summary_strings = []
 
+
     _write_report_for_status(
         terminalreporter,
         retry_reason=retry_class.retry_reason,
@@ -180,6 +182,16 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         terminalreporter,
         retry_reason=retry_class.retry_reason,
         status_text="passed",
+        report_outcome=PYTEST_STATUS.PASSED,
+        raw_strings=raw_summary_strings,
+        markedup_strings=markedup_summary_strings,
+        color="green",
+    )
+
+    _write_report_for_status(
+        terminalreporter,
+        retry_reason=retry_class.retry_reason,
+        status_text="flaky",
         report_outcome=PYTEST_STATUS.PASSED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,

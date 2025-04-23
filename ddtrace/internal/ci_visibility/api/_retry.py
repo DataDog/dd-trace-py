@@ -90,7 +90,7 @@ class ATRRetryManager(RetryManager):
         return (
             not self._max_retries_per_test_reached()
             and not self._max_retries_per_session_reached()
-            and self.get_final_status() == TestStatus.FAIL
+            and self.get_final_status()[0] == TestStatus.FAIL
         )
 
     def add_and_start_retry(self) -> int:
@@ -107,7 +107,7 @@ class ATRRetryManager(RetryManager):
         retry_test = self.retries[retry_number - 1]
         retry_test.set_status(status)  # needed to get the final status correctly below
 
-        if self._max_retries_per_test_reached() and self.get_final_status() == TestStatus.FAIL:
+        if self._max_retries_per_test_reached() and self.get_final_status()[0] == TestStatus.FAIL:
             retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
@@ -115,12 +115,12 @@ class ATRRetryManager(RetryManager):
 
     def get_final_status(self) -> TestStatus:
         if self.test._status in [TestStatus.PASS, TestStatus.SKIP]:
-            return self.test._status
+            return self.test._status, None
 
         if any(retry._status == TestStatus.PASS for retry in self.retries):
-            return TestStatus.PASS
+            return TestStatus.PASS, None
 
-        return TestStatus.FAIL
+        return TestStatus.FAIL, None
 
 
 @dataclass
@@ -174,7 +174,7 @@ class EFDRetryManager(RetryManager):
         return (
             not self._max_retries_per_test_reached()
         #     and not self._max_retries_per_session_reached()
-        #     and self.get_final_status() == TestStatus.FAIL
+        #     and self.get_final_status()[0] == TestStatus.FAIL
         )
 
     def add_and_start_retry(self) -> int:
@@ -191,21 +191,26 @@ class EFDRetryManager(RetryManager):
         retry_test = self.retries[retry_number - 1]
         retry_test.set_status(status)  # needed to get the final status correctly below
 
-        if self._max_retries_per_test_reached() and self.get_final_status() == TestStatus.FAIL:
+        if self._max_retries_per_test_reached() and self.get_final_status()[0] == TestStatus.FAIL:
             retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
         retry_test.finish_test(status, exc_info=exc_info)
         self.session_status.attempts[status] += 1
+        self.session_status.total_retries += 1
 
     def get_final_status(self) -> TestStatus:
         tests = [self.test] + [retry for retry in self.retries]
+        expected_total = len(tests)
 
-        if all(test._status == TestStatus.SKIP for test in tests):
-            return TestStatus.SKIP
+        status_counts = defaultdict(lambda: 0)
+        for test in tests:
+            status_counts[test._status] += 1
 
-        if any(test._status == TestStatus.PASS for test in tests):
-            return TestStatus.PASS
+        if status_counts[TestStatus.PASS] == expected_total:
+            return TestStatus.PASS, "passed"
+        if status_counts[TestStatus.FAIL] == expected_total:
+            return TestStatus.FAIL, "failed"
+        if status_counts[TestStatus.SKIP] == expected_total:
+            return TestStatus.SKIP, "skipped"
 
-        return TestStatus.FAIL
-
-        # ꙮ TODO: figure out how to report flaky status (through tags or something).
+        return TestStatus.PASS, "flaky"
