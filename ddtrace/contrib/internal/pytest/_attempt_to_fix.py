@@ -26,9 +26,6 @@ class _RETRY_OUTCOMES(PYTEST_STATUS):
     ATTEMPT_PASSED = "dd_fix_attempt_passed"
     ATTEMPT_FAILED = "dd_fix_attempt_failed"
     ATTEMPT_SKIPPED = "dd_fix_attempt_skipped"
-    # FINAL_PASSED = "dd_fix_final_passed"
-    # FINAL_FAILED = "dd_fix_final_failed"
-    # FINAL_SKIPPED = "dd_fix_final_skipped"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
@@ -114,12 +111,6 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
             "s",
             (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    # if report.outcome == _RETRY_OUTCOMES.FINAL_PASSED:
-    #     return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
-    # if report.outcome == _RETRY_OUTCOMES.FINAL_FAILED:
-    #     return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
-    # if report.outcome == _RETRY_OUTCOMES.FINAL_SKIPPED:
-    #     return (_RETRY_OUTCOMES.FINAL_SKIPPED, "s", ("ATTEMPT TO FIX FINAL STATUS: SKIPPED", {"yellow": True}))
     return None
 
 
@@ -134,16 +125,5 @@ def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_SKIPPED, None)
-    terminalreporter.stats.pop(_RETRY_OUTCOMES.PASSED, None)
-
-    failed_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FAILED, [])
-    for report in failed_tests:
-        if USER_PROPERTY_QUARANTINED not in report.user_properties:
-            terminalreporter.stats.setdefault("failed", []).append(report)
-
-    skipped_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.SKIPPED, [])
-    for report in skipped_tests:
-        if USER_PROPERTY_QUARANTINED not in report.user_properties:
-            terminalreporter.stats.setdefault("skipped", []).append(report)
 
     # TODO: report list of attempt-to-fix results.
