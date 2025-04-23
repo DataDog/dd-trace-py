@@ -17,10 +17,11 @@ from pip import _internal
 from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
 from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
 
+
 # add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
-import riotfile  # noqa: E402
+import riotfile  # noqa: I001
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
