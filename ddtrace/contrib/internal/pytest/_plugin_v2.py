@@ -1,12 +1,10 @@
 import os
 from pathlib import Path
 import re
-import sys
 import typing as t
 
 import pytest
 
-import functools
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace._monkey import patch
@@ -110,21 +108,6 @@ class PluginState:
 state = PluginState()
 
 
-def _debugme(f):
-    @functools.wraps(f)
-    def wrapped(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except Exception:
-            import traceback
-
-            traceback.print_exc()
-            raise
-
-    return wrapped
-
-
-@_debugme
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -151,7 +134,6 @@ def _handle_itr_should_skip(item, test_id) -> bool:
     return False
 
 
-@_debugme
 def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
@@ -173,7 +155,6 @@ def _handle_test_management(item, test_id):
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
-@_debugme
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     coverage_collector = ModuleCodeCollector.CollectInContext()
     # TODO: don't depend on internal for telemetry
@@ -184,7 +165,6 @@ def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     return coverage_collector
 
 
-@_debugme
 def _handle_collected_coverage(test_id, coverage_collector) -> None:
     # TODO: clean up internal coverage API usage
     test_covered_lines = coverage_collector.get_covered_lines()
@@ -205,7 +185,6 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
 
 
-@_debugme
 def _handle_coverage_dependencies(suite_id) -> None:
     coverage_data = InternalTestSuite.get_coverage_data(suite_id)
     coverage_paths = coverage_data.keys()
@@ -213,7 +192,6 @@ def _handle_coverage_dependencies(suite_id) -> None:
     InternalTestSuite.add_coverage_data(suite_id, import_coverage)
 
 
-@_debugme
 def _disable_ci_visibility():
     try:
         disable_test_visibility()
@@ -221,7 +199,6 @@ def _disable_ci_visibility():
         log.debug("encountered error during disable_ci_visibility", exc_info=True)
 
 
-# @_debugme
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_load_initial_conftests(early_config, parser, args):
     """Perform early initialization of the Test Optimization plugin.
@@ -233,7 +210,6 @@ def pytest_load_initial_conftests(early_config, parser, args):
     yield
 
 
-# @_debugme
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     """Performs the bare-minimum to determine whether or ModuleCodeCollector should be enabled
 
@@ -260,12 +236,10 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
-@_debugme
 def is_xdist_loaded(config):
     return config.pluginmanager.hasplugin("xdist")
 
 
-@_debugme
 def is_xdist_active(config):
     return is_xdist_loaded(config) and (
         hasattr(config, "workerinput")  # in a worker
@@ -273,12 +247,10 @@ def is_xdist_active(config):
     )
 
 
-@_debugme
 def is_xdist_worker(config):
     return hasattr(config, "workerinput")
 
 
-@_debugme
 def pytest_configure(config: pytest_Config) -> None:
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
@@ -289,28 +261,8 @@ def pytest_configure(config: pytest_Config) -> None:
             category=DDTraceDeprecationWarning,
         )
 
-    # pm = config.pluginmanager
-
-    # this_module = __import__(__name__)
-    # plugin_name = "my_custom_plugin"
-
-    # if pm.is_registered(this_module):
-    #     pm.unregister(this_module)
-
-    # pm.register(this_module, name=plugin_name)
-    # print("[MY PLUGIN] re-registered after xdist")
-
-    # for hookname, hook in pm.hook.__dict__.items():
-    #     if not hookname.startswith("_"):
-    #         print(f"{hookname}: {[impl.plugin_name for impl in hook.get_hookimpls()]}")
-
-    # if is_xdist_active(config) and not is_xdist_worker(config):
-    #     # If xdist is active but we're in the controller,
-    #     # we act like nothing is enabled
-    #     return
     if is_xdist_active(config) and not is_xdist_worker(config):
         state.is_controller = True
-        print("284 IS_CONTROLLER is set to True", file=sys.stderr)
         return
 
     try:
@@ -334,7 +286,6 @@ def pytest_configure(config: pytest_Config) -> None:
         _disable_ci_visibility()
 
 
-@_debugme
 def pytest_unconfigure(config: pytest_Config) -> None:
     if not is_test_visibility_enabled():
         return
@@ -342,18 +293,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
     _disable_ci_visibility()
 
 
-@_debugme
 def pytest_sessionstart(session: pytest.Session) -> None:
     if not is_test_visibility_enabled():
         return
-
-    # if XDIST_MASTER:
-    #     return
-    if state.is_controller:
-        print("322 IS_CONTROLLER is set to True", file=sys.stderr)
-        return
-    else:
-        print("322 IS_CONTROLLER is set to False", file=sys.stderr)
 
     log.debug("CI Visibility enabled - starting test session")
 
@@ -391,7 +333,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         _disable_ci_visibility()
 
 
-@_debugme
 def _pytest_collection_finish(session) -> None:
     """Discover modules, suites, and tests that have been selected by pytest
 
@@ -439,7 +380,6 @@ def _pytest_collection_finish(session) -> None:
         log.warning("Early Flake Detection disabled: too many new tests detected")
 
 
-@_debugme
 def pytest_collection_finish(session) -> None:
     if not is_test_visibility_enabled():
         return
@@ -451,7 +391,6 @@ def pytest_collection_finish(session) -> None:
         _disable_ci_visibility()
 
 
-@_debugme
 def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.CollectInContext]:
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
@@ -481,7 +420,6 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     return None
 
 
-@_debugme
 def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
@@ -528,7 +466,6 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         return
 
 
-@_debugme
 def _process_result(item, call, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
@@ -598,7 +535,6 @@ def _process_result(item, call, result) -> _TestOutcome:
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
-@_debugme
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
     if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
@@ -663,7 +599,6 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
         log.debug("encountered error during makereport", exc_info=True)
 
 
-@_debugme
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # Before yield gives us a chance to show failure reports (with the stack trace of the failing test), but they have
     # to be in terminalreporter.stats["failed"] to be shown. That, however, would make them count towards the final
@@ -684,7 +619,6 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     return failed_reports_initial_size
 
 
-@_debugme
 def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial_size: t.Optional[int] = None):
     # After yield gives us a chance to:
     # - print our flaky test status summary
@@ -744,18 +678,9 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     return
 
 
-@_debugme
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-    # if not exitstatus == 1:
-    #     raise Exception("exitstatus should be 1, not %s" % exitstatus)
     if not is_test_visibility_enabled():
         return
-
-    if state.is_controller:
-        print("714 IS_CONTROLLER is set to True", file=sys.stderr)
-        return
-    else:
-        print("714 IS_CONTROLLER is set to False", file=sys.stderr)
 
     if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
         session.exitstatus = pytest.ExitCode.TESTS_FAILED
@@ -784,43 +709,22 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> t.Generator[None, object, None]:
-    # print("dd pytest_sessionfinish1", file=sys.stderr)
     if not is_test_visibility_enabled():
         return
 
-    if state.is_controller:
-        print("750 IS_CONTROLLER is set to True", file=sys.stderr)
+    try:
+        _pytest_sessionfinish(session, exitstatus)
+    except Exception:  # noqa: E722
+        log.debug("encountered error during session finish", exc_info=True)
+    finally:
         yield
-    else:
-        print("750 IS_CONTROLLER is set to False", file=sys.stderr)
-        try:
-            _pytest_sessionfinish(session, exitstatus)
-            # print("dd pytest_sessionfinish2", file=sys.stderr)
-        except Exception:  # noqa: E722
-            log.debug("encountered error during session finish", exc_info=True)
-        finally:
-            # print("dd pytest_sessionfinish3", file=sys.stderr)
-            yield
-            # print("dd pytest_sessionfinish4", file=sys.stderr)
 
 
-@_debugme
 def pytest_report_teststatus(
     report: pytest_TestReport,
 ) -> _pytest_report_teststatus_return_type:
-    # if not hasattr(report.item.config, "workerinput"):  # Only on controller
-    #     return
-
-    if state.is_controller:
-        print("773 IS_CONTROLLER is set to True", file=sys.stderr)
-        return
-    else:
-        print("773 IS_CONTROLLER is set to False", file=sys.stderr)
-
     if not is_test_visibility_enabled():
         return
-
-    # print(WORKER_ID, file=sys.stderr)
 
     if _pytest_version_supports_attempt_to_fix():
         test_status = attempt_to_fix_get_teststatus(report)
@@ -848,14 +752,12 @@ def pytest_report_teststatus(
             return ("", "", "")
 
 
-# @_debugme
 @pytest.hookimpl(trylast=True)
 def pytest_ddtrace_get_item_module_name(item):
     names = _get_names_from_item(item)
     return names.module
 
 
-# @_debugme
 @pytest.hookimpl(trylast=True)
 def pytest_ddtrace_get_item_suite_name(item):
     """
@@ -866,7 +768,6 @@ def pytest_ddtrace_get_item_suite_name(item):
     return names.suite
 
 
-# @_debugme
 @pytest.hookimpl(trylast=True)
 def pytest_ddtrace_get_item_test_name(item):
     """Extract name from item, prepending class if desired"""

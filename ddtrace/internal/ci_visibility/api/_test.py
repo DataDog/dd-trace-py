@@ -225,8 +225,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
                 return TestStatus.SKIP
             return TestStatus.FAIL
         if self.atr_has_retries():
-            # return self.atr_get_final_status()
-            return TestStatus.FAIL
+            return self.atr_get_final_status()
         if self.attempt_to_fix_has_retries():
             return self.attempt_to_fix_get_final_status()
         return super().get_status()

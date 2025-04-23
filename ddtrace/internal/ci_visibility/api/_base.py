@@ -111,7 +111,7 @@ def _require_span(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         if self._span is None:
-            # log.warning("Method %s called on item %s, but self._span is None", func, self)
+            log.warning("Method %s called on item %s, but self._span is None", func, self)
             return
         return func(self, *args, **kwargs)
 
