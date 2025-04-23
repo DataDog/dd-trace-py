@@ -43,17 +43,17 @@ def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, k
     return create_sanitizer(VulnerabilityType.PATH_TRAVERSAL, wrapped, instance, args, kwargs)
 
 
-def xss_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
-    """Sanitizer for werkzeug.utils.secure_filename that marks filenames as safe from path traversal.
+def xss_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    """Sanitizer for HTML escaping functions that mark output as safe from XSS.
 
     Args:
-        wrapped: The original secure_filename function
+        wrapped: The original quote function
         instance: The instance (None for module functions)
         args: Positional arguments
         kwargs: Keyword arguments
 
     Returns:
-        The sanitized filename
+        The sanitized string
     """
     return create_sanitizer(VulnerabilityType.XSS, wrapped, instance, args, kwargs)
 
