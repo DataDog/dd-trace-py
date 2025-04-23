@@ -629,56 +629,56 @@ if not IS_PYSTON:
             ),
         ),
     ]
-    # if platform.system() not in ("Windows", ""):
-    #     ext_modules.append(
-    #         Extension(
-    #             "ddtrace.appsec._iast._stacktrace",
-    #             sources=[
-    #                 "ddtrace/appsec/_iast/_stacktrace.c",
-    #             ],
-    #             extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
-    #         )
-    #     )
-    #     ext_modules.append(
-    #         Extension(
-    #             "ddtrace.appsec._iast._ast.iastpatch",
-    #             sources=[
-    #                 "ddtrace/appsec/_iast/_ast/iastpatch.c",
-    #             ],
-    #             extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
-    #         )
-    #     )
-    #     ext_modules.append(
-    #         CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
-    #     )
+    if platform.system() not in ("Windows", ""):
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._stacktrace",
+                sources=[
+                    "ddtrace/appsec/_iast/_stacktrace.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._ast.iastpatch",
+                sources=[
+                    "ddtrace/appsec/_iast/_ast/iastpatch.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+        )
 
-    # if (
-    #     (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
-    # ) or CURRENT_OS == "Windows":
-    #     ext_modules.append(
-    #         CMakeExtension(
-    #             "ddtrace.internal.datadog.profiling.ddup._ddup",
-    #             source_dir=DDUP_DIR,
-    #             optional=False,
-    #         )
-    #     )
+    if (
+        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
+    ) or CURRENT_OS == "Windows":
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.ddup._ddup",
+                source_dir=DDUP_DIR,
+                optional=False,
+            )
+        )
 
-    # if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
-    #     ext_modules.append(
-    #         CMakeExtension(
-    #             "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-    #             source_dir=CRASHTRACKER_DIR,
-    #             optional=False,
-    #         )
-    #     )
+    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+                source_dir=CRASHTRACKER_DIR,
+                optional=False,
+            )
+        )
 
-    #     ext_modules.append(
-    #         CMakeExtension(
-    #             "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-    #             source_dir=STACK_V2_DIR,
-    #             optional=False,
-    #         ),
-    #     )
+        ext_modules.append(
+            CMakeExtension(
+                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                source_dir=STACK_V2_DIR,
+                optional=False,
+            ),
+        )
 
 
 else:
