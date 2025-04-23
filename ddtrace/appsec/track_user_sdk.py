@@ -27,14 +27,16 @@ def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[
     _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata)
 
 
-def track_login_failure(login: str, exists: bool, metadata: t.Optional[t.Dict[str, t.Any]] = None):
+def track_login_failure(
+    login: str, exists: bool, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None
+):
     """
     Track a failed user login event.
 
     This function should be called when a user fails to log in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _trace_utils.track_user_login_failure_event(None, None, exists=exists, login=login, metadata=metadata)
+    _trace_utils.track_user_login_failure_event(None, user_id, exists=exists, login=login, metadata=metadata)
 
 
 def track_signup(
@@ -52,7 +54,7 @@ def track_signup(
 
 
 def track_user(
-    login: str, user_id: t.Any = None, session=t.Optional[str], metadata: t.Optional[t.Dict[str, t.Any]] = None
+    login: str, user_id: t.Any = None, session_id=t.Optional[str], metadata: t.Optional[t.Dict[str, t.Any]] = None
 ):
     """
     Track an authenticated user.
@@ -66,8 +68,9 @@ def track_user(
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
+    span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
 
-    _trace_utils.set_user(None, user_id)
+    _trace_utils.set_user(None, user_id, session_id=session_id, may_block=False)
     if metadata:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=metadata)
     if _asm_request_context.in_asm_context():
@@ -76,8 +79,8 @@ def track_user(
             "REQUEST_USERNAME": login,
             "LOGIN_SUCCESS": "sdk",
         }
-        if session:
-            custom_data["REQUEST_SESSION_ID"] = session
+        if session_id:
+            custom_data["REQUEST_SESSION_ID"] = session_id
         res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
         if res and any(action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
             raise BlockingException(_get_blocked())

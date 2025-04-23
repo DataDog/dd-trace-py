@@ -192,7 +192,7 @@ def track_user_login_failure_event(
             user_id = _hash_user_id(user_id)
         if login_events_mode != LOGIN_EVENTS_MODE.SDK:
             span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
-    span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
+        span.set_tag_str("%s.failure.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, user.ID), str(user_id))
     span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
     if login_events_mode in (LOGIN_EVENTS_MODE.SDK, LOGIN_EVENTS_MODE.AUTO):
