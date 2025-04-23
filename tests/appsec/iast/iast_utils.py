@@ -15,6 +15,7 @@ from hypothesis.strategies import text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
+from ddtrace.appsec._iast._patch_modules import patch_iast
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -58,7 +59,9 @@ def _iast_patched_module_and_patched_source(module_name, new_module_object=False
     return module_changed, patched_source
 
 
-def _iast_patched_module(module_name, new_module_object=False):
+def _iast_patched_module(module_name, new_module_object=False, should_patch_iast=False):
+    if should_patch_iast:
+        patch_iast()
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
     res = iastpatch.should_iast_patch(module_name)
