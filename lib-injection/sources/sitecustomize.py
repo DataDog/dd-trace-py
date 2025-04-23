@@ -429,8 +429,7 @@ def _inject():
                         ],
                     ),
                 )
-
-                # Track whether library was successful
+                # Track whether library injection was successful
                 ddtrace.config._lib_was_injected = True
             except Exception as e:
                 TELEMETRY_DATA.append(
