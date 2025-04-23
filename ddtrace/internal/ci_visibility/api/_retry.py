@@ -138,7 +138,7 @@ class EFDRetryManager(RetryManager):
     def should_apply(cls, test: TestVisibilityTest) -> bool:
         if not test.is_finished():
             log.debug("Early Flake Detection: should_apply called but test is not finished")
-            return False
+            # return False
 
         return (
             test._session_settings.efd_settings.enabled and

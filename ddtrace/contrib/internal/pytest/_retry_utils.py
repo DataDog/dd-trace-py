@@ -410,12 +410,25 @@ def get_user_property(report, key, default=None):
 
 
 def retry_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:
-    if report.outcome != RETRY_OUTCOME:
+    # if report.outcome != RETRY_OUTCOME:
+    #     return None
+
+    retry_reason = get_user_property(report, "dd_retry_reason")
+    if not retry_reason:
         return None
 
     retry_outcome = get_user_property(report, "dd_retry_outcome")
-    retry_reason = get_user_property(report, "dd_retry_reason")
+    retry_final_outcome = get_user_property(report, "dd_retry_final_outcome")
     retry_number = get_user_property(report, "dd_retry_number")
+
+
+    if retry_final_outcome:
+        return (
+            report.outcome,
+            "A",
+            f"{retry_reason} FINAL OUTCOME: {retry_final_outcome}"
+        )
+
     if retry_outcome == "passed":
         return (
             RETRY_OUTCOME,
