@@ -41,7 +41,7 @@ endif()
 
 # Add echion
 set(ECHION_COMMIT
-    "7bbe444ecd9c9474c5bf568b6d6ac756185a0456" # https://github.com/P403n1x87/echion/commit/7bbe444ecd9c9474c5bf568b6d6ac756185a0456
+    "6ebe7dddb604aa97e89f072c0fc65c9785e023a0" # https://github.com/P403n1x87/echion/commit/6ebe7dddb604aa97e89f072c0fc65c9785e023a0
     CACHE STRING "Commit hash of echion to use")
 FetchContent_Declare(
     echion
@@ -65,7 +65,6 @@ add_cppcheck_target(
     ${CMAKE_CURRENT_SOURCE_DIR}
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/vendored
     ${CMAKE_CURRENT_SOURCE_DIR}/include/util
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${echion_SOURCE_DIR}

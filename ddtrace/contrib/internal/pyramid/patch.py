@@ -1,5 +1,3 @@
-import os
-
 import pyramid
 import pyramid.config
 import wrapt
@@ -7,6 +5,7 @@ import wrapt
 from ddtrace import config
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
@@ -19,7 +18,7 @@ from .trace import trace_pyramid
 config._add(
     "pyramid",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_get_config("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
@@ -47,13 +46,12 @@ def traced_init(wrapped, instance, args, kwargs):
     service = config._get_service(default="pyramid")
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks
-    old_analytics_enabled = os.getenv("DD_PYRAMID_ANALYTICS_ENABLED")
-    analytics_enabled = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", old_analytics_enabled)
+    old_analytics_enabled = _get_config("DD_PYRAMID_ANALYTICS_ENABLED")
+    analytics_enabled = _get_config("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", default=old_analytics_enabled)
     if analytics_enabled is not None:
         analytics_enabled = asbool(analytics_enabled)
-    # TODO: why is analytics sample rate a string or a bool here?
-    old_analytics_sample_rate = os.getenv("DD_PYRAMID_ANALYTICS_SAMPLE_RATE", default=True)
-    analytics_sample_rate = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE", old_analytics_sample_rate)
+    analytics_sample_rate = _get_config("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE")
+
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: config.pyramid.distributed_tracing,

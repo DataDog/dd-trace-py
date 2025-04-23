@@ -10,7 +10,7 @@ from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
-from ddtrace.appsec._iast._utils import _request_tainted
+from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -61,11 +61,7 @@ def _set_iast_error_metric(msg: Text) -> None:
             res.extend(result[1:])
 
             stack_trace = "".join(res)
-
-        tags = {
-            "lib_language": "python",
-        }
-        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
+        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
     except Exception:
         log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
@@ -109,7 +105,7 @@ def _set_metric_iast_executed_sink(vulnerability_type):
 
 @metric_verbosity(TELEMETRY_INFORMATION_VERBOSITY)
 def _set_metric_iast_request_tainted():
-    total_objects_tainted = _request_tainted()
+    total_objects_tainted = _num_objects_tainted_in_request()
     if total_objects_tainted > 0:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.IAST, "request.tainted", total_objects_tainted)
 

@@ -7,6 +7,7 @@ import pytest
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
+from ddtrace.internal import core
 from ddtrace.trace import Pin
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
@@ -54,9 +55,10 @@ def tracer():
     Pin._override(django, tracer=tracer)
 
     # Yield to our test
+    core.tracer = tracer
     yield tracer
     tracer.pop()
-
+    core.tracer = original_tracer
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test
     # unpatch()

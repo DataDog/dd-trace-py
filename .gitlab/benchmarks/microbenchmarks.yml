@@ -16,7 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 1h
+  timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -64,15 +64,17 @@ baseline:detect:
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
+    GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
+    git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
+    git remote set-url origin "${GITHUB_REPO_URL}"
+
     if [ -z ${GH_TOKEN} ]
     then
       aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
       gh auth login --with-token < token
       rm token
     fi
-
-    # Needed to run `git describe`
-    git config --global --add safe.directory ${CI_PROJECT_DIR}
 
     # Determine baseline to test against and save env variables into `baseline.env`
     .gitlab/benchmarks/steps/detect-baseline.sh
@@ -144,17 +146,31 @@ microbenchmarks:
         - "core_api"
         - "otel_span"
         - "appsec_iast_aspects"
-        - "appsec_iast_django_startup"
+        - "appsec_iast_aspects_ospath"
+        - "appsec_iast_aspects_re_module"
+        - "appsec_iast_aspects_split"
+        # Flaky timeouts on starting up
+        # - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         # Flaky. Timeout errors
         # - "encoder"
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
         - "startup"
         - "ddtrace_run"
+
+"microbenchmarks flaky":
+  extends: .benchmarks
+  allow_failure: true
+  parallel:
+    matrix:
+      - SCENARIO:
+        # Flaky timeouts on starting up
+        - "appsec_iast_django_startup"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE

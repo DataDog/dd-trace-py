@@ -15,6 +15,7 @@ from hypothesis.strategies import text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
+from ddtrace.appsec._iast._patch_modules import patch_iast
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -58,7 +59,9 @@ def _iast_patched_module_and_patched_source(module_name, new_module_object=False
     return module_changed, patched_source
 
 
-def _iast_patched_module(module_name, new_module_object=False):
+def _iast_patched_module(module_name, new_module_object=False, should_patch_iast=False):
+    if should_patch_iast:
+        patch_iast()
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
     res = iastpatch.should_iast_patch(module_name)
@@ -73,7 +76,7 @@ TEXT_TYPE = Union[str, bytes, bytearray]
 
 
 class CustomStr(str):
-    pass
+    __slots__ = ()
 
 
 class CustomBytes(bytes):
@@ -84,7 +87,8 @@ class CustomBytearray(bytearray):
     pass
 
 
-non_empty_text = text().filter(lambda x: x not in ("", "0", "1", "2"))
+non_empty_text = text().filter(lambda x: x not in ("",))
+non_empty_binary = binary().filter(lambda x: x not in (b"",))
 
 string_strategies: List[Any] = [
     text(),  # regular str
@@ -93,4 +97,10 @@ string_strategies: List[Any] = [
     builds(CustomStr, text()),  # custom str subclass
     builds(CustomBytes, binary()),  # custom bytes subclass
     builds(CustomBytearray, binary()),  # custom bytearray subclass
+]
+
+string_valid_to_taint_strategies: List[Any] = [
+    non_empty_text,  # regular str
+    non_empty_binary,  # regular bytes
+    builds(bytearray, non_empty_binary),  # regular bytearray
 ]

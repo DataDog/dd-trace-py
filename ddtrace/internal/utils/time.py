@@ -95,7 +95,7 @@ class HourGlass(object):
         self._started_at = t - duration
         self._end_at = t
 
-        self.trickling = self._trickled  # type: ignore[assignment]
+        self.trickling = self._trickled  # type: ignore[method-assign]
 
     def turn(self) -> None:
         """Turn the hourglass."""
@@ -106,7 +106,7 @@ class HourGlass(object):
         self._started_at = t
         self._end_at = t + bottom
 
-        self.trickling = self._trickling  # type: ignore[assignment]
+        self.trickling = self._trickling  # type: ignore[method-assign]
 
     def trickling(self):
         # type: () -> bool
@@ -123,7 +123,7 @@ class HourGlass(object):
             return True
 
         # No longer trickling, so we change state
-        self.trickling = self._trickled  # type: ignore[assignment]
+        self.trickling = self._trickled  # type: ignore[method-assign]
 
         return False
 
