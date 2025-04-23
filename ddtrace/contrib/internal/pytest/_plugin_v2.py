@@ -535,6 +535,15 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     test_outcome = _process_result(item, call, original_result)
 
+    if call.when == "call": # ꙮꙮꙮꙮꙮ
+        for retry_class in [EFDRetryManager, ATRRetryManager]:
+            if retry_class.should_apply(test):
+                breakpoint()
+                retry_manager = retry_class(test_id)
+                handle_retries(retry_manager, item, call.when, original_result, test_outcome, is_quarantined)
+                break
+
+
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test
     if test_outcome.status is None and call.when != "teardown":

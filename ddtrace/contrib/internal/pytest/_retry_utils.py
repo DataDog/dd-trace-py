@@ -210,7 +210,7 @@ def handle_retries(
     longrepr = InternalTest.stash_get(retry_manager.test_id, "failure_longrepr")
     final_user_properties = [
         ("dd_retry_reason", retry_manager.retry_reason),
-        ("dd_retry_outcome", retry_outcome or _FINAL_OUTCOMES[outcome]),
+        ("dd_retry_final_outcome", retry_outcome or _FINAL_OUTCOMES[outcome]),
     ]
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
@@ -258,6 +258,7 @@ def _write_report_for_status(
         report
         for report in terminalreporter.getreports(report_outcome)
         if get_user_property(report, "dd_retry_reason") == retry_reason
+        and get_user_property(report, "dd_retry_final_outcome") == status_text
     ]
 
     markup_kwargs = {color: True}

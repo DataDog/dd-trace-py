@@ -105,32 +105,33 @@ def _do_retries(retry_manager: RetryManager, item: pytest.Item) -> TestStatus:
     return retry_manager.get_final_status()
 
 
-def _write_report_for_status(
-    terminalreporter: _pytest.terminal.TerminalReporter,
-    retry_reason: str,
-    status_text: str,
-    report_outcome: str,
-    raw_strings: t.List[str],
-    markedup_strings: t.List[str],
-    color: str,
-    delete_reports: bool = True,
-):
-    reports = [
-        report
-        for report in terminalreporter.getreports(report_outcome)
-        if get_user_property(report, "dd_retry_reason") == retry_reason
-        and get_user_property(report, "dd_retry_outcome") == status_text
-    ]
+# def _write_report_for_status(
+#     terminalreporter: _pytest.terminal.TerminalReporter,
+#     retry_reason: str,
+#     status_text: str,
+#     report_outcome: str,
+#     raw_strings: t.List[str],
+#     markedup_strings: t.List[str],
+#     color: str,
+#     delete_reports: bool = True,
+# ):
+#     reports = [
+#         report
+#         for report in terminalreporter.getreports(report_outcome)
+#         if get_user_property(report, "dd_retry_reason") == retry_reason
+#         and get_user_property(report, "dd_retry_final_outcome") == status_text
+#     ]
+#     breakpoint()
 
-    markup_kwargs = {color: True}
-    if reports:
-        text = f"{len(reports)} {status_text}"
-        raw_strings.append(text)
-        markedup_strings.append(terminalreporter._tw.markup(text, **markup_kwargs, bold=True))
-        terminalreporter.write_sep("_", status_text.upper(), **markup_kwargs, bold=True)
-        for report in reports:
-            line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
-            terminalreporter.write_line(line)
+#     markup_kwargs = {color: True}
+#     if reports:
+#         text = f"{len(reports)} {status_text}"
+#         raw_strings.append(text)
+#         markedup_strings.append(terminalreporter._tw.markup(text, **markup_kwargs, bold=True))
+#         terminalreporter.write_sep("_", status_text.upper(), **markup_kwargs, bold=True)
+#         for report in reports:
+#             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
+#             terminalreporter.write_line(line)
 
 
 def _prepare_attempts_strings(
@@ -168,6 +169,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
     markedup_summary_strings = []
 
 
+    breakpoint()
     _write_report_for_status(
         terminalreporter,
         retry_reason=retry_class.retry_reason,
@@ -178,6 +180,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         color="red",
     )
 
+    breakpoint()
     _write_report_for_status(
         terminalreporter,
         retry_reason=retry_class.retry_reason,
@@ -188,6 +191,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         color="green",
     )
 
+    breakpoint()
     _write_report_for_status(
         terminalreporter,
         retry_reason=retry_class.retry_reason,
@@ -197,6 +201,7 @@ def retry_pytest_terminal_summary_post_yield(retry_class: t.Type[RetryManager], 
         markedup_strings=markedup_summary_strings,
         color="green",
     )
+    breakpoint()
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
