@@ -293,7 +293,7 @@ dependencies = [
     "pymysql",
     "mysqlclient==2.1.1",
     "grpcio",
-    "mysqlclient==2.1.1",
+    "mysql-connector-python",
 ]
 
 [envs.appsec_iast_default.env-vars]

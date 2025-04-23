@@ -39,7 +39,6 @@ class DDTelemetryLogHandler(logging.Handler):
                 self.telemetry_writer.add_log(
                     telemetry_level,
                     record.msg,
-                    tags={"lib_language": "python"},
                     stack_trace=stack_trace,
                 )
 

@@ -2,7 +2,8 @@ import time
 
 import mock
 
-from ddtrace.llmobs._constants import EVP_PROXY_SPAN_ENDPOINT
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.settings._agent import config as agent_config
 from tests.llmobs._utils import _chat_completion_event
@@ -14,7 +15,7 @@ from tests.llmobs._utils import _oversized_workflow_event
 
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
-AGENT_PROXY_URL = "{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_SPAN_ENDPOINT)
+AGENT_PROXY_URL = "{}{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
 
 
 def test_writer_start(mock_writer_logs):
