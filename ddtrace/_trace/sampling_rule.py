@@ -153,12 +153,11 @@ class SamplingRule(object):
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
             value = meta.get(tag_key)
+            # it's because we're not checking metrics first before continuing
             if value is None:
-                continue
-            tag_match = self._tag_value_matchers[tag_key].match(str(value))
-            # If the value doesn't match in meta, check the metrics
-            if tag_match is False:
                 value = metrics.get(tag_key)
+                if value is None:
+                    return False
                 # Floats: Matching floating point values with a non-zero decimal part is not supported.
                 # For floating point values with a non-zero decimal part, any all * pattern always returns true.
                 # Other patterns always return false.
@@ -172,9 +171,7 @@ class SamplingRule(object):
                     else:
                         value = int(value)
 
-                tag_match = self._tag_value_matchers[tag_key].match(str(value))
-            else:
-                continue
+            tag_match = self._tag_value_matchers[tag_key].match(str(value))
             # if we don't match with all specified tags for a rule, it's not a match
             if tag_match is False:
                 return False
