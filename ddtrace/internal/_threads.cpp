@@ -11,7 +11,6 @@
 #include <mutex>
 #include <thread>
 
-
 // ----------------------------------------------------------------------------
 /**
  * Ensure that the GIL is held.
@@ -266,7 +265,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             Py_DECREF(self->native_id);
 #if PY_VERSION_HEX >= 0x030b0000
             self->native_id = PyLong_FromLong((long)PyThreadState_Get()->native_thread_id);
-#else // PY_VERSION_HEX < 0x030b0000
+#else  // PY_VERSION_HEX < 0x030b0000
             self->native_id = PyLong_FromLong((long)PyThread_get_thread_native_id());
 #endif // PY_VERSION_HEX >= 0x030b0000
 
