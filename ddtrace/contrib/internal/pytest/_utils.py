@@ -34,14 +34,11 @@ _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?
 _USE_PLUGIN_V2 = not asbool(os.environ.get("_DD_PYTEST_USE_LEGACY_PLUGIN", "false"))
 
 
-class _PYTEST_STATUS:
+class PYTEST_STATUS:
     ERROR = "error"
     FAILED = "failed"
     PASSED = "passed"
     SKIPPED = "skipped"
-
-
-PYTEST_STATUS = _PYTEST_STATUS()
 
 
 @dataclass

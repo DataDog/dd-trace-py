@@ -21,36 +21,28 @@ from ddtrace.internal.test_visibility.api import InternalTest
 
 log = get_logger(__name__)
 
-# PASSED = "passed"
-# FAILED = "failed"
-# SKIPPED = "skipped"
 
-
-class _ATR_RETRY_OUTCOMES:
+class _ATR_RETRY_OUTCOMES(PYTEST_STATUS):
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
-    ATR_FINAL_PASSED = "passed"
-    ATR_FINAL_FAILED = "failed"
 
 
 class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_ATTEMPT_PASSED = "dd_quarantine_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_quarantine_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_quarantine_atr_attempt_skipped"
-    ATR_FINAL_PASSED = "passed"
-    ATR_FINAL_FAILED = "failed"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
-    TestStatus.PASS: _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-    TestStatus.FAIL: _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+    TestStatus.PASS: _ATR_RETRY_OUTCOMES.PASSED,
+    TestStatus.FAIL: _ATR_RETRY_OUTCOMES.FAILED,
 }
 
 
 _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
-    TestStatus.PASS: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-    TestStatus.FAIL: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+    TestStatus.PASS: _QUARANTINE_ATR_RETRY_OUTCOMES.PASSED,
+    TestStatus.FAIL: _QUARANTINE_ATR_RETRY_OUTCOMES.FAILED,
 }
 
 
@@ -186,7 +178,7 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+        status_key=_ATR_RETRY_OUTCOMES.FAILED,
         status_text="failed",
         report_outcome=PYTEST_STATUS.FAILED,
         raw_strings=raw_summary_strings,
@@ -196,7 +188,7 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+        status_key=_ATR_RETRY_OUTCOMES.PASSED,
         status_text="passed",
         report_outcome=PYTEST_STATUS.PASSED,
         raw_strings=raw_summary_strings,
