@@ -18,20 +18,28 @@ enum class SampleType : unsigned int
     All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops,
 };
 
-inline SampleType operator|(SampleType a, SampleType b) {
+inline SampleType
+operator|(SampleType a, SampleType b)
+{
     return static_cast<SampleType>(static_cast<unsigned int>(a) | static_cast<unsigned int>(b));
 }
 
-inline SampleType operator&(SampleType a, SampleType b) {
+inline SampleType
+operator&(SampleType a, SampleType b)
+{
     return static_cast<SampleType>(static_cast<unsigned int>(a) & static_cast<unsigned int>(b));
 }
 
-inline bool is_valid_type(SampleType a) {
+inline bool
+is_valid_type(SampleType a)
+{
     a = a & SampleType::All; // bits outside of the valid set get masked off
     return a != SampleType::Invalid;
 }
 
-inline bool mask_has_type(SampleType mask, SampleType type) {
+inline bool
+mask_has_type(SampleType mask, SampleType type)
+{
     return is_valid_type(mask & type);
 }
 

@@ -46,8 +46,6 @@ class Profile
     ddog_prof_Profile cur_profile{};
     ddog_prof_Profile last_profile{};
 
-
-
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
