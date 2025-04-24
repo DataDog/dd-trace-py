@@ -435,17 +435,12 @@ dependencies = [
     "pytest-cov",
     "hypothesis",
     "requests",
-    "urllib3",
-    "pycryptodome",
-    "cryptography",
-    "astunparse",
-    "simplejson",
     "SQLAlchemy",
     "psycopg2-binary~=2.9.9",
     "pymysql",
     "mysqlclient==2.1.1",
-    "grpcio",
     "mysql-connector-python",
+    "MarkupSafe~=1.1",
 ]
 
 [envs.appsec_integrations_packages.env-vars]

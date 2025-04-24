@@ -44,7 +44,9 @@ def patch():
     sqlite3.connect = wrapped
     sqlite3.dbapi2.connect = wrapped
 
+    print("1111")
     if asm_config._iast_enabled:
+        print("2222")
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
         from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 

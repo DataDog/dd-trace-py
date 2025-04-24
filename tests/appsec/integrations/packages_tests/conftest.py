@@ -13,15 +13,15 @@ from tests.utils import override_global_config
 
 @pytest.fixture(autouse=True)
 def iast_create_context():
-    sqlalchemy_patch()
-    psycopg_patch()
-    sqli_sqlite_patch()
     with override_global_config(
         dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
     ):
+        sqlalchemy_patch()
+        psycopg_patch()
+        sqli_sqlite_patch()
         _start_iast_context_and_oce()
         yield
         _end_iast_context_and_oce()
-    psycopg_unpatch()
-    sqlalchemy_unpatch()
-    sqli_sqlite_unpatch()
+        psycopg_unpatch()
+        sqlalchemy_unpatch()
+        sqli_sqlite_unpatch()
