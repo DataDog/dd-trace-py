@@ -1,6 +1,9 @@
 import os
 from typing import Optional  # noqa:F401
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
+
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
 from .http import HttpConfig
@@ -37,6 +40,17 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "integration_name", name)
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
+
+        # Trace Analytics was removed in v3.0.0
+        # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
+        if self.setdefault("analytics_enabled", False):
+            deprecate(
+                "Analytics is deprecated and will be removed in a future version",
+                message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+        self.setdefault("analytics_sample_rate", 1.0)
 
         service = os.getenv(
             "DD_%s_SERVICE" % name.upper(),
