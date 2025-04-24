@@ -1365,7 +1365,7 @@ def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
                 ranges_new_append(new_range)
         taint_pyobject_with_ranges(result, tuple(ranges_new))
         return result
-        return result
+        
     except Exception as e:
         iast_propagation_error_log(f"lstrip_aspect. {e}")
 
