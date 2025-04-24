@@ -50,8 +50,8 @@ def test_sql_injection(fixture_path, fixture_module):
     )
     assert is_pyobject_tainted(table)
 
-    result = mod.sqli_simple(table)
-    print(result)
+    mod.sqli_simple(table)
+
     data = _get_iast_data()
     assert len(data["vulnerabilities"]) >= 1
     # We will pick up weak hash vulnerabilities in some db connector libraries

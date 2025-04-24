@@ -6,15 +6,38 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
-_ = _iast_patched_module("html")
-_ = _iast_patched_module("markupsafe")
-_ = _iast_patched_module("pymysql.connections")
-_ = _iast_patched_module("pymysql.converters")
-_ = _iast_patched_module("mysql.connector.conversion")
-mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_sanitizers", should_patch_iast=True)
+def patch_modules():
+    """We apply the IAST patch after `psycopg_patch` (see `conftest`) because if we load the module before
+    `tracer.patch`, there’s a side effect:
+    Correct order:
+    ```python
+    psycopg_patch()
+    from psycopg2.extensions import quote_ident
+    ```
+
+    Incorrect order:
+    ```python
+    from psycopg2.extensions import quote_ident
+    psycopg_patch()
+    quote_ident("aaaa", connection)
+    #                  ^^^^^^^^^^^^
+    # TypeError: argument 2 must be a connection or a cursor
+    ```
+
+    In the wrong order, `quote_ident` doesn't recognize the patched connection object correctly,
+    leading to a `TypeError`.
+    """
+    _ = _iast_patched_module("html")
+    _ = _iast_patched_module("markupsafe")
+    _ = _iast_patched_module("pymysql.connections")
+    _ = _iast_patched_module("pymysql.converters")
+    _ = _iast_patched_module("mysql.connector.conversion")
+    mod = _iast_patched_module("tests.appsec.integrations.fixtures.patch_sanitizers", should_patch_iast=True)
+    return mod
 
 
 def test_werkzeug_secure_filename():
+    mod = patch_modules()
     file_path = "../../../etc/passwd; DROP TABLE users.txt"
     tainted = taint_pyobject(
         pyobject=file_path,
@@ -36,6 +59,7 @@ def test_werkzeug_secure_filename():
 
 
 def test_werkzeug_secure_safe_join():
+    mod = patch_modules()
     filename = "Documents"
     tainted = taint_pyobject(
         pyobject=filename,
@@ -57,6 +81,7 @@ def test_werkzeug_secure_safe_join():
 
 
 def test_html_scape():
+    mod = patch_modules()
     file_path = '<script>alert("XSS")</script>'
     tainted = taint_pyobject(
         pyobject=file_path,
@@ -76,6 +101,7 @@ def test_html_scape():
 
 
 def test_markupsafe_scape():
+    mod = patch_modules()
     file_path = '<script>alert("XSS")</script>'
     tainted = taint_pyobject(
         pyobject=file_path,
@@ -90,7 +116,6 @@ def test_markupsafe_scape():
     # TODO: the propagation doesn't work correctly in markupsafe.scape because that function implements
     #  markupsafe._speedups._escape_inner which is not yet supported by IAST
     # ranges = get_tainted_ranges(value)
-    # print(ranges)
     # assert len(ranges) > 0
     # for _range in ranges:
     #     assert _range.has_secure_mark(VulnerabilityType.XSS)
@@ -98,6 +123,7 @@ def test_markupsafe_scape():
 
 
 def test_sanitize_mysql_connector_scape():
+    mod = patch_modules()
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
         pyobject=sql,
@@ -116,6 +142,7 @@ def test_sanitize_mysql_connector_scape():
 
 
 def test_sanitize_pymysql_escape_string():
+    mod = patch_modules()
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
         pyobject=sql,
@@ -134,6 +161,7 @@ def test_sanitize_pymysql_escape_string():
 
 
 def test_sanitize_pymysql_converters_escape():
+    mod = patch_modules()
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
         pyobject=sql,
@@ -152,6 +180,7 @@ def test_sanitize_pymysql_converters_escape():
 
 
 def test_sanitize_quote_ident():
+    mod = patch_modules()
     sql = "'; DROP TABLE users; --"
     tainted = taint_pyobject(
         pyobject=sql,
