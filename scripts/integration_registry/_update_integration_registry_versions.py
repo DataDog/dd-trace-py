@@ -7,7 +7,6 @@ Preserves all other existing fields in registry.yaml.
 from collections import defaultdict
 import csv
 import pathlib
-import subprocess
 import sys
 from typing import Any
 from typing import Dict
@@ -25,7 +24,6 @@ SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.resolve()
 REGISTRY_YAML_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
 SUPPORTED_VERSIONS_CSV_PATH = PROJECT_ROOT / "supported_versions_table.csv"
-FORMATTER_SCRIPT_PATH = SCRIPT_DIR / "integration_registry" / "_format_integration_registry.py"
 
 
 def _normalize_version_string(v_str: str) -> str:
@@ -107,119 +105,6 @@ def _read_registry_yaml(filepath: pathlib.Path) -> Optional[List[Dict[str, Any]]
         return None
 
 
-def _create_version_info_block(min_v: Optional[str], max_v: Optional[str]) -> Optional[Dict[str, str]]:
-    """Creates the {'min': ..., 'max': ...} block, returning None if both are None/N/A."""
-    min_final = min_v if min_v and min_v != "N/A" else None
-    max_final = max_v if max_v and max_v != "N/A" else None
-    if min_final is None and max_final is None:
-        return None
-    return {"min": min_final or "N/A", "max": max_final or "N/A"}
-
-
-def _create_new_integration_entry(
-    integration_name: str, dependency_version_map: Dict[str, Dict[str, str]]
-) -> Dict[str, Any]:
-    """Creates a new integration entry with version information."""
-    dependency_name_list = sorted(list(dependency_version_map.keys()))
-    new_version_map_for_yaml = {}
-
-    for dep_name, version_info in dependency_version_map.items():
-        version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
-        if version_block:
-            new_version_map_for_yaml[dep_name] = version_block
-
-    new_entry = {
-        "integration_name": integration_name,
-        "is_external_package": True,
-        "dependency_name": dependency_name_list if dependency_name_list else None,
-        "tested_versions_by_dependency": new_version_map_for_yaml if new_version_map_for_yaml else None,
-    }
-    return {k: v for k, v in new_entry.items() if v is not None}
-
-
-def _update_and_add_integration_versions(
-    current_integrations: List[Dict[str, Any]], new_versions: Dict[str, Dict[str, Dict[str, str]]]
-) -> Tuple[List[Dict[str, Any]], int, int, int]:
-    """
-    Updates dependency versions using the nested structure and adds new integrations if needed.
-    Returns (updated_integrations_list, updated_count, removed_count, added_count).
-    """
-    final_integrations_list = []
-    updated_count = 0
-    removed_count = 0
-    added_count = 0
-    existing_names: Set[str] = set()
-
-    for entry in current_integrations:
-        if not isinstance(entry, dict):
-            continue
-        integration_name = entry.get("integration_name")
-        if not integration_name:
-            continue
-
-        existing_names.add(integration_name.lower())
-        updated_entry = entry.copy()
-
-        if updated_entry.get("is_external_package"):
-            new_dependency_version_map = new_versions.get(integration_name.lower())
-
-            if new_dependency_version_map:
-                original_tested_versions = updated_entry.get("tested_versions_by_dependency", {})
-                modified_tested_versions = original_tested_versions.copy() if original_tested_versions else {}
-                map_changed_by_merge = False
-
-                for dep_name, version_info in new_dependency_version_map.items():
-                    version_block = _create_version_info_block(version_info.get("min"), version_info.get("max"))
-                    if version_block:
-                        if modified_tested_versions.get(dep_name) != version_block:
-                            modified_tested_versions[dep_name] = version_block
-                            map_changed_by_merge = True
-                    elif dep_name in modified_tested_versions:
-                        del modified_tested_versions[dep_name]
-                        map_changed_by_merge = True
-
-                if map_changed_by_merge:
-                    if modified_tested_versions:
-                        updated_entry["tested_versions_by_dependency"] = modified_tested_versions
-                        new_dep_list = sorted(list(modified_tested_versions.keys()))
-                        if updated_entry.get("dependency_name") != new_dep_list:
-                            updated_entry["dependency_name"] = new_dep_list
-                        updated_count += 1
-                    elif "tested_versions_by_dependency" in updated_entry:
-                        del updated_entry["tested_versions_by_dependency"]
-                        if "dependency_name" in updated_entry:
-                            del updated_entry["dependency_name"]
-                        if original_tested_versions:
-                            removed_count += 1
-
-            elif updated_entry.get("tested_versions_by_dependency"):
-                current_map_keys = sorted(list(updated_entry["tested_versions_by_dependency"].keys()))
-                if updated_entry.get("dependency_name") != current_map_keys:
-                    updated_entry["dependency_name"] = current_map_keys
-
-        elif "tested_versions_by_dependency" in updated_entry or "dependency_name" in updated_entry:
-            data_existed = "tested_versions_by_dependency" in updated_entry
-            if "tested_versions_by_dependency" in updated_entry:
-                del updated_entry["tested_versions_by_dependency"]
-            if "dependency_name" in updated_entry:
-                del updated_entry["dependency_name"]
-            if data_existed:
-                removed_count += 1
-
-        final_integrations_list.append(updated_entry)
-
-    for integration_name_lower, dependency_version_map in new_versions.items():
-        if integration_name_lower not in existing_names:
-            print(f"  Info: Adding new integration '{integration_name_lower}' to registry.")
-            added_count += 1
-            new_entry = _create_new_integration_entry(integration_name_lower, dependency_version_map)
-            final_integrations_list.append(new_entry)
-
-    final_integrations_list.sort(key=lambda x: x.get("integration_name", ""))
-
-    return final_integrations_list, updated_count, removed_count, added_count
-
-
 def _write_registry_yaml(filepath: pathlib.Path, integrations_list: List[Dict[str, Any]]) -> bool:
     """Writes the updated integration list back to the YAML file."""
     print(f"\nWriting updated registry data back to: {filepath.relative_to(PROJECT_ROOT)}")
@@ -241,27 +126,98 @@ def _write_registry_yaml(filepath: pathlib.Path, integrations_list: List[Dict[st
         return False
 
 
-def _run_formatter_script(formatter_path: pathlib.Path, run_dir: pathlib.Path) -> bool:
-    """Executes the external YAML formatter script."""
-    print("-" * 120)
-    print(f"Attempting to format the YAML file using external script: {formatter_path.name}")
+def _create_version_info_block(min_v: Optional[str], max_v: Optional[str]) -> Optional[Dict[str, str]]:
+    """Creates the {'min': ..., 'max': ...} block, returning None if both are None/N/A."""
+    return {"min": min_v or "N/A", "max": max_v or "N/A"}
 
-    try:
-        result = subprocess.run(
-            [sys.executable, str(formatter_path)], check=True, capture_output=True, text=True, cwd=run_dir
+
+def _update_entry_dependency_versions(
+    current_integration_entry, integration_name, new_dependency_versions
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Given an integration entry from the registry, update the dependency versions if they have changed
+    given the new dependency versions.
+    """
+    if not current_integration_entry.get("is_external_package"):
+        return False, current_integration_entry
+
+    # get new versions for this integration
+    updated_tested_versions = new_dependency_versions.get(integration_name.lower(), {})
+    # get existing versions for this integration
+    existing_tested_versions = current_integration_entry.get("tested_versions_by_dependency", {})
+
+    # get the dependencies that have changed
+    changed_dependencies = {}
+    for dep_name, version_info in updated_tested_versions.items():
+        if existing_tested_versions.get(dep_name, {}) != version_info:
+            changed_dependencies[dep_name] = version_info
+
+    if changed_dependencies:
+        current_integration_entry["tested_versions_by_dependency"] = changed_dependencies
+        current_integration_entry["dependency_name"] = sorted(list(changed_dependencies.keys()))
+        # return the updated entry and a bool indicating if the entry was updated
+        return True, current_integration_entry
+    return False, current_integration_entry
+
+
+def _create_new_integration_entry(
+    integration_name: str, dependency_version_map: Dict[str, Dict[str, str]]
+) -> Dict[str, Any]:
+    """Creates a new integration entry with version information."""
+    dependency_name_list = sorted(list(dependency_version_map.keys()))
+    new_version_map_for_yaml = {}
+
+    for dep_name, version_info in dependency_version_map.items():
+        if version_info:
+            new_version_map_for_yaml[dep_name] = version_info
+
+    new_entry = {
+        "integration_name": integration_name,
+        "is_external_package": True,
+        "dependency_name": dependency_name_list if dependency_name_list else None,
+        "tested_versions_by_dependency": new_version_map_for_yaml if new_version_map_for_yaml else None,
+    }
+    return {k: v for k, v in new_entry.items() if v is not None}
+
+
+def _update_and_add_integration_versions(
+    current_integrations: List[Dict[str, Any]], new_dependency_versions: Dict[str, Dict[str, Dict[str, str]]]
+) -> Tuple[List[Dict[str, Any]], int, int]:
+    """
+    Updates dependency versions using the nested structure and adds new integrations if needed.
+    Returns (updated_integrations_list, updated_count, removed_count, added_count).
+    """
+    final_integrations_list = []
+    updated_count = 0
+    added_count = 0
+    existing_names: Set[str] = set()
+
+    # update existing integrations with our new dependency versions
+    for entry in current_integrations:
+        integration_name = entry.get("integration_name")
+        existing_names.add(integration_name.lower())
+
+        # copy to avoid mutating the original entry during loop
+        updated_entry = entry.copy()
+        was_updated, updated_entry = _update_entry_dependency_versions(
+            updated_entry, integration_name, new_dependency_versions
         )
-        print("Formatter script output:")
-        print(result.stdout)
-        if result.stderr:
-            print("Formatter script errors:", result.stderr, file=sys.stderr)
-        print("Formatting complete.")
-        return True
-    except Exception as e:
-        print(f"Error running formatter script {formatter_path.name}: {e}", file=sys.stderr)
-        if isinstance(e, subprocess.CalledProcessError):
-            print("Formatter stdout:", e.stdout, file=sys.stderr)
-            print("Formatter stderr:", e.stderr, file=sys.stderr)
-        return False
+        if was_updated:
+            updated_count += 1
+        final_integrations_list.append(updated_entry)
+
+    # add new integrations to the registry
+    for integration_name_lower, dependency_version_map in new_dependency_versions.items():
+        if integration_name_lower not in existing_names:
+            print(f"  Info: Adding new integration '{integration_name_lower}' to registry.")
+            added_count += 1
+            new_entry = _create_new_integration_entry(integration_name_lower, dependency_version_map)
+            final_integrations_list.append(new_entry)
+
+    # sort the integrations by integration name
+    final_integrations_list.sort(key=lambda x: x.get("integration_name", ""))
+
+    return final_integrations_list, updated_count, added_count
 
 
 def main() -> int:
@@ -271,20 +227,15 @@ def main() -> int:
     print("-" * 120)
 
     original_integrations = _read_registry_yaml(REGISTRY_YAML_PATH)
-    updated_integrations, updated_count, removed_count, added_count = _update_and_add_integration_versions(
+    updated_integrations, updated_count, added_count = _update_and_add_integration_versions(
         original_integrations, new_supported_versions
     )
 
     print(f"\nUpdate summary: {updated_count} integration(s) had version maps updated/added.")
-    print(f"                {removed_count} integration(s) had version info removed.")
     print(f"                {added_count} new integration(s) added.")
 
     if not _write_registry_yaml(REGISTRY_YAML_PATH, updated_integrations):
         return 1
-
-    if not _run_formatter_script(FORMATTER_SCRIPT_PATH, PROJECT_ROOT):
-        print("Warning: Formatting step failed.", file=sys.stderr)
-        return 0
 
     print("\n--- Version Update Workflow Completed Successfully ---")
     print("\n")
