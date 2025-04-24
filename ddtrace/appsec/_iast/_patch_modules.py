@@ -78,7 +78,7 @@ def patch_iast(patch_modules=IAST_PATCH):
     when_imported("html")(
         lambda _: try_wrap_function_wrapper(
             "html",
-            "scape",
+            "escape",
             xss_sanitizer,
         )
     )
