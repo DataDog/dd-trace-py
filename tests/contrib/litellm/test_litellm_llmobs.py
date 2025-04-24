@@ -8,6 +8,7 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from ddtrace.llmobs._llmobs import LLMObs
 
 
 @pytest.mark.parametrize(
@@ -199,13 +200,18 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_span_writer, llmobs_events, mock_tracer, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
+            LLMObs.enable(integrations_enabled=True, _tracer=mock_tracer)
+            LLMObs._instance._llmobs_span_writer = llmobs_span_writer
             import openai
+            import litellm
 
-            pin = Pin.get_from(openai)
-            pin._override(openai, tracer=mock_tracer)
+            litellm_pin = Pin.get_from(litellm)
+            litellm_pin._override(litellm, tracer=mock_tracer)
+            openai_pin = Pin.get_from(openai)
+            openai_pin._override(openai, tracer=mock_tracer)
 
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -218,6 +224,7 @@ class TestLLMObsLiteLLM:
             if stream:
                 for _ in resp:
                     pass
+            LLMObs.disable()
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
