@@ -475,9 +475,3 @@ Datadog::Sample::profile_release()
 {
     profile_state.profile_release();
 }
-
-void
-Datadog::Sample::postfork_child()
-{
-    profile_state.postfork_child();
-}

@@ -73,7 +73,6 @@ Datadog::SampleManager::drop_sample(Datadog::Sample* sample)
 void
 Datadog::SampleManager::postfork_child()
 {
-    Datadog::Sample::postfork_child();
     if (sample_pool != nullptr) {
         // Clear the pool to make sure it's in a consistent state.
         // Suppose there was a thread that was adding/removing sample from the pool
