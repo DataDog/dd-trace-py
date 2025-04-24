@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace._monkey import patch
+from ddtrace._trace.pin import Pin
 from tests.contrib.litellm.utils import async_consume_stream
 from tests.contrib.litellm.utils import consume_stream
 from tests.contrib.litellm.utils import get_cassette_name
