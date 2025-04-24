@@ -154,11 +154,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
           ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
         if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
             auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
-            if (!already_warned) {
-                already_warned = true;
-                errmsg = err_to_msg(&err, "Error uploading");
-                std::cerr << errmsg << std::endl;
-            }
+            errmsg = err_to_msg(&err, "Error uploading");
+            std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);
             return false;
         }
