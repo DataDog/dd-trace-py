@@ -1325,8 +1325,7 @@ def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
 
     candidate_text = args[0]
     args = args[flag_added_args:]
-    print("lstrip_aspect candidate_text")
-    print(candidate_text)
+
     result = candidate_text.lstrip(*args, **kwargs)
 
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
@@ -1365,7 +1364,7 @@ def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
                 ranges_new_append(new_range)
         taint_pyobject_with_ranges(result, tuple(ranges_new))
         return result
-        
+
     except Exception as e:
         iast_propagation_error_log(f"lstrip_aspect. {e}")
 
@@ -1380,10 +1379,6 @@ def rstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
 
     candidate_text = args[0]
     args = args[flag_added_args:]
-    print("rstrip_aspect candidate_text")
-    print(candidate_text)
-    print("args")
-    print(args)
 
     result = candidate_text.rstrip(*args, **kwargs)
 
@@ -1437,10 +1432,6 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
 
     candidate_text = args[0]
     args = args[flag_added_args:]
-
-    print("strip_aspect candidate_text")
-    print(candidate_text)
-
     result = candidate_text.strip(*args, **kwargs)
 
     if not isinstance(candidate_text, IAST.TEXT_TYPES):
