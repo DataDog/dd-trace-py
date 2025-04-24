@@ -50,7 +50,7 @@ To configure the kafka integration using the
 
     Pin.override(confluent_kafka, service="custom-service-name")
 
-**Note**: `Data Streams Monitoring <https://docs.datadoghq.com/data_streams/>`_ (``DD_DATA_STREAMS_ENABLED=true``) or distributed tracing (``DD_KAFKA_PROPAGATION_ENABLED=true``)
-will only work if Kafka message headers are supported.
+**Note**: `Data Streams Monitoring <https://docs.datadoghq.com/data_streams/>`_ (``DD_DATA_STREAMS_ENABLED=true``) or
+distributed tracing (``DD_KAFKA_PROPAGATION_ENABLED=true``) will only work if Kafka message headers are supported.
 If `log.message.format.version` is set in the Kafka broker configuration, it must be set to `0.11.0.0` or higher.
 """
