@@ -72,15 +72,28 @@ find_highest_compiler_version clang++ highest_clangxx
 CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 
 ### Build setup
-# Targets to target dirs
-declare -A target_dirs
+if [ -n "$BASH_VERSION" ]; then
+    declare -A target_dirs
+elif [ -n "$ZSH_VERSION" ]; then
+    typeset -A target_dirs
+else
+    echo "Unsupported shell" >&2
+    exit 1
+fi
 target_dirs["ddup"]="ddup"
 target_dirs["crashtracker"]="crashtracker"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
 # Compiler options
-declare -A compiler_args
+if [ -n "$BASH_VERSION" ]; then
+    declare -A compiler_args
+elif [ -n "$ZSH_VERSION" ]; then
+    typeset -A compiler_args
+else
+    echo "Unsupported shell" >&2
+    exit 1
+fi
 compiler_args["address"]="-DSANITIZE_OPTIONS=address"
 compiler_args["leak"]="-DSANITIZE_OPTIONS=leak"
 compiler_args["undefined"]="-DSANITIZE_OPTIONS=undefined"
