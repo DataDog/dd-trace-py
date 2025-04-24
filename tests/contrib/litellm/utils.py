@@ -1,8 +1,6 @@
-import json
-import os
-
 import vcr
-
+import os
+import json
 
 CASETTE_EXTENSION = ".yaml"
 

@@ -1,14 +1,13 @@
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 import pytest
-
 from ddtrace.contrib.internal.litellm.patch import patch
-from ddtrace.contrib.internal.litellm.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
-from tests.contrib.litellm.utils import get_request_vcr
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.contrib.internal.litellm.patch import unpatch
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-
+from tests.contrib.litellm.utils import get_request_vcr
+from ddtrace.llmobs import LLMObs as llmobs_service
+from tests.llmobs._utils import TestLLMObsSpanWriter
 
 def default_global_config():
     return {}
@@ -45,7 +44,7 @@ def litellm(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
-def litellm_llmobs(mock_tracer, llmobs_span_writer):
+def litellm_llmobs(mock_tracer, llmobs_span_writer, ddtrace_global_config):
     llmobs_service.disable()
     with override_global_config(
         {
@@ -53,7 +52,8 @@ def litellm_llmobs(mock_tracer, llmobs_span_writer):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        enable_integrations = ddtrace_global_config.get("_llmobs_integrations_enabled", False)
+        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=enable_integrations)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()
