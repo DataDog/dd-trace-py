@@ -166,6 +166,34 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
+    def test_completion_exclude_usage(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+        with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": False},
+            )
+            if stream:
+                output_messages, token_metrics = consume_stream(resp, n)
+            else:
+                output_messages, token_metrics = parse_response(resp)
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="gpt-3.5-turbo",
+            model_provider="openai",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": False}},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+    
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_integrations_enabled=True)])
     def test_completion_integrations_enabled(
         self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
