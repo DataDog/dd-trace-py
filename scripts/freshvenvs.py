@@ -127,7 +127,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
 def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
     """
     Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
-    venvs are nested within eachother, we will get a consistent integration name for each venv / child venv. Also
+    venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
     lowercase the package names to ensure consistent lookups.
     """
     def _lower_pkg_names(venv: riotfile.Venv):
