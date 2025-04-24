@@ -353,7 +353,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
                 Datadog::Sample::profile_release();
                 Datadog::Sample::profile_clear_state();
             }
-            void operator()(const std::string& err) {
+            void operator()(const std::string& err)
+            {
                 static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
                 if (!already_warned) {
                     already_warned = true;
