@@ -1,11 +1,10 @@
-import os
-
 import pyramid
 import pyramid.config
 import wrapt
 
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 
 from .constants import SETTINGS_DISTRIBUTED_TRACING
 from .constants import SETTINGS_SERVICE
@@ -16,7 +15,7 @@ from .trace import trace_pyramid
 config._add(
     "pyramid",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_get_config("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
@@ -47,6 +46,7 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop("settings", {})
     service = config._get_service(default="pyramid")
+
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: config.pyramid.distributed_tracing,
