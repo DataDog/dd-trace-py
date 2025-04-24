@@ -4,6 +4,10 @@
 Versioning
 **********
 
+Release support
+===============
+See our public documentation for versioning information. `public documentation <https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/#releases>`_
+
 .. _versioning_interfaces:
 
 Interfaces
