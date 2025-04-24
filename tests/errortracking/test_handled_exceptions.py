@@ -18,31 +18,37 @@ skipif_errortracking_not_supported = pytest.mark.skipif(
 
 @skipif_errortracking_not_supported
 class ErrorTestCases(TracerTestCase):
-    """This class contains all the cases testing the feature itself"""
+    """
+    This class contains all the cases testing the feature itself (without
+    taking into account the configuration)
 
-    def _run_error_test(self, test_func, initial_value, expected_value, expected_events, multiple_calls=None):
+    The test function are imported because Python3.10 and Python3.11
+    can only instrument imported python code.
+
+    The value parameter ensures that the except block are indeed executed
+    """
+
+    def _run_error_test(self, test_func, initial_value, expected_value, expected_events):
         """Helper method to run error handling reporting tests."""
         from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
         from tests.errortracking._test_functions import __dict__ as test_functions
 
         HandledExceptionCollector.enable()
+
         test_function = test_functions[test_func]
         value = initial_value
 
         @self.tracer.wrap()
-        def f(*args):
+        def f():
             nonlocal value
-            value = test_function(*args, value) if args else test_function(value)
+            value = test_function(value)
 
-        if multiple_calls:
-            for args in multiple_calls:
-                f(*args)
-        else:
-            # One the test is raising an exception
-            try:
-                f()
-            except Exception:
-                value = 10
+        # One the test is raising an exception but we do not want
+        # to record the handling of the exception so except block is here
+        try:
+            f()
+        except Exception:
+            value = 10
 
         HandledExceptionCollector.disable()
 
@@ -67,11 +73,8 @@ class ErrorTestCases(TracerTestCase):
             "test_basic_multiple_except_f",
             initial_value=0,
             expected_value=15,
-            expected_events=[
-                [{"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"}],
-                [{"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}],
+            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"}, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}],
             ],
-            multiple_calls=[[0], [1]],
         )
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
@@ -110,6 +113,15 @@ class ErrorTestCases(TracerTestCase):
         )
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_more_handled_than_collector_capacity(self):
+        self._run_error_test(
+            "test_more_handled_than_collector_capacity_f",
+            initial_value=0,
+            expected_value=101,
+            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}] * 100],
+        )
+
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
     def test_async_error(self):
         self._run_error_test(
             "test_asyncio_error_f",
@@ -123,10 +135,35 @@ class ErrorTestCases(TracerTestCase):
             ],
         )
 
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
+    def test_handled_in_parent_span(self):
+        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+        from tests.errortracking._test_functions import handled_in_parent_span_f
+
+        HandledExceptionCollector.enable()
+
+        value = 0
+        value = handled_in_parent_span_f(value, self.tracer)
+
+        HandledExceptionCollector.disable()
+
+        assert value == 1
+        assert self.spans[0].name == 'parent_span'
+        assert len(self.spans[0]._events) == 1
+        self.spans[0].assert_span_event_attributes(0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"})
+        assert "line 70" in self.spans[0]._events[0].attributes["exception.stacktrace"]
+
+        assert self.spans[1].name == 'child_span'
+        assert len(self.spans[1]._events) == 0
+
 
 @skipif_errortracking_not_supported
 class UserCodeErrorTestCases(TracerTestCase):
-    """This class contains all the tests testing the filtering capabilities of the feature"""
+    """
+    This class contains all the tests testing the filtering capabilities of the feature
+    To do so, we will create fake user code and a fake third party packages to reproduce
+    a real environment
+    """
 
     @pytest.fixture(scope="class", autouse=True)
     def load_user_code(self):

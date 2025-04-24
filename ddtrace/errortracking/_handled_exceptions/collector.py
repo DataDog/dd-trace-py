@@ -5,6 +5,7 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.span import SpanEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
+from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.settings.errortracking import config
@@ -110,7 +111,8 @@ class HandledExceptionCollector(Service):
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:
             span._add_on_finish_exception_callback(_add_span_events)
-        events_dict[exc] = event
+        if exc in events_dict or len(events_dict) < COLLECTOR_MAX_SIZE_PER_SPAN:
+            events_dict[exc] = event
 
     @classmethod
     def get_exception_events(cls, span_id: int):
