@@ -27,9 +27,6 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    env:
-      TEST_POSTGRES_HOST: postgres
-      TEST_MYSQL_HOST: mysql
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -41,11 +38,6 @@ suites:
       - tests/appsec/iast/*
     retry: 2
     runner: hatch
-    services:
-      - postgres
-      - mysql
-    snapshot: true
-    timeout: 40m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -61,7 +53,6 @@ suites:
       - tests/appsec/iast_memcheck/*
     retry: 2
     runner: hatch
-    snapshot: true
   appsec_iast_native:
     parallelism: 6
     paths:
@@ -110,7 +101,6 @@ suites:
     retry: 2
     runner: hatch
     snapshot: true
-    timeout: 40m
   appsec_integrations_pygoat:
     parallelism: 3
     paths:
@@ -125,6 +115,25 @@ suites:
     retry: 2
     runner: hatch
     snapshot: true
+  appsec_integrations_packages:
+    env:
+      TEST_POSTGRES_HOST: postgres
+      TEST_MYSQL_HOST: mysql
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/packages_tests/*
+    retry: 2
+    runner: hatch
+    services:
+      - postgres
+      - mysql
   appsec_integrations_flask:
     parallelism: 17
     paths:
@@ -169,7 +178,6 @@ suites:
     runner: hatch
     services:
       - testagent
-    timeout: 40m
   appsec_threats_django:
     parallelism: 12
     paths:
