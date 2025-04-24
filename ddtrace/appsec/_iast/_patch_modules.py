@@ -4,6 +4,7 @@ from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
 
 
 IAST_PATCH = {
@@ -73,4 +74,27 @@ def patch_iast(patch_modules=IAST_PATCH):
     #     )
     # )
 
+    # XSS sanitizers
+    when_imported("html")(
+        lambda _: try_wrap_function_wrapper(
+            "html",
+            "escape",
+            xss_sanitizer,
+        )
+    )
+    # TODO:  markupsafe._speedups._escape_inner is not yet supported by IAST
+    # when_imported("markupsafe")(
+    #     lambda _: try_wrap_function_wrapper(
+    #         "html",
+    #         "escape",
+    #         xss_sanitizer,
+    #     )
+    # )
+    # when_imported("bleach")(
+    #     lambda _: try_wrap_function_wrapper(
+    #         "bleach",
+    #         "clean",
+    #         xss_sanitizer,
+    #     )
+    # )
     when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
