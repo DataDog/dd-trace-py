@@ -57,6 +57,8 @@ def attempt_to_fix_handle_retries(
     if when == "call":
         if test_outcome.status == TestStatus.FAIL:
             original_result.outcome = outcomes.FAILED
+        elif test_outcome.status == TestStatus.PASS:
+            original_result.outcome = outcomes.PASSED
         elif test_outcome.status == TestStatus.SKIP:
             original_result.outcome = outcomes.SKIPPED
         return

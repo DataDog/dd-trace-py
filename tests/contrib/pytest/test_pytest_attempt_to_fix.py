@@ -184,8 +184,9 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
     def test_attempt_to_fix_active_test_pass(self):
         self.testdir.makepyfile(test_active=_TEST_PASS)
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-v", "-s")
         assert rec.ret == 0
+        breakpoint()
         assert_stats(rec, quarantined=0, passed=1, failed=0)
 
         spans = self.pop_spans()
