@@ -115,7 +115,8 @@ class IntegrationRegistryUpdater:
                 continue
 
             for dep, dep_info in new_deps.items():
-                current_deps_set = set(entry.get("dependency_name", []))
+                current_deps = entry.get("dependency_name", [])
+                current_deps_set = set(current_deps if current_deps else [])
 
                 # if the dependency is not in the registry, we need to update
                 if dep.lower() not in current_deps_set:
@@ -155,8 +156,7 @@ class IntegrationRegistryUpdater:
 
         # loop through the new integration data and add the updates to the registry
         for integration_name, updates in new_dependency_versions.items():
-            new_deps_set = set(updates.get("dependency_name", []))
-            if not new_deps_set:
+            if not updates:
                 continue
 
             # if the integration is not in the registry, add it
@@ -164,7 +164,7 @@ class IntegrationRegistryUpdater:
                 new_entry = {
                     "integration_name": integration_name,
                     "is_external_package": True,
-                    "dependency_name": sorted(list(new_deps_set)),
+                    "dependency_name": sorted(list(set(updates.keys()))),
                 }
                 integrations_list.append(new_entry)
                 changed = True
@@ -176,8 +176,9 @@ class IntegrationRegistryUpdater:
                 continue
 
             # if the integration is in the registry, update the dependency info
-            current_deps_set = set(entry.get("dependency_name", []))
-            for dep_name in new_deps_set:
+            current_deps = entry.get("dependency_name", [])
+            current_deps_set = set(current_deps if current_deps else [])
+            for dep_name in updates.keys():
                 dep_name_lower = dep_name.lower()
 
                 if dep_name_lower in current_deps_set:

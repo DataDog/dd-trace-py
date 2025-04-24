@@ -69,7 +69,7 @@ class IntegrationRegistryManager:
         attrs = ["__module__", "__name__"]
         for attr in attrs:
             try:
-                module_name = self.original_getattr(obj, attr)
+                module_name = builtins.getattr(obj, attr)
                 # Return if we got a non-empty string
                 if isinstance(module_name, str) and module_name:
                     return module_name

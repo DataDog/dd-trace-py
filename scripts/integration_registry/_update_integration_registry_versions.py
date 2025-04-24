@@ -153,8 +153,19 @@ def _update_entry_dependency_versions(
             changed_dependencies[dep_name] = version_info
 
     if changed_dependencies:
-        current_integration_entry["tested_versions_by_dependency"] = changed_dependencies
-        current_integration_entry["dependency_name"] = sorted(list(changed_dependencies.keys()))
+        for dep_name, version_info in changed_dependencies.items():
+            deps_version_map = current_integration_entry.get("tested_versions_by_dependency", {})
+            deps_version_map[dep_name] = version_info
+            deps = set(current_integration_entry.get("dependency_name", []))
+            deps.add(dep_name)
+            # create a new entry with the updated dependency and version info
+            current_integration_entry = {
+                "integration_name": integration_name,
+                "is_external_package": True,
+                "dependency_name": sorted(list(deps)),
+                "tested_versions_by_dependency": dict(sorted(deps_version_map.items()))
+            }
+
         # return the updated entry and a bool indicating if the entry was updated
         return True, current_integration_entry
     return False, current_integration_entry
