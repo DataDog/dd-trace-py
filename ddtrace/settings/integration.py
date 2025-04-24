@@ -119,6 +119,12 @@ class IntegrationConfig(AttrDict):
         """
         # Use `None` as a way to say that it was not defined,
         #   `False` would mean `0` which is a different thing
+        deprecate(
+            "get_analytics_sample_rate is deprecated and will be removed in a future version",
+            message="The method currently returns 1 always",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
         return 1
 
     def __repr__(self):
