@@ -7,6 +7,7 @@ import sysconfig
 import typing as t
 
 from ddtrace.internal.packages import _package_for_root_module_mapping
+from ddtrace.internal.packages import get_distribution
 
 
 class Library:
@@ -70,7 +71,10 @@ class CodeProvenance:
         libraries: t.Dict[str, Library] = {}
 
         site_packages = Path(sysconfig.get_path("purelib"))
-        for module, dist in module_to_distribution.items():
+        for module, dist_name in module_to_distribution.items():
+            dist = get_distribution(dist_name)
+            if dist is None:
+                continue
             name = dist.name
             # special case for __pycache__/filename.cpython-3xx.pyc -> filename.py
             if module.startswith("__pycache__/"):
