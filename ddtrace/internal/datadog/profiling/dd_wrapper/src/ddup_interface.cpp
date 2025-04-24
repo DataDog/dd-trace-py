@@ -355,7 +355,6 @@ ddup_upload() // cppcheck-suppress unusedFunction
             }
             void operator()(const std::string& err)
             {
-                static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
                 if (!already_warned) {
                     already_warned = true;
                     std::cerr << "Failed to create uploader: " << err << std::endl;
