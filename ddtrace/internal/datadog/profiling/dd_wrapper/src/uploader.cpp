@@ -40,24 +40,17 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
-        }
+        std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
     out.write(reinterpret_cast<const char*>(encoded->buffer.ptr), encoded->buffer.len);
     if (out.fail()) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
-        }
+        std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
     return true;
@@ -67,15 +60,11 @@ bool
 Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
     // Serialize the profile
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            errmsg = err_to_msg(&err, "Error serializing pprof");
-            std::cerr << errmsg << std::endl;
-        }
+        errmsg = err_to_msg(&err, "Error serializing pprof");
+        std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
         return false;
     }
@@ -124,11 +113,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     if (build_res.tag ==
         DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            errmsg = err_to_msg(&err, "Error building request");
-            std::cerr << errmsg << std::endl;
-        }
+        errmsg = err_to_msg(&err, "Error building request");
+        std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
         return false;
     }
