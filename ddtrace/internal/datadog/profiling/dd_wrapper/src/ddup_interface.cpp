@@ -353,7 +353,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
                 Datadog::Sample::profile_release();
                 Datadog::Sample::profile_clear_state();
             }
-            void operator()(const std::string& err) {
+            void operator()(const std::string& err)
+            {
                 if (!already_warned) {
                     already_warned = true;
                     std::cerr << "Failed to create uploader: " << err << std::endl;
