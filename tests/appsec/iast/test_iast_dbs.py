@@ -110,7 +110,6 @@ def test_sanitize_pymysql_converters_escape():
     ranges = get_tainted_ranges(value)
     assert value == "a-\\'; DROP TABLE users; --"
     assert len(ranges) > 0
-    print(ranges)
     for _range in ranges:
         assert _range.has_secure_mark(VulnerabilityType.SQL_INJECTION)
     assert is_pyobject_tainted(value)
