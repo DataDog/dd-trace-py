@@ -33,6 +33,11 @@ urlpatterns = [
         views.command_injection_secure_mark,
         name="command_injection_secure_mark",
     ),
+    handler(
+        "appsec/xss/secure-mark/$",
+        views.xss_secure_mark,
+        name="xss_secure_mark",
+    ),
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
     handler("appsec/taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler(
