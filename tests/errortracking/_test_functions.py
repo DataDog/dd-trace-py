@@ -55,6 +55,7 @@ def test_handled_then_raise_error_f(value):
     except Exception as e:
         raise e
 
+
 def test_more_handled_than_collector_capacity_f(value):
     for i in range(101):
         try:
@@ -63,8 +64,9 @@ def test_more_handled_than_collector_capacity_f(value):
             value += 1
     return value
 
+
 def handled_in_parent_span_f(value, tracer):
-    @tracer.wrap('parent_span')
+    @tracer.wrap("parent_span")
     def parent_span(value):
         try:
             child_span()
@@ -72,7 +74,7 @@ def handled_in_parent_span_f(value, tracer):
             value += 1
         return value
 
-    @tracer.wrap('child_span')
+    @tracer.wrap("child_span")
     def child_span():
         try:
             raise ValueError("auto caught error")
@@ -81,8 +83,10 @@ def handled_in_parent_span_f(value, tracer):
 
     return parent_span(value)
 
+
 def test_asyncio_error_f(value):
     return asyncio.run(test_sync_error_f(value))
+
 
 async def test_sync_error_f(value):
     task = asyncio.create_task(test_async_error_f(value))

@@ -73,7 +73,11 @@ class ErrorTestCases(TracerTestCase):
             "test_basic_multiple_except_f",
             initial_value=0,
             expected_value=15,
-            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"}, {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"}],
+            expected_events=[
+                [
+                    {"exception.type": "builtins.ValueError", "exception.message": "auto value caught error"},
+                    {"exception.type": "builtins.RuntimeError", "exception.message": "auto caught error"},
+                ],
             ],
         )
 
@@ -118,7 +122,9 @@ class ErrorTestCases(TracerTestCase):
             "test_more_handled_than_collector_capacity_f",
             initial_value=0,
             expected_value=101,
-            expected_events=[[{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}] * 100],
+            expected_events=[
+                [{"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}] * 100
+            ],
         )
 
     @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS="all"))
@@ -148,12 +154,14 @@ class ErrorTestCases(TracerTestCase):
         HandledExceptionCollector.disable()
 
         assert value == 1
-        assert self.spans[0].name == 'parent_span'
+        assert self.spans[0].name == "parent_span"
         assert len(self.spans[0]._events) == 1
-        self.spans[0].assert_span_event_attributes(0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"})
+        self.spans[0].assert_span_event_attributes(
+            0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
+        )
         assert "line 70" in self.spans[0]._events[0].attributes["exception.stacktrace"]
 
-        assert self.spans[1].name == 'child_span'
+        assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._events) == 0
 
 
