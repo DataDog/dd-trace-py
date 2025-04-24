@@ -440,7 +440,7 @@ dependencies = [
     "pymysql",
     "mysqlclient==2.1.1",
     "mysql-connector-python",
-    "MarkupSafe~=1.1",
+    "MarkupSafe~=2.1.1",
     "Werkzeug~=3.1",
 ]
 
