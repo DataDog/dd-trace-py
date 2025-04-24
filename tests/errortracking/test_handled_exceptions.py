@@ -159,7 +159,7 @@ class ErrorTestCases(TracerTestCase):
         self.spans[0].assert_span_event_attributes(
             0, {"exception.type": "builtins.ValueError", "exception.message": "auto caught error"}
         )
-        assert "line 70" in self.spans[0]._events[0].attributes["exception.stacktrace"]
+        assert "line 72" in self.spans[0]._events[0].attributes["exception.stacktrace"]
 
         assert self.spans[1].name == "child_span"
         assert len(self.spans[1]._events) == 0
