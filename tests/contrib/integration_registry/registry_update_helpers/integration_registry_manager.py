@@ -117,24 +117,32 @@ class IntegrationRegistryManager:
                 self.processed_objects.add(obj)
                 continue
 
-            if full_module_name:
-                top_level_module = full_module_name.split(".", 1)[0]
-                candidate_distribution_names = pkg_dist_map.get(top_level_module, [])
-                integration_name = self._get_integration_name_from_traceback(tb_string)
+            if not full_module_name:
+                continue
 
-                if not (integration_name and candidate_distribution_names):
+            top_level_module = full_module_name.split(".", 1)[0]
+            candidate_distribution_names = pkg_dist_map.get(top_level_module, [])
+            integration_name = self._get_integration_name_from_traceback(tb_string)
+
+            if not (integration_name and candidate_distribution_names):
+                continue
+
+            for distribution_name in candidate_distribution_names:
+                # Check if this specific distribution actually contains the patched module
+                if not self._distribution_contains_module(distribution_name, full_module_name):
                     continue
 
-                for distribution_name in candidate_distribution_names:
-                    # Check if this specific distribution actually contains the patched module
-                    if self._distribution_contains_module(distribution_name, full_module_name):
-                        update_key = f"{integration_name}:{distribution_name}"
-                        if update_key not in self.updated_packages:
-                            self.pending_updates[integration_name][distribution_name] = {
-                                "top_level_module": top_level_module,
-                                "version": importlib.metadata.version(distribution_name),
-                            }
-                            self.updated_packages.add(update_key)
+                # check if we already have an update for this integration/distribution pair
+                update_key = f"{integration_name}:{distribution_name}"
+                if update_key in self.updated_packages:
+                    continue
+
+                # add the integration/dependency combo to pending updates
+                self.pending_updates[integration_name][distribution_name] = {
+                    "top_level_module": top_level_module,
+                    "version": importlib.metadata.version(distribution_name),
+                }
+                self.updated_packages.add(update_key)
 
             self.processed_objects.add(obj)
 
@@ -169,6 +177,7 @@ class IntegrationRegistryManager:
             self.original_getattr = None
 
     def cleanup_post_session(self):
+        """Cleans up the registry manager after a session."""
         self.patched_objects.clear()
         self.processed_objects.clear()
         self.updated_packages.clear()

@@ -105,25 +105,37 @@ class IntegrationRegistryUpdater:
             if not new_deps:
                 continue
 
+            # if the integration is not in the registry, we need to update
             if integration_name not in registry_map:
                 return True
 
+            # if the integration is not an external package, we don't need to update
             entry = registry_map[integration_name]
             if not entry.get("is_external_package"):
                 continue
+
             for dep, dep_info in new_deps.items():
                 current_deps_set = set(entry.get("dependency_name", []))
+
+                # if the dependency is not in the registry, we need to update
                 if dep.lower() not in current_deps_set:
                     return True
 
+                # if the dependency version is not in the registry, we need to update
                 dep_version = dep_info.get("version")
                 if dep_version == "":
                     return False
                 min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)
+
+                # if the dependency version is not in the registry, we need to update
                 if min_version is None:
                     return True
+
+                # if the dependency version is less than the min version, we need to update
                 if self._semver_compare(dep_version, min_version) == -1:
                     return True
+
+                # if the dependency version is greater than the max version, we need to update
                 max_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), {}).get("max", None)
                 if max_version is None:
                     return True
@@ -131,8 +143,8 @@ class IntegrationRegistryUpdater:
                     return True
         return False
 
-    def merge_data(self, registry_data: dict, input_data: dict) -> bool:
-        """Merges dependency info from input_data into registry_data. Assumes check already done."""
+    def merge_data(self, registry_data: dict, new_dependency_versions: dict) -> bool:
+        """Merges dependency info from new_dependency_versions into registry_data. Assumes check already done."""
         integrations_list = registry_data.setdefault("integrations", [])
         registry_map = {
             entry.get("integration_name"): entry
@@ -141,22 +153,14 @@ class IntegrationRegistryUpdater:
         }
         changed = False
 
-        for integration_name, updates in input_data.items():
+        # loop through the new integration data and add the updates to the registry
+        for integration_name, updates in new_dependency_versions.items():
             new_deps_set = set(updates.get("dependency_name", []))
             if not new_deps_set:
                 continue
 
-            if integration_name in registry_map:
-                entry = registry_map[integration_name]
-                if entry.get("is_external_package"):
-                    current_deps_set = set(entry.get("dependency_name", []))
-                    for dep in new_deps_set:
-                        dep_lower = dep.lower()
-                        if dep_lower not in current_deps_set:
-                            current_deps_set.add(dep_lower)
-                            changed = True
-                    entry["dependency_name"] = sorted(list(current_deps_set))
-            else:
+            # if the integration is not in the registry, add it
+            if integration_name not in registry_map:
                 new_entry = {
                     "integration_name": integration_name,
                     "is_external_package": True,
@@ -164,6 +168,26 @@ class IntegrationRegistryUpdater:
                 }
                 integrations_list.append(new_entry)
                 changed = True
+                continue
+
+            entry = registry_map[integration_name]
+            # skip if the integration is not an external package
+            if not entry.get("is_external_package"):
+                continue
+
+            # if the integration is in the registry, update the dependency info
+            current_deps_set = set(entry.get("dependency_name", []))
+            for dep_name in new_deps_set:
+                dep_name_lower = dep_name.lower()
+
+                if dep_name_lower in current_deps_set:
+                    continue
+
+                # if the dependency is not in the registry, add it
+                current_deps_set.add(dep_name_lower)
+                changed = True
+            # update the entry
+            entry["dependency_name"] = sorted(list(current_deps_set))
 
         if changed:
             registry_data["integrations"] = sorted(integrations_list, key=lambda x: x.get("integration_name", ""))
@@ -201,11 +225,13 @@ class IntegrationRegistryUpdater:
         try:
             registry_data = self.load_registry_data()
 
+            # if the registry data is up to date, we can skip the merge and write steps, and release the lock
             if not self._needs_update(registry_data, input_data):
                 if self.lock.is_locked:
                     self.lock.release()
                 return False
 
+            # merge the input data into the registry data
             self.merge_data(registry_data, input_data)
 
             changes_made = True
