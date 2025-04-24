@@ -16,7 +16,6 @@ import mock
 import msgpack
 import pytest
 
-from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace.constants import _ORIGIN_KEY as ORIGIN_KEY
@@ -922,87 +921,10 @@ def test_json_encoder_traces_bytes():
     assert "\x80span.b" == span_c["name"]
 
 
-def test_encode_large_resource_name_v0_5():
-    span = Span(name="client.testing", trace_id=1)
-    repetition = 10000
-    span.resource = "resource" * repetition
+@pytest.mark.subprocess(parametrize=dict(DD_API_VERSION=["v0.4", "v0.5"]))
+@pytest.mark.snapshot()
+def test_encode_span_with_large_string_attributes():
+    from ddtrace import tracer
 
-    # test encoding for MsgPack format using the 8388608 default buffer size
-    encoder = MSGPACK_ENCODERS["v0.5"](1 << 23, 1 << 23)
-    encoder.put(
-        [
-            span,
-        ]
-    )
-    spans, _ = encoder.encode()
-    items = decode(spans)
-    original_span_resource = "resource" * repetition
-    # size of the pkg length for this one test span - not sure if there's a better way
-    pkg_length = 34
-    truncated_span_resource = original_span_resource[: MAX_SPAN_META_VALUE_LEN - 14 - pkg_length + 1] + "<truncated>..."
-
-    assert len(items[0][0][2:3][0]) == len(truncated_span_resource)
-    assert items[0][0][2:3] == (bytes(truncated_span_resource, "utf-8"),)
-    assert isinstance(spans, bytes)
-    assert len(items[0]) == 1
-
-    # test encoding for MsgPack format using a very small buffer size for v0.5
-    encoder = MSGPACK_ENCODERS["v0.5"](1 << 10, 1 << 10)
-    try:
-        encoder.put(
-            [
-                span,
-            ]
-        )
-        spans, _ = encoder.encode()
-        items = decode(spans)
-    except Exception as err:
-        # The encoded span gets truncated
-        assert len(items[0][0][2:3][0]) == len(truncated_span_resource)
-        assert items[0][0][2:3] == (bytes(truncated_span_resource, "utf-8"),)
-        assert isinstance(spans, bytes)
-        assert len(items[0]) == 1
-        # However: if the buffer has been exceeded we will still drop the payload
-        assert "string table is full (current size: 33, size after insert: 25000, max size: 1024)." in str(err)
-
-
-def test_encode_large_resource_name_v0_4():
-    span = Span(name="client.testing", trace_id=1)
-    repetition = 10000
-    span.resource = "resource" * repetition
-
-    # test encoding for MsgPack format using the 8388608 default buffer size for v0.5
-    encoder = MSGPACK_ENCODERS["v0.4"](1 << 23, 1 << 23)
-    encoder.put(
-        [
-            span,
-        ]
-    )
-    spans, _ = encoder.encode()
-    items = decode(spans)
-    original_span_resource = "resource" * repetition
-    # In v0.4, the resource does not get truncated by the pkg length
-    truncated_span_resource = original_span_resource[: MAX_SPAN_META_VALUE_LEN - 14] + "<truncated>..."
-    assert len(items[0][0][b"resource"]) == len(truncated_span_resource)
-    assert items[0][0][b"resource"] == bytes(truncated_span_resource, "utf-8")
-    assert isinstance(spans, bytes)
-    assert len(items[0]) == 1
-
-    # test encoding for MsgPack format using a very small buffer size
-    encoder = MSGPACK_ENCODERS["v0.4"](1 << 10, 1 << 10)
-    try:
-        encoder.put(
-            [
-                span,
-            ]
-        )
-        spans, _ = encoder.encode()
-        items = decode(spans)
-    except Exception as err:
-        # The encoded span gets truncated
-        assert len(items[0][0][b"resource"]) == len(truncated_span_resource)
-        assert items[0][0][b"resource"] == bytes(truncated_span_resource, "utf-8")
-        assert isinstance(spans, bytes)
-        assert len(items[0]) == 1
-        # However: if the buffer has been exceeded we will still drop the payload
-        assert isinstance(err, BufferItemTooLarge)
+    with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
+        span.set_tag(key="c" * 24999, value="d" * 2000)
