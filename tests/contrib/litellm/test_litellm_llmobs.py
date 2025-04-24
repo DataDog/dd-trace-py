@@ -199,9 +199,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_openai_enabled(
-        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n
-    ):
+    def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
             import openai
@@ -223,7 +221,7 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
-    
+
     def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
