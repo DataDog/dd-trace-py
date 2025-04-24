@@ -13,6 +13,7 @@ from ddtrace.appsec import _constants
 from ddtrace.appsec import _trace_utils
 from ddtrace.appsec._asm_request_context import get_blocked as _get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
+import ddtrace.appsec.trace_utils  # noqa: F401
 from ddtrace.internal import core as _core
 from ddtrace.internal._exceptions import BlockingException
 
