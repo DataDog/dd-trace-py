@@ -68,11 +68,11 @@ def track_user(
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
-    span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
 
     _trace_utils.set_user(None, user_id, session_id=session_id, may_block=False)
     if metadata:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=metadata)
+    span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
     if _asm_request_context.in_asm_context():
         custom_data = {
             "REQUEST_USER_ID": str(user_id) if user_id else None,
