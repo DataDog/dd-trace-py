@@ -441,6 +441,7 @@ dependencies = [
     "mysqlclient==2.1.1",
     "mysql-connector-python",
     "MarkupSafe~=1.1",
+    "Werkzeug~=3.1",
 ]
 
 [envs.appsec_integrations_packages.env-vars]
