@@ -579,15 +579,15 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
-    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
-        for failed_report in efd_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+    #     for failed_report in efd_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
-    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        for failed_report in atr_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+    #     for failed_report in atr_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
     return failed_reports_initial_size
 

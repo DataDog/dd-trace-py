@@ -94,6 +94,7 @@ def efd_handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
+        user_properties=item.user_properties + [("dd_retry_reason", "early_flake_detection")],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -125,6 +126,11 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
 
     return InternalTest.efd_get_final_status(test_id)
 
+def get_user_property(report, key, default=None):
+    for k, v in report.user_properties:
+        if k == key:
+            return v
+    return default
 
 def _efd_write_report_for_status(
     terminalreporter: _pytest.terminal.TerminalReporter,
@@ -135,8 +141,14 @@ def _efd_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
+    retry_reason="early_flake_detection",
 ):
-    reports = terminalreporter.getreports(status_key)
+    reports = [
+        report
+        for report in terminalreporter.getreports(report_outcome)
+        if get_user_property(report, "dd_retry_reason") == retry_reason
+    ]
+
     markup_kwargs = {color: True}
     if reports:
         text = f"{len(reports)} {status_text}"
@@ -146,15 +158,15 @@ def _efd_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-            report.outcome = report_outcome
-            # Do not re-append a report if a report already exists for the item in the reports
-            for existing_reports in terminalreporter.stats.get(report_outcome, []):
-                if existing_reports.nodeid == report.nodeid:
-                    break
-            else:
-                terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        if delete_reports:
-            del terminalreporter.stats[status_key]
+        #     report.outcome = report_outcome
+        #     # Do not re-append a report if a report already exists for the item in the reports
+        #     for existing_reports in terminalreporter.stats.get(report_outcome, []):
+        #         if existing_reports.nodeid == report.nodeid:
+        #             break
+        #     else:
+        #         terminalreporter.stats.setdefault(report_outcome, []).append(report)
+        # if delete_reports:
+        #     del terminalreporter.stats[status_key]
 
 
 def _efd_prepare_attempts_strings(
@@ -177,6 +189,19 @@ def _efd_prepare_attempts_strings(
         del terminalreporter.stats[reports_key]
 
 
+import functools
+def _debugme(f):
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            raise
+    return wrapped
+
+@_debugme
 def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
     terminalreporter.write_sep("=", "Datadog Early Flake Detection", purple=True, bold=True)
     # Print summary info
@@ -227,9 +252,22 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     # Flaky tests could have passed their initial attempt, so they need to be removed from the passed stats to avoid
     # overcounting:
     flaky_node_ids = {report.nodeid for report in terminalreporter.stats.get(_EFD_FLAKY_OUTCOME, [])}
+    all_passed_node_ids = {
+        report.nodeid
+        for report in terminalreporter.stats.get("passed", [])
+        if get_user_property(report, "dd_retry_reason") == "early_flake_detection"
+    }
+
     passed_reports = terminalreporter.stats.get("passed", [])
     if passed_reports:
-        terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
+        cleaned_passed_reports = []
+        for report in passed_reports:
+            if report.nodeid in flaky_node_ids:
+                continue
+            if report.nodeid in all_passed_node_ids and get_user_property(report, "dd_retry_reason") is None:
+                continue
+            cleaned_passed_reports.append(report)
+        terminalreporter.stats["passed"] = cleaned_passed_reports
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
