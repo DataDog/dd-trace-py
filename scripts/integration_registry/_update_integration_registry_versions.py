@@ -163,7 +163,7 @@ def _update_entry_dependency_versions(
                 "integration_name": integration_name,
                 "is_external_package": True,
                 "dependency_name": sorted(list(deps)),
-                "tested_versions_by_dependency": dict(sorted(deps_version_map.items()))
+                "tested_versions_by_dependency": dict(sorted(deps_version_map.items())),
             }
 
         # return the updated entry and a bool indicating if the entry was updated
