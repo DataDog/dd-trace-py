@@ -11,17 +11,16 @@ from typing import Tuple  # noqa:F401
 from typing import cast  # noqa:F401
 import urllib.parse
 
-import ddtrace
-from ddtrace import config
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.context import Context
+from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.internal.core import dispatch
+from ddtrace.internal import core
+from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Context
-from ddtrace.trace import Span  # noqa:F401
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -310,7 +309,10 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
+        sampling_priority = _extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
+            headers,
+        )
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -345,8 +347,6 @@ class _DatadogMultiHeader:
         try:
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)  # type: ignore[assignment]
-            else:
-                sampling_priority = sampling_priority
 
             if meta:
                 meta = validate_sampling_decision(meta)
@@ -1046,7 +1046,7 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: Only to be used if injecting a non-active span.
         """
-        dispatch("http.span_inject", (span_context, headers))
+        core.dispatch("http.span_inject", (span_context, headers))
         if not config._propagation_style_inject:
             return
         if non_active_span is not None and non_active_span.context is not span_context:
@@ -1059,15 +1059,15 @@ class HTTPPropagator(object):
 
             span_context = non_active_span.context
 
-        if hasattr(ddtrace, "tracer") and hasattr(ddtrace.tracer, "sample"):
+        if core.tracer and hasattr(core.tracer, "sample"):
             root_span: Optional[Span] = None
             if non_active_span is not None:
                 root_span = non_active_span._local_root
             else:
-                root_span = ddtrace.tracer.current_root_span()
+                root_span = core.tracer.current_root_span()
 
             if root_span is not None and root_span.context.sampling_priority is None:
-                ddtrace.tracer.sample(root_span)
+                core.tracer.sample(root_span)
         else:
             log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 

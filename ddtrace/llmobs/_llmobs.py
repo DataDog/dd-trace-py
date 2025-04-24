@@ -33,9 +33,11 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -61,6 +63,7 @@ from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
@@ -69,6 +72,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
@@ -86,6 +90,8 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "google_generativeai": "google_generativeai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
+    "crewai": "crewai",
+    "openai_agents": "openai_agents",
 }
 
 
@@ -97,17 +103,16 @@ class LLMObs(Service):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
+        agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
-            is_agentless=config._llmobs_agentless_enabled,
-            agentless_url="%s.%s" % (AGENTLESS_BASE_URL, config._dd_site),
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            site=config._dd_site,
-            api_key=config._dd_api_key,
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
@@ -119,6 +124,8 @@ class LLMObs(Service):
         self._link_tracker = LinkTracker()
         self._annotations = []
         self._annotation_context_lock = forksafe.RLock()
+
+        self._tool_call_tracker = ToolCallTracker()
 
     def _on_span_start(self, span):
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -301,6 +308,10 @@ class LLMObs(Service):
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
 
+        core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._tool_call_tracker.on_llm_tool_choice)
+        core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._tool_call_tracker.on_tool_call)
+        core.reset_listeners(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, self._tool_call_tracker.on_tool_call_output_used)
+
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
@@ -308,7 +319,7 @@ class LLMObs(Service):
         cls,
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
-        agentless_enabled: bool = False,
+        agentless_enabled: Optional[bool] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -352,7 +363,12 @@ class LLMObs(Service):
                     "Ensure this configuration is set before running your application."
                 )
 
-            config._llmobs_agentless_enabled = agentless_enabled or config._llmobs_agentless_enabled
+            config._llmobs_agentless_enabled = should_use_agentless(
+                user_defined_agentless_enabled=agentless_enabled
+                if agentless_enabled is not None
+                else config._llmobs_agentless_enabled
+            )
+
             if config._llmobs_agentless_enabled:
                 # validate required values for agentless LLMObs
                 if not config._dd_api_key:
@@ -391,6 +407,10 @@ class LLMObs(Service):
             core.on("http.activate_distributed_headers", cls._activate_llmobs_distributed_context)
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
+
+            core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._tool_call_tracker.on_llm_tool_choice)
+            core.on(DISPATCH_ON_TOOL_CALL, cls._instance._tool_call_tracker.on_tool_call)
+            core.on(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, cls._instance._tool_call_tracker.on_tool_call_output_used)
 
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
@@ -922,6 +942,9 @@ class LLMObs(Service):
                     error = "invalid_tags"
                     log.warning("span tags must be a dictionary of string key - primitive value pairs.")
                 else:
+                    session_id = tags.get("session_id")
+                    if session_id:
+                        span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
@@ -1215,13 +1238,6 @@ class LLMObs(Service):
             return
         error = None
         try:
-            if not config._dd_api_key:
-                error = "missing_api_key"
-                log.warning(
-                    "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
-                return
             if not isinstance(span_context, dict):
                 error = "invalid_span"
                 log.warning(

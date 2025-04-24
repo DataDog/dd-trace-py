@@ -93,7 +93,7 @@ def dummy_tracer():
     patch()
     t = DummyTracer()
     # disable backoff because it makes these tests less reliable
-    t._writer._send_payload_with_backoff = t._writer._send_payload
+    t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
     yield t
     unpatch()
 
@@ -109,13 +109,13 @@ def tracer(should_filter_empty_polls):
     if should_filter_empty_polls:
         ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    previous_backoff = ddtracer._writer._send_payload_with_backoff
-    ddtracer._writer._send_payload_with_backoff = ddtracer._writer._send_payload
+    previous_backoff = ddtracer._span_aggregator.writer._send_payload_with_backoff
+    ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
     try:
         yield ddtracer
     finally:
         ddtracer.flush()
-        ddtracer._writer._send_payload_with_backoff = previous_backoff
+        ddtracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
         unpatch()
 
 
@@ -519,9 +519,11 @@ def _generate_in_subprocess(random_topic):
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
-    ddtrace.tracer._configure(trace_processors=[KafkaConsumerPollFilter()])
+    ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    ddtrace.tracer._writer._send_payload_with_backoff = ddtrace.tracer._writer._send_payload
+    ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
+        ddtrace.tracer._span_aggregator.writer._send_payload
+    )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})

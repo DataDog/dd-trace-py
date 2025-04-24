@@ -5,8 +5,6 @@ from typing import Generator  # noqa:F401
 import mock
 import pytest
 
-from ddtrace._trace.sampler import DatadogSampler
-from ddtrace._trace.sampler import SamplingRule
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
@@ -66,16 +64,6 @@ def send_once_stats_tracer(stats_tracer):
 @pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
 def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
-
-    # Test enabling via `configure`
-    t = DummyTracer()
-    assert not t._compute_stats
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t._configure(compute_stats_enabled=True)
-    assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    assert t._compute_stats
-
-    # Test enabling via environment variable
     env = os.environ.copy()
     env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
@@ -98,26 +86,6 @@ assert stats_processor._hostname == "" # report_hostname is disabled by default
     assert status == 0, out + err
 
 
-@pytest.mark.subprocess(err=None)
-def test_apm_opt_out_compute_stats_and_configure():
-    """
-    Ensure stats computation is disabled, but reported as enabled,
-    if APM is opt-out.
-    """
-    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-    from ddtrace.trace import tracer as t
-
-    # Test via `configure`
-    assert not t._compute_stats
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    t._configure(appsec_enabled=True, apm_tracing_disabled=True)
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    # the stats computation is disabled
-    assert not t._compute_stats
-    # but it's reported as enabled
-    assert t._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
-
-
 def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
     # Test via environment variable
     env = os.environ.copy()
@@ -132,7 +100,7 @@ assert config._trace_compute_stats is False
 
 # but it's reported as enabled
 # to avoid the agent from doing it either.
-assert tracer._writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
+assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
 """,
         env=env,
     )
@@ -233,15 +201,16 @@ def test_top_level(send_once_stats_tracer):
                 pass
 
 
-@pytest.mark.parametrize(
-    "sampling_rule",
-    [SamplingRule(sample_rate=0, service="test"), SamplingRule(sample_rate=1, service="test")],
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0, "service":"test"}, {"sample_rate":1, "service":"test"}]',
+    }
 )
-@pytest.mark.snapshot()
-def test_single_span_sampling(stats_tracer, sampling_rule):
-    sampler = DatadogSampler([sampling_rule])
-    stats_tracer._configure(sampler=sampler)
-    with stats_tracer.trace("parent", service="test"):
-        with stats_tracer.trace("child") as child:
+def test_single_span_sampling():
+    from ddtrace import tracer
+
+    with tracer.trace("parent", service="test"):
+        with tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
             child.set_metric("_dd.span_sampling.mechanism", 8)

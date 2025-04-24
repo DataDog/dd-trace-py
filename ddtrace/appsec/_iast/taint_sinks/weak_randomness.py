@@ -1,4 +1,4 @@
-from .. import oce
+from .._overhead_control_engine import oce
 from ..constants import VULN_WEAK_RANDOMNESS
 from ._base import VulnerabilityBase
 

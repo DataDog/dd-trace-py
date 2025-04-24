@@ -33,6 +33,7 @@ from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_fro
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
+from ddtrace.settings._config import Config
 from ddtrace.trace import Span
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
@@ -301,6 +302,7 @@ def test_ci_visibility_service_enable_with_itr_enabled(_do_request):
                                 "faulty_session_threshold": 30
                             }
                         },
+                        "known_tests_enabled": false,
                         "flaky_test_retries_enabled": false,
                         "itr_enabled": true,
                         "require_git": false,
@@ -645,8 +647,12 @@ class TestCIVisibilityWriter(TracerTestCase):
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://arandomhost:9126"
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://arandomhost:9126",
+        ) as agent_url_mock, mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+        ):
             dummy_writer = DummyCIVisibilityWriter(use_evp=True, coverage_enabled=True)
 
             test_client = dummy_writer._clients[0]
@@ -657,7 +663,7 @@ class TestCIVisibilityWriter(TracerTestCase):
             with mock.patch("ddtrace.internal.writer.writer.get_connection") as _get_connection:
                 _get_connection.return_value.getresponse.return_value.status = 200
                 dummy_writer._put("", {}, cov_client, no_trace=True)
-                _get_connection.assert_any_call("http://arandomhost:9126", 2.0)
+                _get_connection.assert_any_call(agent_url_mock, 2.0)
 
 
 def test_civisibilitywriter_agentless_url_envvar():
@@ -671,13 +677,13 @@ def test_civisibilitywriter_agentless_url_envvar():
         "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
         return_value=TestVisibilityAPISettings(False, False, False, False),
     ), mock.patch(
-        "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+        "ddtrace.internal.ci_visibility.writer.config", Config()
     ), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
     ):
         CIVisibility.enable()
         assert CIVisibility._instance._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS
-        assert CIVisibility._instance.tracer._writer.intake_url == "https://foo.bar"
+        assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "https://foo.bar"
         CIVisibility.disable()
 
     def test_civisibilitywriter_evp_proxy_url(self):
@@ -686,19 +692,21 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://evpproxy.bar:1234"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://evpproxy.bar:1234",
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
         ), _dummy_noop_git_client(), mock.patch(
-            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+            "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://evpproxy.bar:1234"
+            assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "http://evpproxy.bar:1234"
             CIVisibility.disable()
 
     def test_civisibilitywriter_only_traces(self):
@@ -707,17 +715,19 @@ def test_civisibilitywriter_agentless_url_envvar():
                 DD_API_KEY="foobar.baz",
             )
         ), mock.patch(
-            "ddtrace.internal.agent.get_trace_url", return_value="http://onlytraces:1234"
+            "ddtrace.settings._agent.config.trace_agent_url",
+            new_callable=mock.PropertyMock,
+            return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()
+            "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
         ):
             CIVisibility.enable()
             assert CIVisibility._instance._requests_mode == REQUESTS_MODE.TRACES
-            assert CIVisibility._instance.tracer._writer.intake_url == "http://onlytraces:1234"
+            assert CIVisibility._instance.tracer._span_aggregator.writer.intake_url == "http://onlytraces:1234"
             CIVisibility.disable()
 
 
@@ -1107,10 +1117,10 @@ def test_civisibility_enable_tracer_uses_partial_traces():
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         CIVisibility.enable()
-        assert CIVisibility._instance.tracer._partial_flush_enabled is True
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 1
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_enabled is True
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_min_spans == 1
         CIVisibility.disable()
 
 
@@ -1121,12 +1131,14 @@ def test_civisibility_enable_respects_passed_in_tracer():
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", ddtrace.settings.Config()):
+    ), mock.patch("ddtrace.internal.ci_visibility.writer.config", Config()):
         tracer = CIVisibilityTracer()
-        tracer._configure(partial_flush_enabled=False, partial_flush_min_spans=100)
+        tracer._span_aggregator.partial_flush_enabled = False
+        tracer._span_aggregator.partial_flush_min_spans = 100
+        tracer._recreate()
         CIVisibility.enable(tracer=tracer)
-        assert CIVisibility._instance.tracer._partial_flush_enabled is False
-        assert CIVisibility._instance.tracer._partial_flush_min_spans == 100
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_enabled is False
+        assert CIVisibility._instance.tracer._span_aggregator.partial_flush_min_spans == 100
         CIVisibility.disable()
 
 
@@ -1364,7 +1376,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
     def assert_test_session_name(self, name):
         """Check that the payload metadata contains the test session name attributes."""
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])
         )
         assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
         assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}
@@ -1440,7 +1452,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
             )
 
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])
         )
         assert payload["metadata"]["test"] == {
             "_dd.library_capabilities.early_flake_detection": "1",

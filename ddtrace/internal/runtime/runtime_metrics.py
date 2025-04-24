@@ -8,6 +8,7 @@ import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from .. import periodic
@@ -68,6 +69,11 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 def _get_interval_or_default():
+    if "DD_RUNTIME_METRICS_INTERVAL" in os.environ:
+        deprecate(
+            "`DD_RUNTIME_METRICS_INTERVAL` is deprecated and will be removed in a future version.",
+            removal_version="4.0.0",
+        )
     return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
@@ -84,7 +90,7 @@ class RuntimeWorker(periodic.PeriodicService):
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or ddtrace.internal.agent.get_stats_url()
+            self.dogstatsd_url or ddtrace.settings._agent.config.dogstatsd_url
         )
         self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()

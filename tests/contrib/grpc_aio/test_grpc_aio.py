@@ -232,7 +232,7 @@ def _create_server(servicer, target):
 
 
 def _get_spans(tracer):
-    return tracer._writer.spans
+    return tracer._span_aggregator.writer.spans
 
 
 def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
@@ -340,7 +340,7 @@ async def test_invalid_target(server_info, tracer):
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_not_activated(server_info, tracer):
-    tracer._configure(enabled=False)
+    tracer.enabled = False
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
