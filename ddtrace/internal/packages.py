@@ -36,12 +36,6 @@ def parse_importlib_metadata():
     if _DISTRIBUTIONS or _PACKAGE_DISTRIBUTIONS or _ROOT_TO_PACKAGE:
         return
 
-    # let's print the backtrace of the current invocation
-
-    import traceback
-
-    traceback.print_stack()
-
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
