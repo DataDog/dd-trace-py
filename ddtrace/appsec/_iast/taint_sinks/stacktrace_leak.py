@@ -2,7 +2,7 @@ import os
 import re
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._overhead_control_engine import oce

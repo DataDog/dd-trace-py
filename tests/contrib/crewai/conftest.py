@@ -12,9 +12,8 @@ import vcr
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import AGENTLESS_BASE_URL
-from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -177,15 +176,6 @@ def mock_tracer(crewai):
     yield mock_tracer
 
 
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.events = []
-
-    def enqueue(self, event):
-        self.events.append(event)
-
-
 @pytest.fixture
 def crewai_llmobs(mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
@@ -200,8 +190,7 @@ def crewai_llmobs(mock_tracer, llmobs_span_writer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    agentless_url = "{}.{}".format(AGENTLESS_BASE_URL, "datad0g.com")
-    yield TestLLMObsSpanWriter(is_agentless=True, agentless_url=agentless_url, interval=1.0, timeout=1.0)
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture
