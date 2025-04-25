@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixed an issue where inconsistent state in the native profiler
+    code was causing excessive log messages to be emitted at an unprecedented
+    rate, significantly increasing the size of end-user log files.
