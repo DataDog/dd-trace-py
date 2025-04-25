@@ -222,7 +222,12 @@ def track_user_login_failure_event(
         if name:
             span.set_tag_str("%s.failure.username" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, name)
     if in_asm_context():
-        call_waf_callback(custom_data={"LOGIN_FAILURE": None})
+        custom_data: dict[str, Any] = {"LOGIN_FAILURE": None}
+        if login:
+            custom_data["REQUEST_USERNAME"] = login
+        res = call_waf_callback(custom_data=custom_data)
+        if res and any(action in [WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+            raise BlockingException(get_blocked())
 
 
 def track_user_signup_event(

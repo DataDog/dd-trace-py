@@ -10,6 +10,7 @@ import typing as t
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
+from ddtrace.appsec import _metrics
 from ddtrace.appsec import _trace_utils
 from ddtrace.appsec._asm_request_context import get_blocked as _get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
@@ -25,6 +26,7 @@ def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[
     This function should be called when a user successfully logs in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
+    _metrics._report_ato_sdk_usage("login_success")
     _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata)
 
 
@@ -37,6 +39,7 @@ def track_login_failure(
     This function should be called when a user fails to log in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
+    _metrics._report_ato_sdk_usage("login_failure")
     _trace_utils.track_user_login_failure_event(None, user_id, exists=exists, login=login, metadata=metadata)
 
 
@@ -49,6 +52,7 @@ def track_signup(
     This function should be called when a user successfully signs up for the application.
     It will create an event that can be used for monitoring and analysis.
     """
+    _metrics._report_ato_sdk_usage("signup")
     _trace_utils.track_user_signup_event(None, user_id, success, login=login)
     if metadata:
         _trace_utils.track_custom_event(None, "signup_sdk", metadata=metadata)
@@ -94,4 +98,5 @@ def track_custom_event(event_name: str, metadata: t.Dict[str, t.Any]):
     This function should be called when a custom user event occurs in the application.
     It will create an event that can be used for monitoring and analysis.
     """
+    _metrics._report_ato_sdk_usage("custom")
     _trace_utils.track_custom_event(None, event_name, metadata=metadata)
