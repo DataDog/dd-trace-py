@@ -2572,7 +2572,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
-                "openai": "==1.70.0",
+                "openai": "==1.68.2",
             },
         ),
         Venv(
