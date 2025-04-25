@@ -137,7 +137,6 @@ class Sample
     static ddog_prof_Profile& profile_borrow();
     static void profile_release();
     static void profile_clear_state();
-    static void postfork_child();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     // friend class SampleManager;
