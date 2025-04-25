@@ -76,6 +76,17 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     names: t.List[str] = []
     pkgs = get_package_distributions()
     while names == []:
+        # First try to resolve the module name from package distributions
+        names = pkgs.get(module_name, [])
+        if not names:
+            # try to resolve the parent package
+            p = module_name.rfind(".")
+            if p > 0:
+                module_name = module_name[:p]
+            else:
+                break
+        # If we failed to do so, then invoke the expensive importlib_metadata.distribution
+        # to get the package metadata
         try:
             package = importlib_metadata.distribution(module_name)
             metadata = package.metadata
@@ -85,14 +96,6 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
                 return (name, version)
         except Exception:  # nosec
             pass
-        names = pkgs.get(module_name, [])
-        if not names:
-            # try to resolve the parent package
-            p = module_name.rfind(".")
-            if p > 0:
-                module_name = module_name[:p]
-            else:
-                break
     if len(names) != 1:
         # either it was not resolved due to multiple packages with the same name
         # or it's a multipurpose package (like '__pycache__')
@@ -100,7 +103,7 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
     return (names[0], get_version_for_package(names[0]))
 
 
-@cached(maxsize=256)
+@cached(maxsize=1024)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
