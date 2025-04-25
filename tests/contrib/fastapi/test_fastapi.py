@@ -739,7 +739,7 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
 
 
 def test_baggage_span_tagging_default(client, tracer, test_spans):
-    response = client.get("/", headers={"baggage": "usr.id=123,account.id=456,region=us-west"})
+    response = client.get("/", headers={"baggage": "user.id=123,account.id=456,region=us-west"})
 
     assert response.status_code == 200
 
@@ -747,7 +747,7 @@ def test_baggage_span_tagging_default(client, tracer, test_spans):
     # Assume the request span is the first span in the first trace.
     request_span = spans[0][0]
 
-    assert request_span.get_tag("baggage.usr.id") == "123"
+    assert request_span.get_tag("baggage.user.id") == "123"
     assert request_span.get_tag("baggage.account.id") == "456"
     # Since "region" is not in the default list, its baggage tag should not be present.
     assert request_span.get_tag("baggage.region") is None
@@ -761,7 +761,7 @@ def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
     request_span = spans[0][0]
 
     # None of the baggage tags should be present.
-    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.session.id") is None
 
@@ -774,7 +774,7 @@ def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
     request_span = spans[0][0]
 
     # None of the baggage tags should be present.
-    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.session.id") is None
 
@@ -785,8 +785,8 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     request_span = spans[0][0]
-    request_span.context.set_baggage_item("usr.id", "123")
+    request_span.context.set_baggage_item("user.id", "123")
     # None of the baggage tags should be present since we only tag baggage during extraction from headers
     assert request_span.get_tag("baggage.account.id") is None
-    assert request_span.get_tag("baggage.usr.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None

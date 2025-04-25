@@ -1154,16 +1154,21 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
+
                     if config._baggage_tag_keys:
-                        for baggage_tag_key in config._baggage_tag_keys:
-                            if (stripped_key := baggage_tag_key.strip()) and (
-                                (value := baggage_context.get_baggage_item(stripped_key)) is not None
-                            ):
+                        raw_keys = [k.strip() for k in config._baggage_tag_keys if k.strip()]
+                        # wildcard: tag all baggage keys
+                        if "*" in raw_keys:
+                            tag_keys = baggage_context.get_all_baggage_items().keys()
+                        else:
+                            tag_keys = raw_keys
+
+                        for stripped_key in tag_keys:
+                            if (value := baggage_context.get_baggage_item(stripped_key)) is not None:
                                 prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
                                 if prefixed_key not in context._meta:
                                     context._meta[prefixed_key] = value
-                                else:
-                                    log.debug("Skipping baggage tag '%s'; tag already set", prefixed_key)
+
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])

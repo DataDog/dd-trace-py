@@ -916,14 +916,15 @@ Other
 
    DD_TRACE_BAGGAGE_TAG_KEYS:
       type: String
-      default: "usr.id,account.id,session.id"
+      default: "user.id,account.id,session.id"
 
       description: |
          A comma-separated list of baggage keys to be automatically attached as tags on spans.
          For each key specified, if a corresponding baggage key is present and has a non-empty value,
          the key-value pair will be added to the span's metadata using the key name formatted as ``baggage.<key>``.
          If you want to turn off this feature, set the configuration value to an empty string.
-     
+         When set to `*`, **all** baggage keys will be converted into span tags. Use with caution: this may unintentionally expose sensitive or internal data if not used intentionally.
+
       version_added: 
          v3.5.2:
 
