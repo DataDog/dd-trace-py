@@ -161,7 +161,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
             ret = msgpack_pack_raw(pk, L)
             if ret == 0:
                 ret = msgpack_pack_raw_body(pk, <char *> text, L)
-        
+
         return ret
 
     raise TypeError("Unhandled text type: %r" % type(text))
