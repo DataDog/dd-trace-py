@@ -25,7 +25,6 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -37,6 +36,19 @@ from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import DDConfig
 
+
+def is_distribution_available(name: str) -> bool:
+    try:
+        import importlib.metadata as importlib_metadata
+    except ImportError:
+        import importlib_metadata  # type: ignore[no-redef]
+
+    try:
+        importlib_metadata.distribution(name)
+    except importlib_metadata.PackageNotFoundError:
+        return False
+
+    return True
 
 log = get_logger(__name__)
 

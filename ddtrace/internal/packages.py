@@ -36,6 +36,7 @@ def parse_importlib_metadata():
     if _DISTRIBUTIONS or _PACKAGE_DISTRIBUTIONS or _ROOT_TO_PACKAGE:
         return
 
+
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
@@ -108,7 +109,6 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     return _PACKAGE_DISTRIBUTIONS if _PACKAGE_DISTRIBUTIONS else {}
 
 
-@cached(maxsize=1024)
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
@@ -193,7 +193,6 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
-@callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, str]]:
     parse_importlib_metadata()
     return _ROOT_TO_PACKAGE if _ROOT_TO_PACKAGE else {}
@@ -273,21 +272,14 @@ def _(path: str) -> bool:
     _path = Path(path)
     return not (is_stdlib(_path) or is_third_party(_path))
 
-
-@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
-
-    try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
+    parse_importlib_metadata()
+    if not _DISTRIBUTIONS:
         return False
 
-    return True
+    return name in _DISTRIBUTIONS
+
 
 
 # ----
