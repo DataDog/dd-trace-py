@@ -29,6 +29,15 @@ class UUIDEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 
+class _DummySharedArray:
+    """Dummy shared array to be used when shared memory is not available.
+    This class is used to avoid breaking the code when shared memory is not available.
+    """
+
+    def __init__(self):
+        self.value = b""
+
+
 class PublisherSubscriberConnector:
     """ "PublisherSubscriberConnector is the bridge between Publisher and Subscriber class that uses an array of chars
     to share information between processes. `multiprocessing.Array``, as far as we know, was the most efficient way to
@@ -36,7 +45,13 @@ class PublisherSubscriberConnector:
     """
 
     def __init__(self):
-        self.data = get_mp_context().Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+        try:
+            self.data = get_mp_context().Array(c_char, SHARED_MEMORY_SIZE, lock=False)
+        except FileNotFoundError:
+            log.warning(
+                "Unable to create shared memory. Features relying on remote configuration will not work as expected."
+            )
+            self.data = _DummySharedArray()
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
