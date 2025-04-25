@@ -1364,7 +1364,6 @@ def rstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
             taint_pyobject_with_ranges(result, tuple(ranges))
         else:
             for taint_range in ranges:
-
                 if taint_range.start >= len_result:
                     continue
 
@@ -1404,6 +1403,7 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
         iast_propagation_error_log(f"strip_aspect. {e}")
 
     return result
+
 
 def _strip_lstrip_aspect(candidate_text, result):
     ranges_new: List[TaintRange] = []
