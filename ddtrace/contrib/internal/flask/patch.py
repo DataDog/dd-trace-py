@@ -10,7 +10,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -53,6 +52,12 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 
+try:
+    import importlib.metadata as importlib_metadata
+except ImportError:
+    import importlib_metadata  # type: ignore[no-redef]
+
+
 log = get_logger(__name__)
 
 FLASK_VERSION = "flask.version"
@@ -73,13 +78,17 @@ config._add(
 
 
 def get_version():
-    # type: () -> str
-    return get_version_for_package("flask")
+    try:
+        return importlib_metadata.version("flask")
+    except Exception:
+        return ""
 
 
 def get_werkzeug_version():
-    # type: () -> str
-    return get_version_for_package("werkzeug")
+    try:
+        return importlib_metadata.version("werkzeug")
+    except Exception:
+        return ""
 
 
 if _HAS_JSON_MIXIN:
