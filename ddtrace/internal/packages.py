@@ -3,7 +3,6 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
-from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -17,32 +16,29 @@ from ddtrace.settings.third_party import config as tp_config
 
 LOG = logging.getLogger(__name__)
 
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
 @callonce
-def get_distributions():
-    # type: () -> t.Set[Distribution]
-    """returns the name and version of all distributions in a python path"""
+def get_distributions() -> t.Mapping[str, str]:
+    """returns the mapping from distribution name to version for all distributions in a python path"""
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    pkgs = set()
+    pkgs = {}
     for dist in importlib_metadata.distributions():
-        # Get the root path of all files in a distribution
-        path = str(dist.locate_file(""))
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
-        name = metadata["name"]
+        name = metadata["name"].lower()
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
+            pkgs[name] = version
 
     return pkgs
 
@@ -68,13 +64,10 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
 
     names: t.List[str] = []
     pkgs = get_package_distributions()
+    dist_map = get_distributions()
     while names == []:
         # First try to resolve the module name from package distributions
         names = pkgs.get(module_name, [])
@@ -85,16 +78,10 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
                 module_name = module_name[:p]
             else:
                 break
-        # If we failed to do so, then invoke the expensive importlib_metadata.distribution
-        # to get the package metadata
         try:
-            package = importlib_metadata.distribution(module_name)
-            metadata = package.metadata
-            name = metadata["name"]
-            version = metadata["version"]
-            if name and version:
-                return (name, version)
-        except Exception:  # nosec
+            dist = dist_map[module_name]
+            return (dist.name, dist.version)
+        except Exception:
             pass
     if len(names) != 1:
         # either it was not resolved due to multiple packages with the same name
@@ -197,7 +184,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
-            d = Distribution(name=metadata["name"], version=metadata["version"], path=None)
+            d = Distribution(name=metadata["name"], version=metadata["version"])
             for f in files:
                 root = f.parts[0]
                 if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":

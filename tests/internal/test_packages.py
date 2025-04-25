@@ -40,28 +40,26 @@ def test_get_distributions():
     pkg_resources_ws = {pkg.project_name.lower() for pkg in pkg_resources.working_set}
 
     importlib_pkgs = set()
-    for pkg in get_distributions():
-        assert pkg.name
-        assert pkg.version
-        assert os.path.exists(pkg.path)
+    for name, version in get_distributions().items():
+        assert version
         # The package name in typing_extensions-4.x.x.dist-info/METADATA is set to `typing_extensions`
         # this is inconsistent with the package name found in pkg_resources. The block below corrects this.
         # The correct package name is typing-extensions.
         # The issue exists in pkgutil-resolve-name package.
-        if pkg.name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
+        if name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
             importlib_pkgs.add("typing-extensions")
-        elif pkg.name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
+        elif name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
             importlib_pkgs.add("pkgutil-resolve-name")
-        elif pkg.name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
+        elif name == "importlib_metadata" and "importlib-metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib-metadata")
-        elif pkg.name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
+        elif name == "importlib-metadata" and "importlib_metadata" in pkg_resources_ws:
             importlib_pkgs.add("importlib_metadata")
-        elif pkg.name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
+        elif name == "importlib-resources" and "importlib_resources" in pkg_resources_ws:
             importlib_pkgs.add("importlib_resources")
-        elif pkg.name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
+        elif name == "importlib_resources" and "importlib-resources" in pkg_resources_ws:
             importlib_pkgs.add("importlib-resources")
         else:
-            importlib_pkgs.add(pkg.name)
+            importlib_pkgs.add(name)
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs
