@@ -1,0 +1,4 @@
+fixes:
+  - |
+    azure_functions: This fix resolves an issue where async functions throw an error when instrumented.
+    
