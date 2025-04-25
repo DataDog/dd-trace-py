@@ -218,9 +218,10 @@ class TestLLMObsLiteLLM:
             if stream:
                 for _ in resp:
                     pass
-
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
+            
+            assert Pin.get_from(openai).tracer == mock_tracer
+            assert len(llmobs_events) == 1
+            assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
 
     def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
