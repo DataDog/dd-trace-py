@@ -927,4 +927,4 @@ def test_encode_span_with_large_string_attributes():
     from ddtrace import tracer
 
     with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
-        span.set_tag(key="c" * 24999, value="d" * 2000)
+        span.set_tag(key="c" * 25001, value="d" * 2000)
