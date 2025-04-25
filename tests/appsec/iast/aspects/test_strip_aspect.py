@@ -28,26 +28,22 @@ def test_lstrip_aspect(text):
 @pytest.mark.parametrize(
     "obj1,obj2,should_be_tainted,expected_start,expected_length",
     [
-        # Basic cases
-        (",;,;aaa", ",;:", True, 0, 3),  # Original test case
-        ("aaa,;,;", ",;:", True, 0, 3),  # Original test case
-        (",;,;aaa,;,;", ",;:", True, 0, 3),  # Original test case
-        # Edge cases with different characters
-        ("   hello   ", None, True, 0, 5),  # Default whitespace stripping
-        ("\t\ntext\t\n", None, True, 0, 4),  # Tabs and newlines
-        ("xxxhelloxxx", "x", True, 0, 5),  # Single character strip
-        # Corner cases
-        ("", "abc", False, 0, 0),  # Empty string
-        ("abc", "", True, 0, 3),  # Empty strip chars
-        ("   ", None, False, 0, 0),  # Only whitespace
-        # Mixed cases
-        ("...###text###...", ".#", True, 0, 4),  # Multiple strip chars
-        ("абвгтекстабвг", "абвг", True, 0, 5),  # Unicode characters
-        ("🌟✨text🌟✨", "🌟✨", True, 0, 4),  # Emojis
-        # Special cases
-        ("\u200b\u200btext\u200b", "\u200b", True, 0, 4),  # Zero-width spaces
-        ("  \t\n\r text \t\n\r  ", None, True, 0, 4),  # All whitespace types
-        ("...text...", ".", True, 0, 4),  # Repeated chars
+        (",;,;aaa", ",;:", True, 0, 3),
+        (",;,;aaa", "123", True, 0, 7),
+        ("aaa,;,;", ",;:", True, 0, 3),
+        (",;,;aaa,;,;", ",;:", True, 0, 3),
+        ("   hello   ", None, True, 0, 5),
+        ("\t\ntext\t\n", None, True, 0, 4),
+        ("xxxhelloxxx", "x", True, 0, 5),
+        ("", "abc", False, 0, 0),
+        ("abc", "", True, 0, 3),
+        ("   ", None, False, 0, 0),
+        ("...###text###...", ".#", True, 0, 4),
+        ("абвгтекстабвг", "абвг", True, 0, 5),
+        ("🌟✨text🌟✨", "🌟✨", True, 0, 4),
+        ("\u200b\u200btext\u200b", "\u200b", True, 0, 4),
+        ("  \t\n\r text \t\n\r  ", None, True, 0, 4),
+        ("...text...", ".", True, 0, 4),
     ],
 )
 def test_strip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, expected_length):
@@ -73,27 +69,66 @@ def test_strip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, exp
 
 
 @pytest.mark.parametrize(
+    "obj1,obj2,expected_start,expected_length",
+    [
+        (",;,;aaa", ",;:", 0, 3),
+        ("aaa,;,;", ",;:", 0, 3),
+        (",;,;aaa,;,;", ",;:", 0, 3),
+        ("   hello   ", None, 0, 5),
+        ("\t\n text \t\n", None, 0, 4),
+        ("xxxhelloxxx", "x", 0, 5),
+        ("...###text###...", ".#", 0, 4),
+        ("абвгтекстабвг", "абвг", 0, 5),
+        ("...text...", ".", 0, 4),
+    ],
+)
+@pytest.mark.parametrize("ranges_position", list(range(1, 7)))
+def test_strip_aspect_tainted_multiple_ranges(obj1, obj2, expected_start, expected_length, ranges_position):
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+    concat_obj1 = add_aspect(
+        taint_pyobject(
+            pyobject=obj1[:ranges_position],
+            source_name="obj1_pos1",
+            source_value=obj1[:ranges_position],
+            source_origin=OriginType.PARAMETER,
+        ),
+        taint_pyobject(
+            pyobject=obj1[ranges_position:],
+            source_name="obj1_pos2",
+            source_value=obj1[ranges_position:],
+            source_origin=OriginType.PARAMETER,
+        ),
+    )
+
+    result = ddtrace_aspects.strip_aspect(None, 1, concat_obj1, obj2)
+    if obj2 is None:
+        assert result == concat_obj1.strip()
+    else:
+        assert result == concat_obj1.strip(obj2)
+
+    assert is_pyobject_tainted(result)
+
+    assert len(get_tainted_ranges(result))
+
+
+@pytest.mark.parametrize(
     "obj1,obj2,should_be_tainted,expected_start,expected_length",
     [
-        # Basic cases
-        ("aaa,;,;", ",;:", True, 0, 3),  # Basic right strip
-        ("text.....", ".", True, 0, 4),  # Single char right strip
-        ("text   ", None, True, 0, 4),  # Default whitespace
-        # Edge cases
-        ("hello\t\n\r", None, True, 0, 5),  # Various whitespace
-        ("text\u200b\u200b", "\u200b", True, 0, 4),  # Zero-width spaces
-        ("text🌟✨", "🌟✨", True, 0, 4),  # Emojis at end
-        # Corner cases
-        ("", "abc", False, 0, 0),  # Empty string
-        ("abc", "", True, 0, 3),  # Empty strip chars
-        ("   ", None, False, 0, 0),  # Only whitespace
-        # Mixed cases
-        ("text...###", ".#", True, 0, 4),  # Multiple strip chars
-        ("текстабвг", "абвг", True, 0, 5),  # Unicode characters
-        # Special cases
-        ("text\t \n", None, True, 0, 4),  # Mixed whitespace at end
-        ("hello...", ".", True, 0, 5),  # Repeated chars
-        ("text   \t\n\r", None, True, 0, 4),  # All whitespace types
+        ("aaa,;,;", ",;:", True, 0, 3),
+        ("text.....", ".", True, 0, 4),
+        ("text   ", None, True, 0, 4),
+        ("hello\t\n\r", None, True, 0, 5),
+        ("text\u200b\u200b", "\u200b", True, 0, 4),
+        ("text🌟✨", "🌟✨", True, 0, 4),
+        ("", "abc", False, 0, 0),
+        ("abc", "", True, 0, 3),
+        ("   ", None, False, 0, 0),
+        ("text...###", ".#", True, 0, 4),
+        ("текстабвг", "абвг", True, 0, 5),
+        ("text\t \n", None, True, 0, 4),
+        ("hello...", ".", True, 0, 5),
+        ("text   \t\n\r", None, True, 0, 4),
     ],
 )
 def test_rstrip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, expected_length):
@@ -121,25 +156,20 @@ def test_rstrip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, ex
 @pytest.mark.parametrize(
     "obj1,obj2,should_be_tainted,expected_start,expected_length",
     [
-        # Basic cases
-        (",;,;aaa", ",;:", True, 0, 3),  # Basic left strip
-        (".....text", ".", True, 0, 4),  # Single char left strip
-        ("   text", None, True, 0, 4),  # Default whitespace
-        # Edge cases
-        ("\t\n\rtext", None, True, 0, 4),  # Various whitespace
-        ("\u200b\u200btext", "\u200b", True, 0, 4),  # Zero-width spaces
-        ("🌟✨text", "🌟✨", True, 0, 4),  # Emojis at start
-        # Corner cases
-        ("", "abc", False, 0, 0),  # Empty string
-        ("abc", "", True, 0, 3),  # Empty strip chars
-        ("   ", None, False, 0, 0),  # Only whitespace
-        # Mixed cases
-        ("...###text", ".#", True, 0, 4),  # Multiple strip chars
-        ("абвгтекст", "абвг", True, 0, 5),  # Unicode characters
-        # Special cases
-        ("\t \ntext", None, True, 0, 4),  # Mixed whitespace at start
-        ("...hello", ".", True, 0, 5),  # Repeated chars
-        ("\t\n\r   text", None, True, 0, 4),  # All whitespace types
+        (",;,;aaa", ",;:", True, 0, 3),
+        (".....text", ".", True, 0, 4),
+        ("   text", None, True, 0, 4),
+        ("\t\n\rtext", None, True, 0, 4),
+        ("\u200b\u200btext", "\u200b", True, 0, 4),
+        ("🌟✨text", "🌟✨", True, 0, 4),
+        ("", "abc", False, 0, 0),
+        ("abc", "", True, 0, 3),
+        ("   ", None, False, 0, 0),
+        ("...###text", ".#", True, 0, 4),
+        ("абвгтекст", "абвг", True, 0, 5),
+        ("\t \ntext", None, True, 0, 4),
+        ("...hello", ".", True, 0, 5),
+        ("\t\n\r   text", None, True, 0, 4),
     ],
 )
 def test_lstrip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, expected_length):

@@ -1332,39 +1332,8 @@ def lstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
         return result
 
     try:
-        ranges_new: List[TaintRange] = []
-        ranges_new_append = ranges_new.append
-
-        ranges = get_ranges(candidate_text)
-        start_pos = candidate_text.index(result)
-        end_pos = start_pos + len(result)
-
-        # Iterate through existing ranges and adjust them based on the new substring boundaries
-        for taint_range in ranges:
-            range_start = taint_range.start
-            range_end = range_start + taint_range.length
-
-            # Skip ranges that are completely outside the new substring
-            if range_end <= start_pos or range_start >= end_pos:
-                continue
-
-            # Calculate new range boundaries
-            new_start = max(range_start - start_pos, 0)  # Adjust start relative to new substring
-            new_end = min(range_end - start_pos, len(result))  # Ensure we don't exceed the new substring length
-            new_length = new_end - new_start
-
-            if new_length > 0:
-                # Create a new range with adjusted position and length
-                new_range = TaintRange(
-                    start=new_start,
-                    length=new_length,
-                    source=taint_range.source,
-                    secure_marks=taint_range.secure_marks,
-                )
-                ranges_new_append(new_range)
-        taint_pyobject_with_ranges(result, tuple(ranges_new))
+        _strip_lstrip_aspect(candidate_text, result)
         return result
-
     except Exception as e:
         iast_propagation_error_log(f"lstrip_aspect. {e}")
 
@@ -1390,33 +1359,24 @@ def rstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
         ranges_new_append = ranges_new.append
 
         ranges = get_ranges(candidate_text)
-        start_pos = candidate_text.index(result)
-        end_pos = start_pos + len(result)
+        len_result = len(result)
+        if len_result == len(candidate_text):
+            taint_pyobject_with_ranges(result, tuple(ranges))
+        else:
+            for taint_range in ranges:
 
-        # Iterate through existing ranges and adjust them based on the new substring boundaries
-        for taint_range in ranges:
-            range_start = taint_range.start
-            range_end = range_start + taint_range.length
+                if taint_range.start >= len_result:
+                    continue
 
-            # Skip ranges that are completely outside the new substring
-            if range_end <= start_pos or range_start >= end_pos:
-                continue
-
-            # Calculate new range boundaries
-            new_start = max(range_start - start_pos, 0)  # Adjust start relative to new substring
-            new_end = min(range_end - start_pos, len(result))  # Ensure we don't exceed the new substring length
-            new_length = new_end - new_start
-
-            if new_length > 0:
-                # Create a new range with adjusted position and length
+                new_length = min(taint_range.length, len_result)
                 new_range = TaintRange(
-                    start=new_start,
+                    start=taint_range.start,
                     length=new_length,
                     source=taint_range.source,
                     secure_marks=taint_range.secure_marks,
                 )
                 ranges_new_append(new_range)
-        taint_pyobject_with_ranges(result, tuple(ranges_new))
+            taint_pyobject_with_ranges(result, tuple(ranges_new))
         return result
     except Exception as e:
         iast_propagation_error_log(f"rstrip_aspect. {e}")
@@ -1438,25 +1398,30 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
         return result
 
     try:
-        ranges_new: List[TaintRange] = []
-        ranges_new_append = ranges_new.append
+        _strip_lstrip_aspect(candidate_text, result)
+        return result
+    except Exception as e:
+        iast_propagation_error_log(f"strip_aspect. {e}")
 
-        ranges = get_ranges(candidate_text)
-        start_pos = candidate_text.index(result)
-        end_pos = start_pos + len(result)
+    return result
 
-        # Iterate through existing ranges and adjust them based on the new substring boundaries
+def _strip_lstrip_aspect(candidate_text, result):
+    ranges_new: List[TaintRange] = []
+    ranges = get_ranges(candidate_text)
+    start_pos = candidate_text.index(result)
+    len_result = len(result)
+    end_pos = start_pos + len_result
+    if len_result != len(candidate_text):
         for taint_range in ranges:
             range_start = taint_range.start
             range_end = range_start + taint_range.length
 
-            # Skip ranges that are completely outside the new substring
             if range_end <= start_pos or range_start >= end_pos:
                 continue
 
             # Calculate new range boundaries
-            new_start = max(range_start - start_pos, 0)  # Adjust start relative to new substring
-            new_end = min(range_end - start_pos, len(result))  # Ensure we don't exceed the new substring length
+            new_start = max(range_start - start_pos, 0)
+            new_end = min(range_end - start_pos, len_result)
             new_length = new_end - new_start
 
             if new_length > 0:
@@ -1467,10 +1432,5 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
                     source=taint_range.source,
                     secure_marks=taint_range.secure_marks,
                 )
-                ranges_new_append(new_range)
+                ranges_new.append(new_range)
         taint_pyobject_with_ranges(result, tuple(ranges_new))
-        return result
-    except Exception as e:
-        iast_propagation_error_log(f"strip_aspect. {e}")
-
-    return result
