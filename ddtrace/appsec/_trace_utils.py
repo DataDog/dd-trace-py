@@ -37,6 +37,26 @@ def _asm_manual_keep(span: Span) -> None:
     span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
 
 
+def _handle_metadata(root_span: Span, prefix: str, metadata: dict) -> None:
+    if metadata is None:
+        return
+    stack = [(prefix, metadata, 0)]
+    while stack:
+        prefix, data, level = stack.pop()
+        if isinstance(data, list):
+            if level < 6:
+                for i, v in enumerate(data):
+                    stack.append((f"{prefix}.{i}", v, level + 1))
+        elif isinstance(data, dict):
+            if level < 6:
+                for k, v in data.items():
+                    stack.append((f"{prefix}.{k}", v, level + 1))
+        else:
+            if isinstance(data, bool):
+                data = "true" if data else "false"
+            root_span.set_tag_str(f"{prefix}", str(data))
+
+
 def _track_user_login_common(
     tracer: Any,
     success: bool,
@@ -70,12 +90,7 @@ def _track_user_login_common(
 
         tag_metadata_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC, success_str)
         if metadata is not None:
-            for k, v in metadata.items():
-                if isinstance(v, bool):
-                    str_v = "true" if v else "false"
-                else:
-                    str_v = str(v)
-                span.set_tag_str("%s.%s" % (tag_metadata_prefix, k), str_v)
+            _handle_metadata(span, tag_metadata_prefix, metadata)
 
         if login:
             span.set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
@@ -139,8 +154,11 @@ def track_user_login_success_event(
     if real_mode == LOGIN_EVENTS_MODE.ANON and isinstance(user_id, str):
         user_id = _hash_user_id(user_id)
     span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
-    if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-        span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+    if user_id:
+        if login_events_mode != LOGIN_EVENTS_MODE.SDK:
+            span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(user_id))
+        else:
+            span.set_tag_str(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
     set_user(None, user_id or "", name, email, scope, role, session_id, propagate, span, may_block=False)
     if in_asm_context():
         custom_data = {
@@ -273,14 +291,9 @@ def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -
         return
 
     span.set_tag_str("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name), "true")
-
-    for k, v in metadata.items():
-        if isinstance(v, bool):
-            str_v = "true" if v else "false"
-        else:
-            str_v = str(v)
-        span.set_tag_str("%s.%s.%s" % (APPSEC.CUSTOM_EVENT_PREFIX, event_name, k), str_v)
-        _asm_manual_keep(span)
+    if metadata:
+        _handle_metadata(span, f"{APPSEC.CUSTOM_EVENT_PREFIX}.{event_name}", metadata)
+    _asm_manual_keep(span)
 
 
 def should_block_user(tracer: Any, userid: str) -> bool:
