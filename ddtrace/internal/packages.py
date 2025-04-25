@@ -36,6 +36,12 @@ def parse_importlib_metadata():
     if _DISTRIBUTIONS or _PACKAGE_DISTRIBUTIONS or _ROOT_TO_PACKAGE:
         return
 
+    # let's print the backtrace of the current invocation
+
+    import traceback
+
+    traceback.print_stack()
+
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
@@ -193,6 +199,7 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
+@callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, str]]:
     parse_importlib_metadata()
     return _ROOT_TO_PACKAGE if _ROOT_TO_PACKAGE else {}
@@ -226,7 +233,6 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         return None
 
 
-@cached(maxsize=256)
 def module_to_package(module: ModuleType) -> t.Optional[Distribution]:
     """Returns the package distribution for a module"""
     module_origin = origin(module)
@@ -248,7 +254,6 @@ def is_stdlib(path: Path) -> bool:
     )
 
 
-@cached(maxsize=256)
 def is_third_party(path: Path) -> bool:
     package = filename_to_package(str(path))
     if package is None:
