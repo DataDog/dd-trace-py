@@ -78,11 +78,9 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str
                 module_name = module_name[:p]
             else:
                 break
-        try:
-            dist = dist_map[module_name]
-            return (dist.name, dist.version)
-        except Exception:
-            pass
+        version = dist_map.get(module_name)
+        if version:
+            return (module_name, version)
     if len(names) != 1:
         # either it was not resolved due to multiple packages with the same name
         # or it's a multipurpose package (like '__pycache__')
