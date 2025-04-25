@@ -17,13 +17,17 @@ sample_delete_fn(void* sample)
 
 SynchronizedSamplePool::SynchronizedSamplePool(size_t capacity)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_ArrayQueue_NewResult array_queue_new_result = ddog_ArrayQueue_new(capacity, sample_delete_fn);
     if (array_queue_new_result.tag == DDOG_ARRAY_QUEUE_NEW_RESULT_OK) {
         pool = std::unique_ptr<ddog_ArrayQueue, Deleter>(array_queue_new_result.ok);
     } else {
         auto err = array_queue_new_result.err;
-        std::string errmsg = err_to_msg(&err, "Failed to create sample pool");
-        std::cerr << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::string errmsg = err_to_msg(&err, "Failed to create sample pool");
+            std::cerr << errmsg << std::endl;
+        }
         ddog_Error_drop(&err);
         pool = nullptr;
     }
@@ -32,6 +36,7 @@ SynchronizedSamplePool::SynchronizedSamplePool(size_t capacity)
 std::optional<Sample*>
 SynchronizedSamplePool::take_sample()
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::optional<Sample*> result = std::nullopt;
 
     // It's actually ok to call ddog_ArrayQueue_* methods with a nullptr,
@@ -45,8 +50,11 @@ SynchronizedSamplePool::take_sample()
             result = static_cast<Sample*>(pop_result.ok);
         } else if (pop_result.tag == DDOG_ARRAY_QUEUE_POP_RESULT_ERR) {
             auto err = pop_result.err;
-            std::string errmsg = err_to_msg(&err, "Failed to get sample from pool");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                std::string errmsg = err_to_msg(&err, "Failed to get sample from pool");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }
@@ -57,6 +65,7 @@ SynchronizedSamplePool::take_sample()
 std::optional<Sample*>
 SynchronizedSamplePool::return_sample(Sample* sample)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::optional<Sample*> result = std::nullopt;
 
     if (pool != nullptr) {
@@ -68,8 +77,11 @@ SynchronizedSamplePool::return_sample(Sample* sample)
             result = static_cast<Sample*>(push_result.full);
         } else if (push_result.tag == DDOG_ARRAY_QUEUE_PUSH_RESULT_ERR) {
             auto err = push_result.err;
-            std::string errmsg = err_to_msg(&err, "Failed to return sample to pool");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                std::string errmsg = err_to_msg(&err, "Failed to return sample to pool");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }
