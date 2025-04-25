@@ -8,6 +8,7 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from ddtrace.llmobs._llmobs import LLMObs
 
 
 @pytest.mark.parametrize(
@@ -218,6 +219,15 @@ class TestLLMObsLiteLLM:
             if stream:
                 for _ in resp:
                     pass
+
+        # assert LLMObs service is enabled
+        assert LLMObs.enabled
+        # assert litellm and openai are using the same mock tracer
+        openai_tracer = Pin.get_from(openai).tracer
+        litellm_tracer = Pin.get_from(litellm).tracer
+        assert openai_tracer == litellm_tracer
+        # assert openai is using the same tracer as LLMObs service
+        assert LLMObs._instance.tracer == openai_tracer
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
