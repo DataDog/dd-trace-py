@@ -218,7 +218,17 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
 @callonce
 def _third_party_packages() -> set:
     from gzip import decompress
-    from importlib.resources import read_binary
+
+    # To avoid:
+    # DeprecationWarning: read_binary is deprecated. Use files() instead. Refer to https://importlib-resources.readthedocs.io/en/latest/using.html#migrating-from-legacy for migration advice.
+    try:
+        from importlib.resources import files
+
+        def read_binary(package, filename):
+            return files(package).joinpath(filename).read_bytes()
+
+    except ImportError:
+        from importlib.resources import read_binary
 
     return (
         set(decompress(read_binary("ddtrace.internal", "third-party.tar.gz")).decode("utf-8").splitlines())

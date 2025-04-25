@@ -8,7 +8,6 @@ def assert_stats(rec, **outcomes):
     stats.pop("", None)
     stats.pop("warnings", None)
 
-    breakpoint()
     for outcome, expected_count in outcomes.items():
         actual_count = len(stats.pop(outcome, []))
         assert actual_count == expected_count, f"Expected {expected_count} {outcome} tests, got {actual_count}"

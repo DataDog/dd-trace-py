@@ -26,10 +26,11 @@ class _RETRY_OUTCOMES(PYTEST_STATUS):
     ATTEMPT_PASSED = "dd_fix_attempt_passed"
     ATTEMPT_FAILED = "dd_fix_attempt_failed"
     ATTEMPT_SKIPPED = "dd_fix_attempt_skipped"
+    FINAL_PASSED = "dd_fix_final_passed"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
-    TestStatus.PASS: _RETRY_OUTCOMES.PASSED,
+    TestStatus.PASS: _RETRY_OUTCOMES.FINAL_PASSED,
     TestStatus.FAIL: _RETRY_OUTCOMES.FAILED,
     TestStatus.SKIP: _RETRY_OUTCOMES.SKIPPED,
 }
@@ -124,6 +125,7 @@ def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.
     if passed_reports:
         terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
 
+    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_SKIPPED, None)
