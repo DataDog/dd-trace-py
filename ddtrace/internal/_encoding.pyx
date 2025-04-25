@@ -24,13 +24,12 @@ from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
-from .._trace._limits import MAX_SPAN_META_KEY_LEN
-from .._trace._limits import MAX_SPAN_RESOURCE_LEN
 from ..settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
+DEF TRUNCATED_ATTRIBUTE_STRING_LIMIT = 2500
 
 
 cdef extern from "Python.h":
@@ -129,7 +128,7 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     raise TypeError("Unhandled numeric type: %r" % type(n))
 
 
-cdef inline int pack_text(msgpack_packer *pk, object text, int limit=MAX_SPAN_META_VALUE_LEN, bint _truncated_suffix=1) except? -1:
+cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
     cdef Py_ssize_t L
     cdef int ret
 
@@ -138,12 +137,9 @@ cdef inline int pack_text(msgpack_packer *pk, object text, int limit=MAX_SPAN_ME
 
     if PyBytesLike_Check(text):
         L = len(text)
-        if L > limit:
+        if L > MAX_SPAN_META_VALUE_LEN:
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
-            if _truncated_suffix:
-                text = text[:limit-14] + "<truncated>..."
-            else:
-                text = text[:limit]
+            text = text[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
             L = len(text)
         ret = msgpack_pack_raw(pk, L)
         if ret == 0:
@@ -151,19 +147,16 @@ cdef inline int pack_text(msgpack_packer *pk, object text, int limit=MAX_SPAN_ME
         return ret
 
     if PyUnicode_Check(text):
-        if len(text) > limit:
-            if _truncated_suffix:
-                text = text[:limit-14] + "<truncated>..."
-            else:
-                text = text[:limit]
+        if len(text) > MAX_SPAN_META_VALUE_LEN:
+            text = text[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
         IF PY_MAJOR_VERSION >= 3:
-            ret = msgpack_pack_unicode(pk, text, limit)
+            ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
             if ret == -2:
                 raise ValueError("unicode string is too large")
         ELSE:
             text = PyUnicode_AsEncodedString(text, "utf-8", NULL)
             L = len(text)
-            if L > limit:
+            if L > MAX_SPAN_META_VALUE_LEN:
                 raise ValueError("unicode string is too large")
             ret = msgpack_pack_raw(pk, L)
             if ret == 0:
@@ -268,7 +261,7 @@ cdef class MsgpackStringTable(StringTable):
 
         # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
         if len(string) > MAX_SPAN_META_VALUE_LEN:
-            string = string[:MAX_SPAN_META_VALUE_LEN-14] + "<truncated>..."
+            string = string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
@@ -698,7 +691,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             ret = msgpack_pack_map(&self.pk, L)
             if ret == 0:
                 for k, v in d.items():
-                    ret = pack_text(&self.pk, k, MAX_SPAN_META_KEY_LEN, 0)
+                    ret = pack_text(&self.pk, k)
                     if ret != 0:
                         break
                     ret = pack_text(&self.pk, v)
@@ -802,7 +795,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             ret = pack_bytes(&self.pk, <char *> b"resource", 8)
             if ret != 0:
                 return ret
-            ret = pack_text(&self.pk, span.resource, MAX_SPAN_RESOURCE_LEN)
+            ret = pack_text(&self.pk, span.resource)
             if ret != 0:
                 return ret
 
@@ -1011,12 +1004,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 self._st.rollback()
                 raise
 
-    cdef inline int _pack_string(self, object string, int max_string_len=MAX_SPAN_META_VALUE_LEN, bint _truncated_suffix=1) except? -1:
-        if string and len(string) > max_string_len:
-            if _truncated_suffix:
-                string = string[:max_string_len-14] + "<truncated>..."
-            else:
-                string = string[:max_string_len]
+    cdef inline int _pack_string(self, object string) except? -1:
+        if string and len(string) > MAX_SPAN_META_VALUE_LEN:
+            string = string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
@@ -1035,7 +1025,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = self._pack_string(span.name)
         if ret != 0:
             return ret
-        ret = self._pack_string(span.resource, MAX_SPAN_RESOURCE_LEN)
+        ret = self._pack_string(span.resource)
         if ret != 0:
             return ret
 
@@ -1085,7 +1075,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
         if span._meta:
             for k, v in span._meta.items():
-                ret = self._pack_string(k, MAX_SPAN_META_KEY_LEN, 0)
+                ret = self._pack_string(k)
                 if ret != 0:
                     return ret
                 ret = self._pack_string(v)
