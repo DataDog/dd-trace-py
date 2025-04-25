@@ -76,24 +76,23 @@ def _patched_route(wrapped, instance, args, kwargs):
                         )
 
             return wrapped(*args, **kwargs)(async_wrap_function)
-        else:
 
-            @functools.wraps(func)
-            def wrap_function(*args, **kwargs):
-                req = kwargs.get(trigger_arg_name)
-                with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
-                    ctx.set_item("req_span", ctx.span)
-                    core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
-                    res = None
-                    try:
-                        res = func(*args, **kwargs)
-                        return res
-                    finally:
-                        core.dispatch(
-                            "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
-                        )
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            req = kwargs.get(trigger_arg_name)
+            with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
+                ctx.set_item("req_span", ctx.span)
+                core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
+                res = None
+                try:
+                    res = func(*args, **kwargs)
+                    return res
+                finally:
+                    core.dispatch(
+                        "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
+                    )
 
-            return wrapped(*args, **kwargs)(wrap_function)
+        return wrapped(*args, **kwargs)(wrap_function)
 
     return _wrapper
 
@@ -122,19 +121,18 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
                     await func(*args, **kwargs)
 
             return wrapped(*args, **kwargs)(async_wrap_function)
-        else:
 
-            @functools.wraps(func)
-            def wrap_function(*args, **kwargs):
-                with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
-                    ctx.set_item("trigger_span", ctx.span)
-                    core.dispatch(
-                        "azure.functions.trigger_call_modifier",
-                        (ctx, config.azure_functions, function_name, trigger),
-                    )
-                    func(*args, **kwargs)
+        @functools.wraps(func)
+        def wrap_function(*args, **kwargs):
+            with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
+                ctx.set_item("trigger_span", ctx.span)
+                core.dispatch(
+                    "azure.functions.trigger_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger),
+                )
+                func(*args, **kwargs)
 
-            return wrapped(*args, **kwargs)(wrap_function)
+        return wrapped(*args, **kwargs)(wrap_function)
 
     return _wrapper
 
