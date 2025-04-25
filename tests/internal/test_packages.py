@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.internal.packages import _third_party_packages
