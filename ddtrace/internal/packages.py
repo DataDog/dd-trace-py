@@ -97,7 +97,7 @@ def get_distribution(name: str) -> t.Optional[Distribution]:
     return _DISTRIBUTIONS.get(name, None) if _DISTRIBUTIONS else None
 
 
-def get_distributions():
+def get_distributions() -> t.Set[Distribution]:
     parse_importlib_metadata()
     return set(_DISTRIBUTIONS.values()) if _DISTRIBUTIONS else set()
 
