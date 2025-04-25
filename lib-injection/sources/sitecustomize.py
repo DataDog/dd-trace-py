@@ -13,8 +13,6 @@ import subprocess
 import sys
 import time
 
-import psutil
-
 
 Version = namedtuple("Version", ["version", "constraint"])
 
@@ -62,8 +60,9 @@ BOOTSTRAP_MARKER = "bootstrap"
 INJECT_RESULT_SUCCESS = "success"
 INJECT_RESULT_FAILED = "failed"
 INJECT_RESULT_SKIPPED = "skipped"
-INJECTION_RESULT = ""
-RESULT_REASON = ""
+INJECT_RESULT = ""
+INJECT_RESULT_REASON = ""
+INJECT_RESULT_CLASS = ""
 
 
 def get_oci_ddtrace_version():
@@ -131,9 +130,6 @@ def create_count_metric(metric, tags=None):
 
 
 def gen_telemetry_payload(telemetry_events, ddtrace_version):
-    pid = os.getpid()
-    proc = psutil.Process(pid)
-
     return {
         "metadata": {
             "language_name": "python",
@@ -141,11 +137,10 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
             "runtime_name": PYTHON_RUNTIME,
             "runtime_version": PYTHON_VERSION,
             "tracer_version": ddtrace_version,
-            "component": "dd-trace-py",
-            "result": INJECTION_RESULT,
-            "reason": RESULT_REASON,
-            "pid": pid,
-            "start_time": proc.create_time,
+            "pid": os.getpid(),
+            "inject_result": INJECT_RESULT,
+            "inject_result_reason": INJECT_RESULT_REASON,
+            "inject_result_class": INJECT_RESULT_CLASS,
         },
         "points": telemetry_events,
     }
@@ -259,11 +254,13 @@ def get_first_incompatible_sysarg():
         return argument
 
 
-def set_injection_result(result, reason):
-    global INJECTION_RESULT
-    global RESULT_REASON
-    INJECTION_RESULT = result
-    RESULT_REASON = reason
+def set_injection_result(result, resultClass, reason):
+    global INJECT_RESULT
+    global INJECT_RESULT_REASON
+    global INJECT_RESULT_CLASS
+    INJECT_RESULT = result
+    INJECT_RESULT_REASON = reason
+    INJECT_RESULT_CLASS = resultClass
 
 
 def _inject():
@@ -318,7 +315,11 @@ def _inject():
                         "library_entrypoint.abort.integration",
                     )
                 )
-                set_injection_result(INJECT_RESULT_SKIPPED, "Found incompatible executable: %s." % incompatible_sysarg)
+                set_injection_result(
+                    INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
+                    "Found incompatible executable: %s." % incompatible_sysarg,
+                )
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
@@ -349,7 +350,11 @@ def _inject():
                         )
                     )
 
-                set_injection_result(INJECT_RESULT_SKIPPED, "Found incompatible packages: %s." % incompatible_packages)
+                set_injection_result(
+                    INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
+                    "Found incompatible packages: %s." % incompatible_packages,
+                )
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
@@ -370,6 +375,7 @@ def _inject():
 
                 set_injection_result(
                     INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
                     "Found incompatible runtime: %s %s. Supported runtimes: %s"
                     % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST),
                 )
@@ -399,7 +405,7 @@ def _inject():
                 create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
             )
             set_injection_result(
-                INJECT_RESULT_SKIPPED, "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
+                INJECT_RESULT_FAILED, "missing_dependency", "ddtrace site-packages not found in %r" % site_pkgs_path
             )
             return
 
@@ -416,7 +422,7 @@ def _inject():
                     "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
                 ),
             )
-            set_injection_result(INJECT_RESULT_FAILED, "failed to load ddtrace module: %s" % e)
+            set_injection_result(INJECT_RESULT_FAILED, "missing_dependency", "failed to load ddtrace module: %s" % e)
 
             return
         else:
@@ -463,7 +469,7 @@ def _inject():
                         ],
                     ),
                 )
-                set_injection_result(INJECT_RESULT_SUCCESS, "successfully configured ddtrace package")
+                set_injection_result(INJECT_RESULT_SUCCESS, "", "successfully configured ddtrace package")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
@@ -483,7 +489,7 @@ def _inject():
                 ],
             )
         )
-        set_injection_result(INJECT_RESULT_SKIPPED, "the ddtrace package was already presentVy")
+        set_injection_result(INJECT_RESULT_SKIPPED, "already_instrumented", "the ddtrace package was already present")
 
 
 try:
