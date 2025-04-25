@@ -31,8 +31,8 @@ class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_ATTEMPT_PASSED = "dd_quarantine_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_quarantine_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_quarantine_atr_attempt_skipped"
-    ATR_FINAL_FAILED = "dd_quarantine_final_failed"
-    ATR_FINAL_PASSED = "dd_quarantine_final_passed"
+    ATR_FINAL_FAILED = "dd_quarantine_atr_final_failed"
+    ATR_FINAL_PASSED = "dd_quarantine_atr_final_passed"
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
