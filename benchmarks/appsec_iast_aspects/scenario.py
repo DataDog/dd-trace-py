@@ -1,3 +1,5 @@
+import contextlib
+
 import bm
 from bm.utils import override_env
 
@@ -35,6 +37,19 @@ def _end_iast_context_and_oce():
     # oce.release_request()
 
 
+@contextlib.contextmanager
+def _with_iast_context():
+    with override_env({"DD_IAST_ENABLED": "True"}):
+        _start_iast_context_and_oce()
+        yield
+        _end_iast_context_and_oce()
+
+
+@contextlib.contextmanager
+def _without_iast_context():
+    yield
+
+
 with override_env({"DD_IAST_ENABLED": "True"}):
     import functions
 
@@ -44,20 +59,10 @@ class IAST_Aspects(bm.Scenario):
     function_name: str
 
     def run(self):
-        if self.iast_enabled:
-            with override_env({"DD_IAST_ENABLED": "True"}):
-                _start_iast_context_and_oce()
-
         def _(loops):
             for _ in range(loops):
-                if self.iast_enabled:
-                    with override_env({"DD_IAST_ENABLED": "True"}):
-                        getattr(functions, self.function_name)()
+                getattr(functions, self.function_name)()
 
-                else:
-                    getattr(functions, self.function_name)()
-
-        yield _
-        if self.iast_enabled:
-            with override_env({"DD_IAST_ENABLED": "True"}):
-                _end_iast_context_and_oce()
+        context = _with_iast_context if self.iast_enabled else _without_iast_context
+        with context():
+            yield _

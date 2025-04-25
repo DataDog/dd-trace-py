@@ -175,6 +175,7 @@ Datadog::Sample::flush_sample(bool reverse_locations)
 bool
 Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     // NB all push-type operations return bool for semantic uniformity,
     // even if they can't error.  This should promote generic code.
     if (0U != (type_mask & SampleType::CPU)) {
@@ -182,63 +183,88 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
         values[profile_state.val().cpu_count] += count;
         return true;
     }
-    std::cout << "bad push cpu" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push cpu" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Wall)) {
         values[profile_state.val().wall_time] += walltime * count;
         values[profile_state.val().wall_count] += count;
         return true;
     }
-    std::cout << "bad push wall" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push wall" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Exception)) {
         push_label(ExportLabelKey::exception_type, exception_type);
         values[profile_state.val().exception_count] += count;
         return true;
     }
-    std::cout << "bad push except" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push except" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockAcquire)) {
         values[profile_state.val().lock_acquire_time] += acquire_time;
         values[profile_state.val().lock_acquire_count] += count;
         return true;
     }
-    std::cout << "bad push acquire" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push acquire" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockRelease)) {
         values[profile_state.val().lock_release_time] += lock_time;
         values[profile_state.val().lock_release_count] += count;
         return true;
     }
-    std::cout << "bad push release" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push release" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-easily-swappable-parameters)
 {
+    static bool already_warned_params = false;
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+
     if (size < 0 || count < 0) {
-        std::cout << "bad push alloc (params)" << std::endl;
+        if (!already_warned_params) {
+            already_warned_params = true;
+            std::cerr << "bad push alloc (params)" << std::endl;
+        }
         return false;
     }
 
@@ -247,15 +273,24 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
         values[profile_state.val().alloc_count] += count;
         return true;
     }
-    std::cout << "bad push alloc" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push alloc" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_heap(int64_t size)
 {
+    static bool already_warned_params = false;
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+
     if (size < 0) {
-        std::cout << "bad push heap (params)" << std::endl;
+        if (!already_warned_params) {
+            already_warned_params = true;
+            std::cerr << "bad push heap (params)" << std::endl;
+        }
         return false;
     }
 
@@ -263,43 +298,58 @@ Datadog::Sample::push_heap(int64_t size)
         values[profile_state.val().heap_space] += size;
         return true;
     }
-    std::cout << "bad push heap" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push heap" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUTime)) {
         values[profile_state.val().gpu_time] += time * count;
         values[profile_state.val().gpu_count] += count;
         return true;
     }
-    std::cout << "bad push gpu" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push gpu" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUMemory)) {
         values[profile_state.val().gpu_alloc_space] += size * count;
         values[profile_state.val().gpu_alloc_count] += count;
         return true;
     }
-    std::cout << "bad push gpu memory" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push gpu memory" << std::endl;
+    }
     return false;
 }
 
 bool
 Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUFlops)) {
         values[profile_state.val().gpu_flops] += size * count;
         values[profile_state.val().gpu_flops_samples] += count;
         return true;
     }
-    std::cout << "bad push gpu flops" << std::endl;
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push gpu flops" << std::endl;
+    }
     return false;
 }
 
@@ -313,6 +363,7 @@ Datadog::Sample::push_lock_name(std::string_view lock_name)
 bool
 Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::string temp_string;
     if (thread_name.empty()) {
         temp_string = std::to_string(thread_id);
@@ -321,7 +372,10 @@ Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, st
     if (!push_label(ExportLabelKey::thread_id, thread_id) ||
         !push_label(ExportLabelKey::thread_native_id, thread_native_id) ||
         !push_label(ExportLabelKey::thread_name, thread_name)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -330,8 +384,12 @@ Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, st
 bool
 Datadog::Sample::push_task_id(int64_t task_id)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::task_id, task_id)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -339,8 +397,12 @@ Datadog::Sample::push_task_id(int64_t task_id)
 bool
 Datadog::Sample::push_task_name(std::string_view task_name)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::task_name, task_name)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -349,12 +411,16 @@ Datadog::Sample::push_task_name(std::string_view task_name)
 bool
 Datadog::Sample::push_span_id(uint64_t span_id)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     // The pprof container expects a signed 64-bit integer for numeric labels, whereas
     // the emitted ID is unsigned (full 64-bit range).  We type-pun to int64_t here.
     const int64_t recoded_id =
       reinterpret_cast<int64_t&>(span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::span_id, recoded_id)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -363,10 +429,14 @@ Datadog::Sample::push_span_id(uint64_t span_id)
 bool
 Datadog::Sample::push_local_root_span_id(uint64_t local_root_span_id)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const int64_t recoded_id =
       reinterpret_cast<int64_t&>(local_root_span_id); // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
     if (!push_label(ExportLabelKey::local_root_span_id, recoded_id)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -375,8 +445,12 @@ Datadog::Sample::push_local_root_span_id(uint64_t local_root_span_id)
 bool
 Datadog::Sample::push_trace_type(std::string_view trace_type)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::trace_type, trace_type)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -385,8 +459,12 @@ Datadog::Sample::push_trace_type(std::string_view trace_type)
 bool
 Datadog::Sample::push_class_name(std::string_view class_name)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::class_name, class_name)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
@@ -395,8 +473,12 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 bool
 Datadog::Sample::push_gpu_device_name(std::string_view device_name)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!push_label(ExportLabelKey::gpu_device_name, device_name)) {
-        std::cout << "bad push" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push" << std::endl;
+        }
         return false;
     }
     return true;
