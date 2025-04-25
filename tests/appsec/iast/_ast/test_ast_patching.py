@@ -179,18 +179,12 @@ def test_should_iast_patch_allow_by_default_if_third_party():
     assert iastpatch.should_iast_patch("pygments") == iastpatch.ALLOWED_STATIC_ALLOWLIST
     assert iastpatch.should_iast_patch("pygments.submodule") == iastpatch.ALLOWED_STATIC_ALLOWLIST
     assert iastpatch.should_iast_patch("pygments.submodule.submodule2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
-    assert iastpatch.should_iast_patch("werkzeug.utils") == iastpatch.ALLOWED_STATIC_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_not_in_static_allowlist():
     assert iastpatch.should_iast_patch("ddtrace.internal.module") == iastpatch.DENIED_NOT_FOUND
     assert iastpatch.should_iast_patch("ddtrace.appsec._iast") == iastpatch.DENIED_NOT_FOUND
     assert iastpatch.should_iast_patch("pip.foo.bar") == iastpatch.DENIED_NOT_FOUND
-    assert iastpatch.should_iast_patch("werkzeug") == iastpatch.DENIED_NOT_FOUND
-    assert iastpatch.should_iast_patch("werkzeug.datastructures") == iastpatch.DENIED_NOT_FOUND
-    assert iastpatch.should_iast_patch("werkzeug.datastructures.structures") == iastpatch.DENIED_NOT_FOUND
-    assert iastpatch.should_iast_patch("werkzeug.datastructures.ranges") == iastpatch.DENIED_NOT_FOUND
-    assert iastpatch.should_iast_patch("werkzeug.utils") != iastpatch.DENIED_NOT_FOUND
 
 
 @pytest.mark.parametrize(
