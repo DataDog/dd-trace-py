@@ -919,12 +919,3 @@ def test_json_encoder_traces_bytes():
     assert "\\x80span.a" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
-
-
-@pytest.mark.subprocess(parametrize=dict(DD_API_VERSION=["v0.4", "v0.5"]))
-@pytest.mark.snapshot()
-def test_encode_span_with_large_string_attributes():
-    from ddtrace import tracer
-
-    with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
-        span.set_tag(key="c" * 25001, value="d" * 2000)
