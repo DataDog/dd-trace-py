@@ -2,13 +2,13 @@ import pytest
 
 from ddtrace._monkey import patch
 from ddtrace._trace.pin import Pin
+from ddtrace.llmobs._llmobs import LLMObs
 from tests.contrib.litellm.utils import async_consume_stream
 from tests.contrib.litellm.utils import consume_stream
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from ddtrace.llmobs._llmobs import LLMObs
 
 
 @pytest.mark.parametrize(
