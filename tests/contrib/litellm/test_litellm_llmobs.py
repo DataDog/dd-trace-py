@@ -218,7 +218,7 @@ class TestLLMObsLiteLLM:
             if stream:
                 for _ in resp:
                     pass
-            
+
             assert Pin.get_from(openai).tracer == mock_tracer
             assert len(llmobs_events) == 1
             assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
