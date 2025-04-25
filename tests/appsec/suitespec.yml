@@ -103,7 +103,6 @@ suites:
     snapshot: true
   appsec_integrations_pygoat:
     parallelism: 3
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
