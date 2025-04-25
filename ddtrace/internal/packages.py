@@ -8,7 +8,6 @@ import sysconfig
 from types import ModuleType
 import typing as t
 
-from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.cache import callonce
@@ -18,9 +17,7 @@ from ddtrace.settings.third_party import config as tp_config
 LOG = logging.getLogger(__name__)
 
 
-Distribution = t.NamedTuple(
-    "Distribution", [("name", str), ("version", str), ("repository_url", str), ("commit_sha", str)]
-)
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 # Mapping from distribution name to Distribution
 _DISTRIBUTIONS: t.Optional[t.Dict[str, Distribution]] = None
@@ -28,27 +25,6 @@ _DISTRIBUTIONS: t.Optional[t.Dict[str, Distribution]] = None
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 # Mapping root module to Distribution it belongs
 _ROOT_TO_PACKAGE: t.Optional[t.Dict[str, str]] = None
-
-
-def parse_git_metadata(project_urls: t.List[str]) -> t.Tuple[str, str]:
-    if not project_urls:
-        return "", ""
-
-    source_code_link = ""
-    for val in project_urls:
-        capt_val = val.split(", ")
-        if len(capt_val) > 1 and capt_val[0] == "source_code_link":
-            source_code_link = capt_val[1].strip()
-            break
-
-    if source_code_link and "#" in source_code_link:
-        repository_url, commit_sha = source_code_link.split("#")
-        commit_sha = commit_sha.split("&")[0]
-        filtered_git_url = _filter_sensitive_info(repository_url)
-        if type(filtered_git_url) != str:
-            return "", commit_sha
-        return filtered_git_url, commit_sha
-    return "", ""
 
 
 def parse_importlib_metadata():
@@ -98,12 +74,7 @@ def parse_importlib_metadata():
         name = metadata["name"].lower()
         version = metadata["version"]
 
-        project_urls = metadata.get_all("Project-URL")
-        filtered_git_url, commit_sha = parse_git_metadata(project_urls)
-
-        _DISTRIBUTIONS[name] = Distribution(
-            name=name, version=version, repository_url=filtered_git_url, commit_sha=commit_sha
-        )
+        _DISTRIBUTIONS[name] = Distribution(name=name, version=version)
 
         # populate _PACKAGE_DISTRIBUTIONS
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
