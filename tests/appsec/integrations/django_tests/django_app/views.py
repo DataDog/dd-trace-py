@@ -323,7 +323,6 @@ def command_injection_subprocess(request):
     subp = subprocess.Popen(args=[cmd, "-la", filename], shell=True)
     subp.communicate()
     subp.wait()
-
     return HttpResponse("OK", status=200)
 
 

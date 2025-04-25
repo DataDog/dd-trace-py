@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
 from urllib.parse import urlencode
 
 import pytest
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
-from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -19,16 +16,6 @@ from tests.utils import override_global_config
 
 
 TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
-
-
-@pytest.fixture(autouse=True)
-def iast_context():
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        patch_common_modules()
-        yield
-        unpatch_common_modules()
 
 
 def _aux_appsec_get_root_span(
