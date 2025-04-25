@@ -69,9 +69,6 @@ splitlines_aspect = _aspect_splitlines
 str_aspect = aspects.str_aspect
 
 __all__ = [
-    "_aspect_rsplit",
-    "_aspect_split",
-    "_aspect_splitlines",
     "add_aspect",
     "add_inplace_aspect",
     "bytearray_aspect",
@@ -136,7 +133,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_propagation_error_log(f"IAST propagation error. stringio_aspect. {e}")
+            iast_propagation_error_log(f"stringio_aspect. {e}")
     return result
 
 
@@ -154,7 +151,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_propagation_error_log(f"IAST propagation error. bytesio_aspect. {e}")
+            iast_propagation_error_log(f"bytesio_aspect. {e}")
     return result
 
 
@@ -315,7 +312,7 @@ def zfill_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
                 )
         taint_pyobject_with_ranges(result, tuple(ranges_new))
     except Exception as e:
-        iast_propagation_error_log(f"format_aspect. {e}")
+        iast_propagation_error_log(f"zfill_aspect. {e}")
 
     return result
 

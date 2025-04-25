@@ -122,14 +122,18 @@ to_string(ExportLabelKey key)
 inline bool
 add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
 {
+    static bool already_warned = false;
     if (key.empty() || val.empty()) {
         return false;
     }
 
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        errmsg = err_to_msg(&res.err, "");
-        std::cout << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            errmsg = err_to_msg(&res.err, "");
+            std::cerr << errmsg << std::endl;
+        }
         ddog_Error_drop(&res.err);
         return false;
     }
