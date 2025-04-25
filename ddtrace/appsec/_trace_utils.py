@@ -38,17 +38,18 @@ def _asm_manual_keep(span: Span) -> None:
 
 
 def _handle_metadata(root_span: Span, prefix: str, metadata: dict) -> None:
+    MAX_DEPTH = 6
     if metadata is None:
         return
-    stack = [(prefix, metadata, 0)]
+    stack = [(prefix, metadata, 1)]
     while stack:
         prefix, data, level = stack.pop()
         if isinstance(data, list):
-            if level < 6:
+            if level < MAX_DEPTH:
                 for i, v in enumerate(data):
                     stack.append((f"{prefix}.{i}", v, level + 1))
         elif isinstance(data, dict):
-            if level < 6:
+            if level < MAX_DEPTH:
                 for k, v in data.items():
                     stack.append((f"{prefix}.{k}", v, level + 1))
         else:
