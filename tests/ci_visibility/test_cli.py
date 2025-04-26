@@ -31,8 +31,8 @@ def test_thing():
         ],
         ["pytest", "-p", "no:ddtrace"],
         ["pytest", "-p", "ddtrace"],
-        ["pytest", "-p", "ddtrace", "-p", "ddtrace.pytest_bdd", "-p", "ddtrace.pytest_benchmark"],
-        ["pytest", "-p", "no:ddtrace", "-p", "no:ddtrace.pytest_bdd", "-p", "no:ddtrace.pytest_benchmark"],
+        ["pytest", "-p", "ddtrace", "-p", "ddtrace.pytest_benchmark"],
+        ["pytest", "-p", "no:ddtrace", "-p", "no:ddtrace.pytest_benchmark"],
     ]
 
     for command_args in commands_to_test:

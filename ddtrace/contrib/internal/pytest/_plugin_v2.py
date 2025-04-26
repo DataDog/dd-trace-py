@@ -15,8 +15,6 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _extract_reason
-from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
@@ -40,7 +38,6 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -97,6 +94,11 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+
+
+def is_enabled(config):
+    """Check if the ddtrace plugin is enabled."""
+    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -742,3 +744,20 @@ def pytest_ddtrace_get_item_test_name(item):
     """Extract name from item, prepending class if desired"""
     names = _get_names_from_item(item)
     return names.test
+
+
+def _extract_reason(call):
+    if call.excinfo is not None:
+        return call.excinfo.value
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
