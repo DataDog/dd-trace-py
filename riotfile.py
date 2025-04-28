@@ -2579,6 +2579,7 @@ venv = Venv(
                 "cryptography": latest,
                 "python-multipart": latest,
                 "email-validator": latest,
+                "fastapi_sso": latest,
             },
         ),
         Venv(
