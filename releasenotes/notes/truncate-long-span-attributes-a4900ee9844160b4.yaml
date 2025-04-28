@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where span attributes were not truncated before encoding, leading to runtime error. 

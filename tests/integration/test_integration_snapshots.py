@@ -282,10 +282,11 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs():
     s.finish()
 
 
-@parametrize_with_all_encodings
-@mark_snapshot
-def test_encode_span_with_large_string_attributes():
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_string_attributes(encoding):
     from ddtrace import tracer
 
-    with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
-        span.set_tag(key="c" * 25001, value="d" * 2000)
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
+            span.set_tag(key="c" * 25001, value="d" * 2000)
