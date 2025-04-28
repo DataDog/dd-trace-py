@@ -131,7 +131,7 @@ else:
             setattr(cls, "__annotations__", cls.__func__.__annotations__)
         return self.dispatcher.register(cls, func=method)
 
-    singledispatchmethod.register = _register  # type: ignore[assignment]
+    singledispatchmethod.register = _register  # type: ignore[method-assign]
 
 
 if PYTHON_VERSION_INFO >= (3, 9):

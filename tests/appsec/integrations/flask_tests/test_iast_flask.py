@@ -6,7 +6,7 @@ from importlib_metadata import version
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context import _iast_start_request
+from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted

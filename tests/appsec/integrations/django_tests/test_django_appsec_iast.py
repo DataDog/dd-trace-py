@@ -905,6 +905,22 @@ def test_django_command_injection_secure_mark(client, test_spans, tracer):
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_xss_secure_mark(client, test_spans, tracer):
+    patch_common_modules()
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/secure-mark/",
+        payload='<script>alert("XSS")</script>',
+        content_type="application/json",
+    )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, test_spans, tracer):
     root_span, _ = _aux_appsec_get_root_span(
         client,
@@ -1173,6 +1189,21 @@ def test_django_xss_secure(client, test_spans, tracer):
         response.content
         == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
     )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+def test_django_ospathjoin_propagation(client, test_spans, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/propagation/ospathjoin/?input=test/propagation/errors",
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"OK:True:False:False", response.content
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None

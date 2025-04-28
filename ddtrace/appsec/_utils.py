@@ -1,6 +1,7 @@
 # this module must not load any other unsafe appsec module directly
 
 import collections
+import json
 import logging
 import typing
 from typing import Any
@@ -11,13 +12,10 @@ import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -156,11 +154,8 @@ class Telemetry_result:
         self.error = 0
 
 
-def parse_response_body(raw_body):
+def parse_response_body(raw_body, headers):
     import xmltodict
-
-    from ddtrace.appsec import _asm_request_context
-    from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
         return
@@ -168,7 +163,6 @@ def parse_response_body(raw_body):
     if isinstance(raw_body, dict):
         return raw_body
 
-    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
@@ -310,8 +304,6 @@ def has_triggers(span) -> bool:
 
 
 def get_triggers(span) -> Any:
-    import json
-
     if asm_config._use_metastruct_for_triggers:
         return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
