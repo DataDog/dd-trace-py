@@ -2572,6 +2572,13 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
+                "fastapi": latest,
+                "backoff": latest,
+                "orjson": latest,
+                "apscheduler": latest,
+                "cryptography": latest,
+                "python-multipart": latest,
+                "email-validator": latest,
             },
         ),
         Venv(
