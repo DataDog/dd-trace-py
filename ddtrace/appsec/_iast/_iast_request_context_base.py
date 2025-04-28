@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
-from ddtrace.appsec._iast._utils import _request_tainted
+from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 
 def _set_span_tag_iast_request_tainted(span):
-    total_objects_tainted = _request_tainted()
+    total_objects_tainted = _num_objects_tainted_in_request()
 
     if total_objects_tainted > 0:
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
