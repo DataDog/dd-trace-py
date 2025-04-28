@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sqlite3
 import subprocess
@@ -249,8 +250,52 @@ def get_app():
                 tracer, user_id=user_id, login_events_mode="auto", login=username
             )
 
-        username = request.query_params.get("username")
-        password = request.query_params.get("password")
+        username = request.query_params.get("username", "")
+        password = request.query_params.get("password", "")
+        user_id = authenticate(username=username, password=password)
+        if user_id is not None:
+            login(user_id, username)
+            return HTMLResponse("OK")
+        return HTMLResponse("login failure", status_code=401)
+
+    @app.get("/login_sdk/")
+    async def login_user_sdk(request: Request):
+        """manual instrumentation login endpoint using SDK V2"""
+        try:
+            from ddtrace.appsec import track_user_sdk
+        except ImportError:
+            return HTMLResponse("SDK V2 not available", status_code=422)
+
+        USERS = {
+            "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+            "testuuid": {
+                "email": "testuseruuid@ddog.com",
+                "password": "1234",
+                "name": "testuuid",
+                "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+            },
+        }
+        metadata = json.loads(request.query_params.get("metadata", "{}"))
+
+        def authenticate(username: str, password: str) -> Optional[str]:
+            """authenticate user"""
+            if username in USERS:
+                if USERS[username]["password"] == password:
+                    return USERS[username]["id"]
+                else:
+                    track_user_sdk.track_login_failure(
+                        login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+                    )
+                    return None
+            track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+            return None
+
+        def login(user_id: str, login: str) -> None:
+            """login user"""
+            track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+        username = request.query_params.get("username", "")
+        password = request.query_params.get("password", "")
         user_id = authenticate(username=username, password=password)
         if user_id is not None:
             login(user_id, username)

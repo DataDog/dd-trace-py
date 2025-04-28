@@ -1,7 +1,9 @@
+import json
 import os
 import sqlite3
 import subprocess
 import tempfile
+from typing import Optional
 
 import django
 from django.contrib.auth import login
@@ -183,11 +185,56 @@ def login_user(request):
         except Exception:
             pass
 
-    username = request.GET.get("username")
-    password = request.GET.get("password")
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
     user = authenticate(username=username, password=password)
     if user is not None:
         login(request, user)
+        return HttpResponse("OK")
+    return HttpResponse("login failure", status=401)
+
+
+@csrf_exempt
+def login_user_sdk(request):
+    """manual instrumentation login endpoint using SDK V2"""
+    try:
+        from ddtrace.appsec import track_user_sdk
+    except ImportError:
+        return HttpResponse("SDK V2 not available", status=422)
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+    metadata = json.loads(request.GET.get("metadata", "{}"))
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            else:
+                track_user_sdk.track_login_failure(
+                    login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+                )
+                return None
+        track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+        return None
+
+    def login(user_id: str, login: str) -> None:
+        """login user"""
+        track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id, username)
         return HttpResponse("OK")
     return HttpResponse("login failure", status=401)
 
@@ -240,6 +287,8 @@ if django.VERSION >= (2, 0, 0):
         path("rasp/<str:endpoint>", rasp, name="rasp"),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
+        path("login_sdk/", login_user_sdk, name="login_sdk"),
+        path("login_sdk", login_user_sdk, name="login_sdk"),
     ]
 else:
     urlpatterns += [

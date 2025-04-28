@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import subprocess
@@ -197,8 +198,54 @@ def login_user():
             tracer, user_id=user_id, login_events_mode="auto", login=login
         )
 
-    username = request.args.get("username")
-    password = request.args.get("password")
+    username = request.args.get("username", "")
+    password = request.args.get("password", "")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id, username)
+        return "OK"
+    return "login failure", 401
+
+
+@app.route("/login_sdk/", methods=["GET"])
+@app.route("/login_sdk", methods=["GET"])
+def login_user_sdk():
+    """manual instrumentation login endpoint using SDK V2"""
+    try:
+        from ddtrace.appsec import track_user_sdk
+    except ImportError:
+        return "SDK V2 not available", 422
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+    metadata = json.loads(request.args.get("metadata", "{}"))
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            else:
+                track_user_sdk.track_login_failure(
+                    login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+                )
+                return None
+        track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+        return None
+
+    def login(user_id: str, login: str) -> None:
+        """login user"""
+        track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+    username = request.args.get("username", "")
+    password = request.args.get("password", "")
     user_id = authenticate(username=username, password=password)
     if user_id is not None:
         login(user_id, username)
