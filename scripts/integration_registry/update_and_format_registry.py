@@ -21,6 +21,7 @@ PATH_GENERATE_TABLE_SCRIPT = PROJECT_ROOT / "scripts" / "generate_table.py"
 PATH_UPDATE_REGISTRY_SCRIPT = (
     PROJECT_ROOT / "scripts" / "integration_registry" / "_update_integration_registry_versions.py"
 )
+PATH_FORMAT_REGISTRY_SCRIPT = PROJECT_ROOT / "scripts" / "integration_registry" / "_format_integration_registry.py"
 
 
 def _run_script(script_path: pathlib.Path, *args: str) -> bool:
@@ -75,6 +76,12 @@ def main() -> int:
     # Step 3: Update the registry YAML using the generated table of tested dependency versions
     if not _run_script(PATH_UPDATE_REGISTRY_SCRIPT):
         print(f"\nWorkflow aborted: {PATH_UPDATE_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+        print("=" * 60)
+        return 1
+
+    # Step 4: Format the registry YAML
+    if not _run_script(PATH_FORMAT_REGISTRY_SCRIPT):
+        print(f"\nWorkflow aborted: {PATH_FORMAT_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)
         return 1
 

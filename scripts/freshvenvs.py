@@ -21,7 +21,7 @@ from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDE
 # add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
-import riotfile  # noqa: I001
+import riotfile  # noqa: I001,E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
@@ -127,7 +127,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
 def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
     """
     Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
-    venvs are nested within eachother, we will get a consistent integration name for each venv / child venv. Also
+    venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
     lowercase the package names to ensure consistent lookups.
     """
     def _lower_pkg_names(venv: riotfile.Venv):
@@ -235,11 +235,6 @@ def _get_package_versions_from(
         package = package.split("[")[0] # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
-        elif (
-            package in DEPENDENCY_TO_INTEGRATION_MAPPING
-            and DEPENDENCY_TO_INTEGRATION_MAPPING[package] == integration
-        ):
-            lock_packages.append((DEPENDENCY_TO_INTEGRATION_MAPPING[package], versions))
     return lock_packages
 
 

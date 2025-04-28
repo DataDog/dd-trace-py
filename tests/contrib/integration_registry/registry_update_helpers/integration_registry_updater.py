@@ -1,10 +1,13 @@
 import json
 import pathlib
 import sys
+from typing import Tuple
 from typing import Union
 
 from filelock import FileLock
 import yaml
+
+from tests.contrib.integration_registry.registry_update_helpers.integration import Integration
 
 
 class IntegrationRegistryUpdater:
@@ -24,6 +27,8 @@ class IntegrationRegistryUpdater:
         )
         self.lock_timeout_seconds = 15
         self.lock = FileLock(self.registry_lock_path, timeout=self.lock_timeout_seconds)
+        self.raw_registry_data: dict[str, dict] = {}
+        self.integrations: dict[str, Integration] = {}
 
     def _find_project_root(self) -> Union[pathlib.Path, None]:
         """Finds the project root by searching upwards for marker files."""
@@ -36,19 +41,27 @@ class IntegrationRegistryUpdater:
             current_dir = current_dir.parent
         return None
 
-    def load_registry_data(self) -> dict:
+    def _load_integrations(self):
+        """Loads the integrations from the registry data into a class instance."""
+        for integration in self.raw_registry_data.get("integrations", []):
+            if not isinstance(integration, dict):
+                continue
+            self.integrations[integration["integration_name"]] = Integration(**integration)
+
+    def load_registry_data(self):
         """Safely loads the main registry YAML using a file lock."""
         try:
             self.lock.acquire(timeout=self.lock_timeout_seconds)
             if not self.registry_yaml_path.exists():
-                return {"integrations": []}
+                self.raw_registry_data = {}
+                return
             with open(self.registry_yaml_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                return data or {"integrations": []}
+                self.raw_registry_data = yaml.safe_load(f)
+                if self.raw_registry_data:
+                    self._load_integrations()
         except Exception:
             if self.lock.is_locked:
                 self.lock.release()
-            return {"integrations": []}
 
     def load_input_data(self, input_file_path_str: str) -> dict:
         """Loads the JSON data from the specified input file."""
@@ -59,122 +72,62 @@ class IntegrationRegistryUpdater:
         except Exception:
             return {}
 
-    def _semver_compare(self, version1: str, version2: str) -> int:
-        """
-        Compares two semantic version strings (X.Y.Z format).
-        Returns:
-           1 if version1 > version2
-           0 if version1 == version2
-          -1 if version1 < version2
-        Handles basic X.Y.Z format, raises ValueError for invalid input.
-        """
-        if version1 == version2:
-            return 0
-
-        v1_parts = [int(p) for p in version1.split(".")]
-        v2_parts = [int(p) for p in version2.split(".")]
-
-        if v1_parts[0] > v2_parts[0]:
-            return 1
-        if v1_parts[0] < v2_parts[0]:
-            return -1
-
-        if v1_parts[1] > v2_parts[1]:
-            return 1
-        if v1_parts[1] < v2_parts[1]:
-            return -1
-
-        if v1_parts[2] > v2_parts[2]:
-            return 1
-        if v1_parts[2] < v2_parts[2]:
-            return -1
-
-        return 0
-
-    def _needs_update(self, registry_data: dict, input_data: dict) -> bool:
+    def _needs_update(self, input_data: dict) -> bool:
         """Checks if input_data contains info not present in registry_data."""
-        integrations_list = registry_data.get("integrations", [])
-        registry_map = {
-            entry.get("integration_name"): entry
-            for entry in integrations_list
-            if isinstance(entry, dict) and entry.get("integration_name")
-        }
-
         for integration_name, updates in input_data.items():
+            # if the integration is not tested, we don't need to update
             new_deps = updates
             if not new_deps:
                 continue
 
-            if integration_name not in registry_map:
+            # if the integration is not in the registry, we need to update
+            if integration_name not in self.integrations:
                 return True
 
-            entry = registry_map[integration_name]
-            if not entry.get("is_external_package"):
-                continue
-            for dep, dep_info in new_deps.items():
-                current_deps_set = set(entry.get("dependency_name", []))
-                if dep.lower() not in current_deps_set:
-                    return True
+            # check if the integration should be updated
+            if not self.integrations[integration_name].should_update(updates):
+                return False
+        return True
 
-                dep_version = dep_info.get("version")
-                if dep_version == "":
-                    return False
-                min_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), None).get("min", None)
-                if min_version is None:
-                    return True
-                if self._semver_compare(dep_version, min_version) == -1:
-                    return True
-                max_version = entry.get("tested_versions_by_dependency", {}).get(dep.lower(), {}).get("max", None)
-                if max_version is None:
-                    return True
-                if self._semver_compare(dep_version, max_version) == 1:
-                    return True
-        return False
-
-    def merge_data(self, registry_data: dict, input_data: dict) -> bool:
-        """Merges dependency info from input_data into registry_data. Assumes check already done."""
-        integrations_list = registry_data.setdefault("integrations", [])
-        registry_map = {
-            entry.get("integration_name"): entry
-            for entry in integrations_list
-            if isinstance(entry, dict) and entry.get("integration_name")
-        }
-        changed = False
-
-        for integration_name, updates in input_data.items():
-            new_deps_set = set(updates.get("dependency_name", []))
-            if not new_deps_set:
+    def merge_data(self, new_dependency_versions: dict) -> Tuple[int, int]:
+        """Merges dependency info from new_dependency_versions into registry_data. Assumes check already done."""
+        # loop through the new integration data and add the updates to the registry
+        added_integrations = 0
+        updated_integrations = 0
+        for integration_name, updates in new_dependency_versions.items():
+            if not updates:
                 continue
 
-            if integration_name in registry_map:
-                entry = registry_map[integration_name]
-                if entry.get("is_external_package"):
-                    current_deps_set = set(entry.get("dependency_name", []))
-                    for dep in new_deps_set:
-                        dep_lower = dep.lower()
-                        if dep_lower not in current_deps_set:
-                            current_deps_set.add(dep_lower)
-                            changed = True
-                    entry["dependency_name"] = sorted(list(current_deps_set))
+            # if the integration is not in the registry, add it
+            if integration_name not in self.integrations:
+                self.integrations[integration_name] = Integration(
+                    integration_name=integration_name,
+                    is_external_package=True,
+                    dependency_names=sorted(list(set(updates.keys()))),
+                )
+                self.integrations[integration_name].update(updates, update_versions=True)
+                added_integrations += 1
+                continue
             else:
-                new_entry = {
-                    "integration_name": integration_name,
-                    "is_external_package": True,
-                    "dependency_name": sorted(list(new_deps_set)),
-                }
-                integrations_list.append(new_entry)
-                changed = True
+                # update the existing integration
+                changed = self.integrations[integration_name].update(updates, update_versions=True)
+                if changed:
+                    updated_integrations += 1
 
-        if changed:
-            registry_data["integrations"] = sorted(integrations_list, key=lambda x: x.get("integration_name", ""))
-        return changed
+        return added_integrations, updated_integrations
 
-    def write_registry_data(self, registry_data: dict) -> bool:
+    def write_registry_data(self) -> bool:
         """Safely writes the updated data back to registry YAML using a file lock."""
+        # Convert Integration objects to dictionaries and sort by integration_name
+        integrations_list = sorted(
+            [integration.to_dict() for integration in self.integrations.values()],
+            key=lambda x: x["integration_name"],
+        )
+        data_to_write = {"integrations": integrations_list}
         try:
             with open(self.registry_yaml_path, "w", encoding="utf-8") as f:
                 yaml.dump(
-                    registry_data,
+                    data_to_write,
                     f,
                     default_flow_style=False,
                     sort_keys=False,
@@ -182,11 +135,21 @@ class IntegrationRegistryUpdater:
                     width=100,
                 )
             return True
-        except Exception:
+        except Exception as e:
+            print(f"\nIntegrationRegistryUpdater: Failed to write updated registry data: {e}", file=sys.stderr)
             return False
         finally:
+            self._delete_lock_file()
             if self.lock.is_locked:
                 self.lock.release()
+
+    def _delete_lock_file(self):
+        """Deletes the lock file if it exists."""
+        try:
+            if self.registry_lock_path.exists():
+                self.registry_lock_path.unlink()
+        except OSError as e:
+            print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
     def run(self, input_file_path_str: str) -> bool:
         """
@@ -199,21 +162,23 @@ class IntegrationRegistryUpdater:
 
         changes_made = False
         try:
-            registry_data = self.load_registry_data()
+            self.load_registry_data()
 
-            if not self._needs_update(registry_data, input_data):
+            # if the registry data is up to date, we can skip the merge and write steps, and release the lock
+            if not self._needs_update(input_data):
                 if self.lock.is_locked:
                     self.lock.release()
                 return False
 
-            self.merge_data(registry_data, input_data)
+            # merge the input data into the registry data
+            self.merge_data(input_data)
 
             changes_made = True
-            if not self.write_registry_data(registry_data):
+            if not self.write_registry_data():
                 print("\nIntegrationRegistryUpdater: Failed to write updated registry data.", file=sys.stderr)
                 return False
 
-            return True
+            return changes_made
 
         except Exception as e:
             print(f"\nIntegrationRegistryUpdater: Error during run: {e}", file=sys.stderr)
@@ -222,5 +187,7 @@ class IntegrationRegistryUpdater:
                 self.lock.release()
             return False
         finally:
-            if not changes_made and self.lock.is_locked:
+            # Ensure lock is always released and the lock file is deleted
+            if self.lock.is_locked:
                 self.lock.release()
+            self._delete_lock_file()

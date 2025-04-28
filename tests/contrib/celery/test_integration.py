@@ -649,6 +649,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces[0]) + len(traces[1]) == 3
 
     @pytest.mark.no_getattr_patch
+    # this mark is added to prevent patching of getattr necessary for integration registry update
+    # see: https://github.com/DataDog/dd-trace-py/pull/13215
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():

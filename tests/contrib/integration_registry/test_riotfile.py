@@ -1,5 +1,7 @@
 import pathlib
 
+from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
+
 
 def test_integrations_have_riot_envs(
     integration_dir_names: set[str],
@@ -30,8 +32,6 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: set[str], integr
     contrib directory.
     """
 
-    WHITE_LISTED_VENVS = ["asynctest", "dbapi", "dbapi_async", "integration_registry", "gunicorn"]
-
     failed_venvs = []
     for venv in riot_venvs:
         if venv.command and "tests/contrib" in venv.command:
@@ -39,7 +39,7 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: set[str], integr
             # e.g. django:django_hosts -> django
             venv.name = venv.name.split(":")[0]
             if venv.name not in integration_dir_names:
-                if venv.name not in WHITE_LISTED_VENVS:
+                if venv.name not in EXCLUDED_FROM_TESTING:
                     failed_venvs.append(venv)
 
     if failed_venvs:
