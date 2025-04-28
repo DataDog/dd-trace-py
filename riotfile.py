@@ -2574,6 +2574,13 @@ venv = Venv(
                 "botocore": latest,
                 "boto3": latest,
                 "openai": "==1.68.2",
+                "fastapi": latest,
+                "backoff": latest,
+                "orjson": latest,
+                "apscheduler": latest,
+                "cryptography": latest,
+                "python-multipart": latest,
+                "email-validator": latest,
             },
         ),
         Venv(

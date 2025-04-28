@@ -1,6 +1,7 @@
 import sys
 
 import litellm
+from litellm.proxy.common_request_processing import ProxyBaseLLMRequestProcessing
 
 from ddtrace import config
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
@@ -117,6 +118,37 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     return model, custom_llm_provider, dynamic_api_key, api_base
 
 
+@with_traced_module
+async def traced_base_process_llm_request(litellm, pin, func, instance, args, kwargs):
+    breakpoint()
+    integration = litellm._datadog_integration
+    model = None
+    host = None
+    request = get_argument_value(args, kwargs, 0, "request", None)
+    # extract model and host from the request
+    if request:
+        try:
+            host = getattr(request, "headers", {}).get("host", None)
+            data = await request.json()
+            if data:
+                model = data.get("model", None)
+        except Exception:
+            pass
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=False,
+    )
+    try:
+        return await func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+
 def patch():
     if getattr(litellm, "_datadog_patch", False):
         return
@@ -133,6 +165,7 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "proxy.common_request_processing.ProxyBaseLLMRequestProcessing.base_process_llm_request", traced_base_process_llm_request(litellm))
 
 
 def unpatch():
@@ -147,5 +180,5 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.main, "get_llm_provider")
-
+    unwrap(litellm.proxy.common_request_processing.ProxyBaseLLMRequestProcessing, "base_process_llm_request")
     delattr(litellm, "_datadog_integration")

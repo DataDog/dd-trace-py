@@ -1,0 +1,389 @@
+[[
+  {
+    "name": "litellm.request",
+    "service": "tests.contrib.litellm",
+    "resource": "base_process_llm_request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "680fc73700000000",
+      "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 16 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "runtime-id": "5f3e682952ba4b87abb96a69abd075cd"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 87619
+    },
+    "duration": 13073000,
+    "start": 1745864503660056000
+  },
+     {
+       "name": "litellm.request",
+       "service": "tests.contrib.litellm",
+       "resource": "base_process_llm_request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 1,
+       "meta": {
+         "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 15 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+         "error.type": "builtins.TypeError"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 11882000,
+       "start": 1745864503660123000
+     },
+        {
+          "name": "litellm.request",
+          "service": "tests.contrib.litellm",
+          "resource": "base_process_llm_request",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 1,
+          "meta": {
+            "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 14 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+            "error.type": "builtins.TypeError"
+          },
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 10764000,
+          "start": 1745864503660175000
+        },
+           {
+             "name": "litellm.request",
+             "service": "tests.contrib.litellm",
+             "resource": "base_process_llm_request",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 1,
+             "meta": {
+               "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+               "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 13 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+               "error.type": "builtins.TypeError"
+             },
+             "metrics": {
+               "_dd.measured": 1
+             },
+             "duration": 9713000,
+             "start": 1745864503660213000
+           },
+              {
+                "name": "litellm.request",
+                "service": "tests.contrib.litellm",
+                "resource": "base_process_llm_request",
+                "trace_id": 0,
+                "span_id": 5,
+                "parent_id": 4,
+                "type": "",
+                "error": 1,
+                "meta": {
+                  "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                  "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 12 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                  "error.type": "builtins.TypeError"
+                },
+                "metrics": {
+                  "_dd.measured": 1
+                },
+                "duration": 8709000,
+                "start": 1745864503660252000
+              },
+                 {
+                   "name": "litellm.request",
+                   "service": "tests.contrib.litellm",
+                   "resource": "base_process_llm_request",
+                   "trace_id": 0,
+                   "span_id": 6,
+                   "parent_id": 5,
+                   "type": "",
+                   "error": 1,
+                   "meta": {
+                     "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                     "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 11 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                     "error.type": "builtins.TypeError"
+                   },
+                   "metrics": {
+                     "_dd.measured": 1
+                   },
+                   "duration": 7763000,
+                   "start": 1745864503660293000
+                 },
+                    {
+                      "name": "litellm.request",
+                      "service": "tests.contrib.litellm",
+                      "resource": "base_process_llm_request",
+                      "trace_id": 0,
+                      "span_id": 7,
+                      "parent_id": 6,
+                      "type": "",
+                      "error": 1,
+                      "meta": {
+                        "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                        "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 10 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                        "error.type": "builtins.TypeError"
+                      },
+                      "metrics": {
+                        "_dd.measured": 1
+                      },
+                      "duration": 6862000,
+                      "start": 1745864503660330000
+                    },
+                       {
+                         "name": "litellm.request",
+                         "service": "tests.contrib.litellm",
+                         "resource": "base_process_llm_request",
+                         "trace_id": 0,
+                         "span_id": 8,
+                         "parent_id": 7,
+                         "type": "",
+                         "error": 1,
+                         "meta": {
+                           "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                           "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 9 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                           "error.type": "builtins.TypeError"
+                         },
+                         "metrics": {
+                           "_dd.measured": 1
+                         },
+                         "duration": 6028000,
+                         "start": 1745864503660365000
+                       },
+                          {
+                            "name": "litellm.request",
+                            "service": "tests.contrib.litellm",
+                            "resource": "base_process_llm_request",
+                            "trace_id": 0,
+                            "span_id": 9,
+                            "parent_id": 8,
+                            "type": "",
+                            "error": 1,
+                            "meta": {
+                              "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                              "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 8 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                              "error.type": "builtins.TypeError"
+                            },
+                            "metrics": {
+                              "_dd.measured": 1
+                            },
+                            "duration": 5251000,
+                            "start": 1745864503660403000
+                          },
+                             {
+                               "name": "litellm.request",
+                               "service": "tests.contrib.litellm",
+                               "resource": "base_process_llm_request",
+                               "trace_id": 0,
+                               "span_id": 10,
+                               "parent_id": 9,
+                               "type": "",
+                               "error": 1,
+                               "meta": {
+                                 "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                 "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 7 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                 "error.type": "builtins.TypeError"
+                               },
+                               "metrics": {
+                                 "_dd.measured": 1
+                               },
+                               "duration": 4530000,
+                               "start": 1745864503660439000
+                             },
+                                {
+                                  "name": "litellm.request",
+                                  "service": "tests.contrib.litellm",
+                                  "resource": "base_process_llm_request",
+                                  "trace_id": 0,
+                                  "span_id": 11,
+                                  "parent_id": 10,
+                                  "type": "",
+                                  "error": 1,
+                                  "meta": {
+                                    "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                    "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 6 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                    "error.type": "builtins.TypeError"
+                                  },
+                                  "metrics": {
+                                    "_dd.measured": 1
+                                  },
+                                  "duration": 3863000,
+                                  "start": 1745864503660472000
+                                },
+                                   {
+                                     "name": "litellm.request",
+                                     "service": "tests.contrib.litellm",
+                                     "resource": "base_process_llm_request",
+                                     "trace_id": 0,
+                                     "span_id": 12,
+                                     "parent_id": 11,
+                                     "type": "",
+                                     "error": 1,
+                                     "meta": {
+                                       "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                       "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 5 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                       "error.type": "builtins.TypeError"
+                                     },
+                                     "metrics": {
+                                       "_dd.measured": 1
+                                     },
+                                     "duration": 3247000,
+                                     "start": 1745864503660508000
+                                   },
+                                      {
+                                        "name": "litellm.request",
+                                        "service": "tests.contrib.litellm",
+                                        "resource": "base_process_llm_request",
+                                        "trace_id": 0,
+                                        "span_id": 13,
+                                        "parent_id": 12,
+                                        "type": "",
+                                        "error": 1,
+                                        "meta": {
+                                          "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                          "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 4 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                          "error.type": "builtins.TypeError"
+                                        },
+                                        "metrics": {
+                                          "_dd.measured": 1
+                                        },
+                                        "duration": 2693000,
+                                        "start": 1745864503660542000
+                                      },
+                                         {
+                                           "name": "litellm.request",
+                                           "service": "tests.contrib.litellm",
+                                           "resource": "base_process_llm_request",
+                                           "trace_id": 0,
+                                           "span_id": 14,
+                                           "parent_id": 13,
+                                           "type": "",
+                                           "error": 1,
+                                           "meta": {
+                                             "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                             "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 3 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                             "error.type": "builtins.TypeError"
+                                           },
+                                           "metrics": {
+                                             "_dd.measured": 1
+                                           },
+                                           "duration": 2185000,
+                                           "start": 1745864503660575000
+                                         },
+                                            {
+                                              "name": "litellm.request",
+                                              "service": "tests.contrib.litellm",
+                                              "resource": "base_process_llm_request",
+                                              "trace_id": 0,
+                                              "span_id": 15,
+                                              "parent_id": 14,
+                                              "type": "",
+                                              "error": 1,
+                                              "meta": {
+                                                "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                                "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 2 more times]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                                "error.type": "builtins.TypeError"
+                                              },
+                                              "metrics": {
+                                                "_dd.measured": 1
+                                              },
+                                              "duration": 1714000,
+                                              "start": 1745864503660610000
+                                            },
+                                               {
+                                                 "name": "litellm.request",
+                                                 "service": "tests.contrib.litellm",
+                                                 "resource": "base_process_llm_request",
+                                                 "trace_id": 0,
+                                                 "span_id": 16,
+                                                 "parent_id": 15,
+                                                 "type": "",
+                                                 "error": 1,
+                                                 "meta": {
+                                                   "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                                   "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  [Previous line repeated 1 more time]\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                                   "error.type": "builtins.TypeError"
+                                                 },
+                                                 "metrics": {
+                                                   "_dd.measured": 1
+                                                 },
+                                                 "duration": 1326000,
+                                                 "start": 1745864503660643000
+                                               },
+                                                  {
+                                                    "name": "litellm.request",
+                                                    "service": "tests.contrib.litellm",
+                                                    "resource": "base_process_llm_request",
+                                                    "trace_id": 0,
+                                                    "span_id": 17,
+                                                    "parent_id": 16,
+                                                    "type": "",
+                                                    "error": 1,
+                                                    "meta": {
+                                                      "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                                      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n                 ~~~~^^^^^^^^^^^^^^^^^\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                                      "error.type": "builtins.TypeError"
+                                                    },
+                                                    "metrics": {
+                                                      "_dd.measured": 1
+                                                    },
+                                                    "duration": 985000,
+                                                    "start": 1745864503660679000
+                                                  },
+                                                     {
+                                                       "name": "litellm.request",
+                                                       "service": "tests.contrib.litellm",
+                                                       "resource": "base_process_llm_request",
+                                                       "trace_id": 0,
+                                                       "span_id": 18,
+                                                       "parent_id": 17,
+                                                       "type": "",
+                                                       "error": 1,
+                                                       "meta": {
+                                                         "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                                         "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n                 ~~~~^^^^^^^^^^^^^^^^^\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                                         "error.type": "builtins.TypeError"
+                                                       },
+                                                       "metrics": {
+                                                         "_dd.measured": 1
+                                                       },
+                                                       "duration": 685000,
+                                                       "start": 1745864503660715000
+                                                     },
+                                                        {
+                                                          "name": "litellm.request",
+                                                          "service": "tests.contrib.litellm",
+                                                          "resource": "base_process_llm_request",
+                                                          "trace_id": 0,
+                                                          "span_id": 19,
+                                                          "parent_id": 18,
+                                                          "type": "",
+                                                          "error": 1,
+                                                          "meta": {
+                                                            "error.message": "ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'",
+                                                            "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/litellm/patch.py\", line 144, in traced_base_process_llm_request\n    return await func(*args, **kwargs)\n                 ~~~~^^^^^^^^^^^^^^^^^\nTypeError: ProxyBaseLLMRequestProcessing.base_process_llm_request() missing 8 required positional arguments: 'self', 'fastapi_response', 'user_api_key_dict', 'route_type', 'proxy_logging_obj', 'general_settings', 'proxy_config', and 'select_data_generator'\n",
+                                                            "error.type": "builtins.TypeError"
+                                                          },
+                                                          "metrics": {
+                                                            "_dd.measured": 1
+                                                          },
+                                                          "duration": 406000,
+                                                          "start": 1745864503660747000
+                                                        }]]
