@@ -715,3 +715,57 @@ class _FileDownloadHook(_BaseFileHook):
         else:
             span.set_metric("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
+
+
+class _ResponseHook(_EndpointHook):
+    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_kwarg_params = (
+        "model",
+        "include",
+        "instructions",
+        "max_output_tokens",
+        "metadata",
+        "parallel_tool_calls",
+        "previous_response_id",
+        "reasoning",
+        "service_tier",
+        "store",
+        "stream",
+        "temperature",
+        "text",
+        "tool_choice",
+        "tools",
+        "top_p",
+        "truncation",
+        "user",
+    )
+    _response_attrs = ("created_at", "id", "model", "tools")
+    ENDPOINT_NAME = "responses"
+    HTTP_METHOD_TYPE = "POST"
+    OPERATION_ID = "createResponse"
+
+    def _record_request(self, pin, integration, instance, span, args, kwargs):
+        super()._record_request(pin, integration, instance, span, args, kwargs)
+        for idx, m in enumerate(kwargs.get("input", [])):
+            span._set_ctx_item("llmobs.response.input", m)
+        if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
+            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+                # Only perform token chunk auto-extraction if this option is not explicitly set
+                return
+            span._set_ctx_item("_dd.auto_extract_token_chunk", True)
+            stream_options = kwargs.get("stream_options", {})
+            stream_options["include_usage"] = True
+            kwargs["stream_options"] = stream_options
+        print("record request is called")
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
+        if not resp:
+            return
+        span._set_ctx_items({"llmobs.response.output": kwargs.get("output", [])})
+        integration.record_usage(span, resp.usage)
+        print("record response is called")
+        return resp
