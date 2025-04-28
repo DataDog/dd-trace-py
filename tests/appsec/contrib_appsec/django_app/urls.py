@@ -218,11 +218,10 @@ def login_user_sdk(request):
         if username in USERS:
             if USERS[username]["password"] == password:
                 return USERS[username]["id"]
-            else:
-                track_user_sdk.track_login_failure(
-                    login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
-                )
-                return None
+            track_user_sdk.track_login_failure(
+                login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+            )
+            return None
         track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
         return None
 
