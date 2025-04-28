@@ -166,6 +166,10 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
 
     raise TypeError("Unhandled text type: %r" % type(text))
 
+cdef inline object truncate_string(object string):
+    if string and len(string) > MAX_SPAN_META_VALUE_LEN:
+        return string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT - 14] + "<truncated>..."
+    return string
 
 cdef class StringTable(object):
     cdef dict _table
@@ -260,8 +264,7 @@ cdef class MsgpackStringTable(StringTable):
         cdef int ret
 
         # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
-        if len(string) > MAX_SPAN_META_VALUE_LEN:
-            string = string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
+        string = truncate_string(string)
 
         if self.pk.length + len(string) > self.max_size:
             raise ValueError(
@@ -1005,8 +1008,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 raise
 
     cdef inline int _pack_string(self, object string) except? -1:
-        if string and len(string) > MAX_SPAN_META_VALUE_LEN:
-            string = string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
+        string = truncate_string(string)
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
