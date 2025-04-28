@@ -109,7 +109,6 @@ components:
   futures:
     - ddtrace/contrib/_futures.py
     - ddtrace/contrib/internal/futures/*
-    - tests/snapshots/tests.contrib.futures.*
   gevent:
     - ddtrace/contrib/_gevent.py
     - ddtrace/contrib/internal/gevent/*

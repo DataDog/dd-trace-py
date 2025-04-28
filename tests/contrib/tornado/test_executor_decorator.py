@@ -47,7 +47,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][1]
         assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
-        assert executor_span.trace_id == request_span.trace_id
+        assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
 
@@ -79,7 +79,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][1]
         assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.query" == executor_span.name
-        assert executor_span.trace_id == request_span.trace_id
+        assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
 
@@ -111,7 +111,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][1]
         assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
-        assert executor_span.trace_id == request_span.trace_id
+        assert executor_span.parent_id == request_span.span_id
         assert 1 == executor_span.error
         assert "Ouch!" == executor_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in executor_span.get_tag("error.stack")
@@ -148,7 +148,7 @@ class TestTornadoExecutor(TornadoTestCase):
         executor_span = traces[0][1]
         assert ddtrace.config.service == executor_span.service
         assert "tornado.executor.with" == executor_span.name
-        assert executor_span.trace_id == request_span.trace_id
+        assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
 
