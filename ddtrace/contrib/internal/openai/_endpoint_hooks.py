@@ -742,12 +742,18 @@ class _ResponseHook(_EndpointHook):
     _response_attrs = ("created_at", "id", "model", "tools")
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "createResponse"
+    OPERATION_ID = "createResponseCompletion"
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        for idx, m in enumerate(kwargs.get("input", [])):
-            span._set_ctx_item("llmobs.response.input", m)
+
+        input_data = kwargs.get("input", [])
+        if input_data:
+            if isinstance(input_data, str):
+                input_data = [input_data]
+
+            span._set_ctx_item("llmobs.response.input", input_data)
+
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
@@ -756,7 +762,6 @@ class _ResponseHook(_EndpointHook):
             stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
-        print("record request is called")
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -764,8 +769,23 @@ class _ResponseHook(_EndpointHook):
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
         if not resp:
-            return
-        span._set_ctx_items({"llmobs.response.output": kwargs.get("output", [])})
+            return resp
+        span._set_ctx_item("llmobs.response.output", resp.output)
+        if getattr(resp, "tools", None):
+            response_tools = []
+            for tool in resp.tools:
+                tool_dict = {}
+
+                if hasattr(tool, "type"):
+                    tool_dict["type"] = getattr(tool, "type")
+                if hasattr(tool, "name"):
+                    tool_dict["name"] = getattr(tool, "name")
+                if tool_dict:
+                    response_tools.append(tool_dict)
+
+            if response_tools:
+                span.set_tag("openai.response.tools", response_tools)
+
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
         integration.record_usage(span, resp.usage)
-        print("record response is called")
         return resp
