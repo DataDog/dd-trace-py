@@ -103,7 +103,7 @@ class IntegrationRegistryUpdater:
                 self.integrations[integration_name] = Integration(
                     integration_name=integration_name,
                     is_external_package=True,
-                    dependency_name=sorted(list(set(updates.keys()))),
+                    dependency_names=sorted(list(set(updates.keys()))),
                 )
                 self.integrations[integration_name].update(updates, update_versions=True)
                 added_integrations += 1

@@ -12,7 +12,13 @@ EXCLUDED_FROM_TESTING = {
     "pytest_bdd",
     "urllib",
     "webbrowser",
+    "asynctest",
+    "integration_registry",
+    "gunicorn",
+    "dbapi",
+    "dbapi_async",
 }
+
 DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {
     "flask-caching": "flask-cache",
     "pytest-asyncio": "asyncio",

@@ -235,11 +235,6 @@ def _get_package_versions_from(
         package = package.split("[")[0] # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
-        elif (
-            package in DEPENDENCY_TO_INTEGRATION_MAPPING
-            and DEPENDENCY_TO_INTEGRATION_MAPPING[package] == integration
-        ):
-            lock_packages.append((DEPENDENCY_TO_INTEGRATION_MAPPING[package], versions))
     return lock_packages
 
 

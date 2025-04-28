@@ -155,7 +155,7 @@ def riot_venvs() -> set[str]:
 
 @pytest.fixture(scope="module")
 def riot_venv_names() -> set[str]:
-    """Recursively finds all Venv names defined in riotfile.py."""
+    """Finds all Venv names defined in riotfile.py."""
 
     names: Set[str] = set()
     nodes_to_visit: List[Any] = [riotfile.venv]

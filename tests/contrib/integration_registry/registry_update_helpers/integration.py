@@ -7,13 +7,13 @@ class Integration:
         self,
         integration_name: str,
         is_external_package: bool = True,
-        dependency_name: list = [],
+        dependency_names: list = [],
         tested_versions_by_dependency: dict = None,
         is_tested: bool = True,
     ):
         self.integration_name = integration_name
         self.is_external_package = is_external_package
-        self.dependency_names = set(dependency_name)
+        self.dependency_names = set(dependency_names)
         # Initialize with a new dict if None is passed to avoid sharing the mutable default
         self.tested_versions_by_dependency = (
             tested_versions_by_dependency if tested_versions_by_dependency is not None else {}
@@ -111,12 +111,11 @@ class Integration:
         data = {
             "integration_name": self.integration_name,
             "is_external_package": self.is_external_package,
+            "is_tested": self.is_tested,
         }
         if self.dependency_names:
-            data["dependency_name"] = sorted(list(self.dependency_names))
+            data["dependency_names"] = sorted(list(self.dependency_names))
         if self.tested_versions_by_dependency:
             # Sort tested_versions_by_dependency by key for consistent output
             data["tested_versions_by_dependency"] = dict(sorted(self.tested_versions_by_dependency.items()))
-        if not self.is_tested:  # Only include is_tested if it's False
-            data["is_tested"] = self.is_tested
         return data

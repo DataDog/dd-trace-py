@@ -28,11 +28,10 @@ Each integration entry in the `integrations` list adheres to the schema defined 
 **Optional Fields:**
 
 * **`is_tested`** (Boolean):
-  * Optional field indicating if the integration has tests
-  * Not present if the integration is tested (default behavior)
-  * `false` if the integration is explicitly marked as untested
+  * Indicated if the integration has tests
+  * `false` if the integration is untested
 
-* **`dependency_name`** (List of Strings):
+* **`dependency_names`** (List of Strings):
   * Present only if `is_external_package` is `true`
   * Lists the primary PyPI package name(s) associated with the integration
   * For integrations patching multiple underlying libraries (like `elasticsearch`), this may list several names
@@ -71,7 +70,7 @@ The registry is automatically updated through two main mechanisms:
      * Runs [`scripts/integration_registry/_update_integration_registry_versions.py`](../../../scripts/integration_registry/_update_integration_registry_versions.py) to update the registry
      * Formats the registry YAML for consistency
 
-  * NOTE: Manual script update does not guarantee that newly added patched dependencies (such as for a new integration) will be added to the registry.yaml. A full test run is required for this process.
+  * NOTE: Manual script update does not guarantee that newly added patched dependencies (such as for a new integration) will be added to the registry.yaml. A full test run of the newly added integration suite is required for this process. This is because we cannot reliably map dependency name to the integration name if they are not equal (such as integration == `rediscluster` and dependency name == `redis-py-cluster`). Instead, during the riot test suite run, we rely on collecting the patched module, along with the integration name via the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py). With the patched module, we can map the patched module to the dependency name using `importlib.metadata`, and in this case get: `redis-py-cluster`. Then we can update the registry since we now know the dependency name of interest, and the related integration name. 
 
 ## Adding New Integrations
 
@@ -99,7 +98,7 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
 
 * [`test_external_dependencies.py`](../../../tests/contrib/integration_registry/test_external_dependencies.py):
   * Validates external package requirements and version information:
-    * Ensures external integrations have required `dependency_name` and `tested_versions_by_dependency` fields
+    * Ensures external integrations have required `dependency_names` and `tested_versions_by_dependency` fields
     * Verifies version strings follow semantic versioning format
     * Checks that version maps match declared dependencies
   * Verifies all declared dependencies exist on PyPI:
@@ -118,6 +117,17 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
     * Handles special cases for utility test environments
     * Verifies proper organization of integration-specific tests
 
+## Troubleshooting
+
+### Running the Integration Registry Updater Locally
+
+If you need to debug or manually run the integration registry update process, the necessary code is located within the `integration_update_orchestrator.py` script. Follow these steps:
+
+1.  Navigate to the [code section containing the local run logic](tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py#L175-L183).
+2.  Uncomment the Python code block as indicated and comment out the the lines previous that run the updater in a subprocess.
+3.  Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the riot environment you are running. You need to temporarily add them to the relevant environment definition in `riotfile.py`. 
+4.  Execute the test suite, and place a breakpoint in your choice of code for the `IntegrationRegistryUpdater`.
+
 ## Related Files
 
 * [`registry.yaml`](./registry.yaml) - The main registry file
@@ -126,7 +136,7 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
 * [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py) 
   - Patches `getattr()` and listens for modules that have `_datadog_patch` set on them.
   - Collects all modules that had a patch set and saves them for later processing.
-  - Produces a dict of the form: `{ integration_name: { dependency_name: { "version": dep_version, "top_level_module": patched_top_level_module } } }`
+  - Produces a dict of the form: `{ integration_name: { dependency_names: { "version": dep_version, "top_level_module": patched_top_level_module } } }`
   - Cleans up all fixtures after the test session
 * [`IntegrationRegistryUpdater`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_updater.py)
   - Reads collected dictionary of integrations and patched dependencies during test run from `IntegrationRegistryManager`

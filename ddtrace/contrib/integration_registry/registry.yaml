@@ -1,7 +1,8 @@
 integrations:
 - integration_name: aiobotocore
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aiobotocore
   tested_versions_by_dependency:
     aiobotocore:
@@ -10,7 +11,8 @@ integrations:
 
 - integration_name: aiohttp
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
@@ -19,7 +21,8 @@ integrations:
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aiohttp-jinja2
   - aiohttp_jinja2
   tested_versions_by_dependency:
@@ -32,7 +35,8 @@ integrations:
 
 - integration_name: aiomysql
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aiomysql
   tested_versions_by_dependency:
     aiomysql:
@@ -41,7 +45,8 @@ integrations:
 
 - integration_name: aiopg
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aiopg
   tested_versions_by_dependency:
     aiopg:
@@ -50,13 +55,14 @@ integrations:
 
 - integration_name: aioredis
   is_external_package: true
-  dependency_name:
-  - aioredis
   is_tested: false
+  dependency_names:
+  - aioredis
 
 - integration_name: algoliasearch
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - algoliasearch
   tested_versions_by_dependency:
     algoliasearch:
@@ -65,7 +71,8 @@ integrations:
 
 - integration_name: anthropic
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - anthropic
   tested_versions_by_dependency:
     anthropic:
@@ -74,7 +81,8 @@ integrations:
 
 - integration_name: aredis
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - aredis
   tested_versions_by_dependency:
     aredis:
@@ -83,13 +91,16 @@ integrations:
 
 - integration_name: asgi
   is_external_package: false
+  is_tested: true
 
 - integration_name: asyncio
   is_external_package: false
+  is_tested: true
 
 - integration_name: asyncpg
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - asyncpg
   tested_versions_by_dependency:
     asyncpg:
@@ -98,7 +109,8 @@ integrations:
 
 - integration_name: avro
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - avro
   tested_versions_by_dependency:
     avro:
@@ -107,7 +119,8 @@ integrations:
 
 - integration_name: aws_lambda
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - datadog-lambda
   - datadog_lambda
   tested_versions_by_dependency:
@@ -120,7 +133,8 @@ integrations:
 
 - integration_name: azure_functions
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - azure-functions
   tested_versions_by_dependency:
     azure-functions:
@@ -129,7 +143,8 @@ integrations:
 
 - integration_name: boto
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - boto
   tested_versions_by_dependency:
     boto:
@@ -138,7 +153,8 @@ integrations:
 
 - integration_name: botocore
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - boto3
   - botocore
   tested_versions_by_dependency:
@@ -151,7 +167,8 @@ integrations:
 
 - integration_name: bottle
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - bottle
   tested_versions_by_dependency:
     bottle:
@@ -160,7 +177,8 @@ integrations:
 
 - integration_name: cassandra
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - cassandra-driver
   tested_versions_by_dependency:
     cassandra-driver:
@@ -169,7 +187,8 @@ integrations:
 
 - integration_name: celery
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - celery
   tested_versions_by_dependency:
     celery:
@@ -178,7 +197,8 @@ integrations:
 
 - integration_name: cherrypy
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - cherrypy
   tested_versions_by_dependency:
     cherrypy:
@@ -187,7 +207,8 @@ integrations:
 
 - integration_name: consul
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - python-consul
   tested_versions_by_dependency:
     python-consul:
@@ -196,7 +217,8 @@ integrations:
 
 - integration_name: coverage
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - coverage
   tested_versions_by_dependency:
     coverage:
@@ -205,7 +227,8 @@ integrations:
 
 - integration_name: crewai
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - crewai
   tested_versions_by_dependency:
     crewai:
@@ -214,10 +237,12 @@ integrations:
 
 - integration_name: ddtrace_api
   is_external_package: false
+  is_tested: true
 
 - integration_name: django
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - django
   tested_versions_by_dependency:
     django:
@@ -226,7 +251,8 @@ integrations:
 
 - integration_name: dogpile_cache
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - dogpile-cache
   - dogpile.cache
   - dogpile_cache
@@ -243,7 +269,8 @@ integrations:
 
 - integration_name: dramatiq
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - dramatiq
   tested_versions_by_dependency:
     dramatiq:
@@ -252,7 +279,8 @@ integrations:
 
 - integration_name: elasticsearch
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - elastic-transport
   - elasticsearch
   - elasticsearch1
@@ -289,7 +317,8 @@ integrations:
 
 - integration_name: falcon
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - falcon
   tested_versions_by_dependency:
     falcon:
@@ -298,7 +327,8 @@ integrations:
 
 - integration_name: fastapi
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - fastapi
   tested_versions_by_dependency:
     fastapi:
@@ -307,7 +337,8 @@ integrations:
 
 - integration_name: flask
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - flask
   tested_versions_by_dependency:
     flask:
@@ -316,7 +347,8 @@ integrations:
 
 - integration_name: flask_cache
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - flask-cache
   - flask-caching
   tested_versions_by_dependency:
@@ -329,16 +361,18 @@ integrations:
 
 - integration_name: freezegun
   is_external_package: true
-  dependency_name:
-  - freezegun
   is_tested: false
+  dependency_names:
+  - freezegun
 
 - integration_name: futures
   is_external_package: false
+  is_tested: true
 
 - integration_name: gevent
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - gevent
   tested_versions_by_dependency:
     gevent:
@@ -347,7 +381,8 @@ integrations:
 
 - integration_name: google_generativeai
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - google-generativeai
   tested_versions_by_dependency:
     google-generativeai:
@@ -356,7 +391,8 @@ integrations:
 
 - integration_name: graphql
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - graphql-core
   tested_versions_by_dependency:
     graphql-core:
@@ -365,7 +401,8 @@ integrations:
 
 - integration_name: grpc
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - grpcio
   tested_versions_by_dependency:
     grpcio:
@@ -374,10 +411,12 @@ integrations:
 
 - integration_name: httplib
   is_external_package: false
+  is_tested: true
 
 - integration_name: httpx
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - httpx
   tested_versions_by_dependency:
     httpx:
@@ -386,7 +425,8 @@ integrations:
 
 - integration_name: jinja2
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - jinja2
   tested_versions_by_dependency:
     jinja2:
@@ -395,7 +435,8 @@ integrations:
 
 - integration_name: kafka
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - confluent-kafka
   tested_versions_by_dependency:
     confluent-kafka:
@@ -404,7 +445,8 @@ integrations:
 
 - integration_name: kombu
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - kombu
   tested_versions_by_dependency:
     kombu:
@@ -413,7 +455,8 @@ integrations:
 
 - integration_name: langchain
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - langchain
   tested_versions_by_dependency:
     langchain:
@@ -422,7 +465,8 @@ integrations:
 
 - integration_name: langgraph
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - langgraph
   - langgraph-checkpoint
   tested_versions_by_dependency:
@@ -435,7 +479,8 @@ integrations:
 
 - integration_name: litellm
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - litellm
   tested_versions_by_dependency:
     litellm:
@@ -444,7 +489,8 @@ integrations:
 
 - integration_name: logbook
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - logbook
   tested_versions_by_dependency:
     logbook:
@@ -453,10 +499,12 @@ integrations:
 
 - integration_name: logging
   is_external_package: false
+  is_tested: true
 
 - integration_name: loguru
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - loguru
   tested_versions_by_dependency:
     loguru:
@@ -465,7 +513,8 @@ integrations:
 
 - integration_name: mako
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - mako
   tested_versions_by_dependency:
     mako:
@@ -474,7 +523,8 @@ integrations:
 
 - integration_name: mariadb
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - mariadb
   tested_versions_by_dependency:
     mariadb:
@@ -483,7 +533,8 @@ integrations:
 
 - integration_name: molten
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - molten
   tested_versions_by_dependency:
     molten:
@@ -492,7 +543,8 @@ integrations:
 
 - integration_name: mongoengine
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - mongoengine
   tested_versions_by_dependency:
     mongoengine:
@@ -501,7 +553,8 @@ integrations:
 
 - integration_name: mysql
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - mysql-connector-python
   tested_versions_by_dependency:
     mysql-connector-python:
@@ -510,7 +563,8 @@ integrations:
 
 - integration_name: mysqldb
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - mysqlclient
   tested_versions_by_dependency:
     mysqlclient:
@@ -519,7 +573,8 @@ integrations:
 
 - integration_name: openai
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - openai
   tested_versions_by_dependency:
     openai:
@@ -528,7 +583,8 @@ integrations:
 
 - integration_name: openai_agents
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - openai-agents
   tested_versions_by_dependency:
     openai-agents:
@@ -537,7 +593,8 @@ integrations:
 
 - integration_name: protobuf
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
@@ -546,7 +603,8 @@ integrations:
 
 - integration_name: psycopg
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - psycopg
   - psycopg2-binary
   tested_versions_by_dependency:
@@ -559,7 +617,8 @@ integrations:
 
 - integration_name: pylibmc
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pylibmc
   tested_versions_by_dependency:
     pylibmc:
@@ -568,7 +627,8 @@ integrations:
 
 - integration_name: pymemcache
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pymemcache
   tested_versions_by_dependency:
     pymemcache:
@@ -577,7 +637,8 @@ integrations:
 
 - integration_name: pymongo
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pymongo
   tested_versions_by_dependency:
     pymongo:
@@ -586,7 +647,8 @@ integrations:
 
 - integration_name: pymysql
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pymysql
   tested_versions_by_dependency:
     pymysql:
@@ -595,7 +657,8 @@ integrations:
 
 - integration_name: pynamodb
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pynamodb
   tested_versions_by_dependency:
     pynamodb:
@@ -604,7 +667,8 @@ integrations:
 
 - integration_name: pyodbc
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pyodbc
   tested_versions_by_dependency:
     pyodbc:
@@ -613,7 +677,8 @@ integrations:
 
 - integration_name: pyramid
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pyramid
   tested_versions_by_dependency:
     pyramid:
@@ -622,7 +687,8 @@ integrations:
 
 - integration_name: pytest
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pytest
   tested_versions_by_dependency:
     pytest:
@@ -631,7 +697,8 @@ integrations:
 
 - integration_name: pytest_bdd
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - pytest-bdd
   tested_versions_by_dependency:
     pytest-bdd:
@@ -640,13 +707,14 @@ integrations:
 
 - integration_name: pytest_benchmark
   is_external_package: true
-  dependency_name:
-  - pytest_benchmark
   is_tested: false
+  dependency_names:
+  - pytest_benchmark
 
 - integration_name: redis
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - redis
   tested_versions_by_dependency:
     redis:
@@ -655,7 +723,8 @@ integrations:
 
 - integration_name: rediscluster
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - redis-py-cluster
   tested_versions_by_dependency:
     redis-py-cluster:
@@ -664,7 +733,8 @@ integrations:
 
 - integration_name: requests
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - requests
   tested_versions_by_dependency:
     requests:
@@ -673,7 +743,8 @@ integrations:
 
 - integration_name: rq
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - rq
   tested_versions_by_dependency:
     rq:
@@ -682,7 +753,8 @@ integrations:
 
 - integration_name: sanic
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - sanic
   tested_versions_by_dependency:
     sanic:
@@ -691,13 +763,14 @@ integrations:
 
 - integration_name: selenium
   is_external_package: true
-  dependency_name:
-  - selenium
   is_tested: false
+  dependency_names:
+  - selenium
 
 - integration_name: snowflake
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - snowflake-connector-python
   tested_versions_by_dependency:
     snowflake-connector-python:
@@ -706,7 +779,8 @@ integrations:
 
 - integration_name: sqlalchemy
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - sqlalchemy
   tested_versions_by_dependency:
     sqlalchemy:
@@ -715,10 +789,12 @@ integrations:
 
 - integration_name: sqlite3
   is_external_package: false
+  is_tested: true
 
 - integration_name: starlette
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - starlette
   tested_versions_by_dependency:
     starlette:
@@ -727,7 +803,8 @@ integrations:
 
 - integration_name: structlog
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - structlog
   tested_versions_by_dependency:
     structlog:
@@ -736,10 +813,12 @@ integrations:
 
 - integration_name: subprocess
   is_external_package: false
+  is_tested: true
 
 - integration_name: tornado
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - tornado
   tested_versions_by_dependency:
     tornado:
@@ -748,13 +827,16 @@ integrations:
 
 - integration_name: unittest
   is_external_package: false
+  is_tested: true
 
 - integration_name: urllib
   is_external_package: false
+  is_tested: true
 
 - integration_name: urllib3
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - urllib3
   tested_versions_by_dependency:
     urllib3:
@@ -763,7 +845,8 @@ integrations:
 
 - integration_name: valkey
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - valkey
   tested_versions_by_dependency:
     valkey:
@@ -772,7 +855,8 @@ integrations:
 
 - integration_name: vertexai
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - vertexai
   tested_versions_by_dependency:
     vertexai:
@@ -781,7 +865,8 @@ integrations:
 
 - integration_name: vertica
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - vertica-python
   tested_versions_by_dependency:
     vertica-python:
@@ -790,13 +875,16 @@ integrations:
 
 - integration_name: webbrowser
   is_external_package: false
+  is_tested: true
 
 - integration_name: wsgi
   is_external_package: false
+  is_tested: true
 
 - integration_name: yaaredis
   is_external_package: true
-  dependency_name:
+  is_tested: true
+  dependency_names:
   - yaaredis
   tested_versions_by_dependency:
     yaaredis:

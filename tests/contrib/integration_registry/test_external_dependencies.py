@@ -24,12 +24,12 @@ def _validate_version_str(version_str: str, field_name: str, integration_name: s
 
 def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[str]:
     errors = []
-    dependency_names = entry.get("dependency_name")
+    dependency_names = entry.get("dependency_names")
     if not dependency_names:
-        errors.append(f"External tested integration '{name}' is missing required field 'dependency_name'.")
+        errors.append(f"External tested integration '{name}' is missing required field 'dependency_names'.")
     elif not isinstance(dependency_names, list) or not all(isinstance(d, str) and d for d in dependency_names):
         errors.append(
-            f"External integration '{name}' has an empty or invalid 'dependency_name' field (must be a non-empty "
+            f"External integration '{name}' has an empty or invalid 'dependency_names' field (must be a non-empty "
             "list of strings)."
         )
 
@@ -37,7 +37,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
     if not version_map:
         if dependency_names:
             errors.append(
-                f"External tested integration '{name}' has 'dependency_name' but is missing "
+                f"External tested integration '{name}' has 'dependency_names' but is missing "
                 "'tested_versions_by_dependency' map."
             )
     elif not isinstance(version_map, dict):
@@ -51,13 +51,13 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
             extra_in_map = map_keys - dep_name_set
             if missing_in_map:
                 errors.append(
-                    f"Integration '{name}': Dependencies {sorted(list(missing_in_map))} listed in 'dependency_name' "
+                    f"Integration '{name}': Dependencies {sorted(list(missing_in_map))} listed in 'dependency_names' "
                     "are missing from 'tested_versions_by_dependency' map."
                 )
             if extra_in_map:
                 errors.append(
                     f"Integration '{name}': Dependencies {sorted(list(extra_in_map))} found in "
-                    "'tested_versions_by_dependency' map are not listed in 'dependency_name'."
+                    "'tested_versions_by_dependency' map are not listed in 'dependency_names'."
                 )
 
         for dep_name, version_info in version_map.items():
@@ -86,7 +86,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
 def _validate_non_external_entry(entry: Dict[str, Any], name: str) -> List[str]:
     errors = []
     unexpected_fields = [
-        "dependency_name",
+        "dependency_names",
         "tested_versions_by_dependency",
         "supported_version_min",
         "supported_version_max",
@@ -122,7 +122,7 @@ def test_external_package_requirements(registry_data: list[dict]):
 
 def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
     """
-    Verify that package names listed in 'dependency_name' for external integrations
+    Verify that package names listed in 'dependency_names' for external integrations
     can be found on PyPI using 'pip index versions'.
     """
     errors = []
@@ -132,58 +132,60 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
     checked_packages = set()
 
     for entry in registry_data:
-        if entry.get("is_external_package") is True:
-            integration_name = entry.get("integration_name", "UNKNOWN_ENTRY")
-            dependency_names = entry.get("dependency_name", [])
+        if not entry.get("is_external_package"):
+            continue
 
-            if not dependency_names:
-                continue
+        integration_name = entry.get("integration_name", "UNKNOWN_ENTRY")
+        dependency_names = entry.get("dependency_names", [])
 
-            if not isinstance(dependency_names, list):
+        if not dependency_names:
+            continue
+
+        if not isinstance(dependency_names, list):
+            errors.append(
+                f"External integration '{integration_name}' has invalid dependency_names (not a list): "
+                f"{dependency_names}"
+            )
+            continue
+
+        for dep_name in dependency_names:
+            if not isinstance(dep_name, str) or not dep_name:
                 errors.append(
-                    f"External integration '{integration_name}' has invalid dependency_name (not a list): "
-                    f"{dependency_names}"
+                    f"External integration '{integration_name}' has invalid item in dependency_names list: "
+                    f"{dep_name}"
                 )
                 continue
 
-            for dep_name in dependency_names:
-                if not isinstance(dep_name, str) or not dep_name:
+            if dep_name in checked_packages:
+                continue
+            checked_packages.add(dep_name)
+
+            command = pip_command + ["index", "versions", dep_name]
+            try:
+                result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
+
+                if result.returncode != 0:
+                    error_detail = f"Return Code: {result.returncode}"
+                    if "no matching distribution found" in result.stderr.lower():
+                        error_detail = "No matching distribution found on PyPI (or configured index)."
+                    else:
+                        error_detail += f"\n  Stderr: {result.stderr.strip()}"
                     errors.append(
-                        f"External integration '{integration_name}' has invalid item in dependency_name list: "
-                        f"{dep_name}"
+                        f"Integration '{integration_name}': Dependency '{dep_name}' check failed. {error_detail}"
                     )
-                    continue
 
-                if dep_name in checked_packages:
-                    continue
-                checked_packages.add(dep_name)
-
-                command = pip_command + ["index", "versions", dep_name]
-                try:
-                    result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30)
-
-                    if result.returncode != 0:
-                        error_detail = f"Return Code: {result.returncode}"
-                        if "no matching distribution found" in result.stderr.lower():
-                            error_detail = "No matching distribution found on PyPI (or configured index)."
-                        else:
-                            error_detail += f"\n  Stderr: {result.stderr.strip()}"
-                        errors.append(
-                            f"Integration '{integration_name}': Dependency '{dep_name}' check failed. {error_detail}"
-                        )
-
-                except subprocess.TimeoutExpired:
-                    errors.append(
-                        f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI."
-                    )
-                except FileNotFoundError:
-                    pytest.fail(
-                        "Could not execute pip command. Ensure Python environment is correctly set up. Command: "
-                        f"{' '.join(command)}"
-                    )
-                except Exception as e:
-                    errors.append(
-                        f"Integration '{integration_name}': Unexpected error checking dependency '{dep_name}': {e}"
-                    )
+            except subprocess.TimeoutExpired:
+                errors.append(
+                    f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI."
+                )
+            except FileNotFoundError:
+                pytest.fail(
+                    "Could not execute pip command. Ensure Python environment is correctly set up. Command: "
+                    f"{' '.join(command)}"
+                )
+            except Exception as e:
+                errors.append(
+                    f"Integration '{integration_name}': Unexpected error checking dependency '{dep_name}': {e}"
+                )
 
     assert not errors, "\n".join(errors)

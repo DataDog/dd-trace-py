@@ -19,7 +19,7 @@ def get_integration_to_dependency_map(special_cases: Optional[Dict[str, str]] = 
 
     for index, entry in enumerate(integrations_list):
         integration_name = entry.get("integration_name").lower()
-        dependency_names = entry.get("dependency_name")
+        dependency_names = entry.get("dependency_names")
 
         if dependency_names is None:
             valid_dependency_names = set()
