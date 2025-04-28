@@ -24,12 +24,12 @@ from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
+from .._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from ..settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
-DEF TRUNCATED_ATTRIBUTE_STRING_LIMIT = 2500
 
 
 cdef extern from "Python.h":
@@ -96,6 +96,10 @@ cdef inline int array_prefix_size(stdint.uint32_t l):
         return 3
     return MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
+cdef inline object truncate_string(object string):
+    if string and len(string) > MAX_SPAN_META_VALUE_LEN:
+        return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
+    return string
 
 cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
     cdef int ret
@@ -139,7 +143,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         L = len(text)
         if L > MAX_SPAN_META_VALUE_LEN:
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
-            text = text[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
+            text = truncate_string(text)
             L = len(text)
         ret = msgpack_pack_raw(pk, L)
         if ret == 0:
@@ -148,7 +152,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
 
     if PyUnicode_Check(text):
         if len(text) > MAX_SPAN_META_VALUE_LEN:
-            text = text[:TRUNCATED_ATTRIBUTE_STRING_LIMIT-14] + "<truncated>..."
+            text = truncate_string(text)
         IF PY_MAJOR_VERSION >= 3:
             ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
             if ret == -2:
@@ -165,11 +169,6 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         return ret
 
     raise TypeError("Unhandled text type: %r" % type(text))
-
-cdef inline object truncate_string(object string):
-    if string and len(string) > MAX_SPAN_META_VALUE_LEN:
-        return string[:TRUNCATED_ATTRIBUTE_STRING_LIMIT - 14] + "<truncated>..."
-    return string
 
 cdef class StringTable(object):
     cdef dict _table
