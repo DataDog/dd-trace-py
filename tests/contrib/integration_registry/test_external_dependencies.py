@@ -175,9 +175,7 @@ def test_external_dependencies_exist_on_pypi(registry_data: list[dict]):
                     )
 
             except subprocess.TimeoutExpired:
-                errors.append(
-                    f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI."
-                )
+                errors.append(f"Integration '{integration_name}': Timeout checking dependency '{dep_name}' on PyPI.")
             except FileNotFoundError:
                 pytest.fail(
                     "Could not execute pip command. Ensure Python environment is correctly set up. Command: "

@@ -2,6 +2,7 @@ import pathlib
 
 from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
 
+
 def test_integrations_have_riot_envs(
     integration_dir_names: set[str],
     riot_venv_names: set[str],
