@@ -926,7 +926,7 @@ Other
          When set to `*`, **all** baggage keys will be converted into span tags. Use with caution: this may unintentionally expose sensitive or internal data if not used intentionally.
 
       version_added: 
-         v3.5.2:
+         v3.6.0:
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
