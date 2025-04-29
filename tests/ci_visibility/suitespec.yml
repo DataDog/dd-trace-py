@@ -53,6 +53,7 @@ suites:
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/pytest_xdist/*
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true

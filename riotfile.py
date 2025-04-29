@@ -1545,6 +1545,36 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest-xdist",
+            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_xdist/",
+            pkgs={
+                "msgpack": latest,
+                "more_itertools": "<8.11.0",
+                "pytest-randomly": latest,
+                "pytest-xdist": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={
+                        "pytest-bdd": latest,
+                    },
+                    venvs=[
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="pytest-bdd",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
