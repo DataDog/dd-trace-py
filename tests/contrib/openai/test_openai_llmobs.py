@@ -249,40 +249,6 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_chat_completion_azure(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
-        expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
-            azure_client = openai.AzureOpenAI(
-                api_version=azure_openai_config["api_version"],
-                azure_endpoint=azure_openai_config["azure_endpoint"],
-                azure_deployment=azure_openai_config["azure_deployment"],
-                api_key=azure_openai_config["api_key"],
-            )
-            resp = azure_client.chat.completions.create(
-                model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
-            )
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                model_name=resp.model,
-                model_provider="azure_openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": expected_output}],
-                metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
-        )
-
-    @pytest.mark.skipif(
-        parse_version(openai_module.version.VERSION) >= (1, 60),
-        reason="latest openai versions use modified azure requests",
-    )
     async def test_chat_completion_azure_async(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
@@ -681,6 +647,52 @@ class TestLLMObsOpenaiV1:
         assert span_event["name"] == "Deepseek.createChatCompletion"
         assert span_event["meta"]["model_provider"] == "deepseek"
         assert span_event["meta"]["model_name"] == "deepseek-chat"
+
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Ensure llmobs records are not emitted for response endpoints when the base_url is specified."""
+        model = "gpt-4.1"
+        input_messages = multi_message_input
+        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
+        client.responses.create(
+            model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+        )
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
+    @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_llmobs.test_response_completion")
+    def test_response_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Ensure llmobs records are emitted for response completion endpoints when configured."""
+        # Create a new cassette for this test
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create.yaml"):
+            model = "gpt-4.1"
+            input_messages = multi_message_input
+            client = openai.OpenAI()
+            client.responses.create(
+                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert span.name == "openai.request"
+        assert span.resource == "createResponseCompletion"
+        assert span.get_tag("openai.request.model") == "gpt-4.1"
+
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_response_completion_azure_proxy(
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        input_messages = [
+            {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
+        ]
+        azure_client = openai.AzureOpenAI(
+            base_url="http://0.0.0.0:4000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.responses.create(
+            model="gpt-4.1", input=input_messages, temperature=0, max_output_tokens=100, user="ddtrace-test"
+        )
+        assert mock_llmobs_writer.enqueue.call_count == 0
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,97 @@
+interactions:
+- request:
+    body: '{"input":[{"role":"system","content":"You are a helpful assistant."},{"role":"user","content":"Who
+      won the world series in 2020?"},{"role":"assistant","content":"The Los Angeles
+      Dodgers won the World Series in 2020."},{"role":"user","content":"Where was
+      it played?"}],"model":"gpt-4.1","max_output_tokens":100,"top_p":0.9,"user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '344'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RTwW7bMAy95ysInZvAcpykzm1YsWHAgB1WbIdhMBiZjrXJkiFRXYsi/z5Ydpxm
+        ay9B/B5JPT6SzwsAoWuxB+Ep9NX2VkrZkNwV6+xWlvJ2t6EdNvKwa9ZlqVSmcswLmRfbYkPNWoqb
+        oYA7/CLF5yLOBhpx5QmZ6goHTu6KTbnJd+td4gIjxzDkKNf1hpjqMYm8d17swUZjEqDtOaKqiVGb
+        cM0G9lGxdvYK7/CxcpH7yBW735RImWUj52oyw9PHnpfFSi7zLN8ss2Ipi6mhlCj28GMBAPCcfmen
+        unA8G5Vnt6UajDpQc8i3tN7IJt9tUb5qVKrBTz2lKhQCHulCvOVIIpWzTPYi6aWsq7LnnumR5+wU
+        gNY6xrNPP35ekSl8D+K+JcizPIPvzpsavpLXFOAPBugNPlENyPDRuAPBZ90QfNBkatAW3nmj7ZGd
+        vYF7esSwgrtIwA64JXj/5dunu6UsoUdbU6fVTYLJsvYE4fJGO1RDBm51AEuRPRoImgk8ckseuEWb
+        clvXEQTGWscugGsS2KNnrXSPrO0RmLALKzF3eZr+zY0L70yyDEPQgdHyGDwEpiDRo0djyFTsnKkU
+        mrR67CONtKcH7WKozltfpf2YV9ATBme1PYr9NCtBTeM8vwga5h67Dv3TBC4ATuOBkH/QiirWNJyD
+        qKnBaMahisDOD9obNGEUw9T15JFjwuUqm9A01+n1xvkOL98vtibFzd2PAsamW6fV6FJkJ2biskOC
+        XV/1Yg/Zqhy/fbQqLVqSrQMezPm4Y1r5WZC2V/e5Wd/8j784+lm2QtVSfUnMRulT9r9nX2xfI16r
+        O0/srdLsGM2FLMvZrRimMdXsUdGSKUyz6oixRsbhodPi9BcAAP//AwBg/xKFcwUAAA==
+    headers:
+      CF-RAY:
+      - 9380fee08936c5a6-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 29 Apr 2025 18:52:18 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=ZBZ_gGawWFZR6g_amHJEvmq6eTrwHn.6T0arKW9gVW0-1745952738-1.0.1.1-P.TmPJmOrF49vIO_.9StvI17Ray1uycDvUw73C88oGotVOmLTyPooIHWvf0v2Q.CuZw8REvaclx9qcKBnHXVhxGr_2MsX2_o8TMbSVj4Wb8;
+        path=/; expires=Tue, 29-Apr-25 19:22:18 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=EOcZHViEbTa_tPSVA8uhDzehfVRpUdeTnoMPw8C9f3I-1745952738788-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1371'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_0320a94becf7871df72beab48c3ecc6b
+    status:
+      code: 200
+      message: OK
+version: 1
