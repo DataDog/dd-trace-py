@@ -11841,17 +11841,14 @@ interactions:
         tests on PR originating from forks.\n       # If ever it''s needed, a valid
         key exists in the repo, using ${{ secrets.DD_API_KEY }}\n-      DD_API_KEY:
         1234567890abcdef1234567890abcdef\n+      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY
-        }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:
-        ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
-        ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}\n@@ -106,7 +106,7 @@ jobs:\n       #
+        }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:test\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
+        test\n@@ -106,7 +106,7 @@ jobs:\n       #
         system-tests requires an API_KEY, but it does not have to be a valid key,
         as long as we don''t run a scenario\n       # that make assertion on backend
         data. Using a fake key allow to run system tests on PR originating from forks.\n       #
         If ever it''s needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY
         }}\n-      DD_API_KEY: 1234567890abcdef1234567890abcdef\n+      DD_API_KEY:
-        ${{ secrets.FAKE_DD_API_KEY }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:
-        ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
-        ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}"}]'
+        ${{ secrets.FAKE_DD_API_KEY }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:test\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:test"}]'
     headers:
       Access-Control-Allow-Origin:
       - '*'
@@ -23838,16 +23835,14 @@ interactions:
         tests on PR originating from forks.\n       # If ever it''s needed, a valid
         key exists in the repo, using ${{ secrets.DD_API_KEY }}\n-      DD_API_KEY:
         1234567890abcdef1234567890abcdef\n+      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY
-        }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:
-        ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
+        }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:test\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
         ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}\n@@ -106,7 +106,7 @@ jobs:\n       #
         system-tests requires an API_KEY, but it does not have to be a valid key,
         as long as we don''t run a scenario\n       # that make assertion on backend
         data. Using a fake key allow to run system tests on PR originating from forks.\n       #
         If ever it''s needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY
         }}\n-      DD_API_KEY: 1234567890abcdef1234567890abcdef\n+      DD_API_KEY:
-        ${{ secrets.FAKE_DD_API_KEY }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:
-        ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
+        ${{ secrets.FAKE_DD_API_KEY }}\n       CMAKE_BUILD_PARALLEL_LEVEL: 12\n       SYSTEM_TESTS_AWS_ACCESS_KEY_ID:test\n       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY:
         ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}"}]'
     headers:
       Access-Control-Allow-Origin:
