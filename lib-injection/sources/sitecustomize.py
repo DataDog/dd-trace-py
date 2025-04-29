@@ -316,7 +316,7 @@ def _inject():
                     level="debug",
                 )
 
-        # check installed packages against allow list
+        # check installed packages against our minimum integration version requirements
         incompatible_integrations = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
             if not package_is_compatible(package_name, package_version):
@@ -324,6 +324,8 @@ def _inject():
                     MIN_DEPENDENCY_INTEGRATION_MAP.get(package_name.lower(), {}).get("integration_name")
                 ] = package_version
 
+        # if we found any incompatible integrations, disable them using the environment variable:
+        # DD_TRACE_[INTEGRATION_NAME]_ENABLED
         if incompatible_integrations:
             _log("Found incompatible integrations: %s." % incompatible_integrations, level="debug")
             integration_incomp = True
@@ -340,6 +342,7 @@ def _inject():
                         ],
                     )
                 )
+            integration_incomp = False
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
                 "Found incompatible runtime: %s %s. Supported runtimes: %s"
