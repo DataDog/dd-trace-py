@@ -1367,7 +1367,7 @@ def rstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
                 if taint_range.start >= len_result:
                     continue
 
-                new_length = min(taint_range.length, len_result)
+                new_length = min(len_result - taint_range.start, taint_range.length)
                 new_range = TaintRange(
                     start=taint_range.start,
                     length=new_length,

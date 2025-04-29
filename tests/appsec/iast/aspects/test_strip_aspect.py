@@ -154,6 +154,63 @@ def test_rstrip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, ex
 
 
 @pytest.mark.parametrize(
+    "obj1,obj2",
+    [
+        ("aaaa,;,;", ",;:"),
+        ("text.....", "."),
+        ("text   ", None),
+        ("hello\t\n\r", None),
+        ("text\u200b\u200b", "\u200b"),
+        ("text🌟✨", "🌟✨"),
+        ("abcd", ""),
+        ("text...###", ".#"),
+        ("текстабвг", "абвг"),
+        ("text\t \n", None),
+        ("hello...", "."),
+        ("text   \t\n\r", None),
+    ],
+)
+@pytest.mark.parametrize("ranges_position", list(range(1, 5)))
+def test_rstrip_aspect_tainted_multiple_ranges(obj1, obj2, ranges_position):
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+    concat_obj1 = add_aspect(
+        taint_pyobject(
+            pyobject=obj1[:ranges_position],
+            source_name="obj1_pos1",
+            source_value=obj1[:ranges_position],
+            source_origin=OriginType.PARAMETER,
+        ),
+        taint_pyobject(
+            pyobject=obj1[ranges_position:],
+            source_name="obj1_pos2",
+            source_value=obj1[ranges_position:],
+            source_origin=OriginType.PARAMETER,
+        ),
+    )
+    result = ddtrace_aspects.rstrip_aspect(None, 1, concat_obj1, obj2)
+    if obj2 is None:
+        assert result == concat_obj1.rstrip()
+    else:
+        assert result == concat_obj1.rstrip(obj2)
+
+    assert is_pyobject_tainted(result)
+
+    ranges = get_tainted_ranges(result)
+    assert ranges
+
+    for i in range(len(ranges)):
+        if i == 0:
+            len_range = ranges_position
+            start = 0
+        else:
+            start = ranges_position
+            len_range = len(result) - ranges_position
+        assert ranges[i].start == start
+        assert ranges[i].length == len_range
+
+
+@pytest.mark.parametrize(
     "obj1,obj2,should_be_tainted,expected_start,expected_length",
     [
         (",;,;aaa", ",;:", True, 0, 3),
@@ -192,6 +249,70 @@ def test_lstrip_aspect_tainted(obj1, obj2, should_be_tainted, expected_start, ex
         ranges = get_tainted_ranges(result)
         assert ranges[0].start == expected_start
         assert ranges[0].length == expected_length
+
+
+@pytest.mark.parametrize(
+    "obj1,obj2",
+    [
+        (",;,;aaa", ",;:"),
+        (".....text", "."),
+        ("   text", None),
+        ("\t\n\rtext", None),
+        ("-_text", "-_"),
+        ("abccdefg", ""),
+        ("...###text", ".#"),
+        ("абвгтекст", "абвг"),
+        ("\t \ntext", None),
+        ("...hellos", "."),
+        ("\t\n\r   text1234", None),
+    ],
+)
+@pytest.mark.parametrize("ranges_position", list(range(1, 5)))
+def test_lstrip_aspect_tainted_multiple_ranges(obj1, obj2, ranges_position):
+    from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+    concat_obj1 = add_aspect(
+        taint_pyobject(
+            pyobject=obj1[:ranges_position],
+            source_name="obj1_pos1",
+            source_value=obj1[:ranges_position],
+            source_origin=OriginType.PARAMETER,
+        ),
+        taint_pyobject(
+            pyobject=obj1[ranges_position:],
+            source_name="obj1_pos2",
+            source_value=obj1[ranges_position:],
+            source_origin=OriginType.PARAMETER,
+        ),
+    )
+
+    result = ddtrace_aspects.lstrip_aspect(None, 1, concat_obj1, obj2)
+
+    if obj2 is None:
+        assert result == concat_obj1.lstrip()
+    else:
+        assert result == concat_obj1.lstrip(obj2)
+
+    assert is_pyobject_tainted(result)
+
+    ranges = get_tainted_ranges(result)
+    assert ranges
+
+    if len(ranges) == 1:
+        assert ranges[0].start == 0
+        assert ranges[0].length == len(result)
+    elif len(ranges) == 2:
+        for i in range(len(ranges)):
+            if i == 0:
+                len_range = ranges_position - (len(concat_obj1) - len(result))
+                start = 0
+            else:
+                start = ranges_position - (len(concat_obj1) - len(result))
+                len_range = len(result) - start
+            assert ranges[i].start == start, f"Assertion error: R[{ranges[i]}][{i}] == {start}"
+            assert ranges[i].length == len_range, f"Assertion error: R[{ranges[i]}][{i}] == {len_range}"
+    else:
+        pytest.xfail(f"Invalid ranges: {ranges}")
 
 
 def test_strip_with_multiple_ranges():

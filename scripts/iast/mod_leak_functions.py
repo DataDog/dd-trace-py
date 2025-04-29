@@ -332,5 +332,4 @@ async def test_doit():
     # result = await anyio.to_thread.run_sync(functools.partial(pydantic_object, string_tainted=string21), string21)
     # result = pydantic_object(tag="test2", string_tainted=string21)
     # return result.tuple_strings[0]
-    print(string21)
     return string21
