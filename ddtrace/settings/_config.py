@@ -636,7 +636,7 @@ class Config(object):
         self._telemetry_install_type = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
         self._telemetry_install_time = _get_config("DD_INSTRUMENTATION_INSTALL_TYPE")
 
-        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_api_key = _get_config("ERIKA_DD_API_KEY", default="")
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
         self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
