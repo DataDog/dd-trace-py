@@ -27,16 +27,16 @@ class _EFD_RETRY_OUTCOMES(PYTEST_STATUS):
     EFD_ATTEMPT_PASSED = "dd_efd_attempt_passed"
     EFD_ATTEMPT_FAILED = "dd_efd_attempt_failed"
     EFD_ATTEMPT_SKIPPED = "dd_efd_attempt_skipped"
-    # EFD_FINAL_PASSED = "dd_efd_final_passed"
     # EFD_FINAL_FAILED = "dd_efd_final_failed"
     # EFD_FINAL_SKIPPED = "dd_efd_final_skipped"
+    EFD_FINAL_PASSED = "dd_efd_final_passed"
     EFD_FINAL_FLAKY = "dd_efd_final_flaky"
 
 
 _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
-    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.PASSED,
+    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
     EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.FAILED,
     EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.SKIPPED,
     EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
@@ -220,7 +220,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.PASSED,
+        _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
         "passed",
         PYTEST_STATUS.PASSED,
         raw_summary_strings,
@@ -362,8 +362,9 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    # if report.outcome == _EFD_RETRY_OUTCOMES.PASSED:
-    #     return (_EFD_RETRY_OUTCOMES.PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+    # Writing the final outcome as passed so it can be serialized properly
+    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
+        return (_EFD_RETRY_OUTCOMES.PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
     # if report.outcome == _EFD_RETRY_OUTCOMES.FAILED:
     #     return (_EFD_RETRY_OUTCOMES.FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
     # if report.outcome == _EFD_RETRY_OUTCOMES.SKIPPED:
