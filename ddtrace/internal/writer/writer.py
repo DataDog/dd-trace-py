@@ -32,6 +32,7 @@ from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..encoding import JSONEncoderV2
+from ..gitmetadata import get_git_tags
 from ..logger import get_logger
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
@@ -697,18 +698,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._exporter = self._create_exporter()
+        self.start_worker_thread()
+
+    def start_worker_thread(self):
+        self._native_worker = threading.Thread(target=self._exporter.run_worker, daemon=True)
+        self._native_worker.start()
 
     def _create_exporter(self) -> native.TraceExporter:
         """
         Create a new TraceExporter with the current configuration.
         :return: A configured TraceExporter instance.
         """
-        # Shutdown the existing exporter if it exists
-        if hasattr(self, "_exporter") and self._exporter is not None:
-            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
-
         stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         bucket_size_ns = int(stats_interval * 1e9)  # type: int
+        _, commit_sha, _ = get_git_tags()
 
         builder = (
             native.TraceExporterBuilder()
@@ -717,6 +720,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             .set_language_version(compat.PYTHON_VERSION)
             .set_language_interpreter(compat.PYTHON_INTERPRETER)
             .set_tracer_version(ddtrace.__version__)
+            .set_git_commit_sha(commit_sha)
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
@@ -733,10 +737,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
+        self._exporter.stop_worker()
+        self._native_worker.join()
         self._exporter = self._create_exporter()
+        self.start_worker_thread()
 
     def recreate(self):
-        self._exporter.drop()
+        if self._native_worker.is_alive():
+            self._exporter.stop_worker()
         return self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,
@@ -819,6 +827,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
 
         try:
             # TODO: Return agent response from send
+            if not self._native_worker.is_alive:
+                self.start_worker_thread()
             response_body = self._exporter.send(payload, count)
             if self._response_cb:
                 response = Response(body=response_body)
@@ -957,4 +967,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         try:
             self.periodic()
         finally:
+            if self._native_worker.is_alive():
+                self._exporter.stop_worker()
+                self._native_worker.join()
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout

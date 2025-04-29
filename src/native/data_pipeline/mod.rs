@@ -221,6 +221,28 @@ impl TraceExporterPy {
         drop(self.inner.take());
         Ok(())
     }
+
+    fn run_worker(&self, py: Python<'_>) -> PyResult<()> {
+        py.allow_threads(move || {
+            self.inner
+                .as_ref()
+                .ok_or(PyValueError::new_err(
+                    "TraceExporter has already been consumed",
+                ))?
+                .run_worker();
+            Ok(())
+        })
+    }
+
+    fn stop_worker(&self, py: Python<'_>) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .stop_worker();
+        Ok(())
+    }
 }
 
 #[pymodule]
