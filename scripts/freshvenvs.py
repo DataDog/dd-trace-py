@@ -14,12 +14,12 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
-from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
-from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING
-
 
 # add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
+
+from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: I001,E402
+from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
 
 import riotfile  # noqa: I001,E402
 
