@@ -53,6 +53,10 @@ class Integration:
 
     def should_update(self, new_dependency_versions: dict) -> bool:
         """Checks if the integration should be updated based on the new dependency versions."""
+        # skip if the integration is not for an external package
+        if not self.is_external_package:
+            return False
+
         for dep, dep_info in new_dependency_versions.items():
             # if the dependency is not in the registry, we need to update
             if dep.lower() not in self.dependency_names:
