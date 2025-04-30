@@ -106,8 +106,7 @@ def is_valid_ip(ip: str) -> bool:
         return False
 
 
-def ip_is_global(ip):
-    # type: (str) -> bool
+def ip_is_global(ip: str) -> bool:
     """
     is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
     """
