@@ -134,6 +134,7 @@ suites:
     services:
       - postgres
       - mysql
+    timeout: 30m
   appsec_integrations_flask:
     parallelism: 17
     paths:
