@@ -866,6 +866,3 @@ class Config(object):
 
 
 config = Config()
-# This is used to track the source of the instrumentation.
-# By default it is set to "manual" but can be updated to ssi, ddtrace.auto, or ddtrace.run.
-telemetry_writer.add_configuration("instrumentation_source", "manual", "code")

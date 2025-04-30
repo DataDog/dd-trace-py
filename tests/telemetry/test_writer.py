@@ -559,11 +559,18 @@ def test_instrumentation_source_config(
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert configs and configs[-1]["value"] == "cmd_line"
+    test_agent_session.clear()
 
     _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=env)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
-    assert configs and configs[-1]["value"] == "ddtrace.auto"
+    assert configs and configs[-1]["value"] == "manual"
+    test_agent_session.clear()
+
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert not configs, "instrumentation_source should not be set when ddtrace instrumentation is not used"
 
 
 def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
