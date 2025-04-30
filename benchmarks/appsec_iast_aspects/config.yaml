@@ -110,6 +110,30 @@ join_noaspect:
   <<: *join_aspect
   function_name: "join_noaspect"
 
+strip_aspect: &strip_aspect
+  warmups: 1
+  function_name: "iast_strip_aspect"
+
+strip_noaspect:
+  <<: *strip_aspect
+  function_name: "strip_noaspect"
+
+rstrip_aspect: &rstrip_aspect
+  warmups: 1
+  function_name: "iast_rstrip_aspect"
+
+rstrip_noaspect:
+  <<: *rstrip_aspect
+  function_name: "rstrip_noaspect"
+
+lstrip_aspect: &lstrip_aspect
+  warmups: 1
+  function_name: "iast_lstrip_aspect"
+
+lstrip_noaspect:
+  <<: *lstrip_aspect
+  function_name: "lstrip_noaspect"
+
 lower_aspect: &lower_aspect
   warmups: 1
   function_name: "iast_lower_aspect"
