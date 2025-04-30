@@ -79,53 +79,7 @@ typedef struct
     } freezer;
 } heap_tracker_t;
 
-/* This lock protects global_heap_tracker. See g_memalloc_lock docs for why this
- * is needed, and why the GIL is not sufficient to protect our data structures
- */
-static memlock_t g_memheap_lock;
-
 static heap_tracker_t global_heap_tracker;
-
-// This is a multiplatform way to define an operation to happen at static initialization time
-static void
-memheap_init(void);
-
-static void
-memheap_prefork(void)
-{
-    // See memalloc_prefork for an explanation of why this is here
-    memlock_lock(&g_memheap_lock);
-}
-
-static void
-memheap_postfork_parent(void)
-{
-    memlock_unlock(&g_memheap_lock);
-}
-
-static void
-memheap_postfork_child(void)
-{
-    memlock_unlock(&g_memheap_lock);
-}
-
-#ifdef _MSC_VER
-#pragma section(".CRT$XCU", read)
-__declspec(allocate(".CRT$XCU")) void (*memheap_init_func)(void) = memheap_init;
-
-#elif defined(__GNUC__) || defined(__clang__)
-__attribute__((constructor))
-#else
-#error Unsupported compiler
-#endif
-static void
-memheap_init()
-{
-    memlock_init(&g_memheap_lock);
-#ifndef _WIN32
-    pthread_atfork(memheap_prefork, memheap_postfork_parent, memheap_postfork_child);
-#endif
-}
 
 static uint32_t
 heap_tracker_next_sample_size(uint32_t sample_size)
@@ -225,27 +179,31 @@ void
 memalloc_heap_tracker_init(uint32_t sample_size)
 {
 
-    if (memlock_trylock(&g_memheap_lock)) {
-        heap_tracker_init(&global_heap_tracker);
-        global_heap_tracker.sample_size = sample_size;
-        global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
-        memlock_unlock(&g_memheap_lock);
-    }
+    /* TODO(nick) See deinit. Do we need to consider worst case
+     * overlap of this function with memalloc_heap or sampling?
+     */
+    heap_tracker_init(&global_heap_tracker);
+    global_heap_tracker.sample_size = sample_size;
+    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(sample_size);
 }
 
 void
 memalloc_heap_tracker_deinit(void)
 {
-    if (memlock_trylock(&g_memheap_lock)) {
-        heap_tracker_wipe(&global_heap_tracker);
-        memlock_unlock(&g_memheap_lock);
-    }
+    heap_tracker_wipe(&global_heap_tracker);
+    /* Setting the sample size back to zero acts as a flag that the profiler is
+     * deactivated. Checked during sampling, in case sampling and
+     * deinitialization interleave due to GIL release.
+     */
+    global_heap_tracker.sample_size = 0;
 }
 
 void
 memalloc_heap_untrack(void* ptr)
 {
-    if (!memlock_trylock(&g_memheap_lock)) {
+    if (global_heap_tracker.sample_size == 0) {
+        /* The profiler was stopped */
+        /* TODO: explain why (if?) this is needed */
         return;
     }
     if (global_heap_tracker.frozen) {
@@ -259,49 +217,36 @@ memalloc_heap_untrack(void* ptr)
             ptr_array_append(&global_heap_tracker.freezer.frees, ptr);
     } else
         heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
-
-    memlock_unlock(&g_memheap_lock);
 }
 
-/* Track a memory allocation in the heap profiler.
-
-   Returns true if the allocation was tracked, false otherwise. */
-bool
+/* Track a memory allocation in the heap profiler. */
+void
 memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     /* Heap tracking is disabled */
     if (global_heap_tracker.sample_size == 0)
-        return false;
+        return;
 
-    /* Check for overflow */
-    uint64_t res = atomic_add_clamped(&global_heap_tracker.allocated_memory, size, MAX_HEAP_SAMPLE_SIZE);
-    if (0 == res)
-        return false;
-
-    // Take the lock
-    if (!memlock_trylock(&g_memheap_lock)) {
-        return false;
-    }
+    global_heap_tracker.allocated_memory += size;
 
     /* Check if we have enough sample or not */
     if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size) {
-        memlock_unlock(&g_memheap_lock);
-        return false;
+        return;
     }
 
     /* Check if we can add more samples: the sum of the freezer + alloc tracker
      cannot be greater than what the alloc tracker can handle: when the alloc
      tracker is thawed, all the allocs in the freezer will be moved there!*/
     if (global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count >= TRACEBACK_ARRAY_MAX_COUNT) {
-        memlock_unlock(&g_memheap_lock);
-        return false;
+        return;
     }
 
     /* Avoid loops */
     if (!memalloc_take_guard()) {
-        memlock_unlock(&g_memheap_lock);
-        return false;
+        return;
     }
+
+    /* Taking a traceback, GIL may be released, end of "atomic" state manipulation */
 
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which
@@ -309,36 +254,48 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
        allocations, and close to the average sampling interval so that the sum
        of sample live allocations stays close to the actual heap size */
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory, domain);
-    if (tb) {
-        if (global_heap_tracker.frozen)
-            traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
-        else
-            traceback_array_append(&global_heap_tracker.allocs, tb);
-
-        /* Reset the counter to 0 */
-        global_heap_tracker.allocated_memory = 0;
-
-        /* Compute the new target sample size */
-        global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
-
-        memalloc_yield_guard();
-        memlock_unlock(&g_memheap_lock);
-        return true;
+    if (!tb) {
+        goto done;
     }
 
+    /* Done taking a traceback, assume we have the GIL again until the next
+     * C Python API call */
+
+    if (global_heap_tracker.sample_size == 0) {
+        /* If getting a traceback lead to a GIL release, it is possible
+         * that the profiler was stopped and the traceback array was freed.
+         * Don't add the sample.
+         */
+        traceback_free(tb);
+        goto done;
+    }
+
+    if (global_heap_tracker.frozen)
+        traceback_array_append(&global_heap_tracker.freezer.allocs, tb);
+    else
+        traceback_array_append(&global_heap_tracker.allocs, tb);
+
+    /* Reset the counter to 0 */
+    global_heap_tracker.allocated_memory = 0;
+
+    /* Compute the new target sample size */
+    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
+
+done:
     memalloc_yield_guard();
-    memlock_unlock(&g_memheap_lock);
-    return false;
 }
 
 PyObject*
-memalloc_heap()
+memalloc_heap(void)
 {
-    if (!memlock_trylock(&g_memheap_lock)) {
-        return NULL;
-    }
-
     heap_tracker_freeze(&global_heap_tracker);
+
+    /* After this point, we _may_ have a GIL release during any of these
+     * C Python API calls. This could allow other threads to run, mutating
+     * the tracked allocations. This is why we "froze" the tracker above.
+     * Allocations between now and when we "thaw" will go in a secondary tracker,
+     * so the primary tracker won't be mutated.
+     */
 
     PyObject* heap_list = PyList_New(global_heap_tracker.allocs.count);
 
@@ -347,12 +304,16 @@ memalloc_heap()
 
         PyObject* tb_and_size = PyTuple_New(2);
         PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
+#ifdef MEMALLOC_TESTING_GIL_RELEASE
+        Py_BEGIN_ALLOW_THREADS;
+        /* Give another Python thread a chance to run */
+        Py_END_ALLOW_THREADS;
+#endif
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
         PyList_SET_ITEM(heap_list, i, tb_and_size);
     }
 
     heap_tracker_thaw(&global_heap_tracker);
 
-    memlock_unlock(&g_memheap_lock);
     return heap_list;
 }

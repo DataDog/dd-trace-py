@@ -8,10 +8,11 @@ import typing  # noqa:F401
 from typing import Optional
 
 
-try:
-    from ddtrace.profiling.collector import _memalloc
-except ImportError:
-    _memalloc = None  # type: ignore[assignment]
+#try:
+from ddtrace.profiling.collector import _memalloc
+#except ImportError:
+#    raise
+#    _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
