@@ -3,6 +3,7 @@
 import copy
 import os
 import re
+import shlex
 import subprocess  # nosec
 
 from flask import Flask
@@ -198,6 +199,14 @@ def iast_cmdi_vulnerability():
     subp.wait()
     resp = Response("OK")
     return resp
+
+
+@app.route("/iast-cmdi-vulnerability-secure", methods=["GET"])
+def view_cmdi_secure():
+    filename = request.args.get("filename")
+    subp = subprocess.Popen(args=["ls", "-la", shlex.quote(filename)])
+    subp.wait()
+    return Response("OK")
 
 
 @app.route("/shutdown", methods=["GET"])
