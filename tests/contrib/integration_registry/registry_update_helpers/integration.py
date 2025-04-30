@@ -7,13 +7,13 @@ class Integration:
         self,
         integration_name: str,
         is_external_package: bool = True,
-        dependency_names: list = [],
+        dependency_names: list = None,
         tested_versions_by_dependency: dict = None,
         is_tested: bool = True,
     ):
         self.integration_name = integration_name
         self.is_external_package = is_external_package
-        self.dependency_names = set(dependency_names)
+        self.dependency_names = set(dependency_names or [])
         # Initialize with a new dict if None is passed to avoid sharing the mutable default
         self.tested_versions_by_dependency = (
             tested_versions_by_dependency if tested_versions_by_dependency is not None else {}
