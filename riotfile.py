@@ -1550,6 +1550,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
+                "pytest": "==7.4.4",
                 "pytest-randomly": latest,
                 "pytest-bdd": [
                     ">=4.0,<5.0",
