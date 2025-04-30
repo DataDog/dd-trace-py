@@ -1,5 +1,6 @@
 import os
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 from ._native import DDSketch  # noqa: F401
@@ -10,7 +11,7 @@ from ._native import store_metadata  # noqa: F401
 
 def get_configuration_from_disk(
     debug_logs: bool = False,
-) -> Tuple[Dict[str, str], Dict[str, str]]:
+) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, Optional[str]]]:
     """
     Retrieves the tracer configuration from disk. Calls the PyConfigurator object
     to read the configuration from the disk using the libdatadog shared library
@@ -30,6 +31,7 @@ def get_configuration_from_disk(
         configurator.set_managed_file_override(managed_file_override)
 
     fleet_config = {}
+    fleet_config_ids = {}
     local_config = {}
     try:
         for entry in configurator.get_configuration():
@@ -37,6 +39,7 @@ def get_configuration_from_disk(
             source = entry["source"]
             if source == "fleet_stable_config":
                 fleet_config[env] = entry["value"]
+                fleet_config_ids[env] = entry.get("config_id")
             elif source == "local_stable_config":
                 local_config[env] = entry["value"]
             else:
@@ -44,4 +47,4 @@ def get_configuration_from_disk(
     except Exception as e:
         # No logger at this point, so we rely on good old print
         print(f"Failed to load configuration from disk, skipping: {e}")
-    return fleet_config, local_config
+    return fleet_config, local_config, fleet_config_ids
