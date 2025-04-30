@@ -10,11 +10,6 @@ from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast._taint_utils import taint_structure
-from ddtrace.internal.logger import get_logger
-
-
-log = get_logger(__name__)
 
 
 def set_and_check_module_is_patched(module_str: Text, default_attr: Text = "_datadog_patch") -> bool:
@@ -45,12 +40,6 @@ def try_wrap_function_wrapper(module: Text, name: Text, wrapper: Callable):
         iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
 
-def _patched_dictionary(origin_key, origin_value, original_func, instance, args, kwargs):
-    result = original_func(*args, **kwargs)
-
-    return taint_structure(result, origin_key, origin_value, override_pyobject_tainted=True)
-
-
 def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
     def path(self) -> str:
         return taint_pyobject(
@@ -62,29 +51,6 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
 
     instance.__class__.path = property(path)
     wrapped(*args, **kwargs)
-
-
-def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
-    def receive(self):
-        """This pattern comes from a Request._receive property, which returns a callable"""
-
-        async def wrapped_property_call():
-            body = await self._receive()
-            return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
-
-        return wrapped_property_call
-
-    # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
-    wrapped(*args, **kwargs)
-    instance.__class__.receive = property(receive)
-
-
-async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
-    result = await wrapped(*args, **kwargs)
-
-    return taint_pyobject(
-        result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
-    )
 
 
 def _iast_instrument_starlette_scope(scope):
