@@ -2,6 +2,7 @@ from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
 import itertools
+import os
 from re import Match
 from re import Pattern
 from types import BuiltinFunctionType
@@ -61,14 +62,6 @@ add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
 index_aspect = aspects.index_aspect
 modulo_aspect = aspects.modulo_aspect
-ospathbasename_aspect = _aspect_ospathbasename
-ospathdirname_aspect = _aspect_ospathdirname
-ospathjoin_aspect = _aspect_ospathjoin
-ospathnormcase_aspect = _aspect_ospathnormcase
-ospathsplit_aspect = _aspect_ospathsplit
-ospathsplitdrive_aspect = _aspect_ospathsplitdrive
-ospathsplitext_aspect = _aspect_ospathsplitext
-ospathsplitroot_aspect = _aspect_ospathsplitroot
 rsplit_aspect = _aspect_rsplit
 slice_aspect = aspects.slice_aspect
 split_aspect = _aspect_split
@@ -76,9 +69,6 @@ splitlines_aspect = _aspect_splitlines
 str_aspect = aspects.str_aspect
 
 __all__ = [
-    "_aspect_rsplit",
-    "_aspect_split",
-    "_aspect_splitlines",
     "add_aspect",
     "add_inplace_aspect",
     "bytearray_aspect",
@@ -143,7 +133,7 @@ def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *ar
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_propagation_error_log(f"IAST propagation error. stringio_aspect. {e}")
+            iast_propagation_error_log(f"stringio_aspect. {e}")
     return result
 
 
@@ -161,7 +151,7 @@ def bytesio_aspect(orig_function: Optional[Callable], flag_added_args: int, *arg
         try:
             copy_ranges_from_strings(args[0], result)
         except Exception as e:
-            iast_propagation_error_log(f"IAST propagation error. bytesio_aspect. {e}")
+            iast_propagation_error_log(f"bytesio_aspect. {e}")
     return result
 
 
@@ -322,7 +312,7 @@ def zfill_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
                 )
         taint_pyobject_with_ranges(result, tuple(ranges_new))
     except Exception as e:
-        iast_propagation_error_log(f"format_aspect. {e}")
+        iast_propagation_error_log(f"zfill_aspect. {e}")
 
     return result
 
@@ -442,7 +432,7 @@ def format_value_aspect(
     element: Any,
     options: int = 0,
     format_spec: Optional[str] = None,
-) -> Union[str, bytes, bytearray]:
+) -> TEXT_TYPES:
     if options == 115:
         new_text = str_aspect(str, 0, element)
     elif options == 114:
@@ -456,8 +446,8 @@ def format_value_aspect(
             return format(new_text, format_spec)
         return format(new_text)
 
-    try:
-        if format_spec:
+    if format_spec:
+        try:
             # Apply formatting
             text_ranges = get_tainted_ranges(new_text)
             if text_ranges:
@@ -473,11 +463,11 @@ def format_value_aspect(
                     return ("{:%s}" % format_spec).format(new_text)
             else:
                 return ("{:%s}" % format_spec).format(new_text)
-        else:
-            return format(new_text)
-    except Exception as e:
-        iast_propagation_error_log(f"format_value_aspect. {e}")
-        return new_text
+        except Exception as e:
+            iast_propagation_error_log(f"format_value_aspect. {e}")
+            return ("{:%s}" % format_spec).format(new_text)
+
+    return format(new_text)
 
 
 def incremental_translation(self, incr_coder, funcode, empty):
@@ -1242,3 +1232,83 @@ def re_expand_aspect(orig_function: Optional[Callable], flag_added_args: int, *a
         iast_propagation_error_log(f"re_expand_aspect. {e}")
 
     return result
+
+
+def ospathjoin_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathjoin(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathjoin_aspect. {e}")
+
+    return os.path.join(*args, **kwargs)
+
+
+def ospathbasename_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathbasename(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathbasename. {e}")
+
+    return os.path.basename(*args, **kwargs)
+
+
+def ospathdirname_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathdirname(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathdirname. {e}")
+
+    return os.path.dirname(*args, **kwargs)
+
+
+def ospathnormcase_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathnormcase(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathnormcase_aspect. {e}")
+
+    return os.path.normcase(*args, **kwargs)
+
+
+def ospathsplit_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplit(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"ospathnormcase_aspect. {e}")
+
+    return os.path.split(*args, **kwargs)
+
+
+def ospathsplitdrive_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitdrive(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitdrive. {e}")
+
+    return os.path.splitdrive(*args, **kwargs)
+
+
+def ospathsplitext_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitext(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitext. {e}")
+
+    return os.path.splitext(*args, **kwargs)
+
+
+def ospathsplitroot_aspect(*args: Any, **kwargs: Any) -> Any:
+    if all(isinstance(arg, IAST.TEXT_TYPES) for arg in args):
+        try:
+            return _aspect_ospathsplitroot(*args, **kwargs)
+        except Exception as e:
+            iast_propagation_error_log(f"_aspect_ospathsplitroot. {e}")
+
+    return os.path.splitroot(*args, **kwargs)  # type: ignore[attr-defined]

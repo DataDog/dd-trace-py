@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where span attributes were not truncated before encoding, leading to runtime error and causing spans to be dropped. 
+    Spans with resource name, tag key or value larger than 25000 characters will be truncated to 2500 characters. 

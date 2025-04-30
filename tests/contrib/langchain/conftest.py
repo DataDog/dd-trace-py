@@ -1,73 +1,75 @@
 import os
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_config_langchain():
-    return {}
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
 
 
 @pytest.fixture
-def snapshot_tracer(langchain, mock_logs, mock_metrics):
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+
+
+@pytest.fixture
+def tracer(langchain):
+    tracer = DummyTracer()
     pin = Pin.get_from(langchain)
-    yield pin.tracer
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
+    pin._override(langchain, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture
-def mock_tracer(langchain):
-    pin = Pin.get_from(langchain)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(langchain, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
-@pytest.fixture
-def langchain(ddtrace_config_langchain):
+def llmobs(
+    tracer,
+    llmobs_span_writer,
+):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
-        with override_config("langchain", ddtrace_config_langchain):
-            with override_env(
-                dict(
-                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-                    COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                    HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-                    AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import langchain
-
-                yield langchain
-                unpatch()
+        llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        yield llmobs_service
+        llmobs_service.disable()
 
 
 @pytest.fixture
-def langchain_community(ddtrace_config_langchain, langchain):
+def llmobs_events(llmobs, llmobs_span_writer):
+    yield llmobs_span_writer.events
+
+
+@pytest.fixture
+def langchain():
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+            AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import langchain
+
+        yield langchain
+        unpatch()
+
+
+@pytest.fixture
+def langchain_community(langchain):
     try:
         import langchain_community
 
@@ -77,7 +79,7 @@ def langchain_community(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_core(ddtrace_config_langchain, langchain):
+def langchain_core(langchain):
     import langchain_core
     import langchain_core.prompts  # noqa: F401
 
@@ -85,7 +87,7 @@ def langchain_core(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_openai(ddtrace_config_langchain, langchain):
+def langchain_openai(langchain):
     try:
         import langchain_openai
 
@@ -95,7 +97,7 @@ def langchain_openai(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_cohere(ddtrace_config_langchain, langchain):
+def langchain_cohere(langchain):
     try:
         import langchain_cohere
 
@@ -105,7 +107,7 @@ def langchain_cohere(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, langchain):
+def langchain_anthropic(langchain):
     try:
         import langchain_anthropic
 
@@ -115,7 +117,7 @@ def langchain_anthropic(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_pinecone(ddtrace_config_langchain, langchain):
+def langchain_pinecone(langchain):
     with override_env(
         dict(
             PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
