@@ -11,7 +11,7 @@ with the library.
 
 A release note is **required** if a PR is user-impacting, or if it meets any of the following conditions:
 
-* :ref:`Breaking change to the public API<versioning_release>`
+* Breaking change to the public API
 * New feature
 * Bug fix
 * Deprecations
