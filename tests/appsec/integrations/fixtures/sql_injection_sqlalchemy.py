@@ -10,6 +10,7 @@ from tests.appsec.integrations.packages_tests.db_utils import POSTGRES_HOST
 def sqli_simple(table):
     engine = create_engine(f"postgresql://postgres:postgres@{POSTGRES_HOST}/postgres")
     with engine.connect() as connection:
+        connection.execute(text("SET statement_timeout = 1000"))
         try:
             connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
         except ProgrammingError:
