@@ -1,8 +1,11 @@
 import sys
 
 import litellm
+from litellm.proxy.common_request_processing import ProxyBaseLLMRequestProcessing
 
 from ddtrace import config
+from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
+from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMStream
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -21,6 +24,25 @@ def get_version() -> str:
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
+    return _traced_completion(litellm, pin, func, instance, args, kwargs, False)
+
+
+@with_traced_module
+async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
+    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, False)
+
+
+@with_traced_module
+def traced_text_completion(litellm, pin, func, instance, args, kwargs):
+    return _traced_completion(litellm, pin, func, instance, args, kwargs, True)
+
+
+@with_traced_module
+async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
+    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, True)
+
+
+def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = None
@@ -31,24 +53,87 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         func.__name__,
         model=model,
         host=host,
-        submit_to_llmobs=False,
+        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
     )
+    stream = kwargs.get("stream", False)
+    resp = None
     try:
-        return func(*args, **kwargs)
+        resp = func(*args, **kwargs)
+        if stream:
+            return TracedLiteLLMStream(resp, integration, span, kwargs, is_completion)
+        return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        span.finish()
+        # streamed spans will be finished separately once the stream generator is exhausted
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                )
+            span.finish()
 
 
-@with_traced_module
-async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
+async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = None
     if "host" in kwargs.get("metadata", {}).get("headers", {}):
         host = kwargs["metadata"]["headers"]["host"]
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
+    )
+    stream = kwargs.get("stream", False)
+    resp = None
+    try:
+        resp = await func(*args, **kwargs)
+        if stream:
+            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs, is_completion)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        # streamed spans will be finished separately once the stream generator is exhausted
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(
+                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                )
+            span.finish()
+
+
+@with_traced_module
+def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
+    requested_model = get_argument_value(args, kwargs, 0, "model", None)
+    integration = litellm._datadog_integration
+    model, custom_llm_provider, dynamic_api_key, api_base = func(*args, **kwargs)
+    # store the model name and provider in the integration
+    integration._model_map[requested_model] = (model, custom_llm_provider)
+    return model, custom_llm_provider, dynamic_api_key, api_base
+
+
+@with_traced_module
+async def traced_base_process_llm_request(litellm, pin, func, instance, args, kwargs):
+    breakpoint()
+    integration = litellm._datadog_integration
+    model = None
+    host = None
+    request = get_argument_value(args, kwargs, 0, "request", None)
+    # extract model and host from the request
+    if request:
+        try:
+            host = getattr(request, "headers", {}).get("host", None)
+            data = await request.json()
+            if data:
+                model = data.get("model", None)
+        except Exception:
+            pass
     span = integration.trace(
         pin,
         func.__name__,
@@ -64,7 +149,6 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     finally:
         span.finish()
 
-
 def patch():
     if getattr(litellm, "_datadog_patch", False):
         return
@@ -77,8 +161,11 @@ def patch():
 
     wrap("litellm", "completion", traced_completion(litellm))
     wrap("litellm", "acompletion", traced_acompletion(litellm))
-    wrap("litellm", "text_completion", traced_completion(litellm))
-    wrap("litellm", "atext_completion", traced_acompletion(litellm))
+    wrap("litellm", "text_completion", traced_text_completion(litellm))
+    wrap("litellm", "atext_completion", traced_atext_completion(litellm))
+    wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "proxy.common_request_processing.ProxyBaseLLMRequestProcessing.base_process_llm_request", traced_base_process_llm_request(litellm))
 
 
 def unpatch():
@@ -91,5 +178,7 @@ def unpatch():
     unwrap(litellm, "acompletion")
     unwrap(litellm, "text_completion")
     unwrap(litellm, "atext_completion")
-
+    unwrap(litellm, "get_llm_provider")
+    unwrap(litellm.main, "get_llm_provider")
+    unwrap(litellm.proxy.common_request_processing.ProxyBaseLLMRequestProcessing, "base_process_llm_request")
     delattr(litellm, "_datadog_integration")
