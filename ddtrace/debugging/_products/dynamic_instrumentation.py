@@ -53,7 +53,7 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_ENABLE_DYNAMIC_INSTRUMENTATION = 1 << 38
 
 
-def apm_tracing_rc(lib_config):
+def apm_tracing_rc(lib_config, _config):
     if (enabled := lib_config.get("dynamic_instrumentation_enabled")) is not None:
         should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
         _start() if should_start else stop()

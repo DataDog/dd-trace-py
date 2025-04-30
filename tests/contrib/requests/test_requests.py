@@ -594,7 +594,7 @@ from ddtrace.contrib.requests import TracedSession
 
 # disable tracer writing to agent
 # FIXME: Remove use of this internal attribute of Tracer to disable writer
-ddtrace.tracer._writer.flush_queue = mock.Mock(return_value=None)
+ddtrace.tracer._span_aggregator.writer.flush_queue = mock.Mock(return_value=None)
 
 session = TracedSession()
 session.get("http://httpbin.org/status/200")

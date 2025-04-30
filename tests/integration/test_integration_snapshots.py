@@ -86,8 +86,8 @@ def test_synchronous_writer():
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer
 
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer._writer = writer
+    writer = AgentWriter(tracer._span_aggregator.writer.agent_url, sync_mode=True)
+    tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
@@ -280,3 +280,13 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs():
     s.set_metric("number2", 12.0)
     s.set_metric("number3", "1")
     s.finish()
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_string_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
+            span.set_tag(key="c" * 25001, value="d" * 2000)
