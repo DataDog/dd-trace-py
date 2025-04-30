@@ -28,6 +28,7 @@ class TestPytest(PytestTestCaseBase):
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
+        assert 1 == 0
         self.testdir.makefile(
             ".feature",
             parameters="""
