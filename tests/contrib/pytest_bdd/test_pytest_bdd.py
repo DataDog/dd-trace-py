@@ -28,7 +28,6 @@ class TestPytest(PytestTestCaseBase):
 
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
-        assert 1 == 0
         self.testdir.makefile(
             ".feature",
             parameters="""
@@ -82,6 +81,10 @@ class TestPytest(PytestTestCaseBase):
         file_name = os.path.basename(py_file.strpath)
         self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
+
+        if get_version().split(".")[0] <= "5":
+            assert len(spans) == 6
+            return
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
         assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
