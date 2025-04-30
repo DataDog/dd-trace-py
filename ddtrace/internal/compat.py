@@ -2,7 +2,7 @@ import functools
 import ipaddress
 import sys
 from types import TracebackType
-from typing import Any  # noqa:F401
+from typing import Any
 from typing import AnyStr  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
@@ -37,8 +37,7 @@ def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
 NumericType = Union[int, float]
 
 
-def is_integer(obj):
-    # type: (Any) -> bool
+def is_integer(obj: Any) -> bool:
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -90,8 +89,7 @@ def to_unicode(s):
     return str(s)
 
 
-def maybe_stringify(obj):
-    # type: (Any) -> Optional[str]
+def maybe_stringify(obj: Any) -> Optional[str]:
     if obj is not None:
         return str(obj)
     return None
