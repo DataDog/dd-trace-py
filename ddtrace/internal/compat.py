@@ -3,7 +3,7 @@ import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
-from typing import AnyStr  # noqa:F401
+from typing import AnyStr
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -69,8 +69,7 @@ def make_async_decorator(tracer, coro, *params, **kw_params):
 
 
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
-def to_unicode(s):
-    # type: (AnyStr) -> Text
+def to_unicode(s: AnyStr) -> Text:
     """Return a unicode string for the given bytes or string instance."""
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
