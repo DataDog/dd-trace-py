@@ -111,6 +111,25 @@ class IntegrationConfig(AttrDict):
             return self.global_config._header_tag_name(header_name)
         return tag_name
 
+    @property
+    def analytics_enabled(self):
+        deprecate(
+                f"ddtrace.config.{self.name}.analytics_enabled is deprecated",
+                message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+            return self._analytics_enabled
+
+    @analytics_enabled.setter
+    def analytics_enabled(self, value):
+          self._analytics_enabled = value 
+
+    # .... we should do the same for analytics_sample_rate .....
+    # Users should still be able to access these properties in their application but we should log a deprecation warning when this happens.
+    # We should also make it clear that setting these attributes does nothing.
+    
+    
     def get_analytics_sample_rate(self, use_global_config=False):
         """
         Returns analytics sample rate but only when integration-specific
