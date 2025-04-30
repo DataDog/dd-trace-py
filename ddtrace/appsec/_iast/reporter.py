@@ -64,7 +64,7 @@ class Evidence(NotNoneDictable):
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Location(NotNoneDictable):
+class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
@@ -74,9 +74,18 @@ class Location(NotNoneDictable):
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
 
+    def _to_dict(self):
+        return {
+            "spanId": self.spanId,
+            "path": self.path,
+            "line": self.line,
+            "method": self.method,
+            "class": self.class_name,
+        }
+
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Vulnerability(NotNoneDictable):
+class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
@@ -96,6 +105,15 @@ class Vulnerability(NotNoneDictable):
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
+
+    def _to_dict(self):
+        return {
+            "type": self.type,
+            "evidence": self.evidence._to_dict(),
+            "location": self.location._to_dict(),
+            "hash": self.hash,
+            "stackId": self.stackId,
+        }
 
 
 @dataclasses.dataclass
@@ -119,7 +137,7 @@ class Source(NotNoneDictable):
 
 
 @dataclasses.dataclass
-class IastSpanReporter(NotNoneDictable):
+class IastSpanReporter:
     """
     Class representing an IAST span reporter.
     """

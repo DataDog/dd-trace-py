@@ -76,7 +76,7 @@ def test_sql_injection(fixture_path, fixture_module):
     assert vulnerability["location"]["path"] == fixture_path
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == "sqli_simple"
-    assert vulnerability["location"]["class_name"] == ""
+    assert vulnerability["location"]["class"] == ""
     assert vulnerability["hash"] == hash_value
 
 
