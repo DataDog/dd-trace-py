@@ -2567,11 +2567,12 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
             pkgs={
-                "litellm": latest,
+                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
+                "openai": "==1.68.2",
             },
         ),
         Venv(
@@ -2870,6 +2871,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                "jsonschema": latest,
                 "lz4": latest,
                 "pytest-cpp": latest,
                 #
