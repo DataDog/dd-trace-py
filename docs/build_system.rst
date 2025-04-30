@@ -47,7 +47,7 @@ To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install . --no-build-isolation --no-install
+    pip install 'setuptools_scm[toml]>=4' 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 

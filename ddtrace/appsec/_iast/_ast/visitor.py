@@ -71,6 +71,9 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "split": _PREFIX + "aspects.split_aspect",  # Both regular split and re.split
         "rsplit": _PREFIX + "aspects.rsplit_aspect",
         "splitlines": _PREFIX + "aspects.splitlines_aspect",
+        "lstrip": _PREFIX + "aspects.lstrip_aspect",
+        "rstrip": _PREFIX + "aspects.rstrip_aspect",
+        "strip": _PREFIX + "aspects.strip_aspect",
         # re module and re.Match methods
         "findall": _PREFIX + "aspects.re_findall_aspect",
         "finditer": _PREFIX + "aspects.re_finditer_aspect",
