@@ -1358,7 +1358,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["type"] == VULN_INSECURE_COOKIE
             assert vulnerability["evidence"] == {"valueParts": [{"value": "insecure"}]}
             assert "method" in vulnerability["location"].keys()
-            assert "class_name" in vulnerability["location"].keys()
+            assert "class" in vulnerability["location"].keys()
             assert vulnerability["location"]["spanId"]
             assert vulnerability["hash"]
             line, hash_value = get_line_and_hash(
