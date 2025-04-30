@@ -32,7 +32,7 @@ def test_inject_llmobs_parent_id_simple(llmobs):
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "unnamed-ml-app"
-    assert span._get_ctx_item(TAGS) == { "ml-proxy": "custom" }
+    assert span._get_ctx_item(TAGS) == {"ml-proxy": "custom"}
 
 
 def test_inject_llmobs_ml_app_override(llmobs):
@@ -61,7 +61,8 @@ def test_inject_llmobs_parent_id_nested_llmobs_spans(llmobs):
             with llmobs.workflow("Last LLMObs child span") as last_llmobs_span:
                 llmobs._inject_llmobs_context(last_llmobs_span.context, {})
     assert last_llmobs_span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(last_llmobs_span.span_id)
-    assert last_llmobs_span._get_ctx_item(TAGS) == { "ml-proxy": "custom" }
+    assert last_llmobs_span._get_ctx_item(TAGS) == {"ml-proxy": "custom"}
+
 
 def test_propagate_correct_llmobs_parent_id_simple(ddtrace_run_python_code_in_subprocess, llmobs):
     """Test that the correct LLMObs parent ID is propagated in the headers in a simple distributed scenario.

@@ -1357,12 +1357,14 @@ class LLMObs(Service):
         ml_app = active_span._get_ctx_item(ML_APP) if isinstance(active_span, Span) else config._llmobs_ml_app
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
-        span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
+
+        if ml_app is not None:
+            span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
         existing_tags = active_span._get_ctx_item(TAGS) if isinstance(active_span, Span) else {}
         has_proxy_tag = "ml-proxy" in existing_tags if existing_tags else False
         if isinstance(active_span, Span) and not has_proxy_tag:
-            cls._instance.annotate(active_span, tags={ "ml-proxy": "custom" })
+            cls._instance.annotate(active_span, tags={"ml-proxy": "custom"})
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
