@@ -20,8 +20,8 @@ from ddtrace.appsec._iast._patch_modules import patch_iast
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
 # "iast::instrumentation::" or "iast::instrumentation::"
-# are valid logs
-IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::).*$")
+# are valid
+IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::|propagation::sink_point).*$")
 
 
 class IastTestException(Exception):
