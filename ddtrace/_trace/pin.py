@@ -5,7 +5,7 @@ from typing import Optional  # noqa:F401
 
 import wrapt
 
-from ddtrace import tracer
+from ddtrace._trace.tracer import tracer
 from ddtrace.settings._config import config
 
 from ..internal.logger import get_logger
