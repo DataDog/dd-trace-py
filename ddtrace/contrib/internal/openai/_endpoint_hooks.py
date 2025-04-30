@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import SPAN_KIND
 
+
 API_VERSION = "v1"
 
 
@@ -762,40 +763,37 @@ class _ResponseHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        print(f"first resp: {resp}")
         span._set_ctx_item(SPAN_KIND, "llm")
+
         if not resp:
             return resp
-        elif kwargs.get("stream") and error is None:
+
+        def handle_response_tools(resp, span):
+            if getattr(resp, "tools", None):
+                response_tools = [
+                    {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}
+                    for tool in resp.tools
+                    if hasattr(tool, "type") or hasattr(tool, "name")
+                ]
+                if response_tools:
+                    span.set_tag("openai.response.tools", response_tools)
+
+        if kwargs.get("stream") and error is None:
             for s in resp:
                 if s.type == "response.completed":
                     resp = s.response
+                    super()._record_response(pin, integration, span, args, kwargs, resp, error)
                     span._set_ctx_item("llmobs.response.output", resp.output)
+                    handle_response_tools(resp, span)
                     span.finish()
                     break
-            # span._set_ctx_items({"llmobs.response.output": resp.output, "llmobs.span.kind": "llm"})
-            # span.finish()
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
             integration.record_usage(span, resp.usage)
-            print(f"updated resp: {resp}")
             return resp
-        elif not kwargs.get("stream") and error is None:
+
+        if not kwargs.get("stream") and error is None:
             span._set_ctx_item("llmobs.response.output", resp.output)
-            print(f"Non-stream completion event: {resp.output}")
-            if getattr(resp, "tools", None):
-                response_tools = []
-                for tool in resp.tools:
-                    tool_dict = {}
-
-                    if hasattr(tool, "type"):
-                        tool_dict["type"] = getattr(tool, "type")
-                    if hasattr(tool, "name"):
-                        tool_dict["name"] = getattr(tool, "name")
-                    if tool_dict:
-                        response_tools.append(tool_dict)
-
-                if response_tools:
-                    span.set_tag("openai.response.tools", response_tools)
+            handle_response_tools(resp, span)
 
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
             integration.record_usage(span, resp.usage)
