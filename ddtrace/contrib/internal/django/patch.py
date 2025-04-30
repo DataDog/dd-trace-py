@@ -169,7 +169,7 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,  # global_config needed for analytics sample rate
+            config.django.global_config,  # global_config needed for analytics sample rate - i think we can delete this comment? 
             "{}-{}".format("django", alias),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
