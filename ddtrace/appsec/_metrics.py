@@ -36,7 +36,6 @@ def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None
         log_tags = {
             "waf_version": ddwaf_version,
             "event_rules_version": version or UNKNOWN_VERSION,
-            "lib_language": "python",
         }
         level = TELEMETRY_LOG_LEVEL.ERROR if error_level else TELEMETRY_LOG_LEVEL.WARNING
         telemetry.telemetry_writer.add_log(level, msg, tags=log_tags)
@@ -178,7 +177,6 @@ def _set_waf_request_metrics(*_args):
                 TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
             )
             rasp = result.rasp
-            print(f"{rasp=} {rasp.blocked=}")
             if rasp.sum_eval:
                 for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
                     for rule_type, value in getattr(rasp, t).items():
@@ -221,5 +219,19 @@ def _report_rasp_skipped(rule_type: str, import_error: bool) -> None:
             "product": "appsec",
             "exec_limit": 6,
             "more_info": f":waf:rasp_rule_skipped:{rule_type}:{import_error}",
+        }
+        logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
+
+
+def _report_ato_sdk_usage(event_type: str, v2: bool = True) -> None:
+    version = "v2" if v2 else "v1"
+    try:
+        tags = (("event_type", event_type), ("sdk_version", version))
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "sdk.event", 1, tags=tags)
+    except Exception:
+        extra = {
+            "product": "appsec",
+            "exec_limit": 6,
+            "more_info": f":waf:sdk.event:{event_type}:{version}",
         }
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)

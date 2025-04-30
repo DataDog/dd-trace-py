@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev177+g0353d6365.d20250408",
+      "event_type": "span", "spans": [{"span_id": "12345678902", "trace_id": "98765432102",
+      "parent_id": "", "session_id": "98765432102", "name": "chat_completion_span",
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
+      "start_ns": 1707763310981223936, "duration": 12345678900, "status": "ok", "meta":
+      {"span.kind": "llm", "model_name": "gpt-3.5-turbo", "model_provider": "openai",
+      "input": {"messages": [{"role": "system", "content": "You are an evil dark lord
+      looking for his one ring to rule them all"}, {"role": "user", "content": "I
+      am a hobbit looking to go to Mordor"}]}, "output": {"messages": [{"content":
+      "Ah, a bold and foolish hobbit seeking to challenge my dominion in Mordor. Very
+      well, little creature, I shall play along. But know that I am always watching,
+      and your quest will not go unnoticed", "role": "assistant"}]}, "metadata": {"temperature":
+      0.9, "max_tokens": 256}}, "metrics": {"input_tokens": 64, "output_tokens": 128,
+      "total_tokens": 192}}]}]'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://llmobs-intake.datad0g.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '2'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Tue, 08 Apr 2025 20:55:01 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+version: 1

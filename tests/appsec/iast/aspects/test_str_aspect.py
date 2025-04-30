@@ -1,6 +1,10 @@
-# -*- coding: utf-8 -*-
+from pathlib import Path
+from pathlib import PosixPath
 from unittest import mock
 
+from hypothesis import given
+from hypothesis.strategies import from_type
+from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -14,9 +18,47 @@ import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import string_strategies
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+
+
+@given(
+    one_of(string_strategies),
+)
+def test_str_aspect(text):
+    kwargs = {}
+    assert ddtrace_aspects.str_aspect(str, 0, text, **kwargs) == str(text, **kwargs)
+
+
+@given(from_type(Path))
+def test_str_aspect_path(path):
+    assert ddtrace_aspects.str_aspect(str, 0, path) == str(path)
+
+
+@given(from_type(PosixPath))
+def test_str_aspect_posixpath(path):
+    assert ddtrace_aspects.str_aspect(str, 0, path) == str(path)
+
+
+@given(from_type(PosixPath))
+def test_str_aspect_posixpath_error(posixpath):
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.add_aspect(posixpath, posixpath)
+    assert str(exc_info.value) == "unsupported operand type(s) for +: 'PosixPath' and 'PosixPath'"
+
+
+def test_str_aspect_error():
+    text = "abc"
+    kwargs = {"encoding": "utf-8", "errors": "strict"}
+    with pytest.raises(TypeError) as exc_info:
+        str(text, **kwargs)
+    assert str(exc_info.value) == "decoding str is not supported"
+
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.str_aspect(str, 0, "text", **kwargs)
+    assert str(exc_info.value) == "decoding str is not supported"
 
 
 @pytest.mark.parametrize(
@@ -34,7 +76,7 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
         (["a", "b", "c", "d"], (), {}),
     ],
 )
-def test_str_aspect(obj, args, kwargs):
+def test_str_aspect_encodings(obj, args, kwargs):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
     obj = taint_pyobject(
