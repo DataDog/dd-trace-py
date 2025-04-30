@@ -18,6 +18,7 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
+from tests.utils import call_program
 from tests.utils import override_global_config
 
 
@@ -159,8 +160,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "unknown", "value": 1.0},
                     {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "unknown", "value": 20 << 20},
                     {"name": "DD_TRACE_WRITER_REUSE_CONNECTIONS", "origin": "unknown", "value": False},
-                    {"name": "ddtrace_auto_used", "origin": "unknown", "value": False},
-                    {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": False},
+                    {"name": "instrumentation_source", "origin": "code", "value": "manual"},
                     {"name": "profiling_enabled", "origin": "default", "value": "false"},
                     {"name": "data_streams_enabled", "origin": "default", "value": "false"},
                     {"name": "appsec_enabled", "origin": "default", "value": "false"},
@@ -527,8 +527,7 @@ import ddtrace.settings.exception_replay
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "ddtrace_auto_used", "origin": "unknown", "value": True},
-        {"name": "ddtrace_bootstrapped", "origin": "unknown", "value": True},
+        {"name": "instrumentation_source", "origin": "code", "value": "ddtrace.auto"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
@@ -548,6 +547,23 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
+
+
+def test_instrumentation_source_config(
+    test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
+):
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert configs and configs[-1]["value"] == "cmd_line"
+
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=env)
+    assert status == 0, stderr
+    configs = test_agent_session.get_configurations("instrumentation_source")
+    assert configs and configs[-1]["value"] == "ddtrace.auto"
 
 
 def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):

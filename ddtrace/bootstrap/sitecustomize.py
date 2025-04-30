@@ -165,8 +165,10 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    telemetry_writer.add_configuration("ddtrace_bootstrapped", True, "unknown")
-    telemetry_writer.add_configuration("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown")
+    if "ddtrace.auto" in sys.modules:
+        telemetry_writer.add_configuration("instrumentation_source", "ddtrace.auto", "code")
+    else:
+        telemetry_writer.add_configuration("instrumentation_source", "cmd_line", "code")
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
