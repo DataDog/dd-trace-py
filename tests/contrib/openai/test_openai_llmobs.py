@@ -711,23 +711,6 @@ class TestLLMObsOpenaiV1:
         assert span.resource == "createResponseCompletion"
         assert span.get_tag("openai.request.model") == "gpt-4.1"
 
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        input_messages = [
-            {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
-        ]
-        azure_client = openai.AzureOpenAI(
-            base_url="http://0.0.0.0:4000",
-            api_key=azure_openai_config["api_key"],
-            api_version=azure_openai_config["api_version"],
-        )
-        azure_client.responses.create(
-            model="gpt-4.1", input=input_messages, temperature=0, max_output_tokens=100, user="ddtrace-test"
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
-
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",

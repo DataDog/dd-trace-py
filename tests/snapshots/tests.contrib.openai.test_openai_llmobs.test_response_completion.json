@@ -1,7 +1,7 @@
 [[
   {
     "name": "openai.request",
-    "service": "",
+    "service": "tests.contrib.openai",
     "resource": "createResponseCompletion",
     "trace_id": 0,
     "span_id": 1,
