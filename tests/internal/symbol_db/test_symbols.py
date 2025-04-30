@@ -1,11 +1,12 @@
+import atexit
 from importlib.machinery import ModuleSpec
+import os
 from pathlib import Path
+import tempfile
 from types import ModuleType
 import typing as t
-import tempfile
+
 import pytest
-import atexit
-import os
 
 from ddtrace.internal.symbol_db.symbols import Scope
 from ddtrace.internal.symbol_db.symbols import ScopeData
@@ -195,6 +196,7 @@ def test_symbols_to_json():
         "language_specifics": {},
     }
 
+
 @pytest.mark.parametrize(
     "file_size,num_attributes",
     [
@@ -202,7 +204,7 @@ def test_symbols_to_json():
         (10_000, 50),
         (100_000, 200),
         (1_000_000, 1000),
-    ]
+    ],
 )
 def test_benchmark_module_get_from(benchmark, file_size, num_attributes):
     """Benchmark performance of Scope._get_from with modules of different complexities."""
