@@ -82,9 +82,9 @@ class TestPytest(PytestTestCaseBase):
         self.inline_run("-p", "no:randomly", "--ddtrace", file_name)
         spans = self.pop_spans()
 
-        if get_version().split(".")[0] <= "5":
-            assert len(spans) == 6
-            return
+        # if get_version().split(".")[0] <= "5":
+        #     assert len(spans) == 6
+        #     return
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
         assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
