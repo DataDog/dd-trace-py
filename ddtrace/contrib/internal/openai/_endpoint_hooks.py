@@ -743,17 +743,35 @@ class _ResponseHook(_EndpointHook):
     _response_attrs = ("created_at", "id", "model", "tools")
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "createResponseCompletion"
+    OPERATION_ID = "createResponse"
+
+    def _handle_response_tools(self, resp, span):
+        """Process and set tool information from the response to the span.
+
+        Args:
+            resp: The response object containing tool information
+            span: The span to set the tool information on
+        """
+        if not getattr(resp, "tools"):
+            return None
+
+        response_tools = []
+        for tool in resp.tools:
+            if not (hasattr(tool, "type") or hasattr(tool, "name")):
+                continue
+
+            tool_dict = {}
+            if hasattr(tool, "type"):
+                tool_dict["type"] = getattr(tool, "type")
+            if hasattr(tool, "name"):
+                tool_dict["name"] = getattr(tool, "name")
+
+            if tool_dict:
+                response_tools.append(tool_dict)
+        span.set_tag("openai.response.tools", response_tools)
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-
-        input_data = kwargs.get("input", [])
-        if input_data:
-            if isinstance(input_data, str):
-                input_data = [input_data]
-
-            span._set_ctx_item("llmobs.response.input", input_data)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -762,37 +780,20 @@ class _ResponseHook(_EndpointHook):
         if not resp:
             return resp
 
-        def handle_response_tools(resp, span):
-            if getattr(resp, "tools", None):
-                response_tools = [
-                    {
-                        k: v
-                        for k, v in {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}.items()
-                        if v is not None
-                    }
-                    for tool in resp.tools
-                    if hasattr(tool, "type") or hasattr(tool, "name")
-                ]
-                if response_tools:
-                    span.set_tag("openai.response.tools", response_tools)
-
         if kwargs.get("stream") and error is None:
             for s in resp:
                 if s.type == "response.completed":
                     resp = s.response
                     super()._record_response(pin, integration, span, args, kwargs, resp, error)
-                    span._set_ctx_item("llmobs.response.output", resp.output)
-                    handle_response_tools(resp, span)
+                    self._handle_response_tools(resp, span)
                     span.finish()
                     break
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
             integration.record_usage(span, resp.usage)
             return resp
 
         if not kwargs.get("stream") and error is None:
             span._set_ctx_item("llmobs.response.output", resp.output)
-            handle_response_tools(resp, span)
+            self._handle_response_tools(resp, span)
 
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
             integration.record_usage(span, resp.usage)
             return resp
