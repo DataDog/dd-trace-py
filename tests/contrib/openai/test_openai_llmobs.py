@@ -682,55 +682,6 @@ class TestLLMObsOpenaiV1:
         assert span_event["meta"]["model_provider"] == "deepseek"
         assert span_event["meta"]["model_name"] == "deepseek-chat"
 
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        """Ensure llmobs records are not emitted for response endpoints when the base_url is specified."""
-        model = "gpt-4.1"
-        input_messages = multi_message_input
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
-        client.responses.create(
-            model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
-
-    @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_llmobs.test_response_completion")
-    def test_response_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        """Ensure llmobs records are emitted for response completion endpoints when configured."""
-        # Create a new cassette for this test
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create.yaml"):
-            model = "gpt-4.1"
-            input_messages = multi_message_input
-            client = openai.OpenAI()
-            client.responses.create(
-                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
-            )
-        span = mock_tracer.pop_traces()[0][0]
-        assert span.name == "openai.request"
-        assert span.resource == "createResponseCompletion"
-        assert span.get_tag("openai.request.model") == "gpt-4.1"
-
-    def test_response_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        with get_openai_vcr(subdirectory_name="v1").use_cassette(
-            "response_completion_streamed.yaml", record_mode="new_episodes"
-        ):
-            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "gpt-4.1"
-                    client = openai.OpenAI()
-                    resp = client.responses.create(model=model, input="Hello world", stream=True)
-                    for _ in resp:
-                        pass
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        assert span.name == "openai.request"
-        assert span.resource == "createResponseCompletion"
-        assert span.get_tag("openai.request.model") == "gpt-4.1"
-        assert span.get_tag("openai.request.stream") == "True"
-
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
