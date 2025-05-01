@@ -48,7 +48,7 @@ INSTALLED_PACKAGES = {}
 DDTRACE_VERSION = "unknown"
 PYTHON_VERSION = "unknown"
 PYTHON_RUNTIME = "unknown"
-PKGS_ALLOW_LIST = {}
+DEPENDENCY_INTEGRATION_VERSION_MAP = {}
 EXECUTABLES_DENY_LIST = set()
 VERSION_COMPAT_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/min_compatible_versions.csv")),
@@ -81,7 +81,7 @@ def build_installed_pkgs():
     return {key.lower(): value for key, value in installed_packages.items()}
 
 
-def build_min_integrations():
+def build_integrations_versions_map():
     min_dep_to_integration = dict()
     try:
         with open(MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS, "r", encoding="utf-8") as csvfile:
@@ -91,17 +91,25 @@ def build_min_integrations():
                     dep_name = row.get("dependency")
                     integration_name = row.get("integration").replace(" *", "")
                     min_version_raw = row.get("minimum_tracer_supported")
+                    max_version_raw = row.get("maximum_tracer_supported")
 
                     min_version = min_version_raw
+                    max_version = max_version_raw
                     min_dep_to_integration[dep_name] = {
                         "integration_name": integration_name,
                         "min_version": min_version,
+                        "max_version": max_version,
                     }
                 except Exception as row_exc:
                     _log("Error processing row %s: %s", row, row_exc, level="debug")
                     continue
     except Exception as e:
-        _log("Failed to build min-integrations list from %s: %s", MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS, e, level="error")
+        _log(
+            "Failed to build min-integrations list from %s: %s",
+            MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS,
+            e,
+            level="error",
+        )
 
     _log("Built min integrations map with %d entries", len(min_dep_to_integration), level="debug")
     return min_dep_to_integration
@@ -232,10 +240,15 @@ def runtime_version_is_supported(python_runtime, python_version):
 
 def package_is_compatible(package_name, package_version):
     installed_version = parse_version(package_version)
-    supported_version_spec = PKGS_ALLOW_LIST.get(package_name.lower(), Version((0,), ""))
-    if supported_version_spec.constraint in ("<", "<="):
-        return True  # minimum "less than" means there is no minimum
-    return installed_version.version >= supported_version_spec.version
+    integration_spec = DEPENDENCY_INTEGRATION_VERSION_MAP.get(package_name.lower(), None)
+    if integration_spec is None:
+        return True
+    min_supported_version_spec = parse_version(integration_spec["min_version"])
+    if integration_spec["max_version"] != "latest":
+        max_supported_version_spec = parse_version(integration_spec["max_version"])
+        return min_supported_version_spec.version <= installed_version.version <= max_supported_version_spec.version
+    else:
+        return installed_version.version >= min_supported_version_spec.version
 
 
 def get_first_incompatible_sysarg():
@@ -260,7 +273,7 @@ def _inject():
     global INSTALLED_PACKAGES
     global PYTHON_VERSION
     global PYTHON_RUNTIME
-    global PKGS_ALLOW_LIST
+    global DEPENDENCY_INTEGRATION_VERSION_MAP
     global EXECUTABLES_DENY_LIST
     global TELEMETRY_DATA
     # Try to get the version of the Python runtime first so we have it for telemetry
@@ -268,7 +281,7 @@ def _inject():
     PYTHON_RUNTIME = platform.python_implementation().lower()
     DDTRACE_VERSION = get_oci_ddtrace_version()
     INSTALLED_PACKAGES = build_installed_pkgs()
-    PKGS_ALLOW_LIST = build_min_pkgs()
+    DEPENDENCY_INTEGRATION_VERSION_MAP = build_integrations_versions_map()
     EXECUTABLES_DENY_LIST = build_denied_executables()
     integration_incomp = False
     runtime_incomp = False
@@ -313,35 +326,33 @@ def _inject():
                     level="debug",
                 )
 
-        # check installed packages against allow list
-        incompatible_packages = {}
+        # check installed packages against our minimum integration version requirements
+        incompatible_integrations = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
             if not package_is_compatible(package_name, package_version):
-                incompatible_packages[package_name] = package_version
+                incompatible_integrations[
+                    DEPENDENCY_INTEGRATION_VERSION_MAP.get(package_name.lower(), {}).get("integration_name")
+                ] = package_version
 
-        if incompatible_packages:
-            _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
+        # if we found any incompatible integrations, disable them using the environment variable:
+        # DD_TRACE_[INTEGRATION_NAME]_ENABLED
+        if incompatible_integrations:
+            _log("Found incompatible integrations: %s." % incompatible_integrations, level="debug")
             integration_incomp = True
-            if not FORCE_INJECT:
-                _log("Aborting dd-trace-py instrumentation.", level="debug")
-                abort = True
-
-                for key, value in incompatible_packages.items():
-                    TELEMETRY_DATA.append(
-                        create_count_metric(
-                            "library_entrypoint.abort.integration",
-                            [
-                                "integration:" + key,
-                                "integration_version:" + value,
-                            ],
-                        )
+            for integration_name, integration_version in incompatible_integrations.items():
+                # set environment variable to disable integration
+                os.environ["DD_TRACE_" + integration_name.upper() + "_ENABLED"] = "false"
+                _log("Disabled integration %s" % integration_name, level="warning")
+                TELEMETRY_DATA.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.integration",
+                        [
+                            "integration:" + integration_name,
+                            "integration_version:" + integration_version,
+                        ],
                     )
-
-            else:
-                _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
-                    level="debug",
                 )
+            integration_incomp = False
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
             _log(
                 "Found incompatible runtime: %s %s. Supported runtimes: %s"
