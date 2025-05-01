@@ -4,8 +4,6 @@ import subprocess
 
 import pytest
 
-from tests.commands.test_runner import inject_sitecustomize
-
 
 SCRIPT_TO_RUN = """
 import os
@@ -75,16 +73,18 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
     """
     # The test_venv fixture returns the venv factory function
     venv_factory_func = test_venv
-    # Call the factory to get the executable and the path to the PREPARED sources dir
-    python_executable, sitecustomize_dir = venv_factory_func(packages_to_install)
+    # Call the factory to get the executable, sources dir, and base venv environment
+    python_executable, sitecustomize_dir, base_env, venv_dir = venv_factory_func(packages_to_install)
 
-    # Environment for the subprocess
-    env = os.environ.copy()
+    # Environment for the subprocess - start with venv base, then add injection path
+    env = base_env.copy()
+    # Prepend sitecustomize dir to existing venv site-packages PYTHONPATH from base_env
+    venv_pythonpath = base_env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{sitecustomize_dir}{os.pathsep}{venv_pythonpath}"
 
-    env["PYTHONPATH"] = sitecustomize_dir
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_INJECTION_ENABLED"] = "true"
-    env["DD_TRACE_AGENT_URL"] = "http://localhost:0"
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
 
     try:
         result = subprocess.run(
@@ -92,8 +92,9 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
             capture_output=True,
             text=True,
             env=env,
-            check=True,  # Raise exception on non-zero exit code
-            timeout=180,  # Generous timeout for pip installs + script run
+            cwd=venv_dir,
+            check=True,
+            timeout=180,
         )
         output_env_vars = json.loads(result.stdout)
 
@@ -134,8 +135,3 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
         pytest.fail(
             f"Failed to decode JSON output from subprocess:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}\nError: {e}"
         )
-
-
-# TODO: Add tests for DD_INJECT_FORCE=true overriding the disablement
-# TODO: Add tests for runtime version incompatibility checks
-# TODO: Add tests for executable deny list checks
