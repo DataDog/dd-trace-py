@@ -1562,6 +1562,7 @@ venv = Venv(
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
+                "pytest": "==7.4.4",
                 "pytest-randomly": latest,
                 "pytest-bdd": [
                     ">=4.0,<5.0",
@@ -2579,11 +2580,12 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
             pkgs={
-                "litellm": latest,
+                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
+                "openai": "==1.68.2",
             },
         ),
         Venv(

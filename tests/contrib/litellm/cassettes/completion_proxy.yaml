@@ -1,0 +1,132 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Hey, what is up?","role":"user"}],"model":"gpt-3.5-turbo","n":1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '89'
+      content-type:
+      - application/json
+      host:
+      - 0.0.0.0:4000
+      user-agent:
+      - OpenAI/Python 1.68.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.68.2
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.11.10
+    method: POST
+    uri: http://0.0.0.0:4000/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-BHGAf6WA7lmIL9yuwftXYqc5kADAy","created":1743453437,"model":"gpt-3.5-turbo-0125","object":"chat.completion","system_fingerprint":null,"choices":[{"finish_reason":"stop","index":0,"message":{"content":"Not
+        much, just here to help with any questions or tasks you may have. How can
+        I assist you today?","role":"assistant","tool_calls":null,"function_call":null}}],"usage":{"completion_tokens":24,"prompt_tokens":13,"total_tokens":37,"completion_tokens_details":{"accepted_prediction_tokens":0,"audio_tokens":0,"reasoning_tokens":0,"rejected_prediction_tokens":0},"prompt_tokens_details":{"audio_tokens":0,"cached_tokens":0}},"service_tier":"default"}'
+    headers:
+      content-length:
+      - '663'
+      content-type:
+      - application/json
+      date:
+      - Mon, 31 Mar 2025 20:37:16 GMT
+      llm_provider-access-control-expose-headers:
+      - X-Request-ID
+      llm_provider-alt-svc:
+      - h3=":443"; ma=86400
+      llm_provider-cf-cache-status:
+      - DYNAMIC
+      llm_provider-cf-ray:
+      - 9292a4d20e95057d-IAD
+      llm_provider-connection:
+      - keep-alive
+      llm_provider-content-encoding:
+      - gzip
+      llm_provider-content-type:
+      - application/json
+      llm_provider-date:
+      - Mon, 31 Mar 2025 20:37:18 GMT
+      llm_provider-openai-organization:
+      - datadog-4
+      llm_provider-openai-processing-ms:
+      - '406'
+      llm_provider-openai-version:
+      - '2020-10-01'
+      llm_provider-server:
+      - cloudflare
+      llm_provider-strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      llm_provider-transfer-encoding:
+      - chunked
+      llm_provider-x-content-type-options:
+      - nosniff
+      llm_provider-x-ratelimit-limit-requests:
+      - '15000'
+      llm_provider-x-ratelimit-limit-tokens:
+      - '2000000'
+      llm_provider-x-ratelimit-remaining-requests:
+      - '14999'
+      llm_provider-x-ratelimit-remaining-tokens:
+      - '1999994'
+      llm_provider-x-ratelimit-reset-requests:
+      - 4ms
+      llm_provider-x-ratelimit-reset-tokens:
+      - 0s
+      llm_provider-x-request-id:
+      - req_6fdefc3db6a6e5b77dae976930efe649
+      server:
+      - uvicorn
+      x-litellm-attempted-fallbacks:
+      - '0'
+      x-litellm-attempted-retries:
+      - '0'
+      x-litellm-call-id:
+      - 30958a62-d9f7-47e6-8971-2b58852f2976
+      x-litellm-key-spend:
+      - '0.0'
+      x-litellm-model-api-base:
+      - https://api.openai.com
+      x-litellm-model-group:
+      - gpt-3.5-turbo
+      x-litellm-model-id:
+      - e748de28e0562f80b594285ded0e720cb492b705ea9ad445427dff7c5b722753
+      x-litellm-overhead-duration-ms:
+      - '1.424'
+      x-litellm-response-cost:
+      - '4.25e-05'
+      x-litellm-response-duration-ms:
+      - '611.3'
+      x-litellm-version:
+      - 1.63.11
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999994'
+    status:
+      code: 200
+      message: OK
+version: 1

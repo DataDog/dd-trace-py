@@ -97,7 +97,7 @@ langchain-core,==0.1.52
 langchain-openai,==0.1.6
 langchain-pinecone,==0.1.0
 langgraph,~=0.2.60
-litellm,0
+litellm,==1.65.4
 logbook,~=1.0.0
 loguru,~=0.4.0
 lxml,0

@@ -79,4 +79,5 @@ echo "All tests passed. Saved $CIRCLE_SHA1 as the latest successful commit for j
 
 ./scripts/check-diff \
     "ddtrace/contrib/integration_registry/registry.yaml" \
-    "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please commit the changes."
+    "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: \
+    \`python scripts/integration_registry/update_and_format_registry.py\` and commit the changes."

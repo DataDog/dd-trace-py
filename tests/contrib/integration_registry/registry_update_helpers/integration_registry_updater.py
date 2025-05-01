@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import sys
 from typing import Tuple
@@ -109,8 +110,10 @@ class IntegrationRegistryUpdater:
                 added_integrations += 1
                 continue
             else:
+                riot_venv = self._get_riot_venv_name()
+
                 # update the existing integration
-                changed = self.integrations[integration_name].update(updates, update_versions=True)
+                changed = self.integrations[integration_name].update(updates, update_versions=True, riot_venv=riot_venv)
                 if changed:
                     updated_integrations += 1
 
@@ -151,6 +154,13 @@ class IntegrationRegistryUpdater:
         except OSError as e:
             print(f"IntegrationRegistryUpdater: Failed to delete lock file: {e}", file=sys.stderr)
 
+    def _get_riot_venv_name(self):
+        """Returns the name of the riot venv if this is being run from a riot job."""
+        if os.environ.get("RIOT_VENV_NAME"):
+            # split venv name for special cases like "django:celery" to "django"
+            return os.environ.get("RIOT_VENV_NAME").split(":")[0]
+        return None
+
     def run(self, input_file_path_str: str) -> bool:
         """
         Loads data, checks if update needed, merges/writes if necessary.
@@ -171,9 +181,14 @@ class IntegrationRegistryUpdater:
                 return False
 
             # merge the input data into the registry data
-            self.merge_data(input_data)
+            added_integrations, updated_integrations = self.merge_data(input_data)
+
+            # if no integrations were added or updated, we can skip the write step
+            if added_integrations == 0 and updated_integrations == 0:
+                return False
 
             changes_made = True
+            # write the updated registry data
             if not self.write_registry_data():
                 print("\nIntegrationRegistryUpdater: Failed to write updated registry data.", file=sys.stderr)
                 return False
