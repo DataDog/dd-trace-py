@@ -775,12 +775,12 @@ class _ResponseHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        span._set_ctx_item(SPAN_KIND, "llm")
 
         if not resp:
             return resp
 
         if kwargs.get("stream") and error is None:
+            span._set_ctx_item(SPAN_KIND, "llm")
             for s in resp:
                 if s.type == "response.completed":
                     resp = s.response
