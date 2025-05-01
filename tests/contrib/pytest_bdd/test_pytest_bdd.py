@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.pytest_bdd._plugin import get_version
 from ddtrace.ext import test
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
-from tests.utils import flaky
 
 
 _SIMPLE_SCENARIO = """
@@ -27,7 +26,6 @@ class TestPytest(PytestTestCaseBase):
 
         emit_integration_and_version_to_test_agent("pytest-bdd", version)
 
-    @flaky(1759190400, "This Pytest BDD case is failing on CI but passes locally.")
     def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
         self.testdir.makefile(
