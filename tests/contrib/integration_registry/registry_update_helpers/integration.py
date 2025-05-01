@@ -66,7 +66,7 @@ class Integration:
             dep_version = dep_info.get("version")
             if dep_version == "":
                 return False
-            min_version = self.tested_versions_by_dependency.get(dep.lower(), None).get("min", None)
+            min_version = self.tested_versions_by_dependency.get(dep.lower(), None).get("tested_min", None)
 
             # if the dependency version is not in the registry, we need to update
             if min_version is None:
@@ -77,7 +77,7 @@ class Integration:
                 return True
 
             # if the dependency version is greater than the max version, we need to update
-            max_version = self.tested_versions_by_dependency.get(dep.lower(), {}).get("max", None)
+            max_version = self.tested_versions_by_dependency.get(dep.lower(), {}).get("tested_max", None)
             if max_version is None:
                 return True
             if self._semver_compare(dep_version, max_version) == 1:
@@ -117,8 +117,8 @@ class Integration:
                     self.tested_versions_by_dependency[dep_name_lower] = self._update_dependency_versions(
                         dep_name_lower, updates[dep_name]["version"]
                     )
-                # else this is an entry with min and max versions that should both be updated:
-                #  -  { dep_name: { "min": "1.0.0", "max": "2.0.0" } }
+                # else this is an entry with tested_min and tested_max versions that should both be updated:
+                #  -  { dep_name: { "tested_min": "1.0.0", "tested_max": "2.0.0" } }
                 else:
                     self.tested_versions_by_dependency[dep_name_lower] = updates[dep_name]
             changed = prev != self.tested_versions_by_dependency or changed
@@ -127,11 +127,11 @@ class Integration:
     def _update_dependency_versions(self, dep_name: str, dep_version: str) -> bool:
         """Updates the dependency versions for the integration."""
         if dep_name not in self.tested_versions_by_dependency:
-            return {"min": dep_version, "max": dep_version}
-        elif self._semver_compare(dep_version, self.tested_versions_by_dependency[dep_name]["min"]) == -1:
-            return {"min": dep_version, "max": self.tested_versions_by_dependency[dep_name]["max"]}
-        elif self._semver_compare(dep_version, self.tested_versions_by_dependency[dep_name]["max"]) == 1:
-            return {"min": self.tested_versions_by_dependency[dep_name]["min"], "max": dep_version}
+            return {"tested_min": dep_version, "tested_max": dep_version}
+        elif self._semver_compare(dep_version, self.tested_versions_by_dependency[dep_name]["tested_min"]) == -1:
+            return {"tested_min": dep_version, "tested_max": self.tested_versions_by_dependency[dep_name]["tested_max"]}
+        elif self._semver_compare(dep_version, self.tested_versions_by_dependency[dep_name]["tested_max"]) == 1:
+            return {"tested_min": self.tested_versions_by_dependency[dep_name]["tested_min"], "tested_max": dep_version}
         return self.tested_versions_by_dependency[dep_name]
 
     def to_dict(self) -> dict:
