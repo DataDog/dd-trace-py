@@ -284,7 +284,7 @@ import ddtrace.settings.exception_replay
     env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
     env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
     env["DD_INJECT_FORCE"] = "true"
-    env["DD_INJECTION_ENABLED"] = "true"
+    env["DD_INJECTION_ENABLED"] = "tracer"
 
     # By default telemetry collection is enabled after 10 seconds, so we either need to
     # to sleep for 10 seconds or manually call _app_started() to generate the app started event.
@@ -405,7 +405,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
-        {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_INJECTION_ENABLED", "origin": "env_var", "value": "tracer"},
         {"name": "DD_INJECT_FORCE", "origin": "env_var", "value": True},
         {"name": "DD_INSTRUMENTATION_INSTALL_ID", "origin": "default", "value": None},
         {"name": "DD_INSTRUMENTATION_INSTALL_TYPE", "origin": "default", "value": None},
