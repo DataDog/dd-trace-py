@@ -687,6 +687,9 @@ class OaiSpanAdapter:
         processed: List[Dict[str, Any]] = []
         tool_call_ids: List[str] = []
 
+        if hasattr(self.response, "instructions") and self.response.instructions:
+            processed.append({"role": "system", "content": self.response.instructions})
+
         if not messages:
             return processed, tool_call_ids
 
@@ -739,6 +742,7 @@ class OaiSpanAdapter:
                     {
                         "tool_id": item["call_id"],
                         "type": item.get("type", "function_call_output"),
+                        "arguments": {"tool_output": item.get("output", "")},
                     }
                 ]
             if processed_item:
@@ -775,6 +779,8 @@ class OaiSpanAdapter:
                         text += getattr(content, "text", "")
                         text += getattr(content, "refusal", "")
                 message.update({"role": getattr(item, "role", "assistant"), "content": text})
+            elif hasattr(item, "type") and item.type == "reasoning":
+                message.update({"role": "assistant", "content": item.model_dump_json()})
             # Handle tool calls
             elif hasattr(item, "call_id") and hasattr(item, "arguments"):
                 tool_call_outputs.append(
