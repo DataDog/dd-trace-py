@@ -13,10 +13,10 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -284,9 +284,11 @@ class SpanAggregator(SpanProcessor):
                 agent_url=agent_config.trace_agent_url,
                 dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (config._trace_compute_stats or asm_config._apm_opt_out)
-                else {},
+                headers=(
+                    {"Datadog-Client-Computed-Stats": "yes"}
+                    if (config._trace_compute_stats or asm_config._apm_opt_out)
+                    else {}
+                ),
                 report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
@@ -316,14 +318,14 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get("component", span._span_api)
+            integration_name = span._meta.get(COMPONENT, span._span_api)
 
             self._span_metrics["spans_created"][(integration_name)] += 1
             self._send_span_count_metrics("spans_created")
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
-            integration_name = span._meta.get("component", span._span_api)
+            integration_name = span._meta.get(COMPONENT, span._span_api)
 
             self._span_metrics["spans_finished"][(integration_name)] += 1
 
@@ -382,7 +384,7 @@ class SpanAggregator(SpanProcessor):
                     except Exception:
                         log.error("error applying processor %r", tp, exc_info=True)
 
-                self._queue_span_count_metrics("spans_finished", "integration_name")
+                self._send_span_count_metrics("spans_finished")
                 self.writer.write(spans)
                 return
 
