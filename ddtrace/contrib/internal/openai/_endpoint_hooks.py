@@ -755,12 +755,6 @@ class _ResponseHook(_EndpointHook):
 
             span._set_ctx_item("llmobs.response.input", input_data)
 
-        if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
-            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
-                # Only perform token chunk auto-extraction if this option is not explicitly set
-                return
-            span._set_ctx_item("_dd.auto_extract_token_chunk", True)
-
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         span._set_ctx_item(SPAN_KIND, "llm")
