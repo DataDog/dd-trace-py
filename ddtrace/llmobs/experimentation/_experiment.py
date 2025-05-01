@@ -18,12 +18,14 @@ from ._config import (
     DEFAULT_CHUNK_SIZE,
     get_base_url,
     FLUSH_EVERY,
+    API_PROCESSING_TIME_SLEEP,
 )
 from .utils._ui import Color, ProgressReporter, _print_progress_bar
 from .._llmobs import LLMObs
 
 if TYPE_CHECKING:
     import pandas as pd
+    from ._experiment import ExperimentResults
 
 
 def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -116,6 +118,7 @@ class Experiment:
         task (Callable): Function that processes each dataset record (decorated with @task).
         dataset (Dataset): Dataset to run the experiment on.
         evaluators (List[Callable]): List of evaluation functions (decorated with @evaluator).
+        summary_metrics (List[Callable]): List of summary metric functions (decorated with @summary_metric).
         tags (List[str]): Tags useful for categorizing or querying the experiment.
         description (str): Description of the experiment.
         metadata (Dict[str, Any]): Additional metadata about the experiment.
@@ -124,6 +127,7 @@ class Experiment:
         has_evaluated (bool): Indicates whether the experiment evaluations have been performed.
         outputs (List[Dict]): Stores outputs after running the task.
         evaluations (List[Dict]): Stores evaluation results after running evaluators.
+        results (Optional["ExperimentResults"]): Stores the results of the experiment.
     """
 
     def __init__(
@@ -132,6 +136,7 @@ class Experiment:
         task: Callable,
         dataset: Dataset,
         evaluators: List[Callable],
+        summary_metrics: Optional[List[Callable]] = None,
         tags: Optional[List[str]] = None,
         description: str = "",
         metadata: Dict[str, Any] = None,
@@ -145,6 +150,7 @@ class Experiment:
             task (Callable): Callable decorated with @task that processes each record.
             dataset (Dataset): The dataset over which the task will be run.
             evaluators (List[Callable]): List of callables decorated with @evaluator.
+            summary_metrics (List[Callable], optional): List of callables decorated with @summary_metric. Defaults to None.
             tags (List[str], optional): Tags for categorization of the experiment. Defaults to None.
             description (str, optional): Description of the experiment. Defaults to "".
             metadata (Dict[str, Any], optional): Additional metadata about the experiment. Defaults to None.
@@ -158,6 +164,7 @@ class Experiment:
         self.task = task
         self.dataset = dataset
         self.evaluators = evaluators
+        self.summary_metrics = summary_metrics if summary_metrics is not None else []
         self.tags = tags if tags is not None else []
         self.project_name = get_project_name()
         self.description = description
@@ -175,11 +182,18 @@ class Experiment:
             if not hasattr(evaluator_func, "_is_evaluator"):
                 raise TypeError(f"Evaluator '{evaluator_func.__name__}' must be decorated with @evaluator decorator.")
 
+        # Make sure every summary metric is decorated with @summary_metric
+        for summary_func in self.summary_metrics:
+            if not hasattr(summary_func, "_is_summary_metric"):
+                raise TypeError(f"Summary metric '{summary_func.__name__}' must be decorated with @summary_metric decorator.")
+
         # Post-run attributes
         self.has_run = False
         self.has_evaluated = False
         self.outputs = []
         self.evaluations = []
+        self.results: Optional["ExperimentResults"] = None
+        self._summary_metric_results: Dict[str, Any] = {}
 
         # We'll store the experiment's Datadog ID once it's created.
         self._datadog_experiment_id: Optional[str] = None
@@ -289,11 +303,8 @@ class Experiment:
 
         Returns:
             ExperimentResults
-        """
-        # 1) Run the task on the dataset (or subset).
+        """      
         self.run_task(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
-
-        # 2) Run evaluations on the outputs just produced.
         return self.run_evaluations(raise_errors=raise_errors)
 
     def run_task(
@@ -454,7 +465,7 @@ class Experiment:
 
         LLMObs.flush()
         # Sleep slightly so any final data is flushed to backend
-        time.sleep(5)
+        time.sleep(API_PROCESSING_TIME_SLEEP)
 
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
@@ -536,12 +547,94 @@ class Experiment:
             progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
         self.has_evaluated = True
-        experiment_results = ExperimentResults(self.dataset, self, self.outputs, evaluations)
+        # Initialize ExperimentResults *before* running summary metrics,
+        # but we'll update it if summary metrics run successfully.
+        experiment_results = ExperimentResults(
+            dataset=self.dataset,
+            experiment=self,
+            outputs=self.outputs,
+            evaluations=evaluations,
+            summary_metric_results=None # Initialize as None
+        )
+        self.results = experiment_results # Store immediately
 
         # If Datadog environment is configured, automatically push the evals:
-        experiment_results._push_evals()
-        print(f"\n{Color.RESET}Evaluations complete.\n")
+        try:
+            experiment_results._push_evals()
+        except Exception as e:
+            print(f"{Color.RED}Error pushing evaluation results: {e}{Color.RESET}")
+
+        try:
+            self._run_summary_metrics()
+            experiment_results.summary_metric_results = self._summary_metric_results
+        except Exception as e:
+             print(f"{Color.RED}Error running or pushing summary metrics: {e}{Color.RESET}")
+
+        print(f"\n{Color.RESET}Evaluations and summary metrics complete.\n") 
         return experiment_results
+
+    def _run_summary_metrics(self) -> None:
+        """
+        Internal method to execute summary metric functions after evaluations.
+        It calculates metrics based on all outputs/evaluations, pushes them,
+        and stores the results in self._summary_metric_results.
+        """
+        self._summary_metric_results = {} 
+        if not self.summary_metrics:
+            return 
+
+        if not self.has_evaluated:
+            print(f"{Color.YELLOW}Warning: Cannot run summary metrics before evaluations are complete.{Color.RESET}")
+            return
+
+        can_push = self._datadog_experiment_id is not None
+
+        num_metrics = len(self.summary_metrics)
+        print(f"\nRunning {num_metrics} summary metric function{'s' if num_metrics != 1 else ''}...")
+
+        outputs_data = self.outputs
+        evaluations_data = self.evaluations
+
+        for position, metric_func in enumerate(self.summary_metrics): 
+            func_name = metric_func.__name__
+            is_primary = getattr(metric_func, "_is_primary", False)
+
+            try:
+                result = metric_func(outputs_data, evaluations_data)
+
+                metrics_to_process = {}
+                if isinstance(result, dict):
+                    metrics_to_process = result
+                elif result is not None:
+                    metrics_to_process = {func_name: result}
+
+                if not metrics_to_process:
+                    print(f"  {Color.DIM}Summary metric '{func_name}' produced no results.{Color.RESET}")
+                    self._summary_metric_results[func_name] = {"value": None, "error": None}
+                    continue
+
+                for name, value in metrics_to_process.items():
+                    metric_key = f"{func_name}.{name}" if isinstance(result, dict) else func_name
+                    try:
+                        if can_push:
+                            self.push_summary_metric(name, value, position=position, is_primary=is_primary)
+                        else:
+                            print(f"  {Color.YELLOW}Local summary metric '{name}' = {value} (pos={position}, primary={is_primary}) (not pushed){Color.RESET}")
+                        self._summary_metric_results[metric_key] = {"value": value, "error": None}
+                    except Exception as push_err:
+                        err_msg = f"Error pushing summary metric '{name}' (from '{func_name}')"
+                        print(f"  {Color.RED}{err_msg}: {push_err}{Color.RESET}")
+                        self._summary_metric_results[metric_key] = {"value": value, "error": {"message": str(push_err), "type": type(push_err).__name__}}
+
+            except Exception as e:
+                err_msg = f"Error running summary metric function '{func_name}'"
+                print(f"  {Color.RED}{err_msg}: {e}{Color.RESET}")
+                error_info = {"message": str(e), "type": type(e).__name__, "stack": traceback.format_exc()}
+                if isinstance(result, dict) and metrics_to_process:
+                     first_key = next(iter(metrics_to_process))
+                     self._summary_metric_results[f"{func_name}.{first_key}"] = {"value": None, "error": error_info}
+                else:
+                     self._summary_metric_results[func_name] = {"value": None, "error": error_info}
 
     def __repr__(self) -> str:
         """
@@ -565,6 +658,8 @@ class Experiment:
         dataset_info = f"{self.dataset.name} ({len(self.dataset):,} records)"
         evaluator_names = [e.__name__ for e in self.evaluators]
         evaluator_info = f"{len(evaluator_names)} evaluator{'s' if len(evaluator_names) != 1 else ''}"
+        summary_metric_names = [sm.__name__ for sm in self.summary_metrics]
+        summary_info = f"{len(summary_metric_names)} summary metric{'s' if len(summary_metric_names) != 1 else ''}"
 
         config_preview = ""
         if self.config:
@@ -619,6 +714,7 @@ class Experiment:
             f"  Task: {task_preview}",
             f"  Dataset: {dataset_info}",
             f"  Evaluators: {evaluator_info} ({', '.join(evaluator_names)})",
+            f"  Summary Metrics: {summary_info} ({', '.join(summary_metric_names)})",
             f"  Status: {' | '.join(status_indicators)}",
         ]
 
@@ -633,7 +729,7 @@ class Experiment:
 
         return "\n".join(info)
 
-    def push_summary_metric(self, name: str, value: Union[int, float, bool, str]) -> None:
+    def push_summary_metric(self, name: str, value: Union[int, float, bool, str], position: int, is_primary: bool = False) -> None:
         """
         Push a single summary metric to Datadog for this experiment.
 
@@ -643,6 +739,8 @@ class Experiment:
         Args:
             name (str): Name of the metric (e.g., "f1", "accuracy", etc.)
             value (Union[int, float, bool, str]): Value of the metric. Can be numeric or categorical.
+            position (int): The index position of this metric function in the experiment's list.
+            is_primary (bool): Whether this metric was marked as primary.
 
         Raises:
             ValueError: If the experiment is not yet created in Datadog.
@@ -667,6 +765,11 @@ class Experiment:
         else:
             raise TypeError(f"Unsupported metric value type: {type(value)}. Must be int, float, bool, or str.")
 
+        metric_metadata = { 
+            "position": position,
+            "is_primary": is_primary,
+        }
+
         metric = {
             "metric_source": "summary",
             "metric_type": metric_type,
@@ -674,6 +777,7 @@ class Experiment:
             "label": name,
             "score_value" if metric_type == "score" else "categorical_value": metric_value,
             "error": None,
+            "metadata": metric_metadata,
         }
 
         payload = {
@@ -691,10 +795,10 @@ class Experiment:
         url = f"/api/unstable/llm-obs/v1/experiments/{self._datadog_experiment_id}/events"
         exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
-        time.sleep(3)  # Give Datadog time to process
+        # Give Datadog time to process using the constant
+        time.sleep(API_PROCESSING_TIME_SLEEP)
 
-        print(f"{Color.GREEN}✓ Summary metric '{name}' pushed to Datadog{Color.RESET}")
-        print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{self._datadog_experiment_id}{Color.RESET}\n")
+        print(f"{Color.GREEN}✓ Pushed summary metric: '{name}' = {value} (pos={position}, primary={is_primary}){Color.RESET}") # Updated print
 
 class ExperimentResults:
     """
@@ -709,9 +813,10 @@ class ExperimentResults:
         outputs (List[Dict]): Outputs after running the task on the dataset.
         evaluations (List[Dict]): Evaluation results after running evaluators on the outputs.
         merged_results (List[Dict]): A combined list of outputs + evaluations for each record.
+        summary_metric_results (Optional[Dict[str, Any]]): Dictionary storing the results of summary metric functions.
     """
 
-    def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict]) -> None:
+    def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict], summary_metric_results: Optional[Dict[str, Any]]) -> None:
         """
         Initialize an ExperimentResults object, merging outputs and evaluations for each dataset record.
 
@@ -720,11 +825,13 @@ class ExperimentResults:
             experiment (Experiment): The experiment instance that produced these results.
             outputs (List[Dict]): List of dictionaries containing output data for each record.
             evaluations (List[Dict]): List of dictionaries containing evaluation data for each record.
+            summary_metric_results (Optional[Dict[str, Any]]): Dictionary containing summary metric results.
         """
         self.dataset = dataset
         self.experiment = experiment
         self.outputs = outputs
         self.evaluations = evaluations
+        self.summary_metric_results = summary_metric_results if summary_metric_results is not None else {}
         self.merged_results = self._merge_results()
 
     def _merge_results(self) -> List[Dict[str, Any]]:
@@ -949,7 +1056,8 @@ class ExperimentResults:
             if show_progress:
                 _print_progress_bar(chunk_idx + 1, total_chunks, prefix="Uploading:", suffix="Complete")
 
-        time.sleep(3)  # Give Datadog time to process
+        # Give Datadog time to process using the constant
+        time.sleep(API_PROCESSING_TIME_SLEEP)
         print(f"\n{Color.GREEN}✓ Experiment '{experiment_name}' results pushed to Datadog{Color.RESET}")
         print(f"{Color.BLUE}  {get_base_url()}/llm/testing/experiments/{experiment_id}{Color.RESET}\n")
 
@@ -1057,6 +1165,21 @@ class ExperimentResults:
         if evaluator_names:
             info.append(f"  Evaluations:")
             info.extend(eval_info)
+
+        # Add summary metrics section if available (New)
+        if self.summary_metric_results:
+            info.append(f"  Summary Metrics:")
+            for name, result_data in self.summary_metric_results.items():
+                if result_data["error"]:
+                    err_type = result_data["error"].get('type', 'Error')
+                    err_msg = result_data["error"].get('message', 'Unknown error')
+                    preview = (err_msg[:40] + "...") if len(err_msg) > 40 else err_msg
+                    info.append(f"    {name}: {Color.RED}Error ({err_type}: {preview}){Color.RESET}")
+                elif result_data["value"] is not None:
+                     info.append(f"    {name}: {result_data['value']}")
+                else:
+                     # Ran successfully but returned None or no metrics
+                     info.append(f"    {name}: {Color.DIM}No value returned{Color.RESET}")
 
         if self.experiment._datadog_experiment_id:
             info.append(

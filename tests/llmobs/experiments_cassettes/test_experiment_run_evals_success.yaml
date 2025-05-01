@@ -1,0 +1,137 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "13272595171331332265", "trace_id": "67f557980000000092bc3acd47f4c6b3",
+      "metric_type": "categorical", "timestamp_ms": 1744131992038, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "223015722435988157",
+      "trace_id": "67f557980000000007e2409e1143ee4a", "metric_type": "categorical",
+      "timestamp_ms": 1744131992039, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407",
+      "experiment_id:0645d8b6-2287-4c15-aa6b-26c339277996"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '653'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/0645d8b6-2287-4c15-aa6b-26c339277996/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:37 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "2159374144973442269", "trace_id": "67f55a5c00000000f9717b3455413ff8",
+      "metric_type": "categorical", "timestamp_ms": 1744132700341, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "12361137246697386640",
+      "trace_id": "67f55a5c000000001d075204cfbc32ca", "metric_type": "categorical",
+      "timestamp_ms": 1744132700342, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407",
+      "experiment_id:e463a07b-4ae2-4fef-918e-bebe85eba245"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '654'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/e463a07b-4ae2-4fef-918e-bebe85eba245/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:25 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "2322709501386253936", "trace_id": "67f563640000000036fc652c3ae351ad",
+      "metric_type": "categorical", "timestamp_ms": 1744135012383, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "10834939535393508886",
+      "trace_id": "67f5636400000000c4201dc3319342a1", "metric_type": "categorical",
+      "timestamp_ms": 1744135012384, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407",
+      "experiment_id:2ad2ad6e-1ba2-4265-8701-26621546b6dc"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '654'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/2ad2ad6e-1ba2-4265-8701-26621546b6dc/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:55 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1

@@ -1,48 +1,61 @@
 import os
+import ddtrace
 
 from .._llmobs import LLMObs
 from .utils._exceptions import ConfigurationError
+from ddtrace.internal.utils.formats import asbool
 
 
 # Default configuration values
-DEFAULT_SITE = "datadoghq.com"
-DEFAULT_ML_APP = "dne"
 MAX_DATASET_ROWS = 50000
 MAX_PROGRESS_BAR_WIDTH = 40
 DEFAULT_CHUNK_SIZE = 300
 DEFAULT_CONCURRENT_JOBS = 10
 FLUSH_EVERY = 10
+API_PROCESSING_TIME_SLEEP = 6 # Based on events processor median processing time
+
+# Set of known valid Datadog site domains
+VALID_DD_SITES = {
+    "datadoghq.com",
+    "datadoghq.eu",
+    "us3.datadoghq.com",
+    "us5.datadoghq.com",
+    "ap1.datadoghq.com",
+    "datad0g.com", 
+}
 
 # Global state (initialized by init())
 _IS_INITIALIZED = False
 _ENV_PROJECT_NAME = None
-_ENV_DD_SITE = DEFAULT_SITE
+_ENV_DD_SITE = None
 _ENV_DD_API_KEY = None
 _ENV_DD_APPLICATION_KEY = None
-_ML_APP = DEFAULT_ML_APP
 _RUN_LOCALLY = False
 
 
 # Derived values
 def get_api_base_url() -> str:
     """Get the base URL for API requests."""
-    if get_site().endswith("datadoghq.com"):
-        return f"https://api.{get_site()}"
-    elif get_site().endswith("datad0g.com"):
+    site = get_site()
+    if site == "datad0g.com":
         return "https://dd.datad0g.com"
+    # Assume standard pattern for all other valid sites (.com, .eu, us3.com, etc.)
+    return f"https://api.{site}"
 
 
 def get_base_url() -> str:
     """Get the base URL for the LLM Observability UI."""
-    if get_site() == "datadoghq.com":
-        return "https://app.datadoghq.com"
-    elif get_site().endswith("datadoghq.com"):
-        return f"https://{get_site()}"
-    elif get_site() == "datad0g.com":
+    site = get_site()
+    if site == "datad0g.com":
         return "https://dd.datad0g.com"
+    elif site == "datadoghq.com": 
+        return "https://app.datadoghq.com"
+    # Assume standard pattern for other valid sites (.eu, us3.com, etc.)
+    return f"https://{site}"
 
 
 def init(
+    ml_app: str,
     project_name: str,
     site: str = None,
     api_key: str = None,
@@ -58,6 +71,7 @@ def init(
     variables.
 
     Args:
+        ml_app (str): The ML application name.
         project_name (str): Name of the project to be associated with any experiments.
         site (str, optional): Datadog site domain (e.g., "datadoghq.com"). Defaults to "datadoghq.com".
         api_key (str, optional): Datadog API key. Reads from environment variable DD_API_KEY if None.
@@ -65,14 +79,15 @@ def init(
         run_locally (bool, optional): If True, disables communication with Datadog and runs locally.
 
     Raises:
-        ConfigurationError: If required environment variables or parameters are missing when run_locally is False.
+        ConfigurationError: If required environment variables or parameters are missing or invalid when run_locally is False.
     """
+    from .utils._ui import Color 
 
-    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY
+    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, \
+           _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY
 
     if run_locally:
         _RUN_LOCALLY = True
-
         return
 
     if api_key is None:
@@ -92,13 +107,35 @@ def init(
     if site is None:
         site = os.getenv("DD_SITE")
         if site is None:
-            raise ConfigurationError(
-                "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
-            )
+             raise ConfigurationError(
+                 "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
+             )
 
-    if _IS_INITIALIZED is False:
+    if site not in VALID_DD_SITES:
+        raise ConfigurationError(
+            f"Invalid Datadog site '{site}' provided. Must be one of: {', '.join(sorted(VALID_DD_SITES))}"
+        )
+
+
+    if not _IS_INITIALIZED:
+        trace_enabled_env = os.getenv("DD_TRACE_ENABLED")
+        if trace_enabled_env is None:
+            os.environ["DD_TRACE_ENABLED"] = "false"
+            trace_enabled = False
+            print(
+                f"{Color.YELLOW}Warning: APM tracing is disabled by default for LLM Experiments. Only LLM Observability tracing is enabled. "
+                f"To enable APM tracing, set the DD_TRACE_ENABLED=true environment variable.{Color.RESET}"
+            )
+        else:
+            trace_enabled = asbool(trace_enabled_env)
+
+        # Explicitly disable the core tracer if APM tracing is not enabled.
+        # This prevents the default agent exporter from activating.
+        if not trace_enabled:
+            ddtrace.tracer.enabled = False
+
         LLMObs.enable(
-            ml_app=_ML_APP,
+            ml_app=ml_app,
             integrations_enabled=True,
             agentless_enabled=True,
             site=site,
@@ -114,12 +151,12 @@ def init(
 
 def _validate_init() -> None:
     """
-    Check if the environment has been initialized.
+    Check if the environment has been initialized for either local or remote operation.
 
     Raises:
         ConfigurationError: If the environment is not yet initialized (init() has not been called).
     """
-    if _IS_INITIALIZED is False:
+    if not _IS_INITIALIZED and not _RUN_LOCALLY:
         raise ConfigurationError(
             "Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions"
         )

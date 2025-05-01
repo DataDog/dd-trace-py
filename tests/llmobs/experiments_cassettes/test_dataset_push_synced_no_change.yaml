@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=meals-and-workouts-1.3
+  response:
+    body:
+      string: '{"data":[{"id":"33026409-f49f-434d-bbab-19f462d077f7","type":"datasets","attributes":{"author":{"id":"aaa48df4-a85c-11eb-a14c-da7ad0900002"},"created_at":"2025-02-18T21:54:09.85518Z","current_version":91,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3-alex","updated_at":"2025-04-07T23:21:10.856056Z"}},{"id":"74382738-8750-4b51-8885-88ae8491c12e","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-01-06T17:02:10.22236Z","current_version":0,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3","updated_at":"2025-01-06T17:02:10.642166Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '636'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:01:57 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=meals-and-workouts-1.3
+  response:
+    body:
+      string: '{"data":[{"id":"33026409-f49f-434d-bbab-19f462d077f7","type":"datasets","attributes":{"author":{"id":"aaa48df4-a85c-11eb-a14c-da7ad0900002"},"created_at":"2025-02-18T21:54:09.85518Z","current_version":97,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3-alex","updated_at":"2025-04-08T17:02:25.532826Z"}},{"id":"74382738-8750-4b51-8885-88ae8491c12e","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-01-06T17:02:10.22236Z","current_version":0,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3","updated_at":"2025-01-06T17:02:10.642166Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '636'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:17:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=meals-and-workouts-1.3
+  response:
+    body:
+      string: '{"data":[{"id":"33026409-f49f-434d-bbab-19f462d077f7","type":"datasets","attributes":{"author":{"id":"aaa48df4-a85c-11eb-a14c-da7ad0900002"},"created_at":"2025-02-18T21:54:09.85518Z","current_version":103,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3-alex","updated_at":"2025-04-08T17:17:41.457472Z"}},{"id":"74382738-8750-4b51-8885-88ae8491c12e","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-01-06T17:02:10.22236Z","current_version":0,"metadata":{"team":"ml-obs"},"name":"meals-and-workouts-1.3","updated_at":"2025-01-06T17:02:10.642166Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '637'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:37:27 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

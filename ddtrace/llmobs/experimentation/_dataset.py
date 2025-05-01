@@ -5,7 +5,12 @@ from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import quote
 
 from .utils._http import exp_http_request
-from ._config import get_base_url, MAX_DATASET_ROWS, DEFAULT_CHUNK_SIZE, _validate_init
+from ._config import (
+    MAX_DATASET_ROWS,
+    DEFAULT_CHUNK_SIZE,
+    _validate_init,
+    API_PROCESSING_TIME_SLEEP,
+)
 from .utils._ui import _print_progress_bar, Color
 from .utils._exceptions import DatasetFileError
 
@@ -60,39 +65,28 @@ class Dataset:
             self._datadog_dataset_version = 0
 
         self._changes = {
-            'added': [],      # List of added records
-            'deleted': [],    # List of deleted records with their indices
-            'updated': []     # List of (index, old_record, new_record) tuples
+            'added': [],
+            'deleted': [],
+            'updated': []
         }
         self._synced = True
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
-        """
-        Create an iterator over the dataset records.
-
-        Returns:
-            Iterator[Dict[str, Union[str, Dict[str, Any]]]]: An iterator of dataset records.
-        """
         return iter(self._data)
 
     def __len__(self) -> int:
-        """
-        Return the number of records in the dataset.
-
-        Returns:
-            int: The size of the dataset.
-        """
         return len(self._data)
 
     def __getitem__(self, index: Union[int, slice]) -> Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
         """
         Retrieve one or more dataset records by index or slice.
+        Returns a copy of the record(s) without the 'record_id' field.
 
         Args:
             index (Union[int, slice]): Index or slice of records to retrieve.
 
         Returns:
-            Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]: 
+            Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
                 A copy of the dataset record(s) at the given index/slice.
         """
         if isinstance(index, slice):
@@ -105,7 +99,7 @@ class Dataset:
 
     def __delitem__(self, index: int) -> None:
         """
-        Delete a record at the specified index.
+        Delete a record at the specified index and track the change.
 
         Args:
             index (int): Index of the record to delete.
@@ -117,7 +111,7 @@ class Dataset:
 
     def __setitem__(self, index: int, value: Dict[str, Union[str, Dict[str, Any]]]) -> None:
         """
-        Update a record at the specified index.
+        Validate and update a record at the specified index, tracking the change.
 
         Args:
             index (int): Index of the record to update.
@@ -150,7 +144,7 @@ class Dataset:
 
     def add(self, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
         """
-        Add a new record to the dataset.
+        Validate and add a new record to the dataset, tracking the change.
 
         Args:
             record (Dict[str, Union[str, Dict[str, Any]]]): Record to add.
@@ -164,26 +158,12 @@ class Dataset:
         self._synced = False
 
     def remove(self, index: int) -> None:
-        """
-        Remove a record at the specified index.
-
-        Args:
-            index (int): Index of the record to remove.
-        """
-        del self[index]  # Use __delitem__ to track the change
+        """Remove a record at the specified index."""
+        del self[index]
 
     def update(self, index: int, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
-        """
-        Update a record at the specified index.
-
-        Args:
-            index (int): Index of the record to update.
-            record (Dict[str, Union[str, Dict[str, Any]]]): New record value.
-
-        Raises:
-            ValueError: If the record doesn't match the expected structure.
-        """
-        self[index] = record  # Use __setitem__ to track the change
+        """Update a record at the specified index."""
+        self[index] = record
 
     def _get_changes(self) -> Dict[str, List]:
         """
@@ -211,10 +191,10 @@ class Dataset:
         Validate the structure and size of dataset records.
 
         Args:
-            data (List[Dict[str, Union[str, Dict[str, Any]]]]): List of dataset records.
+            data (List[Dict[str, Union[str, Dict[str, Any]]]]): List of dataset records to validate.
 
         Raises:
-            ValueError: If the data is empty, exceeds 50,000 records, or records are inconsistent in keys or data type.
+            ValueError: If the data is empty, exceeds size limit, or has inconsistent structure.
         """
         if not data:
             raise ValueError("Data cannot be empty.")
@@ -225,10 +205,35 @@ class Dataset:
         if not all(isinstance(row, dict) for row in data):
             raise ValueError("All rows must be dictionaries.")
 
+        expected_keys = None
+        if hasattr(self, '_data') and self._data:
+            expected_keys = set(k for k in self._data[0].keys() if k != 'record_id')
+
         first_row_keys = set(data[0].keys())
+
+        # Validate new data against existing structure if present.
+        if expected_keys is not None:
+            # Allow record_id to be present or not in new data
+            new_keys = {k for k in first_row_keys if k != 'record_id'}
+            if new_keys != expected_keys:
+                raise ValueError(
+                    f"Record structure doesn't match dataset. Expected keys {sorted(expected_keys)}, "
+                    f"got {sorted(new_keys)}"
+                )
+
+        required_keys = {'input', 'expected_output'}
+        if not required_keys.issubset(first_row_keys):
+            missing = required_keys - first_row_keys
+            raise ValueError(f"Records must contain 'input' and 'expected_output' fields. Missing: {missing}")
+
+        # Validate consistency within new data
         for row in data:
-            if set(row.keys()) != first_row_keys:
-                raise ValueError("All rows must have the same keys.")
+            row_keys = set(row.keys())
+            if row_keys != first_row_keys:
+                raise ValueError(
+                    f"Inconsistent keys in data. Expected {sorted(first_row_keys)}, "
+                    f"got {sorted(row_keys)}"
+                )
 
     @classmethod
     def pull(cls, name: str, version: int = None) -> "Dataset":
@@ -247,9 +252,8 @@ class Dataset:
             Exception: If any HTTP or unexpected error occurs during the request.
         """
         _validate_init()
-        # Get dataset ID
         encoded_name = quote(name)
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{encoded_name}\""
 
         resp = exp_http_request("GET", url)
         response_data = resp.json()
@@ -283,7 +287,6 @@ class Dataset:
                     raise ValueError(f"Dataset '{name}' not found with version {version}") from e
                 raise
 
-        # Get dataset records
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
         if version is not None:
             url += f"?filter[version]={version}"
@@ -320,7 +323,6 @@ class Dataset:
                 }
             )
 
-        # Create new dataset instance
         dataset = cls(name, class_records)
         dataset._datadog_dataset_id = dataset_id
         dataset._datadog_dataset_version = dataset_version
@@ -343,15 +345,13 @@ class Dataset:
         else:
             print("Pushing changes to existing dataset, new version will be created")
 
-        # Prepare the payload by gathering insert, update, and delete records
         payload = self._prepare_batch_payload(overwrite=overwrite)
 
-        # Send the batch update request
         url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
         exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
-        # Sleep briefly to allow for processing
-        time.sleep(3)
+        # Sleep briefly to allow for processing on the backend using the constant
+        time.sleep(API_PROCESSING_TIME_SLEEP)
 
         # Pull the dataset to get all record IDs and latest version, then clear changes
         self._refresh_from_remote()
@@ -362,7 +362,6 @@ class Dataset:
         """
         payload_data = {"type": "datasets", "attributes": {}}
 
-        # Insert records
         if self._changes['added']:
             insert_records = []
             for record in self._changes['added']:
@@ -373,7 +372,6 @@ class Dataset:
                 insert_records.append(new_record)
             payload_data["attributes"]["insert_records"] = insert_records
 
-        # Update records
         if self._changes['updated']:
             update_records = []
             for _, old_record, new_record in self._changes['updated']:
@@ -397,7 +395,6 @@ class Dataset:
             if update_records:
                 payload_data["attributes"]["update_records"] = update_records
 
-        # Delete records
         if self._changes['deleted']:
             delete_ids = []
             for _, record in self._changes['deleted']:
@@ -422,16 +419,19 @@ class Dataset:
 
     def push(self, overwrite: bool = False, new_version: bool = False) -> None:
         """
-        Push the dataset to Datadog, optionally overwriting an existing dataset or creating a new version.
+        Push the dataset to Datadog, handling various scenarios based on sync status and flags.
 
         1. Checks if a dataset with the same name exists on Datadog.
         2. If it exists:
            - For local datasets (not synced):
              * overwrite=True => Overwrite remote dataset
-             * new_version=True => Create a new version
-             * else => Warn
-           - For a synced dataset with changes => either batch update, overwrite, or new version
-           - For a synced dataset with no changes => do nothing
+             * new_version=True => Create a new version of remote dataset
+             * else => Warn and do nothing
+           - For a synced dataset with changes:
+             * overwrite=True => Overwrite remote dataset (using _push_entire_dataset)
+             * new_version=True => Create new version (using _push_entire_dataset)
+             * else => Send incremental changes (using _batch_update)
+           - For a synced dataset with no changes => Do nothing
         3. If it doesn't exist, create a new dataset.
         """
         if overwrite and new_version:
@@ -439,18 +439,16 @@ class Dataset:
 
         _validate_init()
 
-        # Check for matching dataset
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(self.name)}"
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{quote(self.name)}\""
         existing_dataset = exp_http_request("GET", url).json().get("data", [])
 
         has_changes = any(len(chg) > 0 for chg in self._changes.values())
 
-        # If remote dataset found
         if existing_dataset:
             remote_id = existing_dataset[0]["id"]
             current_version = existing_dataset[0]["attributes"]["current_version"]
 
-            # Local dataset not yet synced
+            # Local dataset not yet synced to Datadog
             if not self._datadog_dataset_id:
                 if overwrite:
                     self._datadog_dataset_id = remote_id
@@ -461,15 +459,10 @@ class Dataset:
                     self._datadog_dataset_version = current_version
                     self._push_entire_dataset(overwrite=False)
                 else:
-                    print(
-                        f"{Color.YELLOW}Dataset '{self.name}' already exists. "
-                        "Use push(overwrite=True) to overwrite "
-                        "or push(new_version=True) to create a new version."
-                        f"{Color.RESET}"
-                    )
+                   raise ValueError(f"Dataset '{self.name}' already exists. Use push(overwrite=True) to overwrite or push(new_version=True) to create a new version.")
                 return
 
-            # Local dataset synced
+            # Local dataset is synced (ids match)
             if self._datadog_dataset_id == remote_id:
                 if has_changes:
                     if overwrite:
@@ -477,17 +470,19 @@ class Dataset:
                     elif new_version:
                         self._push_entire_dataset(overwrite=False)
                     else:
+                        # Default: send incremental updates as a new version
                         self._batch_update(overwrite=False)
                 else:
                     print("Dataset is already synced and has no changes.")
                 return
 
-            # Dataset found but ID doesn't match
+            # Dataset found but ID doesn't match - indicates an issue
             raise ValueError(f"Dataset '{self.name}' exists but with a different ID. This shouldn't happen.")
 
         else:
-            # No remote dataset with this name
+            # No remote dataset with this name found
             if self._datadog_dataset_id:
+                # Local dataset was synced, but remote is gone
                 print(
                     f"{Color.YELLOW}Warning: Remote dataset no longer exists. "
                     f"Creating a new one.{Color.RESET}"
@@ -495,18 +490,18 @@ class Dataset:
                 self._datadog_dataset_id = None
                 self._datadog_dataset_version = 0
 
+            # Create the dataset remotely
             self._push_entire_dataset(overwrite=False)
 
     def _push_entire_dataset(self, overwrite: bool) -> None:
         """
-        Internal helper to create or overwrite a dataset.
-        If there is no self._datadog_dataset_id, a new dataset is created first.
-        Then all records are pushed using /push. Finally, we refresh from remote.
+        Internal helper to create or overwrite a dataset by pushing all records.
+        If self._datadog_dataset_id is None, a new dataset is created first.
         """
         if overwrite:
-            print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}' using push{Color.RESET}")
+            print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}'...{Color.RESET}")
 
-        # Create dataset if needed
+        # Create dataset if it doesn't exist locally
         if not self._datadog_dataset_id:
             payload = {
                 "data": {
@@ -520,13 +515,13 @@ class Dataset:
             resp = exp_http_request("POST", "/api/unstable/llm-obs/v1/datasets", body=json.dumps(payload).encode("utf-8"))
             response_data = resp.json()
             self._datadog_dataset_id = response_data["data"]["id"]
-            self._datadog_dataset_version = 0
+            self._datadog_dataset_version = 0 # Version starts at 0 for creation
 
-        # Prepare records for pushing
         records_list = []
         for record in self._data:
             rec_payload = {}
             if "record_id" in record:
+                # Only include ID if overwriting? Backend handles this.
                 rec_payload["id"] = record["record_id"]
             rec_payload["input"] = record["input"]
             if "expected_output" in record:
@@ -536,7 +531,6 @@ class Dataset:
                 rec_payload["metadata"] = metadata
             records_list.append(rec_payload)
 
-        # Send records in chunks if needed
         chunk_size = DEFAULT_CHUNK_SIZE
         chunks = [records_list[i : i + chunk_size] for i in range(0, len(records_list), chunk_size)]
 
@@ -550,6 +544,7 @@ class Dataset:
                     "type": "datasets",
                     "attributes": {
                         "records": chunk,
+                        # Only set overwrite=True on the first chunk if specified
                         "overwrite": overwrite if i == 0 else False,
                     },
                 }
@@ -560,9 +555,10 @@ class Dataset:
             if show_progress:
                 _print_progress_bar(i + 1, len(chunks), prefix="Pushing records:", suffix="Complete")
 
-        # Give Datadog time to process, then refresh local data
-        time.sleep(3)
+        # Give Datadog time to process using the constant, then refresh local state from remote
+        time.sleep(API_PROCESSING_TIME_SLEEP)
         self._refresh_from_remote()
+        print(f"{Color.GREEN}✓ Dataset '{self.name}' pushed to Datadog{Color.RESET}")
 
     @classmethod
     def from_csv(
@@ -592,76 +588,108 @@ class Dataset:
         Raises:
             ValueError: If input_columns or expected_output_columns are not provided,
                 or if the CSV is missing those columns, or if the file is empty.
-            DatasetFileError: If there are issues reading the CSV file (e.g., file not found or IO permission error).
+            DatasetFileError: If there are issues reading the CSV file (e.g., file not found, permission error, malformed).
         """
         if input_columns is None or expected_output_columns is None:
             raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
 
         data = []
         try:
+            # First check if the file exists and is not empty before parsing
             with open(filepath, mode="r", encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile, delimiter=delimiter)
-                rows = list(reader)
-                if not rows:
-                    raise ValueError("CSV file is empty.")
+                content = csvfile.read().strip()
+                if not content:
+                    raise ValueError("CSV file appears to be empty or header is missing.")
 
-                # Ensure that the specified columns are present
-                header_columns = reader.fieldnames
-                missing_input_columns = [col for col in input_columns if col not in header_columns]
-                missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+            with open(filepath, mode="r", encoding="utf-8") as csvfile:
+                try:
+                    reader = csv.DictReader(csvfile, delimiter=delimiter)
 
-                if missing_input_columns:
-                    raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
-                if missing_output_columns:
-                    raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
+                    # Check header presence before trying to read rows
+                    if reader.fieldnames is None:
+                        # Treat files with no header at all as effectively empty
+                        raise ValueError("CSV file appears to be empty or header is missing.")
 
-                # Get metadata columns (all columns not used for input or expected output)
-                metadata_columns = [
-                    col for col in header_columns if col not in input_columns and col not in expected_output_columns
-                ]
+                    header_columns = reader.fieldnames
+                    missing_input_columns = [col for col in input_columns if col not in header_columns]
+                    missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
 
-                for row in rows:
-                    # Handle input data
-                    if len(input_columns) == 1:
-                        input_data = row[input_columns[0]]
-                    else:
-                        input_data = {col: row[col] for col in input_columns}
+                    if missing_input_columns:
+                        raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
+                    if missing_output_columns:
+                        raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
 
-                    # Handle expected output data
-                    if len(expected_output_columns) == 1:
-                        expected_output_data = row[expected_output_columns[0]]
-                    else:
-                        expected_output_data = {col: row[col] for col in expected_output_columns}
+                    rows = list(reader)
 
-                    # Handle metadata (all remaining columns)
-                    metadata = {col: row[col] for col in metadata_columns}
+                    if not rows:
+                        # ValueError for empty data files (header-only)
+                        raise ValueError("CSV file is empty (contains only header).")
 
-                    data.append(
-                        {
-                            "input": input_data,
-                            "expected_output": expected_output_data,
-                            **metadata,
-                        }
-                    )
+                    # Determine metadata columns (all columns not used for input or expected output)
+                    metadata_columns = [
+                        col for col in header_columns if col not in input_columns and col not in expected_output_columns
+                    ]
+
+                    for row in rows:
+                        try:
+                            # Strip whitespace from all values
+                            for col in row:
+                                if row[col] is not None:
+                                    row[col] = row[col].strip()
+                        except Exception as e:
+                            # Error during whitespace handling likely indicates malformed CSV
+                            raise DatasetFileError(f"Error parsing CSV file (whitespace handling): {e}")
+
+                        try:
+                            input_data = row[input_columns[0]] if len(input_columns) == 1 else {col: row[col] for col in input_columns}
+                            expected_output_data = row[expected_output_columns[0]] if len(expected_output_columns) == 1 else {col: row[col] for col in expected_output_columns}
+
+                            metadata = {}
+                            for col in metadata_columns:
+                                # Include all remaining columns from the CSV as metadata
+                                metadata[col] = row[col]
+                        except KeyError as e:
+                            # Missing columns in a data row indicates malformed CSV
+                            raise DatasetFileError(f"Error parsing CSV file: missing column {e} in a row")
+                        except Exception as e:
+                            # Other errors during row processing also indicate CSV issues
+                            raise DatasetFileError(f"Error parsing CSV file (row processing): {e}")
+
+                        data.append(
+                            {
+                                "input": input_data,
+                                "expected_output": expected_output_data,
+                                **metadata,
+                            }
+                        )
+                except csv.Error as e:
+                    # Catch CSV-specific parsing errors
+                    raise DatasetFileError(f"Error parsing CSV file: {e}")
+
         except FileNotFoundError as e:
             raise DatasetFileError(f"CSV file not found: {filepath}") from e
         except PermissionError as e:
             raise DatasetFileError(f"Permission denied when reading CSV file: {filepath}") from e
-        except csv.Error as e:
-            raise DatasetFileError(f"Error parsing CSV file: {e}") from e
+        # Allow specific ValueErrors (empty file, missing columns in header, header-only file) to propagate.
         except Exception as e:
-            raise DatasetFileError(f"Unexpected error reading CSV file: {e}") from e
+            # Catch other unexpected exceptions during file handling/processing.
+            if isinstance(e, ValueError):
+                raise  # Re-raise ValueErrors intentionally raised above
+            elif isinstance(e, DatasetFileError):
+                raise  # Re-raise DatasetFileErrors intentionally raised above
+            else:
+                raise DatasetFileError(f"Unexpected error reading or processing CSV file: {e}") from e
 
         return cls(name=name, data=data, description=description)
 
     def as_dataframe(self, multiindex: bool = True) -> "pd.DataFrame":
         """
-        Convert the dataset to a pandas DataFrame for further analysis and manipulation.
+        Convert the dataset to a pandas DataFrame for analysis.
 
         Args:
             multiindex (bool, optional): If True, expand 'input' and 'expected_output' dictionaries
-                into columns using a pandas MultiIndex. If False, keep them as columns containing
-                raw dictionaries.
+                into columns using a pandas MultiIndex ('input'/'expected_output', key).
+                If False, keep them as columns containing the raw dictionaries/strings. Defaults to True.
 
         Returns:
             pd.DataFrame: DataFrame representation of the dataset.
@@ -682,46 +710,43 @@ class Dataset:
             for record in self._data:
                 flat_record = {}
 
-                # Handle 'input' fields
                 input_data = record.get("input", {})
                 if isinstance(input_data, dict):
                     for k, v in input_data.items():
                         flat_record[("input", k)] = v
                         column_tuples.add(("input", k))
                 else:
-                    flat_record[("input", "")] = input_data
+                    flat_record[("input", "")] = input_data # Use empty string for single input
                     column_tuples.add(("input", ""))
 
-                # Handle 'expected_output' fields
                 expected_output = record.get("expected_output", {})
                 if isinstance(expected_output, dict):
                     for k, v in expected_output.items():
                         flat_record[("expected_output", k)] = v
                         column_tuples.add(("expected_output", k))
                 else:
-                    flat_record[("expected_output", "")] = expected_output
+                    flat_record[("expected_output", "")] = expected_output # Use empty string for single output
                     column_tuples.add(("expected_output", ""))
 
-                # Handle any other top-level fields
+                # Add remaining top-level fields under 'metadata'
                 for k, v in record.items():
                     if k not in ["input", "expected_output"]:
                         flat_record[("metadata", k)] = v
                         column_tuples.add(("metadata", k))
                 data_rows.append(flat_record)
 
-            # Convert column_tuples to a sorted list to maintain consistent column order
+            # Sort column tuples for consistent MultiIndex order
             column_tuples = sorted(list(column_tuples))
 
-            # Build the DataFrame
             records_list = []
             for flat_record in data_rows:
                 row = [flat_record.get(col, None) for col in column_tuples]
                 records_list.append(row)
 
             df = pd.DataFrame(records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
-
             return df
 
+        # Non-multiindex case
         data = []
         for record in self._data:
             new_record = {}
@@ -729,7 +754,6 @@ class Dataset:
             new_record["input"] = input_data
             expected_output = record.get("expected_output", {})
             new_record["expected_output"] = expected_output
-            # Copy other fields
             for k, v in record.items():
                 if k not in ["input", "expected_output"]:
                     new_record[k] = v
@@ -738,8 +762,8 @@ class Dataset:
 
     def __repr__(self) -> str:
         """
-        Return a readable string representation of the Dataset object, including information such as
-        dataset name, size, structure, and synchronization status with Datadog.
+        Return a readable string representation of the Dataset object, including name, size,
+        structure sample, and synchronization status with Datadog.
 
         Returns:
             str: A human-friendly representation of the Dataset.
@@ -747,32 +771,21 @@ class Dataset:
         name = f"{Color.CYAN}{self.name}{Color.RESET}"
         record_count = len(self._data)
 
-        # Get sample structure from first record
         structure = []
         if self._data:
             sample = self._data[0]
-            # Input structure
             input_data = sample.get("input", {})
-            if isinstance(input_data, dict):
-                input_desc = f"dict[{len(input_data)} keys]"
-            else:
-                input_desc = type(input_data).__name__
+            input_desc = f"dict[{len(input_data)} keys]" if isinstance(input_data, dict) else type(input_data).__name__
             structure.append(f"input: {input_desc}")
 
-            # Expected output structure
             expected = sample.get("expected_output", {})
-            if isinstance(expected, dict):
-                output_desc = f"dict[{len(expected)} keys]"
-            else:
-                output_desc = type(expected).__name__
+            output_desc = f"dict[{len(expected)} keys]" if isinstance(expected, dict) else type(expected).__name__
             structure.append(f"expected_output: {output_desc}")
 
-            # Metadata fields
             metadata = {k: v for k, v in sample.items() if k not in ["input", "expected_output", "record_id"]}
             if metadata:
                 structure.append(f"metadata: {len(metadata)} fields")
 
-        # Datadog sync status and changes summary
         has_changes = any(len(changes) > 0 for changes in self._changes.values())
         if getattr(self, "_datadog_dataset_id", None):
             if self._synced and not has_changes:
@@ -782,26 +795,27 @@ class Dataset:
         else:
             dd_status = f"{Color.YELLOW}Local only{Color.RESET}"
 
-        panel_config = json.dumps([{"t": "datasetDetailPanel", "datasetId": self._datadog_dataset_id}])
-        dd_url = (f"\n  URL: {Color.BLUE}https://app.datadoghq.com/llm/testing/datasets"
-                 f"?llmPanels={quote(panel_config)}"
-                 f"&openApplicationConfig=false{Color.RESET}"
-                 if getattr(self, "_datadog_dataset_id", None) else "")
+        # Construct Datadog URL if synced
+        dd_url = ""
+        if getattr(self, "_datadog_dataset_id", None):
+             panel_config = json.dumps([{"t": "datasetDetailPanel", "datasetId": self._datadog_dataset_id}])
+             dd_url = (f"\n  URL: {Color.BLUE}https://app.datadoghq.com/llm/testing/datasets"
+                      f"?llmPanels={quote(panel_config)}"
+                      f"&openApplicationConfig=false{Color.RESET}")
 
-        # Build the representation
         info = [
             f"Dataset(name={name})",
+        ]
+        if self.description:
+            desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
+            info.append(f"  Description: {desc_preview}")
+
+        info.extend([
             f"  Records: {record_count:,}",
             f"  Structure: {', '.join(structure)}",
             f"  Datadog: {dd_status}",
-        ]
+        ])
 
-        # Add description if present
-        if self.description:
-            desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
-            info.insert(1, f"  Description: {desc_preview}")
-
-        # Add changes summary if there are any changes
         if has_changes:
             changes_summary = []
             if self._changes['added']:
@@ -812,8 +826,8 @@ class Dataset:
                 changes_summary.append(f"~{len(self._changes['updated'])} updated")
             info.append(f"  Changes: {', '.join(changes_summary)}")
 
-        # Add URL if dataset is synced
-        if dd_url and self._synced:
+        # Append URL only if it was constructed (i.e., dataset has an ID)
+        if dd_url:
             info.append(dd_url)
 
         return "\n".join(info)

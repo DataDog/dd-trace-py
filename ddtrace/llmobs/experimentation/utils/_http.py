@@ -36,11 +36,13 @@ def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTT
                 "Site configuration is missing. Please check your DD_SITE environment variable or pass it as an argument to init(...site=...)",
             )
         else:
-            print("resp text: ", resp.text())
-            raise DatadogAuthenticationError(
-                resp.status_code,
-                "API key or Application key is incorrect. Please check your DD_API_KEY and DD_APPLICATION_KEY environment variables or pass them as arguments to init(...api_key=..., application_key=...)",
-            )
+            if resp.status_code == 403:
+                raise DatadogAuthenticationError(
+                    resp.status_code,
+                    "API key or Application key is incorrect. Also, make sure you are using the correct site (e.g. us3.datadoghq.com, us5.datadoghq.com, etc.)",
+                )
+            else:
+                raise DatadogAPIError(resp.status_code, resp.text())
     if resp.status_code >= 400:
         try:
             error_details = resp.json()
