@@ -1,0 +1,4442 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:02 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:02 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:18 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:18 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:24 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:24 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:25 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:26 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:40 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:40 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:49 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:50 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:59 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:59 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:05 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:22 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:22 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:40 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:40 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:49 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:49 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:58 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:07:58 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:10 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:10 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:08:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:17:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:17:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:02 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:02 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:07 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:07 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:14 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:14 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:28 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:28 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:37 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:37 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:52 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:52 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:52 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:52 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:01 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:01 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:10 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:10 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:19 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:27 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:27 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:36 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:36 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:45 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:45 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:57 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:19:57 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:20:05 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:20:05 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:30 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:38 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:38 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:42 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:42 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:47 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:47 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:51 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:59 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:56:59 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:06 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:06 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:13 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:17 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:17 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:17 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:17 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:24 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:24 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:31 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:39 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:39 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:53 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:53 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:00 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:00 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:04 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:08 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:08 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"749fac78-4f2c-4a66-9e01-63395909c71d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.412479Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-04-08T14:45:51.66126Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '302'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:15 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/749fac78-4f2c-4a66-9e01-63395909c71d/records
+  response:
+    body:
+      string: '{"data":[{"id":"3ecf635b-b625-4d83-85b1-88a09ade4b54","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512269Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-04-08T14:45:51.512269Z"}},{"id":"000e4995-09b9-41a7-a4c1-5971a0bd1c8d","type":"datasets","attributes":{"author":{"id":"8855edca-05df-11ec-bea0-da7ad0900002"},"created_at":"2025-04-08T14:45:51.512255Z","dataset_id":"749fac78-4f2c-4a66-9e01-63395909c71d","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-04-08T14:45:51.512255Z"}}],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '674'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:58:16 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

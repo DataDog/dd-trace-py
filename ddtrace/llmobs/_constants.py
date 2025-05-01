@@ -81,3 +81,9 @@ DISPATCH_ON_TOOL_CALL = "on_tool_call"
 # Tool call arguments are used to lookup the associated tool call info.
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
+
+# Experiments related
+EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+EXPERIMENT_INPUT = "_ml_obs.meta.input"
+EXPERIMENT_OUTPUT = "_ml_obs.meta.output"
+EXPERIMENT_ID_BAGGAGE_KEY = "experiment_id"

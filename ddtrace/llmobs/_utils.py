@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+import http.client
 import json
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
+import urllib.request
+from urllib.error import HTTPError
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -314,3 +317,48 @@ class ToolCallTracker:
             "output",
             "input",
         )
+class HTTPResponse:
+    def __init__(self, resp) -> None:
+        if resp is None:
+            raise ValueError("Response object cannot be None")
+        self._resp = resp
+        self._content = None  # type: Optional[bytes]
+
+    @property
+    def status_code(self) -> int:
+        if hasattr(self._resp, "status"):
+            return self._resp.status
+        elif hasattr(self._resp, "code"):
+            return self._resp.code
+        elif hasattr(self._resp, "getcode"):
+            return self._resp.getcode()
+        else:
+            raise AttributeError(f"Could not find status code in response object of type {type(self._resp)}")
+
+    def read(self) -> bytes:
+        if self._content is None:
+            content = self._resp.read()
+            if content is None:
+                return b""
+            self._content = content
+        return self._content
+
+    def text(self) -> str:
+        return self.read().decode("utf-8")
+
+    def json(self) -> dict:
+        return json.loads(self.text())
+
+
+def http_request(
+    method: str, url: str, headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None
+) -> HTTPResponse:
+    """Make an HTTP request and return an HTTPResponse object."""
+    req = urllib.request.Request(url, data=body, method=method)
+    if headers:
+        req.headers.update(headers)
+    try:
+        response = urllib.request.urlopen(req)
+        return HTTPResponse(response)
+    except HTTPError as e:
+        return HTTPResponse(e)

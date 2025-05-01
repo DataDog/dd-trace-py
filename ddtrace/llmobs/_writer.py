@@ -36,6 +36,8 @@ from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.utils.formats import asbool
+import os
 
 
 logger = get_logger(__name__)
@@ -294,10 +296,13 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payloads = []
+        for event in events:
+            data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
+                data["_dd.scope"] = "experiments"
+            payloads.append(data)
+        return payloads
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:

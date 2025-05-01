@@ -1,0 +1,110 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=this-dataset-definitely-should-not-exist
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '31'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:01:52 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=this-dataset-definitely-should-not-exist
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '31'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:17:08 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=this-dataset-definitely-should-not-exist
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '31'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:37:22 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
