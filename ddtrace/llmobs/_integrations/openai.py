@@ -108,6 +108,11 @@ class OpenAIIntegration(BaseLLMIntegration):
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
+        for token_type in ("input", "output", "total"):
+            num_tokens = getattr(usage, token_type + "_tokens", None)
+            if not num_tokens:
+                continue
+            span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
 
     def _llmobs_set_tags(
         self,
@@ -133,6 +138,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
+        elif operation == "responses":
+            self._llmobs_set_meta_tags_from_responses(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
@@ -266,12 +273,74 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None:
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
+
+            input_tokens_value = prompt_tokens if prompt_tokens != 0 else input_tokens
+            output_tokens_value = completion_tokens if completion_tokens != 0 else output_tokens
+
             return {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+                INPUT_TOKENS_METRIC_KEY: input_tokens_value,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens_value,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens_value + output_tokens_value,
             }
         return get_llmobs_metrics_tags("openai", span)
 
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         return is_openai_default_base_url(base_url)
+
+    @staticmethod
+    def _llmobs_set_meta_tags_from_responses(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+        """Extract prompt/response tags from a responses and set them as temporary "_ml_obs.meta.*" tags."""
+        response_input = span._get_ctx_item("llmobs.response.input")
+        # print(f"response_input = {response_input}")
+
+        input_messages = []
+        if response_input:
+            if isinstance(response_input, str):
+                # Handle case where response_input is a text string
+                input_messages = [{"content": response_input, "role": ""}]
+            elif isinstance(response_input, dict):
+                input_messages = [
+                    {
+                        "content": response_input.get("content", ""),
+                        "role": response_input.get("role", ""),
+                        "type": response_input.get("type", ""),
+                    }
+                ]
+            elif isinstance(response_input, list):
+                for m in response_input:
+                    if isinstance(m, dict):
+                        input_messages.append({"content": m.get("content", ""), "role": m.get("role", "")})
+                    else:
+                        input_messages.append({"content": str(m), "role": ""})
+
+        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools")}
+        span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+        if span.error or not messages:
+            span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+            return
+
+        response_output = span._get_ctx_item("llmobs.response.output")
+        # print(f"response_output = {response_output}")
+
+        output_messages = []
+
+        if response_output:
+            for item in response_output:
+                if hasattr(item, "type") and item.type == "message":
+                    role = getattr(item, "role", "")
+                    if hasattr(item, "content"):
+                        content = item.content
+                        if isinstance(content, list):
+                            for content_item in content:
+                                if hasattr(content_item, "text"):
+                                    output_messages.append({"content": content_item.text, "role": role})
+                        else:
+                            text = getattr(content, "text", "") if hasattr(content, "text") else str(content)
+                            output_messages.append({"content": text, "role": role})
+
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        # print(f"input_messages = {input_messages}")
+        # print(f"output_messages = {output_messages}")
