@@ -147,23 +147,21 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service_name_env_var(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
-    
-    @BaseTestCase.run_in_subprocess()
+
     def test_app_analytics_property(self):
         import warnings
         with warnings.catch_warnings(record=True) as warns:
             warnings.simplefilter("always")
-            ic = self.integration_config
             
             # test default values
             assert self.integration_config.analytics_enabled == False
             assert self.integration_config.analytics_sample_rate == 1.0
 
             # test updating values
-            self.integration_config["analytics_enabled"] = True
+            self.integration_config.analytics_enabled = True
             assert self.integration_config.analytics_enabled == True
 
-            self.integration_config["analytics_sample_rate"] = 0.5
+            self.integration_config.analytics_sample_rate = 0.5
             assert self.integration_config.analytics_sample_rate == 0.5
 
             #assert self.integration_config.get_analytics_sample_rate() == 1
@@ -171,8 +169,7 @@ class TestIntegrationConfig(BaseTestCase):
             print("warning message length: %s" % len(warns))
             print("warning message: %s" % warns[0].message)
             assert len(warns) < 0
-        
-  
+
 
 
 def test_environment_header_tags():
@@ -201,18 +198,34 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
-# @pytest.mark.subprocess(env=dict(DD_FOO_SERVICE_ANALYTICS_ENABLED="true"), err=None)
-# def test_app_analytics_deprecation():
-#     """Ensure App Analytics deprecation warning shows"""
-#     import warnings
-#     with warnings.catch_warnings(record=True) as warns:
-#         warnings.simplefilter("always")
-#         import ddtrace.auto
+@pytest.mark.subprocess()
+def test_get_analytics_sample_rate_deprecation():
+    """Ensure App Analytics deprecation warning shows"""
+    import warnings
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
 
-#         assert len(warns) == 1
-#         print(warns)
-#         warning_message = str(warns[0].message)
-#         assert (
-#             warning_message
-#             == "The environment variable DD_TRACE_ANALYTICS_ENABLED is deprecated."
-#         ), warning_message
+        from ddtrace.settings._config import Config
+        from ddtrace.settings import IntegrationConfig
+
+        config = Config()
+        ic = IntegrationConfig(config, "test")
+        
+        # test default values
+        assert ic.analytics_enabled == False
+        assert ic.analytics_sample_rate == 1.0
+
+        # test updating values
+        ic.analytics_enabled = True
+        assert ic.analytics_enabled == True
+
+        ic["analytics_sample_rate"] = 0.5
+        assert ic.analytics_sample_rate == 0.5
+
+        assert ic.get_analytics_sample_rate() == 1
+
+        assert len(warns) == 1
+        warning_message = str(warns[0].message)
+        assert "analytics_sample_rate is deprecated" in warning_message
+        assert "The method currently returns 1 always" in warning_message
+        assert "will be removed in version '4.0.0'" in warning_message

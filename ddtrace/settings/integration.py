@@ -114,11 +114,11 @@ class IntegrationConfig(AttrDict):
     @property
     def analytics_enabled(self):
         deprecate(
-                f"ddtrace.config.{self.name}.analytics_enabled is deprecated",
-                message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
+            f"ddtrace.config.{self.name}.analytics_enabled is deprecated",
+            message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
         return self._analytics_enabled
 
     @analytics_enabled.setter
@@ -162,12 +162,11 @@ class IntegrationConfig(AttrDict):
         # Use `None` as a way to say that it was not defined,
         #   `False` would mean `0` which is a different thing
         deprecate(
-            "get_analytics_sample_rate is deprecated and will be removed in a future version",
+            "get_analytics_sample_rate is deprecated",
             message="The method currently returns 1 always",
             category=DDTraceDeprecationWarning,
             removal_version="4.0.0",
         )
-        print("calling get_analytics_sample_rate")
         return 1
 
     def __repr__(self):
