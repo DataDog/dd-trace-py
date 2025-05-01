@@ -374,8 +374,9 @@
     {
         "dependency": "litellm",
         "integration": "litellm",
-        "minimum_tracer_supported": "1.65.1",
-        "max_tracer_supported": "1.65.1",
+        "minimum_tracer_supported": "1.65.4",
+        "max_tracer_supported": "1.65.4",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -624,6 +625,13 @@
         "integration": "valkey",
         "minimum_tracer_supported": "6.0.2",
         "max_tracer_supported": "6.0.2",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "google-cloud-aiplatform",
+        "integration": "vertexai",
+        "minimum_tracer_supported": "1.71.1",
+        "max_tracer_supported": "1.71.1",
         "auto-instrumented": true
     },
     {
