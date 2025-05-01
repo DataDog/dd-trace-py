@@ -119,16 +119,39 @@ class IntegrationConfig(AttrDict):
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
-            return self._analytics_enabled
+        return self._analytics_enabled
 
     @analytics_enabled.setter
     def analytics_enabled(self, value):
-          self._analytics_enabled = value 
-
-    # .... we should do the same for analytics_sample_rate .....
-    # Users should still be able to access these properties in their application but we should log a deprecation warning when this happens.
-    # We should also make it clear that setting these attributes does nothing.
+        deprecate(
+            f"Setting ddtrace.config.{self.name}.analytics_enabled is deprecated",
+            message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        self._analytics_enabled = value 
     
+    @property
+    def analytics_sample_rate(self):
+        deprecate(
+            f"ddtrace.config.{self.name}.analytics_sample_rate is deprecated",
+            message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        print("calling analytics_sample_rate getter")
+        return self._analytics_sample_rate
+    
+    @analytics_sample_rate.setter
+    def analytics_sample_rate(self, value):
+        deprecate(
+            f"Setting ddtrace.config.{self.name}.analytics_sample_rate is deprecated",
+            message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        print("calling analytics_sample_rate setter")
+        self._analytics_sample_rate = value
     
     def get_analytics_sample_rate(self, use_global_config=False):
         """
@@ -144,6 +167,7 @@ class IntegrationConfig(AttrDict):
             category=DDTraceDeprecationWarning,
             removal_version="4.0.0",
         )
+        print("calling get_analytics_sample_rate")
         return 1
 
     def __repr__(self):
