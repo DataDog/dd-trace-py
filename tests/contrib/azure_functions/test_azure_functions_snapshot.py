@@ -58,6 +58,16 @@ def test_http_get_ok_async(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetokasync?key=val", headers=DEFAULT_HEADERS).status_code == 200
 
 
+@pytest.mark.snapshot
+def test_http_get_ok_obfuscated(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetok?secret=val", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_http_get_ok_async_obfuscated(azure_functions_client: Client) -> None:
+    assert azure_functions_client.get("/api/httpgetokasync?secret=val", headers=DEFAULT_HEADERS).status_code == 200
+
+
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
 def test_http_get_error(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgeterror", headers=DEFAULT_HEADERS).status_code == 500
