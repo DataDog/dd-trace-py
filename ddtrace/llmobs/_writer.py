@@ -48,6 +48,8 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.utils.formats import asbool
+import os
 
 
 logger = get_logger(__name__)
@@ -552,7 +554,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
                 "event_type": "span",
                 "spans": [event],
             }
-            if event.get("_dd", {}).get("scope") == "experiments":
+            if (event.get("_dd", {}).get("scope") == "experiments") or (asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED"))):
                 event_data["_dd.scope"] = "experiments"
             payload.append(event_data)
         return payload

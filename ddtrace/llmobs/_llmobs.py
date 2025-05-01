@@ -51,11 +51,13 @@ from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
 from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_ID_BAGGAGE_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -377,6 +379,14 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
+        # Experiments related
+        if span._get_ctx_item(EXPECTED_OUTPUT) is not None:
+            meta["expected_output"] = span._get_ctx_item(EXPECTED_OUTPUT)
+        if span._get_ctx_item(EXPERIMENT_INPUT) is not None:
+            meta["input"] = span._get_ctx_item(EXPERIMENT_INPUT)
+        if span._get_ctx_item(EXPERIMENT_OUTPUT) is not None:
+            meta["output"] = span._get_ctx_item(EXPERIMENT_OUTPUT)
+
         llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -419,6 +429,12 @@ class LLMObs(Service):
             "language": "python",
             "error": span.error,
         }
+
+        # Add experiment_id from baggage if present
+        experiment_id = span.context.get_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY)
+        if experiment_id:
+            tags["experiment_id"] = experiment_id
+
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
@@ -1159,6 +1175,35 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def _experiment(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Span:
+        """
+        Trace an LLM experiment, only used internally by the experiments SDK.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str experiment_id: The ID of the experiment to associate with this span and its children.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+
+        # Set experiment_id in baggage if provided
+        if experiment_id:
+            span.context.set_baggage_item(EXPERIMENT_ID_BAGGAGE_KEY, experiment_id)
+
+        return span
+
+    @classmethod
     def workflow(
         cls,
         name: Optional[str] = None,
@@ -1378,11 +1423,21 @@ class LLMObs(Service):
                 elif span_kind == "retrieval":
                     error = cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
                 elif span_kind == "experiment":
+                    error = cls._tag_experiment_io(span, input_data=input_data, output_data=output_data)
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         finally:
             telemetry.record_llmobs_annotate(span, error)
+
+    @staticmethod
+    def _tag_expected_output(span, expected_output: dict) -> None:
+        """Tags a given LLMObs span with a prompt"""
+        try:
+            span._set_ctx_item(EXPECTED_OUTPUT, expected_output)
+        except TypeError:
+            log.warning("Failed to validate expected output with error: ", exc_info=True)
+            return
 
     @classmethod
     def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> Optional[str]:

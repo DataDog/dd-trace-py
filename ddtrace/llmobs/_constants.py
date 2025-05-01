@@ -101,6 +101,9 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+# Experiments related
+EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+EXPERIMENT_ID_BAGGAGE_KEY = "experiment_id"
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
