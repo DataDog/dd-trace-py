@@ -125,14 +125,14 @@ telemetry_writer._app_started()
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-def test_remoteconfig_sampling_rate_default(test_agent_session, run_python_code_in_subprocess):
+def test_remoteconfig_sampling_rate_default(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update(
         {
             "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
-    out, err, status, _ = run_python_code_in_subprocess(
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
@@ -142,22 +142,22 @@ with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None
 
-call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.5}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.5}), config)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.5
 
-call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}), config)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "Unsetting remote config trace sample rate"
 
-call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.8}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": 0.8}), config)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") == 0.8
 
-call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}))
+call_apm_tracing_rc(_base_rc_config({"tracing_sampling_rate": None}), config)
 with tracer.trace("test") as span:
     pass
 assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote config trace sample rate"
@@ -182,8 +182,11 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
+from ddtrace._trace.product import apm_tracing_rc_subscribe
 from tests.internal.test_settings import _base_rc_config
 from tests.internal.test_settings import call_apm_tracing_rc
+
+apm_tracing_rc_subscribe(config)
 
 call_apm_tracing_rc(
     _base_rc_config(
@@ -194,16 +197,17 @@ call_apm_tracing_rc(
                     "service": "*",
                     "name": "*",
                     "resource": "*",
-                    "tags": {},
+                    "tags": [],
                     "provenance": "customer",
                 }
             ]
-        }
-    )
+        },
+    ),
+    config,
 )
 with tracer.trace("test") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.5
+assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
         """,
         env=env,
     )
@@ -220,14 +224,14 @@ assert span.get_metric("_dd.rule_psr") == 0.5
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-def test_remoteconfig_header_tags_telemetry(test_agent_session, run_python_code_in_subprocess):
+def test_remoteconfig_header_tags_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update(
         {
             "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
-    out, err, status, _ = run_python_code_in_subprocess(
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
 from ddtrace.contrib import trace_utils
@@ -239,7 +243,7 @@ call_apm_tracing_rc(_base_rc_config({
         {"header": "used", "tag_name":"header_tag_69"},
         {"header": "unused", "tag_name":"header_tag_70"},
         {"header": "used-with-default", "tag_name":""}]
-}))
+}), config)
 with tracer.trace("test") as span:
     trace_utils.set_http_meta(
         span,
