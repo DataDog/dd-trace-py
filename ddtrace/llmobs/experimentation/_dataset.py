@@ -92,10 +92,10 @@ class Dataset:
         if isinstance(index, slice):
             records = self._data[index]
             return [{k: v for k, v in record.copy().items() if k != "record_id"} for record in records]
-        else:
-            record = self._data[index].copy()
-            record.pop("record_id", None)
-            return record
+        # If index is not a slice, handle single record retrieval
+        record = self._data[index].copy()
+        record.pop("record_id", None)
+        return record
 
     def __delitem__(self, index: int) -> None:
         """
