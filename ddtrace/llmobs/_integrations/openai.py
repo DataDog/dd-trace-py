@@ -141,9 +141,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "responses":
             self._llmobs_set_meta_tags_from_responses(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
+        print(f"DEBUG: _llmobs_set_tags - Setting context items: span_kind={span_kind}, model_name={model_name}, model_provider={model_provider}")
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
+        print(f"DEBUG: _llmobs_set_tags - After setting context items: span_kind={span._get_ctx_item(SPAN_KIND)}, input_messages={span._get_ctx_item(INPUT_MESSAGES)}")
 
     @staticmethod
     def _llmobs_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
@@ -278,7 +280,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
             input_tokens_value = prompt_tokens if prompt_tokens != 0 else input_tokens
             output_tokens_value = completion_tokens if completion_tokens != 0 else output_tokens
-
+            
             return {
                 INPUT_TOKENS_METRIC_KEY: input_tokens_value,
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens_value,
@@ -292,8 +294,10 @@ class OpenAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _llmobs_set_meta_tags_from_responses(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
         """Extract prompt/response tags from a responses and set them as temporary "_ml_obs.meta.*" tags."""
+        print(f"DEBUG: _llmobs_set_meta_tags_from_responses - span id = {id(span)}")
+        print(f"DEBUG: _llmobs_set_meta_tags_from_responses - span._store = {span._store}")
         response_input = span._get_ctx_item("llmobs.response.input")
-        # print(f"response_input = {response_input}")
+        # print(f"DEBUG: Got response_input from context = {response_input}")
 
         input_messages = []
         if response_input:
@@ -314,9 +318,12 @@ class OpenAIIntegration(BaseLLMIntegration):
                         input_messages.append({"content": m.get("content", ""), "role": m.get("role", "")})
                     else:
                         input_messages.append({"content": str(m), "role": ""})
+            # print(f"DEBUG: Processed input_messages = {input_messages}")
 
         parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools")}
+        # Only set in context, not as tag
         span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
 
         if span.error or not messages:
             span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
@@ -326,13 +333,27 @@ class OpenAIIntegration(BaseLLMIntegration):
         # print(f"response_output = {response_output}")
 
         output_messages = []
-
         if response_output:
-            for item in response_output:
-                if hasattr(item, "type") and item.type == "message":
-                    role = getattr(item, "role", "")
-                    if hasattr(item, "content"):
-                        content = item.content
+            if isinstance(response_output, list):
+                # Handle streaming response
+                for item in response_output:
+                    if hasattr(item, "type") and item.type == "message":
+                        role = getattr(item, "role", "")
+                        if hasattr(item, "content"):
+                            content = item.content
+                            if isinstance(content, list):
+                                for content_item in content:
+                                    if hasattr(content_item, "text"):
+                                        output_messages.append({"content": content_item.text, "role": role})
+                            else:
+                                text = getattr(content, "text", "") if hasattr(content, "text") else str(content)
+                                output_messages.append({"content": text, "role": role})
+            else:
+                # Handle non-streaming response
+                if hasattr(response_output, "type") and response_output.type == "message":
+                    role = getattr(response_output, "role", "")
+                    if hasattr(response_output, "content"):
+                        content = response_output.content
                         if isinstance(content, list):
                             for content_item in content:
                                 if hasattr(content_item, "text"):
@@ -340,7 +361,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                         else:
                             text = getattr(content, "text", "") if hasattr(content, "text") else str(content)
                             output_messages.append({"content": text, "role": role})
-
-        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-        # print(f"input_messages = {input_messages}")
+                else:
+                    output_messages = [{"content": str(response_output), "role": ""}]
         # print(f"output_messages = {output_messages}")
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        span.set_tag("_ml_obs.meta.output.messages", output_messages)
+        # print(f"DEBUG: Context items after setting output = {span._store}")
+        # print(f"DEBUG: Span tags after setting output = {span._meta}")

@@ -752,7 +752,6 @@ class _ResponseHook(_EndpointHook):
         if input_data:
             if isinstance(input_data, str):
                 input_data = [input_data]
-
             span._set_ctx_item("llmobs.response.input", input_data)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):

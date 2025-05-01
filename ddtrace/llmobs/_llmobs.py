@@ -165,8 +165,20 @@ class LLMObs(Service):
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
-        if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
-            meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
+        if span_kind == "llm":
+            # Try all possible locations for input messages
+            input_messages = (
+                span._get_ctx_item(INPUT_MESSAGES) or
+                span._get_ctx_item("llmobs.response.input") or
+                span._get_ctx_item("_ml_obs.meta.input.messages")
+            )
+            if input_messages is not None:
+                if isinstance(input_messages, str):
+                    try:
+                        input_messages = json.loads(input_messages)
+                    except json.JSONDecodeError:
+                        log.warning("Failed to parse input messages as JSON: %s", input_messages)
+                meta["input"]["messages"] = input_messages
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
         if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
