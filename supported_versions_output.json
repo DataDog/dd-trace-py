@@ -434,9 +434,11 @@
     {
         "dependency": "litellm",
         "integration": "litellm",
-        "minimum_tracer_tested": "1.65.1",
-        "maximum_tracer_tested": "1.65.1",
+        "minimum_tracer_tested": "1.65.4",
+        "maximum_tracer_tested": "1.65.4",
+        "pinned": "true",
         "auto-instrumented": true,
+        "maximum_tracer_supported": "1.65.4",
         "minimum_tracer_supported": ">=1.0.0"
     },
     {
@@ -724,6 +726,14 @@
         "maximum_tracer_tested": "6.0.2",
         "auto-instrumented": true,
         "minimum_tracer_supported": ">=6.0.0"
+    },
+    {
+        "dependency": "google-cloud-aiplatform",
+        "integration": "vertexai",
+        "minimum_tracer_tested": "1.71.1",
+        "maximum_tracer_tested": "1.71.1",
+        "auto-instrumented": true,
+        "minimum_tracer_supported": ">=1.0.0"
     },
     {
         "dependency": "vertexai",

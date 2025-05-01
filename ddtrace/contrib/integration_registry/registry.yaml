@@ -586,10 +586,10 @@ integrations:
   - litellm
   tested_versions_by_dependency:
     litellm:
-      tested_min: 1.65.1
-      tested_max: 1.65.1
+      tested_min: 1.65.4
+      tested_max: 1.65.4
       supported_min: '>=1.0.0'
-      supported_max: latest
+      supported_max: 1.65.4
 
 - integration_name: logbook
   is_external_package: true
@@ -1033,8 +1033,10 @@ integrations:
   - vertexai
   tested_versions_by_dependency:
     google-cloud-aiplatform:
-      min: 1.71.1
-      max: 1.71.1
+      tested_min: 1.71.1
+      tested_max: 1.71.1
+      supported_min: '>=1.0.0'
+      supported_max: latest
     vertexai:
       tested_min: 1.71.1
       tested_max: 1.71.1
