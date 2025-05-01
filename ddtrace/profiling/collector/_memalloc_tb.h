@@ -52,6 +52,10 @@ memalloc_tb_init(uint16_t max_nframe);
 void
 memalloc_tb_deinit();
 
+/* exported for C++ consumption */
+size_t
+traceback_alloc_size(traceback_t* tb);
+
 void
 traceback_free(traceback_t* tb);
 
