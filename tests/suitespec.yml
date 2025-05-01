@@ -84,6 +84,8 @@ components:
     - ddtrace/ext/schema.py
   git:
     - ddtrace/ext/git.py
+  lib_injection:
+    - tests/lib_injection/*
   opentelemetry:
     - ddtrace/opentelemetry/*
     - ddtrace/internal/opentelemetry/*
@@ -204,6 +206,16 @@ suites:
       - tests/cache/*
     runner: riot
     snapshot: true
+  lib_injection:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@lib_injection'
+    parallelism: 1
+    runner: riot
+    pattern: ^lib_injection$
   slotscheck:
     parallelism: 1
     paths:
