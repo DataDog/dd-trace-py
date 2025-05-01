@@ -12,7 +12,6 @@ from ddtrace._version import __version__ as host_ddtrace_version
 
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
-TEST_SUPPORT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "sitecustomize_test_support"))
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 # Core dependencies copied from pyproject.toml [project.dependencies]
@@ -26,12 +25,12 @@ DDTRACE_CORE_DEPENDENCIES = [
     "opentelemetry-api>=1",
     "xmltodict>=0.12",
     "typing_extensions",
-    "bytecode>=0.16.0", # ; python_version>='3.13.0'
-    "bytecode>=0.15.1", # ; python_version~='3.12.0'
-    "bytecode>=0.14.0", # ; python_version~='3.11.0'
-    "bytecode>=0.13.0", # ; python_version<'3.11'
-    "importlib_metadata<=6.5.0", # ; python_version<'3.8'
-    "legacy-cgi>=2.0.0", # ; python_version>='3.13.0'
+    "bytecode>=0.16.0",  # ; python_version>='3.13.0'
+    "bytecode>=0.15.1",  # ; python_version~='3.12.0'
+    "bytecode>=0.14.0",  # ; python_version~='3.11.0'
+    "bytecode>=0.13.0",  # ; python_version<'3.11'
+    "importlib_metadata<=6.5.0",  # ; python_version<'3.8'
+    "legacy-cgi>=2.0.0",  # ; python_version>='3.13.0'
 ]
 
 
@@ -57,47 +56,37 @@ def ddtrace_injection_artifact():
     sources_dir_in_session_tmp = os.path.join(session_tmpdir, "sources")
 
     try:
-        # 1. Copy source files (sitecustomize.py, CSVs, etc.)
-        shutil.copytree(LIBS_INJECTION_SRC_DIR, sources_dir_in_session_tmp,
-                         ignore=shutil.ignore_patterns('ddtrace_pkgs'))
+        # Copy source files needed by lib-injection (sitecustomize.py, CSVs, etc.)
+        shutil.copytree(
+            LIBS_INJECTION_SRC_DIR, sources_dir_in_session_tmp, ignore=shutil.ignore_patterns("ddtrace_pkgs")
+        )
 
-        # 3. Write the host's ddtrace version into the sources dir. Needed by sitecustomize.py
+        # Write the host's ddtrace version into the sources dir. Needed by lib-injection
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
-        try:
-            with open(version_file_path, "w") as f:
-                f.write(host_ddtrace_version)
-        except OSError as e:
-            pytest.fail(f"[Session Setup] Failed to write version file {version_file_path}: {e}")
+        with open(version_file_path, "w") as f:
+            f.write(host_ddtrace_version)
 
-        # 2. Copy the host's ddtrace package details into the correct dir structure
+        # Copy the host's ddtrace package details into the correct dir structure
         py_major_minor, platform_tag = get_platform_details()
         target_site_packages_name = f"site-packages-ddtrace-py{py_major_minor}-{platform_tag}"
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
+
         os.makedirs(target_site_packages_path, exist_ok=True)
+        host_ddtrace_path = os.path.join(PROJECT_ROOT, "ddtrace")
 
-        import ddtrace
-        host_ddtrace_path = os.path.dirname(ddtrace.__file__)
+        target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
+        if os.path.exists(target_ddtrace_dir):
+            if os.path.islink(target_ddtrace_dir):
+                os.unlink(target_ddtrace_dir)
+            elif os.path.isdir(target_ddtrace_dir):
+                shutil.rmtree(target_ddtrace_dir)
+            else:
+                os.remove(target_ddtrace_dir)
 
-        # Copy the host ddtrace package into the target structure
-        target_ddtrace_dir = os.path.join(target_site_packages_path, 'ddtrace')
-        try:
-            if os.path.exists(target_ddtrace_dir):
-                if os.path.islink(target_ddtrace_dir):
-                    os.unlink(target_ddtrace_dir)
-                elif os.path.isdir(target_ddtrace_dir):
-                     shutil.rmtree(target_ddtrace_dir)
-                else:
-                    os.remove(target_ddtrace_dir)
-
-            shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
-        except Exception as e:
-            pytest.fail(f"[Session Setup] Failed to copy host ddtrace from {host_ddtrace_path} to {target_ddtrace_dir}: {e}")
+        shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
         yield sources_dir_in_session_tmp
 
-    except Exception as e:
-        shutil.rmtree(session_tmpdir, ignore_errors=True)
-        pytest.fail(f"[Session Setup] Artifact preparation failed: {e}")
     finally:
         shutil.rmtree(session_tmpdir, ignore_errors=True)
 
@@ -133,7 +122,6 @@ def test_venv(ddtrace_injection_artifact):
                 "PYTHONPATH": "",
             }
 
-            # 1. Install core dependencies from the hardcoded list
             if DDTRACE_CORE_DEPENDENCIES:
                 core_install_cmd = [pip_executable, "install", "--no-cache-dir"] + DDTRACE_CORE_DEPENDENCIES
                 subprocess.run(
@@ -145,7 +133,7 @@ def test_venv(ddtrace_injection_artifact):
                     env=base_env,
                 )
 
-            # 2. Install test-specific packages
+            # Install test-specific packages
             if packages_to_install:
                 install_specs = []
                 for package, version in packages_to_install.items():
@@ -163,7 +151,6 @@ def test_venv(ddtrace_injection_artifact):
                         env=base_env,
                     )
 
-            # Return the executables, sources, env, and the venv path itself
             return python_executable, prepared_sources_dir, base_env, venv_dir
 
         except Exception as e:

@@ -341,7 +341,7 @@ def _inject():
             integration_incomp = True
             for integration_name, integration_version in incompatible_integrations.items():
                 # set environment variable to disable integration
-                os.environ[f"DD_TRACE_{integration_name.upper()}_ENABLED"] = "false"
+                os.environ["DD_TRACE_" + integration_name.upper() + "_ENABLED"] = "false"
                 _log("Disabled integration %s" % integration_name, level="warning")
                 TELEMETRY_DATA.append(
                     create_count_metric(

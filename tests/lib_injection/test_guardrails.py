@@ -110,9 +110,10 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
         ), f"sitecustomize did not set the _DD_INJECT_WAS_ATTEMPTED flag. stderr: {result.stderr}"
 
         for var_name, expected_value in expected_disabled_vars.items():
-            assert (
-                output_env_vars.get(var_name) == expected_value
-            ), f"Expected env var '{var_name}' to be '{expected_value}', but got '{output_env_vars.get(var_name)}'. stderr: {result.stderr}"
+            assert output_env_vars.get(var_name) == expected_value, (
+                f"Expected env var '{var_name}' to be '{expected_value}', "
+                + f"but got '{output_env_vars.get(var_name)}'. stderr: {result.stderr}"
+            )
 
         all_found_integration_flags = {
             k for k in output_env_vars if k.startswith("DD_TRACE_") and k.endswith("_ENABLED")
@@ -123,9 +124,10 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
             if flag not in expected_disabled_vars and output_env_vars.get(flag) == "false":
                 unexpectedly_disabled_flags.add(flag)
 
-        assert (
-            not unexpectedly_disabled_flags
-        ), f"The following env vars were unexpectedly set to 'false': {unexpectedly_disabled_flags}. stderr: {result.stderr}"
+        assert not unexpectedly_disabled_flags, (
+            f"The following env vars were unexpectedly set to 'false': {unexpectedly_disabled_flags}. "
+            + f"stderr: {result.stderr}"
+        )
 
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Subprocess failed:\nExit Code: {e.returncode}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
@@ -133,5 +135,6 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
         pytest.fail(f"Subprocess timed out:\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
     except json.JSONDecodeError as e:
         pytest.fail(
-            f"Failed to decode JSON output from subprocess:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}\nError: {e}"
+            f"Failed to decode JSON output from subprocess:\nstdout:\n{result.stdout}\nstderr:\n"
+            + f"{result.stderr}\nError: {e}"
         )
