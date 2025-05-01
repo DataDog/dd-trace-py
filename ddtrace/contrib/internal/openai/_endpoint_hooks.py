@@ -765,7 +765,11 @@ class _ResponseHook(_EndpointHook):
         def handle_response_tools(resp, span):
             if getattr(resp, "tools", None):
                 response_tools = [
-                    {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}
+                    {
+                        k: v
+                        for k, v in {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}.items()
+                        if v is not None
+                    }
                     for tool in resp.tools
                     if hasattr(tool, "type") or hasattr(tool, "name")
                 ]
