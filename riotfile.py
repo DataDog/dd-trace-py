@@ -382,6 +382,18 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="lib-injection",
+            command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "pytest-randomly": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
             pkgs={

@@ -55,7 +55,7 @@ VERSION_COMPAT_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/min_compatible_versions.csv")),
     os.path.abspath(os.path.join(SCRIPT_DIR, "min_compatible_versions.csv")),
 )
-MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS = (os.path.abspath(os.path.join(SCRIPT_DIR, "supported_versions_table.csv")),)
+MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS = os.path.abspath(os.path.join(SCRIPT_DIR, "supported_versions_table.csv"))
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
 SITE_PKGS_MARKER = "site-packages-ddtrace-py"
 BOOTSTRAP_MARKER = "bootstrap"
@@ -84,9 +84,8 @@ def build_installed_pkgs():
 
 def build_min_integrations():
     min_dep_to_integration = dict()
-    csv_path = os.path.join(ROOT_DIR, "supported_versions_table.csv")
     try:
-        with open(csv_path, "r", encoding="utf-8") as csvfile:
+        with open(MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS, "r", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 try:
@@ -103,7 +102,7 @@ def build_min_integrations():
                     _log("Error processing row %s: %s", row, row_exc, level="debug")
                     continue
     except Exception as e:
-        _log("Failed to build min-integrations list from %s: %s", csv_path, e, level="error")
+        _log("Failed to build min-integrations list from %s: %s", MIN_DEPENDENCY_INTEGRATION_FILE_LOCATIONS, e, level="error")
 
     _log("Built min integrations map with %d entries", len(min_dep_to_integration), level="debug")
     return min_dep_to_integration
