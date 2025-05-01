@@ -47,7 +47,7 @@ def get_platform_details():
 def ddtrace_injection_artifact():
     """
     Session-scoped fixture to prepare the injection artifact:
-    1. Copies injection source files (sitecustomize.py, etc.).
+    1. Copies injection source files (sitecustomize.py, supported_integration_versions.csv, etc.).
     2. Copies the host's ddtrace package into the expected `ddtrace_pkgs/site-packages...` structure.
     3. Writes the host's ddtrace version to the `version` file.
 
@@ -55,16 +55,11 @@ def ddtrace_injection_artifact():
     """
     session_tmpdir = tempfile.mkdtemp(prefix="dd_injection_artifact_session_")
     sources_dir_in_session_tmp = os.path.join(session_tmpdir, "sources")
-    ddtrace_pkgs_output_dir = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs")
 
     try:
         # 1. Copy source files (sitecustomize.py, CSVs, etc.)
         shutil.copytree(LIBS_INJECTION_SRC_DIR, sources_dir_in_session_tmp,
-                          ignore=shutil.ignore_patterns('ddtrace_pkgs'))
-
-        # Now that sources_dir_in_session_tmp exists, create the ddtrace_pkgs dir inside it
-        ddtrace_pkgs_output_dir = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs")
-        os.makedirs(ddtrace_pkgs_output_dir, exist_ok=True)
+                         ignore=shutil.ignore_patterns('ddtrace_pkgs'))
 
         # 3. Write the host's ddtrace version into the sources dir. Needed by sitecustomize.py
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
@@ -74,11 +69,10 @@ def ddtrace_injection_artifact():
         except OSError as e:
             pytest.fail(f"[Session Setup] Failed to write version file {version_file_path}: {e}")
 
-        # 2. Copy the host's ddtrace package details
+        # 2. Copy the host's ddtrace package details into the correct dir structure
         py_major_minor, platform_tag = get_platform_details()
         target_site_packages_name = f"site-packages-ddtrace-py{py_major_minor}-{platform_tag}"
-        target_site_packages_path = os.path.join(ddtrace_pkgs_output_dir, target_site_packages_name)
-        # Create the target directory, including intermediate ddtrace_pkgs dir.
+        target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 
         import ddtrace
@@ -109,7 +103,7 @@ def ddtrace_injection_artifact():
 
 
 @pytest.fixture(scope="function")
-def test_venv(ddtrace_injection_artifact): # Depend on the artifact fixture
+def test_venv(ddtrace_injection_artifact):
     """
     Function-scoped fixture factory to create a clean venv for a test case,
     install core ddtrace dependencies (from hardcoded list, excluding ddtrace itself),
@@ -119,7 +113,7 @@ def test_venv(ddtrace_injection_artifact): # Depend on the artifact fixture
     Yields a factory function that takes `packages_to_install` dict.
     The factory function returns: (path_to_python_executable, path_to_prepared_sources_dir, base_env)
     """
-    prepared_sources_dir = ddtrace_injection_artifact # Get path from the session fixture
+    prepared_sources_dir = ddtrace_injection_artifact
     venvs_to_clean = []
 
     def _create_test_venv(packages_to_install=None):
@@ -131,12 +125,12 @@ def test_venv(ddtrace_injection_artifact): # Depend on the artifact fixture
             python_executable = os.path.join(venv_dir, "bin", "python")
             pip_executable = os.path.join(venv_dir, "bin", "pip")
 
-            # Construct the base environment needed to run things in this venv EARLY
+            # Construct the base environment needed to run things in this venv
             base_env = {
                 **os.environ,
                 "VIRTUAL_ENV": venv_dir,
                 "PATH": os.path.dirname(pip_executable) + os.pathsep + os.environ.get("PATH", ""),
-                "PYTHONPATH": "", # Clear PYTHONPATH
+                "PYTHONPATH": "",
             }
 
             # 1. Install core dependencies from the hardcoded list
@@ -166,8 +160,10 @@ def test_venv(ddtrace_injection_artifact): # Depend on the artifact fixture
                         check=True,
                         capture_output=True,
                         text=True,
-                        env=base_env # Use the cleaned base_env
+                        env=base_env,
                     )
+
+            # Return the executables, sources, env, and the venv path itself
             return python_executable, prepared_sources_dir, base_env, venv_dir
 
         except Exception as e:
