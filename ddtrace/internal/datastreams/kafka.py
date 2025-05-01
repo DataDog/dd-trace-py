@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -16,6 +17,9 @@ MESSAGE_ARG_POSITION = 1
 KEY_ARG_POSITION = 2
 KEY_KWARG_NAME = "key"
 
+disable_header_injection = False
+
+log = get_logger(__name__)
 
 def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
@@ -31,14 +35,18 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
+    if not disable_header_injection:
+        log.info("Message sent with Kafka Headers enabled")
+        DsmPathwayCodec.encode(ctx, headers)
+        kwargs["headers"] = headers
+    else:
+        log.info("Message sent with Kafka Headers disabled")
+
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
-
-    DsmPathwayCodec.encode(ctx, headers)
-    kwargs["headers"] = headers
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
@@ -55,6 +63,10 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
             processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
+        elif err.code() == -1:
+            global disable_header_injection
+            disable_header_injection = True
+            log.error("Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more information. Tracer message header injection for Kafka is disabled.")
         if on_delivery is not None:
             on_delivery(err, msg)
 
