@@ -251,6 +251,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             stream_options = kwargs.get("stream_options", {})
             if not isinstance(stream_options, dict):
+                # `NOT_GIVEN` may be explicitly passed in as a key word argument by beta wrapper clients
+                # in the openai library so we handle that by defaulting to an empty dict
                 stream_options = {}
             if stream_options.get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
