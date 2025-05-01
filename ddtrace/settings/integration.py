@@ -45,7 +45,7 @@ class IntegrationConfig(AttrDict):
         # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
         if self.setdefault("analytics_enabled", False):
             deprecate(
-                "Analytics is deprecated and will be removed in a future version",
+                "App Analytics is deprecated",
                 message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
@@ -144,6 +144,7 @@ class IntegrationConfig(AttrDict):
     
     @analytics_sample_rate.setter
     def analytics_sample_rate(self, value):
+        breakpoint()
         deprecate(
             f"Setting ddtrace.config.{self.name}.analytics_sample_rate is deprecated",
             message="See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options",

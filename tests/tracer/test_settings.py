@@ -149,26 +149,49 @@ class TestIntegrationConfig(BaseTestCase):
         assert ic.service == "foo-svc"
 
     def test_app_analytics_property(self):
+        self.integration_config.name = "test-integration"
+       
+        # test default values
+        assert self.integration_config.analytics_enabled == False
+        assert self.integration_config.analytics_sample_rate == 1.0
+        
+        # test updating values
+        self.integration_config.analytics_enabled = True
+        assert self.integration_config.analytics_enabled == True
+
+        self.integration_config.analytics_sample_rate = 0.5
+        assert self.integration_config.analytics_sample_rate == 0.5
+
+        assert self.integration_config.get_analytics_sample_rate() == 1
+
+    def test_app_analytics_deprecation(self):
         import warnings
         with warnings.catch_warnings(record=True) as warns:
             warnings.simplefilter("always")
             
-            # test default values
-            assert self.integration_config.analytics_enabled == False
-            assert self.integration_config.analytics_sample_rate == 1.0
+            self.integration_config.name = "test-integration"
 
-            # test updating values
-            self.integration_config.analytics_enabled = True
-            assert self.integration_config.analytics_enabled == True
 
-            self.integration_config.analytics_sample_rate = 0.5
-            assert self.integration_config.analytics_sample_rate == 0.5
+            #self.integration_config.analytics_enabled = True
+            self.integration_config.analytics_enabled
+            getter_warning = str(warns[0].message)
+            assert "analytics_enabled is deprecated" in str(getter_warning)
+            assert "See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options" in str(getter_warning)
+            assert "will be removed in version '4.0.0'" in str(getter_warning)
+            
+            self.integration_config.analytics_sample_rate
+            setter_warning = str(warns[1].message)
+            assert "analytics_sample_rate is deprecated" in str(setter_warning)
+            assert "See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options" in str(setter_warning)
+            assert "will be removed in version '4.0.0'" in str(setter_warning)
 
-            #assert self.integration_config.get_analytics_sample_rate() == 1
-
-            print("warning message length: %s" % len(warns))
-            print("warning message: %s" % warns[0].message)
-            assert len(warns) < 0
+            self.integration_config.get_analytics_sample_rate()
+            getter_warning = str(warns[2].message)
+            assert "get_analytics_sample_rate is deprecated" in str(getter_warning)
+            assert "The method currently returns 1 always" in str(getter_warning)
+            assert "will be removed in version '4.0.0'" in str(getter_warning)
+            
+            assert len(warns) == 3
 
 
 
@@ -198,34 +221,34 @@ def test_x_datadog_tags(env, expected):
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
 
 
-@pytest.mark.subprocess()
-def test_get_analytics_sample_rate_deprecation():
-    """Ensure App Analytics deprecation warning shows"""
-    import warnings
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-
-        from ddtrace.settings._config import Config
-        from ddtrace.settings import IntegrationConfig
-
-        config = Config()
-        ic = IntegrationConfig(config, "test")
+# @pytest.mark.subprocess()
+# def test_get_analytics_sample_rate_deprecation(env_overrides=dict(DD_TEST_ANALYTICS_ENABLED="true")):
+#     """Ensure App Analytics deprecation warning shows"""
+#     import warnings
+#     with warnings.catch_warnings(record=True) as warns:
+#         warnings.simplefilter("always")
         
-        # test default values
-        assert ic.analytics_enabled == False
-        assert ic.analytics_sample_rate == 1.0
+#         from ddtrace.settings._config import Config
+#         from ddtrace.settings import IntegrationConfig
 
-        # test updating values
-        ic.analytics_enabled = True
-        assert ic.analytics_enabled == True
+#         config = Config()
+#         ic = IntegrationConfig(config, "test")
+        
+#         # test default values
+#         assert ic.analytics_enabled == False
+#         assert ic.analytics_sample_rate == 1.0
 
-        ic["analytics_sample_rate"] = 0.5
-        assert ic.analytics_sample_rate == 0.5
+#         # test updating values
+#         ic.analytics_enabled = True
+#         assert ic.analytics_enabled == True
 
-        assert ic.get_analytics_sample_rate() == 1
+#         ic.analytics_sample_rate = 0.5
+#         assert ic.analytics_sample_rate == 0.5
 
-        assert len(warns) == 1
-        warning_message = str(warns[0].message)
-        assert "analytics_sample_rate is deprecated" in warning_message
-        assert "The method currently returns 1 always" in warning_message
-        assert "will be removed in version '4.0.0'" in warning_message
+#         assert ic.get_analytics_sample_rate() == 1
+
+#         assert len(warns) == 1
+#         warning_message = str(warns[0].message)
+#         assert "analytics_sample_rate is deprecated" in warning_message
+#         assert "The method currently returns 1 always" in warning_message
+#         assert "will be removed in version '4.0.0'" in warning_message
