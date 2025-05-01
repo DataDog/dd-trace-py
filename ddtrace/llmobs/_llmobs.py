@@ -94,6 +94,15 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    # requests frameworks for distributed injection/extraction
+    "requests": "requests",
+    "httpx": "httpx",
+    "urllib3": "urllib3",
+    "grpc": "grpc",
+    "flask": "flask",
+    "starlette": "starlette",
+    "fastapi": "fastapi",
+    "aiohttp": "aiohttp",
 }
 
 
