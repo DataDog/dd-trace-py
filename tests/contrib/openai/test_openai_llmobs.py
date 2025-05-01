@@ -711,6 +711,26 @@ class TestLLMObsOpenaiV1:
         assert span.resource == "createResponseCompletion"
         assert span.get_tag("openai.request.model") == "gpt-4.1"
 
+    def test_response_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette(
+            "response_completion_streamed.yaml", record_mode="new_episodes"
+        ):
+            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
+                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
+                    mock_est.return_value = 2
+                    model = "gpt-4.1"
+                    client = openai.OpenAI()
+                    resp = client.responses.create(model=model, input="Hello world", stream=True)
+                    for _ in resp:
+                        pass
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        assert span.name == "openai.request"
+        assert span.resource == "createResponseCompletion"
+        assert span.get_tag("openai.request.model") == "gpt-4.1"
+        assert span.get_tag("openai.request.stream") == "True"
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
