@@ -382,7 +382,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="lib-injection",
+            name="lib_injection",
             command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
             venvs=[
                 Venv(

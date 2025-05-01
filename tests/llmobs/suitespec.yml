@@ -29,6 +29,8 @@ components:
   openai_agents:
     - ddtrace/contrib/_openai_agents.py
     - ddtrace/contrib/internal/openai_agents/*
+  lib_injection:
+    - tests/lib_injection/*
 suites:
   anthropic:
     parallelism: 2
@@ -84,6 +86,16 @@ suites:
       - tests/snapshots/tests.contrib.langchain.*
     runner: riot
     snapshot: true
+  lib_injection:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@lib_injection'
+    parallelism: 1
+    runner: riot
+    pattern: ^lib_injection$
   litellm:
     paths:
       - '@bootstrap'
