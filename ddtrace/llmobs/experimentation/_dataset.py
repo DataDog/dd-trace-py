@@ -419,89 +419,131 @@ class Dataset:
 
     def push(self, overwrite: bool = False, new_version: bool = False) -> None:
         """
-        Push the dataset to Datadog, handling various scenarios based on sync status and flags.
+        Push the local dataset state to Datadog.
 
-        1. Checks if a dataset with the same name exists on Datadog.
-        2. If it exists:
-           - For local datasets (not synced):
-             * overwrite=True => Overwrite remote dataset
-             * new_version=True => Create a new version of remote dataset
-             * else => Warn and do nothing
-           - For a synced dataset with changes:
-             * overwrite=True => Overwrite remote dataset (using _push_entire_dataset)
-             * new_version=True => Create new version (using _push_entire_dataset)
-             * else => Send incremental changes (using _batch_update)
-           - For a synced dataset with no changes => Do nothing
-        3. If it doesn't exist, create a new dataset.
+        This method handles different scenarios:
+        - If no remote dataset with the same name exists, it creates a new one.
+        - If a remote dataset exists:
+            - If the local dataset was not previously synced with Datadog, requires either
+              `overwrite=True` or `new_version=True` to proceed.
+            - If the local dataset is synced and has changes:
+                - `overwrite=True`: Replaces the latest version of the remote dataset entirely.
+                - `new_version=True`: Creates a new version remotely based on the full local dataset.
+                - Default: Sends incremental changes (adds, updates, deletes) to create a new version.
+            - If the local dataset is synced and has no changes, no action is taken.
+
+        Args:
+            overwrite (bool, optional): If True and a remote dataset exists, overwrite its latest
+                version with the current local data. Cannot be used with `new_version=True`. Defaults to False.
+            new_version (bool, optional): If True and a remote dataset exists, push the entire local
+                dataset as a new version, ignoring incremental changes. Cannot be used with `overwrite=True`.
+                Defaults to False.
+
+        Raises:
+            ValueError: If both `overwrite` and `new_version` are True, or if a remote dataset exists
+                but the local dataset isn't synced and neither flag is specified. Also raises if there's
+                an ID mismatch between local and remote state.
+            Exception: If any HTTP or unexpected error occurs during the API requests.
         """
         if overwrite and new_version:
             raise ValueError("Cannot specify both overwrite=True and new_version=True")
 
         _validate_init()
-
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{quote(self.name)}\""
-        existing_dataset = exp_http_request("GET", url).json().get("data", [])
-
         has_changes = any(len(chg) > 0 for chg in self._changes.values())
 
-        if existing_dataset:
-            remote_id = existing_dataset[0]["id"]
-            current_version = existing_dataset[0]["attributes"]["current_version"]
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{quote(self.name)}\""
+        response = exp_http_request("GET", url)
+        existing_dataset_data = response.json().get("data", [])
 
-            # Local dataset not yet synced to Datadog
-            if not self._datadog_dataset_id:
-                if overwrite:
-                    self._datadog_dataset_id = remote_id
-                    self._datadog_dataset_version = current_version
-                    self._push_entire_dataset(overwrite=True)
-                elif new_version:
-                    self._datadog_dataset_id = remote_id
-                    self._datadog_dataset_version = current_version
-                    self._push_entire_dataset(overwrite=False)
-                else:
-                   raise ValueError(f"Dataset '{self.name}' already exists. Use push(overwrite=True) to overwrite or push(new_version=True) to create a new version.")
-                return
-
-            # Local dataset is synced (ids match)
-            if self._datadog_dataset_id == remote_id:
-                if has_changes:
-                    if overwrite:
-                        self._push_entire_dataset(overwrite=True)
-                    elif new_version:
-                        self._push_entire_dataset(overwrite=False)
-                    else:
-                        # Default: send incremental updates as a new version
-                        self._batch_update(overwrite=False)
-                else:
-                    print("Dataset is already synced and has no changes.")
-                return
-
-            # Dataset found but ID doesn't match - indicates an issue
-            raise ValueError(f"Dataset '{self.name}' exists but with a different ID. This shouldn't happen.")
-
+        if existing_dataset_data:
+            self._handle_existing_remote_dataset(existing_dataset_data[0], has_changes, overwrite, new_version)
         else:
-            # No remote dataset with this name found
-            if self._datadog_dataset_id:
-                # Local dataset was synced, but remote is gone
-                print(
-                    f"{Color.YELLOW}Warning: Remote dataset no longer exists. "
-                    f"Creating a new one.{Color.RESET}"
-                )
-                self._datadog_dataset_id = None
-                self._datadog_dataset_version = 0
+            self._handle_no_remote_dataset()
 
-            # Create the dataset remotely
+    def _handle_existing_remote_dataset(self, remote_data: Dict, has_changes: bool, overwrite: bool, new_version: bool) -> None:
+        """Handles the logic when a remote dataset with the same name exists."""
+        remote_id = remote_data["id"]
+        current_version = remote_data["attributes"]["current_version"]
+
+        # Scenario 1: Local dataset not yet synced to Datadog
+        if not self._datadog_dataset_id:
+            if overwrite:
+                print(f"{Color.YELLOW}Warning: Found existing dataset '{self.name}'. Overwriting it with local data.{Color.RESET}")
+                self._datadog_dataset_id = remote_id
+                self._datadog_dataset_version = current_version
+                self._push_entire_dataset(overwrite=True)
+            elif new_version:
+                print(f"Found existing dataset '{self.name}'. Creating a new version based on local data.")
+                self._datadog_dataset_id = remote_id
+                self._datadog_dataset_version = current_version
+                self._push_entire_dataset(overwrite=False) # False means create new version
+            else:
+                raise ValueError(
+                    f"Dataset '{self.name}' already exists remotely. Use push(overwrite=True) to overwrite "
+                    f"or push(new_version=True) to create a new version based on local data."
+                )
+            return
+
+        # Scenario 2: Local dataset is synced - check if IDs match
+        if self._datadog_dataset_id != remote_id:
+            # This scenario should ideally not happen if pull/push logic is correct
+            raise ValueError(
+                f"Local dataset ID ({self._datadog_dataset_id}) does not match remote dataset ID ({remote_id}) "
+                f"for name '{self.name}'. This could happen if the remote dataset was deleted and recreated. "
+                f"Consider pulling the dataset again or using push(overwrite=True)."
+            )
+
+        # Scenario 3: Local dataset is synced and IDs match
+        if not has_changes:
+            print(f"Dataset '{self.name}' (v{self._datadog_dataset_version}) is already synced and has no pending changes.")
+            return
+
+        # Scenario 4: Synced dataset with changes
+        if overwrite:
+            # Overwrite existing version by pushing all data
+            self._push_entire_dataset(overwrite=True)
+        elif new_version:
+            # Force creation of new version by pushing all data
             self._push_entire_dataset(overwrite=False)
+        else:
+            # Default behavior: send incremental updates to create a new version
+            self._batch_update(overwrite=False)
+
+    def _handle_no_remote_dataset(self) -> None:
+        """Handles the logic when no remote dataset with the same name exists."""
+        if self._datadog_dataset_id:
+            # Local dataset thought it was synced, but remote is gone (deleted/renamed)
+            print(
+                f"{Color.YELLOW}Warning: Local dataset '{self.name}' was previously synced (ID: {self._datadog_dataset_id}), "
+                f"but no matching remote dataset found. Creating a new one based on local data.{Color.RESET}"
+            )
+            self._datadog_dataset_id = None
+            self._datadog_dataset_version = 0 # Reset version for new creation
+
+        # Create the dataset remotely since it doesn't exist
+        print(f"Creating new dataset '{self.name}' on Datadog.")
+        # overwrite=False is implicit for creation, but explicit for clarity
+        self._push_entire_dataset(overwrite=False)
 
     def _push_entire_dataset(self, overwrite: bool) -> None:
         """
         Internal helper to create or overwrite a dataset by pushing all records.
         If self._datadog_dataset_id is None, a new dataset is created first.
+        If overwrite is True and dataset exists, it replaces the latest version.
+        If overwrite is False and dataset exists, it creates a new version.
         """
-        if overwrite:
-            print(f"{Color.YELLOW}Warning: Overwriting existing dataset '{self.name}'...{Color.RESET}")
+        action = "Overwriting" if overwrite else "Creating new version for"
+        if not self._datadog_dataset_id:
+            action = "Creating" # Overwrite flag is ignored if dataset doesn't exist locally
 
-        # Create dataset if it doesn't exist locally
+        if self._datadog_dataset_id and overwrite:
+             print(f"{Color.YELLOW}Warning: Overwriting latest version of existing dataset '{self.name}'...{Color.RESET}")
+        elif self._datadog_dataset_id and not overwrite:
+             print(f"Pushing entire local dataset as a new version for '{self.name}'...")
+        else: # Creation case
+             print(f"Creating dataset '{self.name}' with local data...")
+
+        # Create dataset metadata entry if it doesn't exist locally
         if not self._datadog_dataset_id:
             payload = {
                 "data": {
@@ -515,7 +557,7 @@ class Dataset:
             resp = exp_http_request("POST", "/api/unstable/llm-obs/v1/datasets", body=json.dumps(payload).encode("utf-8"))
             response_data = resp.json()
             self._datadog_dataset_id = response_data["data"]["id"]
-            self._datadog_dataset_version = 0 # Version starts at 0 for creation
+            self._datadog_dataset_version = 0 # Version starts at 0 for creation via API
 
         records_list = []
         for record in self._data:

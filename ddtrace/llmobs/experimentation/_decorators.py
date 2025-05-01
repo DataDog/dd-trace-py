@@ -85,8 +85,7 @@ def summary_metric(_func=None, *, primary: bool = False):
         # If _func is provided, it means @summary_metric was used directly.
         # Apply the decorator logic immediately with default primary=False.
         return decorator(_func)
-    else:
-        # If _func is None, it means @summary_metric() or @summary_metric(primary=True) was used.
-        # Return the inner 'decorator' function, which will be called with 'func' later.
-        # The 'primary' value passed (or default) is captured in the closure.
-        return decorator
+    # If _func is None, it means @summary_metric() or @summary_metric(primary=True) was used.
+    # Return the inner 'decorator' function, which will be called with 'func' later.
+    # The 'primary' value passed (or default) is captured in the closure.
+    return decorator
