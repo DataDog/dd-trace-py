@@ -12,6 +12,7 @@ import mock
 import pytest
 
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
+from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
@@ -213,6 +214,19 @@ def test_consumer_created_with_logger_does_not_raise(tracer):
     consumer.close()
 
 
+def test_consumer_initialized_with_unpacked_config(tracer):
+    """Test that adding a logger to a Consumer init does not raise any errors."""
+    consumer = confluent_kafka.Consumer(
+        **{
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": GROUP_ID,
+            "auto.offset.reset": "earliest",
+        },
+    )
+    assert isinstance(consumer, TracedConsumer)
+    consumer.close()
+
+
 def test_empty_list_from_consume_does_not_raise():
     # https://github.com/DataDog/dd-trace-py/issues/8846
     patch()
@@ -243,6 +257,23 @@ def test_empty_list_from_consume_does_not_raise():
 )
 def test_producer_bootstrap_servers(config, expect_servers, tracer):
     producer = confluent_kafka.Producer(config)
+    if expect_servers is not None:
+        assert producer._dd_bootstrap_servers == expect_servers
+    else:
+        assert producer._dd_bootstrap_servers is None
+
+
+@pytest.mark.parametrize(
+    "config,expect_servers",
+    [
+        ({"bootstrap.servers": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({"metadata.broker.list": BOOTSTRAP_SERVERS}, BOOTSTRAP_SERVERS),
+        ({}, None),
+    ],
+)
+def test_producer_initialized_unpacked_config(config, expect_servers, tracer):
+    producer = confluent_kafka.Producer(**config)
+    assert isinstance(producer, TracedProducer)
     if expect_servers is not None:
         assert producer._dd_bootstrap_servers == expect_servers
     else:

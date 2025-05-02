@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
+from .._logs import iast_propagation_sink_point_debug_log
 from .._overhead_control_engine import oce
 from ._base import VulnerabilityBase
 
@@ -51,6 +52,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     try:
         if asm_config.is_iast_request_enabled:
             if CommandInjection.has_quota():
+                iast_propagation_sink_point_debug_log("Check command injection sink point")
                 from .._taint_tracking.aspects import join_aspect
 
                 if isinstance(shell_args, (list, tuple)):
@@ -62,6 +64,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
                     report_cmdi = shell_args
 
                 if report_cmdi:
+                    iast_propagation_sink_point_debug_log("Reporting command injection")
                     CommandInjection.report(evidence_value=report_cmdi)
 
             # Reports Span Metrics
@@ -69,4 +72,4 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
             # Report Telemetry Metrics
             _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_ssrf. {e}")
+        iast_error(f"propagation::sink_point::Error in _iast_report_cmdi. {e}")
