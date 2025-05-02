@@ -35,18 +35,14 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    if not disable_header_injection:
-        log.info("Message sent with Kafka Headers enabled")
-        DsmPathwayCodec.encode(ctx, headers)
-        kwargs["headers"] = headers
-    else:
-        log.info("Message sent with Kafka Headers disabled")
-
     edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
+    if not disable_header_injection:
+        DsmPathwayCodec.encode(ctx, headers)
+        kwargs["headers"] = headers
 
     on_delivery_kwarg = "on_delivery"
     on_delivery_arg = 5
@@ -60,11 +56,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
             on_delivery = get_argument_value(args, kwargs, on_delivery_arg, on_delivery_kwarg, optional=True)
 
     def wrapped_callback(err, msg):
+        global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
             processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
-        elif err.code() == -1:
-            global disable_header_injection
+        elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
             log.error("Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more information. Tracer message header injection for Kafka is disabled.")
         if on_delivery is not None:
