@@ -1348,6 +1348,9 @@ async def test_openai_asyncio_cancellation(openai):
     assert asyncio_timeout, "Expected asyncio.TimeoutError"
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_completion")
 def test_response_completion(openai, mock_tracer):
     """Ensure llmobs records are emitted for response completion endpoints when configured."""
@@ -1364,6 +1367,9 @@ def test_response_completion(openai, mock_tracer):
     assert span.get_tag("openai.request.model") == "gpt-4.1"
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_completion_stream")
 def test_response_completion_stream(openai, mock_llmobs_writer, mock_tracer):
     with get_openai_vcr(subdirectory_name="v1").use_cassette("response_completion_streamed.yaml"):
