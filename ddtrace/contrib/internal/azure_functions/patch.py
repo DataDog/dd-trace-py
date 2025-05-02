@@ -36,6 +36,8 @@ def patch():
     Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+    _w("azure.functions", "FunctionApp.service_bus_queue_trigger", _patched_service_bus_trigger)
+    _w("azure.functions", "FunctionApp.service_bus_topic_trigger", _patched_service_bus_trigger)
     _w("azure.functions", "FunctionApp.timer_trigger", _patched_timer_trigger)
 
 
@@ -69,6 +71,34 @@ def _patched_route(wrapped, instance, args, kwargs):
         wrap_function = wrap_function_with_tracing(
             func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch
         )
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
+    trigger = "ServiceBus"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        function_name = get_function_name(pin, instance, func)
+
+        def context_factory():
+            resource_name = f"{trigger} {function_name}"
+            return create_context("azure.functions.patched_service_bus", pin, resource_name)
+
+        def pre_dispatch(ctx, kwargs):
+            ctx.set_item("trigger_span", ctx.span)
+            return (
+                "azure.functions.trigger_call_modifier",
+                (ctx, config.azure_functions, function_name, trigger),
+            )
+
+        wrap_function = wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
         return wrapped(*args, **kwargs)(wrap_function)
 
