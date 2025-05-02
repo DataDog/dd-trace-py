@@ -75,7 +75,7 @@ def collect(tracer):
 
     is_venv = in_venv()
 
-    packages_available = {p.name: p.version for p in get_distributions()}
+    packages_available = {name: version for (name, version) in get_distributions().items()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
