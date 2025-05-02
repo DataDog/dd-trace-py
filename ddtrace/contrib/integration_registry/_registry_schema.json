@@ -22,17 +22,25 @@
         "type": "object",
         "description": "Min, max, and list of tested versions for a specific dependency.",
         "properties": {
-          "min": {
-            "description": "Minimum explicit version found in test lockfiles.",
+          "tested_min": {
+            "description": "Minimum version found in test lockfiles.",
             "type": "string"
           },
-          "max": {
-            "description": "Maximum explicit version found in test lockfiles.",
+          "tested_max": {
+            "description": "Maximum version found in test lockfiles.",
+            "type": "string"
+          },
+          "supported_min": {
+            "description": "Minimum implied version supported by the integration (Major version was tested).",
+            "type": "string"
+          },
+          "supported_max": {
+            "description": "Maximum implied version supported by the integration. Equals 'latest' if the dependency is not pinned. Otherwise, the maximum version found in test lockfiles.",
             "type": "string"
           }
         },
         "required": [
-          "min", "max"
+          "tested_min", "tested_max", "supported_min", "supported_max"
         ],
         "additionalProperties": false
       },

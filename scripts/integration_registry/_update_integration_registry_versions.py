@@ -87,8 +87,12 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[
 
                 normalized_tested_min = _normalize_version_string(tested_min_version) if tested_min_version else "N/A"
                 normalized_tested_max = _normalize_version_string(tested_max_version) if tested_max_version else "N/A"
-                normalized_supported_min = _normalize_version_string(supported_min_version) if supported_min_version else "N/A"
-                normalized_supported_max = _normalize_version_string(supported_max_version) if supported_max_version else "N/A"
+                normalized_supported_min = (
+                    _normalize_version_string(supported_min_version) if supported_min_version else "N/A"
+                )
+                normalized_supported_max = (
+                    _normalize_version_string(supported_max_version) if supported_max_version else "N/A"
+                )
 
                 supported_data[integration_name][dependency_name] = {
                     "tested_min": normalized_tested_min,

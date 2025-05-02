@@ -171,13 +171,9 @@ integrations:
 
 - integration_name: boto
   is_external_package: true
-  is_tested: true
+  is_tested: false
   dependency_names:
   - boto
-  tested_versions_by_dependency:
-    boto:
-      min: 2.49.0
-      max: 2.49.0
 
 - integration_name: botocore
   is_external_package: true
@@ -259,13 +255,9 @@ integrations:
 
 - integration_name: coverage
   is_external_package: true
-  is_tested: true
+  is_tested: false
   dependency_names:
   - coverage
-  tested_versions_by_dependency:
-    coverage:
-      min: 7.2.2
-      max: 7.8.0
 
 - integration_name: crewai
   is_external_package: true

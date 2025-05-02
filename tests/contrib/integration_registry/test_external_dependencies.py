@@ -13,7 +13,12 @@ def _validate_version_str(version_str: str, field_name: str, integration_name: s
     errors = []
     if version_str != "N/A":
         try:
-            parse_version(version_str)
+            if version_str == "latest":
+                return []
+            elif version_str.startswith(">="):
+                parse_version(version_str[2:])
+            else:
+                parse_version(version_str)
         except InvalidVersion:
             errors.append(
                 f"Integration '{integration_name}', Dependency '{dep_name}': Invalid SemVer format for '{field_name}': "
@@ -67,19 +72,25 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
                     "dictionary."
                 )
                 continue
-            min_v = version_info.get("min")
-            max_v = version_info.get("max")
-            if min_v is None and max_v is None:
+            tested_min_v = version_info.get("tested_min")
+            tested_max_v = version_info.get("tested_max")
+            supported_min_v = version_info.get("supported_min")
+            supported_max_v = version_info.get("supported_max")
+            if tested_min_v is None or tested_max_v is None or supported_min_v is None or supported_max_v is None:
                 errors.append(
-                    f"Integration '{name}', Dependency '{dep_name}': Version info block must contain at least "
-                    "'min' or 'max'."
+                    f"Integration '{name}', Dependency '{dep_name}': Version info block must contain "
+                    "'tested_min', 'tested_max', 'supported_min', and 'supported_max'."
                 )
                 continue
 
-            if min_v is not None:
-                errors.extend(_validate_version_str(min_v, "min", name, dep_name))
-            if max_v is not None:
-                errors.extend(_validate_version_str(max_v, "max", name, dep_name))
+            if tested_min_v is not None:
+                errors.extend(_validate_version_str(tested_min_v, "tested_min", name, dep_name))
+            if tested_max_v is not None:
+                errors.extend(_validate_version_str(tested_max_v, "tested_max", name, dep_name))
+            if supported_min_v is not None:
+                errors.extend(_validate_version_str(supported_min_v, "supported_min", name, dep_name))
+            if supported_max_v is not None:
+                errors.extend(_validate_version_str(supported_max_v, "supported_max", name, dep_name))
     return errors
 
 
@@ -111,7 +122,7 @@ def test_external_package_requirements(registry_data: list[dict]):
 
         if is_external:
             # special case since we have a few external integrations that are not tested
-            # (ie: aioredis which we plan to deprecate)
+            # (ie: aioredis which we plan to deprecate, boto which is tested via botocore)
             if is_tested is not False:
                 all_errors.extend(_validate_external_tested_entry(entry, name))
         else:
