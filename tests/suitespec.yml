@@ -213,7 +213,7 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    parallelism: 1
+    parallelism: 2
     runner: riot
     pattern: ^lib_injection$
   slotscheck:
