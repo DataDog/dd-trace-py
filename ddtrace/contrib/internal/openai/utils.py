@@ -207,6 +207,52 @@ class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
             raise
 
 
+class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
+    async def __aenter__(self):
+        await self.__wrapped__.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def __aiter__(self):
+        exception_raised = False
+        try:
+            async for chunk in self.__wrapped__:
+                if chunk.type == "response.completed":
+                    print("chunk response is", chunk.response)
+                    handle_response_tools(chunk.response, self._dd_span)
+                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
+                    self._dd_span.finish()
+                yield chunk
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
+
+    async def __anext__(self):
+        try:
+            chunk = await self.__wrapped__.__anext__()
+            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            return chunk
+        except StopAsyncIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
+
+
 def handle_response_tools(resp, span):
     """Process and set tool information from the response to the span.
 

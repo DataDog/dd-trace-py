@@ -1,5 +1,6 @@
 from openai.version import VERSION as OPENAI_VERSION
 
+from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncResponseStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIResponseStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIStream
@@ -9,8 +10,8 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
+from ddtrace.contrib.internal.openai.utils import handle_response_tools
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -756,12 +757,14 @@ class _ResponseHook(_EndpointHook):
             return resp
 
         if kwargs.get("stream") and error is None:
-            stream = TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
-            span._set_ctx_item(SPAN_KIND, "llm")
-            return stream
+            if _is_async_generator(resp):
+                return TracedOpenAIAsyncResponseStream(resp, integration, span, kwargs, is_completion=False)
+            elif _is_generator(resp):
+                return TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
+            return resp
 
         if not kwargs.get("stream") and error is None:
-            self._handle_response_tools(resp, span)
+            handle_response_tools(resp, span)
             integration.record_usage(span, resp.usage)
             span.finish()
             return resp
