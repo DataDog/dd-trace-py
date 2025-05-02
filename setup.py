@@ -19,15 +19,13 @@ from setuptools_rust import build_rust
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools.command.build_clib import build_clib  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-from distutils import log # isort: skip
-from distutils.command.build_clib import build_clib # isort: skip
-from distutils.errors import DistutilsSetupError # isort: skip
-from distutils.sysconfig import get_python_inc # isort.skip
+from distutils.sysconfig import get_python_inc  # isort.skip
 
 
 try:
@@ -513,40 +511,6 @@ class CMakeExtension(Extension):
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
 
-class build_clib_with_cflags(build_clib):
-    """
-    This is a wrapper for building standalone static libraries such that we
-    can pass compiler arguments via 'cflags'.
-    See https://stackoverflow.com/questions/59345649/compiling-both-c-and-c-sources-in-cython
-    """
-    def build_libraries(self, libraries):
-        for (lib_name, build_info) in libraries:
-            sources = build_info.get('sources')
-            if sources is None or not isinstance(sources, (list, tuple)):
-                raise DistutilsSetupError(
-                       "in 'libraries' option (library '%s'), "
-                       "'sources' must be present and must be "
-                       "a list of source filenames" % lib_name)
-            sources = list(sources)
-
-            log.info("building '%s' library", lib_name)
-
-            macros = build_info.get("macros")
-            include_dirs = build_info.get("include_dirs")
-            cflags = build_info.get("cflags")                    # HERE we add cflags
-            objects = self.compiler.compile(sources,
-                                            output_dir=self.build_temp,
-                                            macros=macros,
-                                            include_dirs=include_dirs,
-                                            extra_postargs=cflags,        # HERE we use cflags
-                                            debug=self.debug)
-
-
-            self.compiler.create_static_lib(objects, lib_name,
-                                            output_dir=self.build_clib,
-                                            debug=self.debug)
-
-
 
 def check_rust_toolchain():
     try:
@@ -646,14 +610,14 @@ extra_libraries = []
 if not IS_PYSTON:
     # To make it easier to mix C and C++ for the memalloc extension,
     # we build the C++ part as a separate static library and link it into the extension.
-    memalloc_map_lib = ("memalloc_map", {
-        "sources": ["ddtrace/profiling/collector/_memalloc_heap_map.cpp"],
-        "include_dirs": [get_python_inc()],
-        "cflags": (
-            debug_compile_args +
-            (["-std=c++17"] if CURRENT_OS != "Windows" else ["/std:c++17"])
-        ),
-    })
+    memalloc_map_lib = (
+        "memalloc_map",
+        {
+            "sources": ["ddtrace/profiling/collector/_memalloc_heap_map.cpp"],
+            "include_dirs": [get_python_inc()],
+            "cflags": (debug_compile_args + (["-std=c++17"] if CURRENT_OS != "Windows" else ["/std:c++17"])),
+        },
+    )
     extra_libraries.append(memalloc_map_lib)
     ext_modules = [
         Extension(
@@ -764,7 +728,8 @@ setup(
         "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
-        "build_clib": build_clib_with_cflags,
+        # setuptools's build_clib command support cflags
+        "build_clib": build_clib,
         "clean": CleanLibraries,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
