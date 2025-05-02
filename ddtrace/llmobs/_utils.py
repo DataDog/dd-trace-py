@@ -224,6 +224,14 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     span._set_ctx_item(SPAN_LINKS, current_span_links)
 
 
+def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Enforce the message role for the LLM span event."""
+    for message in messages:
+        if message.get("role") is None:
+            message["role"] = ""
+    return messages
+
+
 @dataclass
 class ToolCall:
     """
