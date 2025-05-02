@@ -19,13 +19,11 @@ from setuptools_rust import build_rust
 
 
 from setuptools import Extension, find_packages, setup  # isort: skip
-from setuptools.command.build_clib import build_clib  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
-from distutils.sysconfig import get_python_inc  # isort.skip
 
 
 try:
@@ -606,25 +604,7 @@ else:
         debug_compile_args = []
 
 
-extra_libraries = []
 if not IS_PYSTON:
-    # To make it easier to mix C and C++ for the memalloc extension,
-    # we build the C++ part as a separate static library and link it into the extension.
-    if CURRENT_OS != "Windows":
-        # Shot in the dark, but try setting the archiver explicitly
-        # here so that it can be resolved via the PATH at runtime?
-        # Just in case the sysconfig for the Python interpreter points
-        # to a weird archiver installation...
-        os.environ["AR"] = "ar"
-    memalloc_map_lib = (
-        "memalloc_map",
-        {
-            "sources": ["ddtrace/profiling/collector/_memalloc_heap_map.cpp"],
-            "include_dirs": [get_python_inc()],
-            "cflags": (debug_compile_args + (["-std=c++17"] if CURRENT_OS != "Windows" else ["/std:c++17"])),
-        },
-    )
-    extra_libraries.append(memalloc_map_lib)
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -633,9 +613,8 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
-            depends=["ddtrace/profiling/collector/_memalloc_heap_map.h"],
-            libraries=(["memalloc_map"] + (["stdc++"] if CURRENT_OS != "Windows" else [])),
             extra_compile_args=(
                 debug_compile_args
                 # If NDEBUG is set, assert statements are compiled out. Make
@@ -735,14 +714,9 @@ setup(
         "build_ext": CMakeBuild,
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
-        # setuptools's build_clib command support cflags
-        "build_clib": build_clib,
         "clean": CleanLibraries,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    # Note: libraries built here will be passed to the link step for every extension.
-    # This should be harmless as long as libraries passed here namespace their symbols.
-    libraries=extra_libraries,
     ext_modules=filter_extensions(ext_modules)
     + cythonize(
         filter_extensions(
