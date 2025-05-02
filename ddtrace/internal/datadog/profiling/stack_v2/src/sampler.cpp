@@ -341,9 +341,14 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
-Sampler::set_max_nframes(int max_nframes)
+Sampler::set_max_nframes(int new_max_frames)
 {
-    // This is a global variable that is used to limit the number of frames
+    // max_frames is a global variable that is used to limit the number of frames
     // that are unwound for a single thread/task.
-    max_frames = max_nframes;
+    if (new_max_frames > 0) {
+        max_frames = new_max_frames;
+    }
+    if (max_frames > g_backend_max_nframes) {
+        max_frames = g_backend_max_nframes;
+    }
 }
