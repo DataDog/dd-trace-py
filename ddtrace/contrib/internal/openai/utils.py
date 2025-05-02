@@ -162,6 +162,77 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             return
 
 
+class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
+    def __enter__(self):
+        self.__wrapped__.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+
+    def __iter__(self):
+        exception_raised = False
+        try:
+            for chunk in self.__wrapped__:
+                if chunk.type == "response.completed":
+                    handle_response_tools(chunk, self._dd_span)
+                    self._dd_integration.record_usage(self._dd_span, chunk.usage)
+                    self._dd_span.finish()
+                yield chunk
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            exception_raised = True
+            raise
+        finally:
+            if not exception_raised:
+                _process_finished_stream(
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                )
+            self._dd_span.finish()
+
+    def __next__(self):
+        try:
+            chunk = self.__wrapped__.__next__()
+            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            return chunk
+        except StopIteration:
+            _process_finished_stream(
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+            )
+            self._dd_span.finish()
+            raise
+        except Exception:
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
+
+
+def handle_response_tools(resp, span):
+    """Process and set tool information from the response to the span.
+
+    Args:
+        resp: The response object containing tool information
+        span: The span to set the tool information on
+    """
+    if not getattr(resp, "tools"):
+        return None
+
+    response_tools = []
+    for tool in resp.tools:
+        if not (hasattr(tool, "type") or hasattr(tool, "name")):
+            continue
+
+        tool_dict = {}
+        if hasattr(tool, "type"):
+            tool_dict["type"] = getattr(tool, "type")
+        if hasattr(tool, "name"):
+            tool_dict["name"] = getattr(tool, "name")
+
+        if tool_dict:
+            response_tools.append(tool_dict)
+    span.set_tag("openai.response.tools", response_tools)
+
+
 def _compute_token_count(content, model):
     # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
     """
@@ -254,8 +325,12 @@ def _loop_handler(span, chunk, streamed_chunks):
     """
     if span.get_tag("openai.response.model") is None:
         span.set_tag("openai.response.model", chunk.model)
-    for choice in chunk.choices:
-        streamed_chunks[choice.index].append(choice)
+    if hasattr(chunk, "choices"):
+        for choice in chunk.choices:
+            streamed_chunks[choice.index].append(choice)
+    if hasattr(chunk, "response"):
+        for r in chunk.response:
+            streamed_chunks[0].append(r)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 

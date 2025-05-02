@@ -1,6 +1,7 @@
 from openai.version import VERSION as OPENAI_VERSION
 
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
+from ddtrace.contrib.internal.openai.utils import TracedOpenAIResponseStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIStream
 from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.internal.openai.utils import _is_async_generator
@@ -745,31 +746,6 @@ class _ResponseHook(_EndpointHook):
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createResponse"
 
-    def _handle_response_tools(self, resp, span):
-        """Process and set tool information from the response to the span.
-
-        Args:
-            resp: The response object containing tool information
-            span: The span to set the tool information on
-        """
-        if not getattr(resp, "tools"):
-            return None
-
-        response_tools = []
-        for tool in resp.tools:
-            if not (hasattr(tool, "type") or hasattr(tool, "name")):
-                continue
-
-            tool_dict = {}
-            if hasattr(tool, "type"):
-                tool_dict["type"] = getattr(tool, "type")
-            if hasattr(tool, "name"):
-                tool_dict["name"] = getattr(tool, "name")
-
-            if tool_dict:
-                response_tools.append(tool_dict)
-        span.set_tag("openai.response.tools", response_tools)
-
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
 
@@ -780,20 +756,22 @@ class _ResponseHook(_EndpointHook):
             return resp
 
         if kwargs.get("stream") and error is None:
+            stream = TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
             span._set_ctx_item(SPAN_KIND, "llm")
-            for s in resp:
-                if s.type == "response.completed":
-                    resp = s.response
-                    super()._record_response(pin, integration, span, args, kwargs, resp, error)
-                    self._handle_response_tools(resp, span)
-                    span.finish()
-                    break
-            integration.record_usage(span, resp.usage)
-            return resp
+            return stream
+            # for s in resp:
+            #     if s.type == "response.completed":
+            #         resp = s.response
+            #         super()._record_response(pin, integration, span, args, kwargs, resp, error)
+            #         self._handle_response_tools(resp, span)
+            #         span.finish()
+            #         break
+            # integration.record_usage(span, resp.usage)
+            # return resp
 
         if not kwargs.get("stream") and error is None:
-            span._set_ctx_item("llmobs.response.output", resp.output)
+            # span._set_ctx_item("llmobs.response.output", resp.output)
             self._handle_response_tools(resp, span)
-
             integration.record_usage(span, resp.usage)
+            span.finish()
             return resp
