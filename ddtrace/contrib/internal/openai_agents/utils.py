@@ -1,5 +1,10 @@
 from agents import Agent
 from agents import Handoff
+from agents import (
+    WebSearchTool,
+    FileSearchTool,
+    ComputerTool,
+)
 
 def create_agent_manifest(agent):
     manifest = {}
@@ -49,31 +54,46 @@ def extract_tools_from_agent(agent):
     if not hasattr(agent, "tools"):
         return None
     
-    # TODO: Handle hosted tools
     tools = []
     for tool in agent.tools:
         tool_dict = {}
-        if hasattr(tool, "name"):
-            tool_dict["name"] = tool.name
-        if hasattr(tool, "description"):
-            tool_dict["description"] = tool.description
-        if hasattr(tool, "strict_json_schema"):
-            tool_dict["strict_json_schema"] = tool.strict_json_schema
-        if hasattr(tool, "params_json_schema"):
-            parameter_schema = tool.params_json_schema
-            required_params = get_required_param_dict(parameter_schema.get("required", [])) 
-            parameters = {}
-            if "properties" in parameter_schema:
-                for param, schema in parameter_schema["properties"].items():
-                    param_dict = {}
-                    if "type" in schema:
-                        param_dict["type"] = schema["type"]
-                    if "title" in schema:
-                        param_dict["title"] = schema["title"]
-                    if param in required_params:
-                        param_dict["required"] = True
-                    parameters[param] = param_dict
-            tool_dict["parameters"] = parameters
+        if isinstance(tool, WebSearchTool):
+            if hasattr(tool, "user_location"):
+                tool_dict["user_location"] = tool.user_location
+            if hasattr(tool, "search_context_size"):
+                tool_dict["search_context_size"] = tool.search_context_size
+        elif isinstance(tool, FileSearchTool):
+            if hasattr(tool, "vector_store_ids"):
+                tool_dict["vector_store_ids"] = tool.vector_store_ids
+            if hasattr(tool, "max_num_results"):
+                tool_dict["max_num_results"] = tool.max_num_results
+            if hasattr(tool, "include_search_results"):
+                tool_dict["include_search_results"] = tool.include_search_results
+        elif isinstance(tool, ComputerTool):
+            if hasattr(tool, "name"):
+                tool_dict["name"] = tool.name
+        else:
+            if hasattr(tool, "name"):
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "description"):
+                tool_dict["description"] = tool.description
+            if hasattr(tool, "strict_json_schema"):
+                tool_dict["strict_json_schema"] = tool.strict_json_schema
+            if hasattr(tool, "params_json_schema"):
+                parameter_schema = tool.params_json_schema
+                required_params = get_required_param_dict(parameter_schema.get("required", [])) 
+                parameters = {}
+                if "properties" in parameter_schema:
+                    for param, schema in parameter_schema["properties"].items():
+                        param_dict = {}
+                        if "type" in schema:
+                            param_dict["type"] = schema["type"]
+                        if "title" in schema:
+                            param_dict["title"] = schema["title"]
+                        if param in required_params:
+                            param_dict["required"] = True
+                        parameters[param] = param_dict
+                tool_dict["parameters"] = parameters
         tools.append(tool_dict)                     
     
     return tools
