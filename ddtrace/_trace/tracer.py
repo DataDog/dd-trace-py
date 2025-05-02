@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import functools
 from inspect import iscoroutinefunction
 from itertools import chain
@@ -289,6 +290,17 @@ class Tracer(object):
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
+
+    @contextmanager
+    def _activate_context(self, context: Context):
+        prev_active = self.context_provider.active()
+        context._reactivate = True
+        self.context_provider.activate(context)
+        try:
+            yield
+        finally:
+            context._reactivate = False
+            self.context_provider.activate(prev_active)
 
     @property
     def _sampler(self):
