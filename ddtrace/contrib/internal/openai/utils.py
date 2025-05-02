@@ -175,8 +175,8 @@ class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
         try:
             for chunk in self.__wrapped__:
                 if chunk.type == "response.completed":
-                    handle_response_tools(chunk, self._dd_span)
-                    self._dd_integration.record_usage(self._dd_span, chunk.usage)
+                    handle_response_tools(chunk.response, self._dd_span)
+                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                     self._dd_span.finish()
                 yield chunk
         except Exception:
@@ -214,7 +214,7 @@ def handle_response_tools(resp, span):
         resp: The response object containing tool information
         span: The span to set the tool information on
     """
-    if not getattr(resp, "tools"):
+    if not hasattr(resp, "tools") or isinstance(resp, type("ResponseCompletedEvent", (), {})):
         return None
 
     response_tools = []

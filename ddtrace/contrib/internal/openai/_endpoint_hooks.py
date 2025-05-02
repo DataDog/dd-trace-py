@@ -759,18 +759,8 @@ class _ResponseHook(_EndpointHook):
             stream = TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
             span._set_ctx_item(SPAN_KIND, "llm")
             return stream
-            # for s in resp:
-            #     if s.type == "response.completed":
-            #         resp = s.response
-            #         super()._record_response(pin, integration, span, args, kwargs, resp, error)
-            #         self._handle_response_tools(resp, span)
-            #         span.finish()
-            #         break
-            # integration.record_usage(span, resp.usage)
-            # return resp
 
         if not kwargs.get("stream") and error is None:
-            # span._set_ctx_item("llmobs.response.output", resp.output)
             self._handle_response_tools(resp, span)
             integration.record_usage(span, resp.usage)
             span.finish()
