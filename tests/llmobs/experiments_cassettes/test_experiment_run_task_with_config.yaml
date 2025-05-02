@@ -341,4 +341,122 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-d6d9c7",
+      "description": "", "dataset_id": "749fac78-4f2c-4a66-9e01-63395909c71d", "project_id":
+      "40e10255-4153-4451-9ada-f694838d38c5", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      date:
+      - Fri, 02 May 2025 18:06:12 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-6e87b0",
+      "description": "", "dataset_id": "749fac78-4f2c-4a66-9e01-63395909c71d", "project_id":
+      "40e10255-4153-4451-9ada-f694838d38c5", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"errors":[{"title":"Generic Error","detail":"The provided project
+        or dataset ID is not valid."}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:08:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 400
+      message: Bad Request
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-136fee",
+      "description": "", "dataset_id": "749fac78-4f2c-4a66-9e01-63395909c71d", "project_id":
+      "40e10255-4153-4451-9ada-f694838d38c5", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"errors":[{"title":"Generic Error","detail":"The provided project
+        or dataset ID is not valid."}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:18:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 400
+      message: Bad Request
 version: 1

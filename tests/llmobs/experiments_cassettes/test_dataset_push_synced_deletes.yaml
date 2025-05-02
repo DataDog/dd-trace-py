@@ -443,4 +443,36 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"delete_records": ["d6d10d5b-454c-4c2e-9d61-1a66d8a74ddb"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '106'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/33026409-f49f-434d-bbab-19f462d077f7/batch_update
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      date:
+      - Fri, 02 May 2025 18:04:02 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
 version: 1

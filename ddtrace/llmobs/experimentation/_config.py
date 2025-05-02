@@ -31,11 +31,13 @@ _ENV_DD_SITE = None
 _ENV_DD_API_KEY = None
 _ENV_DD_APPLICATION_KEY = None
 _RUN_LOCALLY = False
+_ML_APP = None
 
 
 # Derived values
 def get_api_base_url() -> str:
     """Get the base URL for API requests."""
+    _validate_init()
     site = get_site()
     if site == "datad0g.com":
         return "https://dd.datad0g.com"
@@ -45,6 +47,7 @@ def get_api_base_url() -> str:
 
 def get_base_url() -> str:
     """Get the base URL for the LLM Observability UI."""
+    _validate_init()
     site = get_site()
     if site == "datad0g.com":
         return "https://dd.datad0g.com"
@@ -84,7 +87,7 @@ def init(
     from .utils._ui import Color 
 
     global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, \
-           _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY
+           _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY, _ML_APP
 
     if run_locally:
         _RUN_LOCALLY = True
@@ -142,6 +145,7 @@ def init(
             api_key=api_key,
         )
 
+    _ML_APP = ml_app
     _ENV_PROJECT_NAME = project_name
     _ENV_DD_SITE = site
     _ENV_DD_API_KEY = api_key

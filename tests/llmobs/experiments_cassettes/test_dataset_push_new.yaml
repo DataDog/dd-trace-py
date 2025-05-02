@@ -578,4 +578,261 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-push-new-18b7151f",
+      "description": "Simple math/geo"}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '114'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      date:
+      - Fri, 02 May 2025 18:03:56 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-push-new-d144e49d",
+      "description": "Simple math/geo"}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '114'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets
+  response:
+    body:
+      string: '{"data":{"id":"b93c72d1-6a4f-4292-bfa2-92084211d236","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:25:37.881829163Z","current_version":0,"description":"Simple
+        math/geo","name":"test-push-new-d144e49d","updated_at":"2025-05-02T18:25:37.881829163Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:25:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"records": [{"input": "What
+      is 1+1?", "expected_output": "2"}, {"input": "Capital of UK?", "expected_output":
+      "London"}], "overwrite": false}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '188'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/b93c72d1-6a4f-4292-bfa2-92084211d236/push
+  response:
+    body:
+      string: '{"data":[{"id":"dad4f5db-eee9-43a5-8754-b9c7c1eeecbf","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:25:38.274955732Z","dataset_id":"b93c72d1-6a4f-4292-bfa2-92084211d236","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-02T18:25:38.274955732Z","version":1}},{"id":"03ba2784-31cd-4fb1-ac2f-a08d50dbd4e7","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:25:38.274973396Z","dataset_id":"b93c72d1-6a4f-4292-bfa2-92084211d236","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-02T18:25:38.274973396Z","version":1}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:25:38 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]="test-push-new-28e26412"
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:26:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-push-new-28e26412",
+      "description": "Simple math/geo"}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '114'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets
+  response:
+    body:
+      string: '{"data":{"id":"b4484f0c-ca00-4457-baec-ea915327f4d9","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:26:48.373335101Z","current_version":0,"description":"Simple
+        math/geo","name":"test-push-new-28e26412","updated_at":"2025-05-02T18:26:48.373335101Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:26:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"records": [{"input": "What
+      is 1+1?", "expected_output": "2"}, {"input": "Capital of UK?", "expected_output":
+      "London"}], "overwrite": false}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '188'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/b4484f0c-ca00-4457-baec-ea915327f4d9/push
+  response:
+    body:
+      string: '{"data":[{"id":"54517f29-7b63-4360-aaf1-1c50b19115fe","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:26:48.653384975Z","dataset_id":"b4484f0c-ca00-4457-baec-ea915327f4d9","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-02T18:26:48.653384975Z","version":1}},{"id":"d8b6ba23-9d15-44af-a7b1-49bfde4badb9","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-02T18:26:48.653401186Z","dataset_id":"b4484f0c-ca00-4457-baec-ea915327f4d9","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-02T18:26:48.653401186Z","version":1}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:26:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]="test-push-new-28e26412"
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 02 May 2025 18:26:55 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
 version: 1
