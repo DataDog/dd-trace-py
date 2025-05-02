@@ -14,6 +14,7 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
+
 # add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
@@ -102,6 +103,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
     all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
 
     packages_setting_latest = set()
+
     def recurse_venvs(venvs: typing.List[riotfile.Venv]):
         for venv in venvs:
             # split venv name by ":" since some venvs are named after the integration:subintegration
@@ -129,6 +131,7 @@ def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) 
     venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
     lowercase the package names to ensure consistent lookups.
     """
+
     def _lower_pkg_names(venv: riotfile.Venv):
         venv.pkgs = {k.lower(): v for k, v in venv.pkgs.items()}
 
@@ -198,7 +201,7 @@ def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
 
     hash_to_name = {}
     for line in output.splitlines():
-        match = re.match(r'\[#\d+\]\s+([a-f0-9]+)\s+(\S+)', line)
+        match = re.match(r"\[#\d+\]\s+([a-f0-9]+)\s+(\S+)", line)
         if match:
             venv_hash, venv_name = match.groups()
             hash_to_name[venv_hash] = venv_name.lower()
@@ -227,11 +230,12 @@ def _get_package_versions_from(
                 return integration, dependencies
             else:
                 return None, []
+
         integration, dependencies = get_integration_and_dependencies(venv_name)
 
     for line in lockfile_content:
         package, _, versions = line.partition("==")
-        package = package.split("[")[0] # strip optional package installs like flask[async]
+        package = package.split("[")[0]  # strip optional package installs like flask[async]
         if package in dependencies or package == integration:
             lock_packages.append((package, versions))
     return lock_packages
