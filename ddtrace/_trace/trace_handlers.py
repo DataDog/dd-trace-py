@@ -835,7 +835,7 @@ def _set_span_pointer(span: "Span", span_pointer_description: _SpanPointerDescri
     )
 
 
-def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind=SpanKind.INTERNAL):
+def _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind):
     span.set_tag_str(COMPONENT, azure_functions_config.integration_name)
     span.set_tag_str(SPAN_KIND, span_kind)
     span.set_tag_str("aas.function.name", function_name)  # codespell:ignore
@@ -869,9 +869,9 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
     )
 
 
-def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger):
+def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
     span = ctx.get_item("trigger_span")
-    _set_azure_function_tags(span, azure_functions_config, function_name, trigger)
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
 def listen():

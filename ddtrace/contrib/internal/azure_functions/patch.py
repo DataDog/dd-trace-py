@@ -3,6 +3,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import Pin
 
@@ -95,7 +96,7 @@ def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
             ctx.set_item("trigger_span", ctx.span)
             return (
                 "azure.functions.trigger_call_modifier",
-                (ctx, config.azure_functions, function_name, trigger),
+                (ctx, config.azure_functions, function_name, trigger, SpanKind.CONSUMER),
             )
 
         wrap_function = wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
@@ -123,7 +124,7 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
             ctx.set_item("trigger_span", ctx.span)
             return (
                 "azure.functions.trigger_call_modifier",
-                (ctx, config.azure_functions, function_name, trigger),
+                (ctx, config.azure_functions, function_name, trigger, SpanKind.INTERNAL),
             )
 
         wrap_function = wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
