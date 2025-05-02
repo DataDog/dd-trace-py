@@ -610,6 +610,12 @@ extra_libraries = []
 if not IS_PYSTON:
     # To make it easier to mix C and C++ for the memalloc extension,
     # we build the C++ part as a separate static library and link it into the extension.
+    if CURRENT_OS != "Windows":
+        # Shot in the dark, but try setting the archiver explicitly
+        # here so that it can be resolved via the PATH at runtime?
+        # Just in case the sysconfig for the Python interpreter points
+        # to a weird archiver installation...
+        os.environ["AR"] = "ar"
     memalloc_map_lib = (
         "memalloc_map",
         {
