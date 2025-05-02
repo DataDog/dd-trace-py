@@ -11,7 +11,6 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
-# trigger
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
@@ -46,6 +45,7 @@ log = get_logger(__name__)
 
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 
+# trigger
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
     r"(?:"  # JSON-ish leading quote
