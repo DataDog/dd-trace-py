@@ -57,6 +57,12 @@ VERSION_COMPAT_FILE_LOCATIONS = (
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
 SITE_PKGS_MARKER = "site-packages-ddtrace-py"
 BOOTSTRAP_MARKER = "bootstrap"
+INJECT_RESULT_SUCCESS = "success"
+INJECT_RESULT_FAILED = "failed"
+INJECT_RESULT_SKIPPED = "skipped"
+INJECT_RESULT = ""
+INJECT_RESULT_REASON = ""
+INJECT_RESULT_CLASS = ""
 
 
 def get_oci_ddtrace_version():
@@ -132,6 +138,9 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
             "runtime_version": PYTHON_VERSION,
             "tracer_version": ddtrace_version,
             "pid": os.getpid(),
+            "inject_result": INJECT_RESULT,
+            "inject_result_reason": INJECT_RESULT_REASON,
+            "inject_result_class": INJECT_RESULT_CLASS,
         },
         "points": telemetry_events,
     }
@@ -245,6 +254,15 @@ def get_first_incompatible_sysarg():
         return argument
 
 
+def set_injection_result(result, resultClass, reason):
+    global INJECT_RESULT
+    global INJECT_RESULT_REASON
+    global INJECT_RESULT_CLASS
+    INJECT_RESULT = result
+    INJECT_RESULT_REASON = reason
+    INJECT_RESULT_CLASS = resultClass
+
+
 def _inject():
     global DDTRACE_VERSION
     global INSTALLED_PACKAGES
@@ -297,6 +315,11 @@ def _inject():
                         "library_entrypoint.abort.integration",
                     )
                 )
+                set_injection_result(
+                    INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
+                    "Found incompatible executable: %s." % incompatible_sysarg,
+                )
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
@@ -327,6 +350,11 @@ def _inject():
                         )
                     )
 
+                set_injection_result(
+                    INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
+                    "Found incompatible packages: %s." % incompatible_packages,
+                )
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
@@ -344,6 +372,13 @@ def _inject():
                 abort = True
 
                 TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
+
+                set_injection_result(
+                    INJECT_RESULT_SKIPPED,
+                    "incompatible_runtime",
+                    "Found incompatible runtime: %s %s. Supported runtimes: %s"
+                    % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST),
+                )
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
@@ -369,6 +404,9 @@ def _inject():
             TELEMETRY_DATA.append(
                 create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
             )
+            set_injection_result(
+                INJECT_RESULT_FAILED, "missing_dependency", "ddtrace site-packages not found in %r" % site_pkgs_path
+            )
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -384,6 +422,7 @@ def _inject():
                     "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
                 ),
             )
+            set_injection_result(INJECT_RESULT_FAILED, "missing_dependency", "failed to load ddtrace module: %s" % e)
 
             return
         else:
@@ -430,6 +469,7 @@ def _inject():
                         ],
                     ),
                 )
+                set_injection_result(INJECT_RESULT_SUCCESS, "", "successfully configured ddtrace package")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
@@ -449,6 +489,7 @@ def _inject():
                 ],
             )
         )
+        set_injection_result(INJECT_RESULT_SKIPPED, "already_instrumented", "the ddtrace package was already present")
 
 
 try:
