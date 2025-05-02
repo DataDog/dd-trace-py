@@ -5,7 +5,7 @@ import platform
 import re
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any 
+from typing import Any
 from typing import Dict
 from typing import Union  # noqa:F401
 
@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 architecture = callonce(lambda: platform.architecture())
 
 
-def in_venv() -> :
+def in_venv() -> bool:
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -41,12 +41,12 @@ def in_venv() -> :
     )
 
 
-def tags_to_str(tags:Dict[str, Any]) -> str:
+def tags_to_str(tags: Dict[str, Any]) -> str:
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect(tracer:Tracer) -> Dict[str, Any]:
+def collect(tracer: Tracer) -> Dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
