@@ -40,6 +40,38 @@ apm_configuration_default:
             assert config.version == "c", f"Expected DD_VERSION to be 'c' but got {config.version}"
 
 
+@pytest.mark.subprocess(parametrize={"DD_TRACE_DEBUG": ["TRUE", "1"]}, err=None)
+def test_get_configuration_debug_logs():
+    """
+    Verify stable config debug log enablement
+    """
+    import os
+    import sys
+    import tempfile
+
+    from tests.utils import call_program
+
+    # Create managed config
+    with tempfile.NamedTemporaryFile(suffix=".yaml", prefix="managed_config") as managed_config:
+        managed_config.write(
+            b"""
+apm_configuration_default:
+  DD_VERSION: "c"
+"""
+        )
+        managed_config.flush()
+
+        env = os.environ.copy()
+        env["DD_TRACE_DEBUG"] = "true"
+        env["_DD_SC_MANAGED_FILE_OVERRIDE"] = managed_config.name
+
+        _, err, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+        assert status == 0, err
+        assert b"Read the following static config: StableConfig" in err
+        assert b'ConfigMap([(DdVersion, "c")]), tags: {}, rules: [] }' in err
+        assert b"configurator: Configurator { debug_logs: true }" in err
+
+
 @pytest.mark.subprocess(parametrize={"DD_VERSION": ["b", None]})
 def test_get_configuration_from_disk_local_config_priority(tmp_path):
     """
