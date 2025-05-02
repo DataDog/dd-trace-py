@@ -635,6 +635,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
             ],
             depends=["ddtrace/profiling/collector/_memalloc_heap_map.h"],
+            libraries=["memalloc_map", "stdc++"],
             extra_compile_args=(
                 debug_compile_args
                 # If NDEBUG is set, assert statements are compiled out. Make
