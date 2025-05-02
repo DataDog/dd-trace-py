@@ -3,9 +3,11 @@
 #include <cstdint>
 #include <string_view>
 
-// Default value for the max frames; this number will always be overridden by whatever the default
-// is for ddtrace/settings/profiling.py:ProfilingConfig.max_frames, but should conform
-constexpr unsigned int g_default_max_nframes = 64;
+// Default value for the max frames; this number will always be overridden by
+// the max of ddtrace/settings/profiling.py:ProfilingConfig.max_frames and
+// ddtrace/settings/profiling.py:ProfilingConfig.stack.v2_max_frames, but should
+// confirm to the default of max of the two.
+constexpr unsigned int g_default_max_nframes = 256;
 
 // Maximum number of frames admissible in the Profiling backend.  If a user exceeds this number, then
 // their stacks may be silently truncated, which is unfortunate.

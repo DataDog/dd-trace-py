@@ -51,6 +51,7 @@ class Sampler
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
+    void set_max_nframes(int max_nframes);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just

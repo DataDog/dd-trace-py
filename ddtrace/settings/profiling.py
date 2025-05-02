@@ -349,6 +349,14 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    v2_max_frames = DDConfig.v(
+        int,
+        "v2.max_frames",
+        default=256,
+        help_type="Integer",
+        help="The maximum number of frames to capture in stack execution tracing for the v2 stack profiler",
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -492,6 +500,7 @@ def config_str(config):
     if config.stack.enabled:
         if config.stack.v2_enabled:
             configured_features.append("stack_v2")
+            configured_features.append("MAXF" + str(config.stack.v2_max_frames))
         else:
             configured_features.append("stack")
     if config.lock.enabled:
