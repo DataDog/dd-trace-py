@@ -608,6 +608,23 @@ else:
 
 extra_libraries = []
 if not IS_PYSTON:
+    # To make it easier to mix C and C++ for the memalloc extension,
+    # we build the C++ part as a separate static library and link it into the extension.
+    if CURRENT_OS != "Windows":
+        # Shot in the dark, but try setting the archiver explicitly
+        # here so that it can be resolved via the PATH at runtime?
+        # Just in case the sysconfig for the Python interpreter points
+        # to a weird archiver installation...
+        os.environ["AR"] = "ar"
+    memalloc_map_lib = (
+        "memalloc_map",
+        {
+            "sources": ["ddtrace/profiling/collector/_memalloc_heap_map.cpp"],
+            "include_dirs": [get_python_inc()],
+            "cflags": (debug_compile_args + (["-std=c++17"] if CURRENT_OS != "Windows" else ["/std:c++17"])),
+        },
+    )
+    extra_libraries.append(memalloc_map_lib)
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -616,9 +633,9 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
-                "ddtrace/profiling/collector/_memalloc_heap_map.cpp",
             ],
             depends=["ddtrace/profiling/collector/_memalloc_heap_map.h"],
+            libraries=["memalloc_map"] + (["stdc++"] if CURRENT_OS != "Windows" else [])
             extra_compile_args=(
                 debug_compile_args
                 # If NDEBUG is set, assert statements are compiled out. Make
@@ -626,7 +643,7 @@ if not IS_PYSTON:
                 # _unset_ it for debug builds in case the CFLAGS from sysconfig
                 # include -DNDEBUG
                 + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
-                + ["-D_POSIX_C_SOURCE=200809L"]
+                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c11"]
