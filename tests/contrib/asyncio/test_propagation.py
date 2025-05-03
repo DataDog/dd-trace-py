@@ -3,8 +3,31 @@ import time
 
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
+from ddtrace.contrib.internal.asyncio.patch import patch
+from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.trace import Context
 from tests.opentracer.utils import init_tracer
+
+
+_orig_create_task = asyncio.BaseEventLoop.create_task
+
+
+def test_event_loop_unpatch(tracer):
+    patch()
+    # ensures that the event loop can be unpatched
+    unpatch()
+    assert isinstance(tracer.context_provider, DefaultContextProvider)
+    assert asyncio.BaseEventLoop.create_task == _orig_create_task
+
+
+@pytest.mark.asyncio
+async def test_event_loop_double_patch(tracer):
+    # ensures that double patching will not double instrument
+    # the event loop
+    patch()
+    patch()
+    await test_tasks_chaining(tracer)
 
 
 @pytest.mark.asyncio
