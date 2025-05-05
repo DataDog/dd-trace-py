@@ -148,7 +148,7 @@ Automatic Instrumentation
 
 .. important::
 
-  This feature is available on Python3.10+ and ddtrace 3.6.0+
+  This feature is available on Python3.10+ and ddtrace 3.8.0+
 
 To enable automatic reporting of handled errors, you can set one of the two environment variables:
 
