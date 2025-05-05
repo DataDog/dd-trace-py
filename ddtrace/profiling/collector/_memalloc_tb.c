@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -234,6 +235,15 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
         pyframe = pyframe->f_back;
 #endif
     }
+#ifdef MEMALLOC_TESTING_GIL_RELEASE
+    Py_BEGIN_ALLOW_THREADS;
+    /* Give another Python thread a chance to run */
+    sched_yield();
+    sched_yield();
+    sched_yield();
+    sched_yield();
+    Py_END_ALLOW_THREADS;
+#endif
 
     size_t traceback_size = TRACEBACK_SIZE(traceback_buffer->nframe);
     traceback_t* traceback = PyMem_RawMalloc(traceback_size);
