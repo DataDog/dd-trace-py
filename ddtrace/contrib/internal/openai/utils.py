@@ -181,7 +181,7 @@ class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
                     if hasattr(chunk.response, "id"):
                         self._dd_span.set_tag("openai.response.id", chunk.response.id)
                     if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag("openai.response.created_at", chunk.response.created_at)
+                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
                     if hasattr(chunk.response, "model"):
                         self._dd_span.set_tag("openai.response.model", chunk.response.model)
                     self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
@@ -232,7 +232,7 @@ class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
                     if hasattr(chunk.response, "id"):
                         self._dd_span.set_tag("openai.response.id", chunk.response.id)
                     if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag("openai.response.created_at", chunk.response.created_at)
+                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
                     if hasattr(chunk.response, "model"):
                         self._dd_span.set_tag("openai.response.model", chunk.response.model)
                     handle_response_tools(chunk.response, self._dd_span)

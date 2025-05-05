@@ -134,8 +134,8 @@ async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, 
         "\n"
         "Recently, I have come to take a more holistic view of my identity, "
         "not as a series of fleeting moments, but as a long-term, ongoing "
-        "process. The key question for me is not that of 'who am I?' but "
-        "rather, 'how am I?' – a question",
+        "process. The key question for me is not that of ‘who am I?’ but "
+        "rather, ‘how am I?’ – a question",
     }
     for key, value in expected_choices.items():
         assert getattr(resp.choices[0], key, None) == value
@@ -283,7 +283,7 @@ def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "What's in this image?"},
+                        {"type": "text", "text": "What’s in this image?"},
                         {
                             "type": "image_url",
                             "image_url": image_url,
