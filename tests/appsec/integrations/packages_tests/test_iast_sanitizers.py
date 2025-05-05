@@ -29,6 +29,7 @@ def patch_modules():
     """
     _ = _iast_patched_module("html")
     _ = _iast_patched_module("markupsafe")
+    _ = _iast_patched_module("werkzeug.utils")
     _ = _iast_patched_module("pymysql.connections")
     _ = _iast_patched_module("pymysql.converters")
     _ = _iast_patched_module("mysql.connector.conversion")
@@ -49,13 +50,11 @@ def test_werkzeug_secure_filename():
     value = mod.werkzeug_secure_filename(tainted)
     assert value == "a-etc_passwd_DROP_TABLE_users.txt"
 
-    # TODO: the propagation doesn't work correctly in werkzeug.secure_filename because that function implements
-    #  STRING.strip("._") which is not yet supported by IAST
-    # ranges = get_tainted_ranges(value)
-    # assert len(ranges) > 0
-    # for _range in ranges:
-    #     assert _range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL)
-    # assert is_pyobject_tainted(value)
+    ranges = get_tainted_ranges(value)
+    assert len(ranges) > 0
+    for _range in ranges:
+        assert _range.has_secure_mark(VulnerabilityType.PATH_TRAVERSAL)
+    assert is_pyobject_tainted(value)
 
 
 def test_werkzeug_secure_safe_join():

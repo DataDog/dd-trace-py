@@ -29,6 +29,9 @@ urlpatterns = [
     handler("appsec/block/$", views.block_callable_view, name="block"),
     handler("appsec/command-injection/$", views.command_injection, name="command_injection"),
     handler(
+        "appsec/command-injection-subprocess/$", views.command_injection_subprocess, name="command_injection_subprocess"
+    ),
+    handler(
         "appsec/command-injection/secure-mark/$",
         views.command_injection_secure_mark,
         name="command_injection_secure_mark",
