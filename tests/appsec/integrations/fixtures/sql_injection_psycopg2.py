@@ -1,4 +1,6 @@
 from psycopg2.errors import DuplicateTable
+from psycopg2.errors import InFailedSqlTransaction
+from psycopg2.errors import QueryCanceled
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -10,9 +12,15 @@ def sqli_simple(table):
     cur = connection.cursor()
     try:
         cur.execute("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)")
-    except DuplicateTable:
-        connection.rollback()
-    # label test_sql_injection
-    cur.execute("SELECT 1 FROM " + table)
-    rows = cur.fetchone()
+    except (DuplicateTable, QueryCanceled):
+        pass
+
+    rows = []
+    try:
+        # label test_sql_injection
+        cur.execute("SELECT 1 FROM " + table)
+        rows = cur.fetchone()
+    except (QueryCanceled, InFailedSqlTransaction):
+        pass
+
     return {"result": rows, "tainted": is_pyobject_tainted(table), "ranges": str(get_tainted_ranges(table))}
