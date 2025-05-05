@@ -57,7 +57,7 @@ def patch_iast(patch_modules=IAST_PATCH):
     when_imported("werkzeug.utils")(
         lambda _: try_wrap_function_wrapper("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
     )
-    # TODO: werkzeug.utils.safe_join propagation doesn't work because strip("._") which is not yet supported by IAST
+    # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
     # when_imported("werkzeug.utils")(
     #     lambda _: try_wrap_function_wrapper(
     #         "werkzeug.utils",

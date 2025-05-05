@@ -107,7 +107,7 @@ class ProductManager:
                 "Circular dependencies among products detected. These products won't be enabled: %s.", list(f.keys())
             )
 
-        return [(name, self.__products__[name]) for name in ordering if name not in f]
+        return [(name, self.__products__[name]) for name in ordering if name not in f and name in self.__products__]
 
     @property
     def products(self) -> t.List[t.Tuple[str, Product]]:

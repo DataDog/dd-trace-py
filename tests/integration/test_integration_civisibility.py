@@ -73,6 +73,8 @@ def test_civisibility_intake_with_apikey():
 
 @pytest.mark.subprocess()
 def test_civisibility_intake_payloads():
+    import gzip
+
     import mock
 
     from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -101,10 +103,10 @@ def test_civisibility_intake_payloads():
             t.shutdown()
         assert 2 <= conn.request.call_count <= 3
         assert conn.request.call_args_list[0].args[1] == "api/v2/citestcycle"
-        assert (
-            b"svc-no-cov" in conn.request.call_args_list[0].args[2]
+        assert b"svc-no-cov" in gzip.decompress(
+            conn.request.call_args_list[0].args[2]
         ), "requests to the cycle endpoint should include non-coverage spans"
         assert conn.request.call_args_list[1].args[1] == "api/v2/citestcov"
-        assert (
-            b"svc-no-cov" not in conn.request.call_args_list[1].args[2]
+        assert b"svc-no-cov" not in gzip.decompress(
+            conn.request.call_args_list[1].args[2]
         ), "requests to the coverage endpoint should not include non-coverage spans"

@@ -28,17 +28,16 @@ symbols = [
     "modulo_aspect",
     "replace_aspect",
     "repr_aspect",
-    "rsplit_aspect",
     "slice_aspect",
-    "split_aspect",
-    "split_aspect",
-    "splitlines_aspect",
     "str_aspect",
     "stringio_aspect",
     "swapcase_aspect",
     "title_aspect",
     "translate_aspect",
     "upper_aspect",
+    "rstrip_aspect",
+    "lstrip_aspect",
+    "strip_aspect",
 ]
 
 notfound_symbols = []
@@ -454,3 +453,27 @@ def iast_split_aspect():
 
 def split_noaspect():
     return "foo bar baz".split()
+
+
+def iast_strip_aspect():
+    return strip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def strip_noaspect():
+    return "    foo bar baz    ".strip()
+
+
+def iast_rstrip_aspect():
+    return rstrip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def rstrip_noaspect():
+    return "    foo bar baz    ".rstrip()
+
+
+def iast_lstrip_aspect():
+    return lstrip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def lstrip_noaspect():
+    return "    foo bar baz    ".lstrip()
