@@ -591,6 +591,13 @@ class OaiSpanAdapter:
         return self.response.output_text
 
     @property
+    def guardrail_triggered(self) -> Optional[bool]:
+        """Get whether or not the guardrail was triggered"""
+        if self.span_type != "guardrail" or not hasattr(self._raw_oai_span, "span_data"):
+            return None
+        return getattr(self._raw_oai_span.span_data, "triggered", None)
+
+    @property
     def llmobs_model_name(self) -> Optional[str]:
         """Get the model name formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):

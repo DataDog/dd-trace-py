@@ -131,6 +131,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             custom_data = oai_span.formatted_custom_data
             if custom_data:
                 span._set_ctx_item(METADATA, custom_data)
+        elif span_type == "guardrail":
+            self._llmobs_set_guardrail_attributes(span, oai_span)
 
     def _llmobs_update_trace_info_input(self, oai_span: OaiSpanAdapter, llmobs_span: Span) -> None:
         """
@@ -273,6 +275,20 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         if oai_span.llmobs_metadata:
             span._set_ctx_item(METADATA, oai_span.llmobs_metadata)
+
+        if not oai_span.error:
+            return
+
+        guardrail_error = oai_span.error.get("data", {}).get("guardrail")
+        if guardrail_error:
+            current_metadata = span._get_ctx_item(METADATA) or {}
+            current_metadata["guardrail_error"] = guardrail_error
+            span._set_ctx_item(METADATA, current_metadata)
+
+    def _llmobs_set_guardrail_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+        guardrail_triggered = oai_span.guardrail_triggered
+        if guardrail_triggered is not None:
+            span._set_ctx_item(METADATA, {"guardrail_triggered": guardrail_triggered})
 
     def _llmobs_get_trace_info(
         self, oai_trace_or_span: Union[OaiSpanAdapter, OaiTraceAdapter]
