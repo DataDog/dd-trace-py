@@ -177,6 +177,7 @@ benchmarks-pr-comment:
   tags: ["arch:amd64"]
   stage: report
   when: always
+  allow_failure: true
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     if [[ -n "$CI_JOB_TOKEN" ]];
