@@ -108,10 +108,15 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             error_msg = oai_span.get_error_message()
             error_data = oai_span.get_error_data()
             span.error = 1
+            """
+            Setting set type to "error message" since the OpenAI
+            Agents SDK usually sets error message to a concise string
+            describing the error, and the error data to the full error object.
+            """
             if error_msg:
-                span.set_tag("error.type", json.dumps(error_data))
+                span.set_tag("error.type", error_msg)
             if error_data and error_msg:
-                span.set_tag("error.message", error_msg)
+                span.set_tag("error.message", json.dumps(error_data))
 
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)
@@ -243,12 +248,19 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
+
+        """
+        DASH SPECIFIC HACK TO CLEAN UP NOISY TOOL LINKS
+        """
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (oai_span.name, oai_span.input, "function", span),
+            (oai_span.name, oai_span.input, "handoff", span),
         )
 
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+        """
+        NOTE: this doesn't capture the case where the handoff name is custom or custom handoff arguments are passed in
+        """
         handoff_tool_name = "transfer_to_{}".format("_".join(oai_span.to_agent.split(" ")).lower())
         span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
