@@ -33,7 +33,7 @@ jobs:
           MATRIX_INCLUDE=$(
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux-ubuntu24.04"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
@@ -59,33 +59,20 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-        if: matrix.os != 'arm-4core-linux'
+        if: matrix.os != 'arm-4core-linux-ubuntu24.04'
         name: Install Python
         with:
           python-version: '3.8'
 
-      - name: Install docker and pipx
-        if: matrix.os == 'arm-4core-linux'
-        # The ARM64 Ubuntu has less things installed by default
-        # We need docker, pip and venv for cibuildwheel
-        # acl allows us to use docker in the same session
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-          sudo usermod -a -G docker $USER
-          sudo apt install -y acl python3.10-venv python3-pip
-          sudo setfacl --modify user:runner:rw /var/run/docker.sock
-          python3 -m pip install pipx
-
       - name: Set up QEMU
-        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
+        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux-ubuntu24.04'
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
           platforms: all
 
       - name: Build wheels arm64
-        if: always() && matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
+        if: always() && matrix.os == 'arm-4core-linux-ubuntu24.04'
+        run: pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
@@ -119,7 +106,7 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: always() && matrix.os != 'arm-4core-linux'
+        if: always() && matrix.os != 'arm-4core-linux-ubuntu24.04'
         uses: pypa/cibuildwheel@d04cacbc9866d432033b1d09142936e6a0e2121a # v2.23.2
         with:
           only: ${{ matrix.only }}
