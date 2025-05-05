@@ -84,8 +84,7 @@ def assert_vulnerability_in_traces(
     location = vuln["location"]
     assert location.get("path") == file
     assert location.get("line") == line
-    # FIXME(APPSEC-57497): This should be named just `class`.
-    assert location.get("class_name") == class_
+    assert location.get("class") == class_
     assert location.get("method") == method
 
 

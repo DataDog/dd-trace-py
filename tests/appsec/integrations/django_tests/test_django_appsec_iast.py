@@ -610,7 +610,7 @@ def test_django_sqli_http_cookies_name(client, test_spans, tracer):
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == "sqli_http_request_cookie_name"
-    assert vulnerability["location"]["class_name"] == ""
+    assert vulnerability["location"]["class"] == ""
     assert vulnerability["hash"] == hash_value
 
 
@@ -669,7 +669,7 @@ def test_django_sqli_http_cookies_value(client, test_spans, tracer):
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["method"] == "sqli_http_request_cookie_value"
-    assert vulnerability["location"]["class_name"] == ""
+    assert vulnerability["location"]["class"] == ""
     assert vulnerability["hash"] == hash_value
 
 
