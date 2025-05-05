@@ -216,19 +216,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
         super().finish(override_finish_time=override_finish_time)
 
-    def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
-        if self.efd_has_retries():
-            efd_status = self.efd_get_final_status()
-            if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
-                return TestStatus.PASS
-            if efd_status == EFDTestStatus.ALL_SKIP:
-                return TestStatus.SKIP
-            return TestStatus.FAIL
-        if self.atr_has_retries():
-            return self.atr_get_final_status()
-        if self.attempt_to_fix_has_retries():
-            return self.attempt_to_fix_get_final_status()
-        return super().get_status()
+    # def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
+    #     if self.efd_has_retries():
+    #         efd_status = self.efd_get_final_status()
+    #         if efd_status in (EFDTestStatus.ALL_PASS, EFDTestStatus.FLAKY):
+    #             return TestStatus.PASS
+    #         if efd_status == EFDTestStatus.ALL_SKIP:
+    #             return TestStatus.SKIP
+    #         return TestStatus.FAIL
+    #     if self.atr_has_retries():
+    #         return self.atr_get_final_status()
+    #     if self.attempt_to_fix_has_retries():
+    #         return self.attempt_to_fix_get_final_status()
+    #     return super().get_status()
 
     def count_itr_skipped(self) -> None:
         """Tests do not count skipping on themselves, so only count on the parent.
@@ -293,24 +293,24 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     #
     # EFD (Early Flake Detection) functionality
     #
-    def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
-        if self._parameters is not None:
-            raise ValueError("Cannot create an early flake retry from a test with parameters")
-        retry_test = self.__class__(
-            self.name,
-            self._session_settings,
-            codeowners=self._codeowners,
-            source_file_info=self._source_file_info,
-            initial_tags=self._tags,
-            is_efd_retry=True,
-            is_new=self._is_new,
-        )
-        retry_test.parent = self.parent
+    # def make_early_flake_retry_from_test(self) -> "TestVisibilityTest":
+    #     if self._parameters is not None:
+    #         raise ValueError("Cannot create an early flake retry from a test with parameters")
+    #     retry_test = self.__class__(
+    #         self.name,
+    #         self._session_settings,
+    #         codeowners=self._codeowners,
+    #         source_file_info=self._source_file_info,
+    #         initial_tags=self._tags,
+    #         is_efd_retry=True,
+    #         is_new=self._is_new,
+    #     )
+    #     retry_test.parent = self.parent
 
-        return retry_test
+    #     return retry_test
 
-    def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
-        return self._efd_retries[retry_number - 1]
+    # def _efd_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
+    #     return self._efd_retries[retry_number - 1]
 
     def _efd_should_abort(self) -> bool:
         # We have to use current time since the span is not yet finished
@@ -319,100 +319,94 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         duration_s = (time_ns() - self._span.start_ns) / 1e9
         return duration_s > 300
 
-    def efd_should_retry(self):
-        efd_settings = self._session_settings.efd_settings
-        if not efd_settings.enabled:
-            return False
+    # def efd_should_retry(self):
+    #     efd_settings = self._session_settings.efd_settings
+    #     if not efd_settings.enabled:
+    #         return False
 
-        if self.get_session().efd_is_faulty_session():
-            return False
+    #     if self.get_session().efd_is_faulty_session():
+    #         return False
 
-        if self._efd_abort_reason is not None:
-            return False
+    #     if self._efd_abort_reason is not None:
+    #         return False
 
-        if not self.is_new():
-            return False
+    #     if not self.is_new():
+    #         return False
 
-        if not self.is_finished():
-            log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
-            return False
+    #     if not self.is_finished():
+    #         log.debug("Early Flake Detection: efd_should_retry called but test is not finished")
+    #         return False
 
-        duration_s = self._span.duration
+    #     duration_s = self._span.duration
 
-        num_retries = len(self._efd_retries)
+    #     num_retries = len(self._efd_retries)
 
-        if duration_s <= 5:
-            return num_retries < efd_settings.slow_test_retries_5s
-        if duration_s <= 10:
-            return num_retries < efd_settings.slow_test_retries_10s
-        if duration_s <= 30:
-            return num_retries < efd_settings.slow_test_retries_30s
-        if duration_s <= 300:
-            return num_retries < efd_settings.slow_test_retries_5m
+    #     if duration_s <= 5:
+    #         return num_retries < efd_settings.slow_test_retries_5s
+    #     if duration_s <= 10:
+    #         return num_retries < efd_settings.slow_test_retries_10s
+    #     if duration_s <= 30:
+    #         return num_retries < efd_settings.slow_test_retries_30s
+    #     if duration_s <= 300:
+    #         return num_retries < efd_settings.slow_test_retries_5m
 
-        return False
+    #     return False
 
-    def efd_has_retries(self) -> bool:
-        return len(self._efd_retries) > 0
+    # def efd_has_retries(self) -> bool:
+    #     return len(self._efd_retries) > 0
 
-    def efd_add_retry(self, start_immediately=False) -> Optional[int]:
-        if not self.efd_should_retry():
-            log.debug("Early Flake Detection: efd_add_retry called but test should not retry")
-            return None
+    # def efd_add_retry(self, start_immediately=False) -> Optional[int]:
+    #     if not self.efd_should_retry():
+    #         log.debug("Early Flake Detection: efd_add_retry called but test should not retry")
+    #         return None
 
-        retry_number = len(self._efd_retries) + 1
+    #     retry_number = len(self._efd_retries) + 1
 
-        retry_test = self.make_early_flake_retry_from_test()
-        self._efd_retries.append(retry_test)
-        if start_immediately:
-            retry_test.start()
+    #     retry_test = self.make_early_flake_retry_from_test()
+    #     self._efd_retries.append(retry_test)
+    #     if start_immediately:
+    #         retry_test.start()
 
-        return retry_number
+    #     return retry_number
 
-    def efd_start_retry(self, retry_number: int) -> None:
-        self._efd_get_retry_test(retry_number).start()
+    # def efd_start_retry(self, retry_number: int) -> None:
+    #     self._efd_get_retry_test(retry_number).start()
 
-    def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
-        retry_test = self._efd_get_retry_test(retry_number)
+    # def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
+    #     retry_test = self._efd_get_retry_test(retry_number)
 
-        if status is not None:
-            retry_test.set_status(status)
+    #     if status is not None:
+    #         retry_test.set_status(status)
 
-        retry_test.finish_test(status, exc_info=exc_info)
+    #     retry_test.finish_test(status, exc_info=exc_info)
 
-    def efd_get_final_status(self) -> EFDTestStatus:
-        status_counts: Dict[TestStatus, int] = {
-            TestStatus.PASS: 0,
-            TestStatus.FAIL: 0,
-            TestStatus.SKIP: 0,
-        }
+    # def efd_get_final_status(self) -> EFDTestStatus:
+    #     status_counts: Dict[TestStatus, int] = {
+    #         TestStatus.PASS: 0,
+    #         TestStatus.FAIL: 0,
+    #         TestStatus.SKIP: 0,
+    #     }
 
-        # NOTE: we assume that any unfinished test (eg: defaulting to failed) mean the test failed
-        status_counts[self._status] += 1
-        for retry in self._efd_retries:
-            status_counts[retry._status] += 1
+    #     # NOTE: we assume that any unfinished test (eg: defaulting to failed) mean the test failed
+    #     status_counts[self._status] += 1
+    #     for retry in self._efd_retries:
+    #         status_counts[retry._status] += 1
 
-        expected_total = len(self._efd_retries) + 1
+    #     expected_total = len(self._efd_retries) + 1
 
-        if status_counts[TestStatus.PASS] == expected_total:
-            return EFDTestStatus.ALL_PASS
-        if status_counts[TestStatus.FAIL] == expected_total:
-            return EFDTestStatus.ALL_FAIL
-        if status_counts[TestStatus.SKIP] == expected_total:
-            return EFDTestStatus.ALL_SKIP
+    #     if status_counts[TestStatus.PASS] == expected_total:
+    #         return EFDTestStatus.ALL_PASS
+    #     if status_counts[TestStatus.FAIL] == expected_total:
+    #         return EFDTestStatus.ALL_FAIL
+    #     if status_counts[TestStatus.SKIP] == expected_total:
+    #         return EFDTestStatus.ALL_SKIP
 
-        return EFDTestStatus.FLAKY
+    #     return EFDTestStatus.FLAKY
 
-    def set_efd_abort_reason(self, reason: str) -> None:
-        self._efd_abort_reason = reason
+    # def set_efd_abort_reason(self, reason: str) -> None:
+    #     self._efd_abort_reason = reason
 
-    #
-    # ATR (Auto Test Retries) functionality
-    #
-    def _atr_get_retry_test(self, retry_number: int) -> "TestVisibilityTest":
-        return self._atr_retries[retry_number - 1]
-
-    def _atr_make_retry_test(self):
+    def _make_retry_test(self, **kwargs) -> "TestVisibilityTest":
         retry_test = self.__class__(
             self.name,
             self._session_settings,
@@ -420,71 +414,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             source_file_info=self._source_file_info,
             initial_tags=self._tags,
             is_quarantined=self.is_quarantined(),
-            is_atr_retry=True,
+            **kwargs,
         )
         retry_test.parent = self.parent
 
         return retry_test
-
-    def atr_has_retries(self) -> bool:
-        return len(self._atr_retries) > 0
-
-    def atr_should_retry(self):
-        if not self._session_settings.atr_settings.enabled:
-            return False
-
-        if self.get_session().atr_max_retries_reached():
-            return False
-
-        if not self.is_finished():
-            log.debug("Auto Test Retries: atr_should_retry called but test is not finished")
-            return False
-
-        # Only tests that are failing should be retried
-        if self.atr_get_final_status() != TestStatus.FAIL:
-            return False
-
-        return len(self._atr_retries) < self._session_settings.atr_settings.max_retries
-
-    def atr_add_retry(self, start_immediately=False) -> Optional[int]:
-        if not self.atr_should_retry():
-            log.debug("Auto Test Retries: atr_add_retry called but test should not retry")
-            return None
-
-        retry_test = self._atr_make_retry_test()
-        self._atr_retries.append(retry_test)
-        session = self.get_session()
-        if session is not None:
-            session._atr_count_retry()
-
-        if start_immediately:
-            retry_test.start()
-
-        return len(self._atr_retries)
-
-    def atr_start_retry(self, retry_number: int):
-        self._atr_get_retry_test(retry_number).start()
-
-    def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
-        retry_test = self._atr_get_retry_test(retry_number)
-
-        if retry_number >= self._session_settings.atr_settings.max_retries:
-            if status is not None:
-                retry_test.set_status(status)
-
-            if self.atr_get_final_status() == TestStatus.FAIL:
-                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
-
-        retry_test.finish_test(status, exc_info=exc_info)
-
-    def atr_get_final_status(self) -> TestStatus:
-        if self._status in [TestStatus.PASS, TestStatus.SKIP]:
-            return self._status
-
-        if any(retry._status == TestStatus.PASS for retry in self._atr_retries):
-            return TestStatus.PASS
-
-        return TestStatus.FAIL
 
     #
     # Attempt-to-Fix functionality
