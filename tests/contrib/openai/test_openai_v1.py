@@ -134,8 +134,8 @@ async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, 
         "\n"
         "Recently, I have come to take a more holistic view of my identity, "
         "not as a series of fleeting moments, but as a long-term, ongoing "
-        "process. The key question for me is not that of ‘who am I?’ but "
-        "rather, ‘how am I?’ – a question",
+        "process. The key question for me is not that of 'who am I?' but "
+        "rather, 'how am I?' – a question",
     }
     for key, value in expected_choices.items():
         assert getattr(resp.choices[0], key, None) == value
@@ -283,7 +283,7 @@ def test_chat_completion_image_input(openai, openai_vcr, snapshot_tracer):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "What’s in this image?"},
+                        {"type": "text", "text": "What's in this image?"},
                         {
                             "type": "image_url",
                             "image_url": image_url,
@@ -1353,7 +1353,7 @@ async def test_openai_asyncio_cancellation(openai):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_completion")
 def test_response_completion(openai, mock_tracer):
-    """Ensure llmobs records are emitted for response completion endpoints when configured."""
+    """Ensure llmobs records are emitted for response endpoints when configured."""
     with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create.yaml"):
         model = "gpt-4.1"
         input_messages = multi_message_input
@@ -1370,11 +1370,54 @@ def test_response_completion(openai, mock_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+def test_response_completion_error(openai, mock_tracer, request_api_key):
+    """Assert errors when an invalid model is used."""
+    # import openai
+    with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create_error.yaml"):
+        with pytest.raises(openai.BadRequestError):
+            # Create client directly without using the openai fixture
+            client = openai.OpenAI(api_key=request_api_key)
+            client.responses.create(
+                model="invalid-model",  # Using an invalid model to trigger error
+                input="Hello world",
+                user="ddtrace-test",
+            )
+    span = mock_tracer.pop_traces()[0][0]
+    assert span.name == "openai.request"
+    assert span.resource == "createResponse"
+    assert span.get_tag("openai.request.model") == "invalid-model"
+    assert span.error == 1
+    assert span.get_tag("error.type") == "openai.BadRequestError"
+    assert span.get_tag("error.message") is not None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.parametrize("api_key_in_env", [True, False])
+async def test_aresponse_completion(openai, mock_tracer, request_api_key, openai_vcr):
+    """Assert spans are created with async client."""
+    with openai_vcr.use_cassette("test_aresponse_completion.yaml"):
+        client = openai.AsyncOpenAI(api_key=request_api_key)
+        await client.responses.create(
+            model="gpt-4.1",
+            input=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            user="ddtrace-test",
+        )
+
+    assert len(mock_tracer.pop_traces()) == 1
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_response_completion_stream")
 def test_response_completion_stream(openai, mock_llmobs_writer, mock_tracer):
     with get_openai_vcr(subdirectory_name="v1").use_cassette("response_completion_streamed.yaml"):
         with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            # with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
             mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
             model = "gpt-4.1"
             client = openai.OpenAI()
@@ -1386,6 +1429,31 @@ def test_response_completion_stream(openai, mock_llmobs_writer, mock_tracer):
             _ = [c for c in resp]
     span = mock_tracer.pop_traces()[0][0]
     assert span.name == "openai.request"
+    assert span.resource == "createResponse"
+    assert span.get_tag("openai.request.model") == "gpt-4.1"
+    assert span.get_tag("openai.request.stream") == "True"
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_aresponse_completion_stream")
+async def test_aresponse_completion_stream(openai, mock_tracer, request_api_key, openai_vcr):
+    with openai_vcr.use_cassette("test_aresponse_completion_stream.yaml"):
+        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
+            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
+            client = openai.AsyncOpenAI(api_key=request_api_key)
+            resp = await client.responses.create(
+                model="gpt-4.1",
+                input=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                user="ddtrace-test",
+                stream=True,
+            )
+            _ = [c async for c in resp]
+
+    span = mock_tracer.pop_traces()[0][0]
     assert span.resource == "createResponse"
     assert span.get_tag("openai.request.model") == "gpt-4.1"
     assert span.get_tag("openai.request.stream") == "True"

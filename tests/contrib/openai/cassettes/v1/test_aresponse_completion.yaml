@@ -1,0 +1,106 @@
+interactions:
+- request:
+    body: '{"input":[{"role":"user","content":"Who won the world series in 2020?"}],"model":"gpt-4.1","user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '113'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - AsyncOpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RTTW/bMAy951cQOm1BE9iJ8+HcNuy401Zgh2IwGIl2tMmSIdFtgyL/fbDsOEmX
+        XgKH75F85KPeJgBCK7ED4Sk0xXqb5skqzZMFZts0TzGT+TJbbGkv1/s8SxIpy1QmMs+UXC3LTDx0
+        Bdz+D0k+F3E2UB+XnpBJFdhh6SZbZ5skXecRC4zchi5HuroxxKT6JPLeebED2xoTA9qeGYUiRm3C
+        LRrYt5K1szfxGl8L13LTcsHuL70DnSLT9a4anmXzdLZIFqtZks3S80QxU+zgaQIA8BZ/x1XVoRo3
+        pZa57DaVr5epWqGidbZZ7gnvbirW4GNDsQqFgBVdgI9WEkHpLJO9SLqWdVP2PDS98pgdCWitYzwv
+        6un3DRjpOxCPB4Lp9LsL8MVWZCjAN6cq8mE6hRdngQ8Ev5w3Cn6S1xRAW1gki2QOjwc6gqIyWh55
+        j1g3CF/xCD/wGJlBv0KFNQX4lM0Wn4EdvOhYVHsotQ8M8oB102k86AaCtpIgzbfbuRjVnoavcQDh
+        nYmjYwg6MFruyR0xkkSDHo0hU7BzppBo4g2xb6mHPT1r14bifL5F9Hk8F08YnNW2Erth54LK0nm+
+        InX+tXWN/jgEJwCn/tLJP2tJBWvq7looKrE1vTkisPOd9hJN6MUw1Q155DbG03kyRKM/Q/fS+Rov
+        /6/cj7xx+l5AP/TBadlvqWUnRuByC4JdUzTXPX1rZTyYKFsH3JvzK23j6Y6CtL15aOnm4f/41esd
+        ZUuUB1KXxKSXPmS/f79Zcg+4V3d07KPS7BjNBVxtxm21YbBJsUdJM6YweFUTo0LGrtFpcvoHAAD/
+        /wMAIliJWzwFAAA=
+    headers:
+      CF-RAY:
+      - 93b2577ae8528ff7-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 05 May 2025 18:36:10 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=iG1PnhvvAkJSkOZd1QU.WScYfrPU6YqIfwi85.ViKN8-1746470170-1.0.1.1-3Mo40R.hNScHvqGiuOq903dSIRX7rnlAeOvVQIOH8U60TPOtJlPVq4byl1zshAV8JxaiiBOP7ShwlTMYUOeMP6agIXWjMbkP6aWp.u2AyTI;
+        path=/; expires=Mon, 05-May-25 19:06:10 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=.dj9EEB.HJVitLqiTry.8B7IT0KFD6ji3OESd.h2Zds-1746470170747-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1733'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999963'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_64e3c76f25f33c65246157e1da39f701
+    status:
+      code: 200
+      message: OK
+version: 1

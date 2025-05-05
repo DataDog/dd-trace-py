@@ -1,0 +1,82 @@
+interactions:
+- request:
+    body: '{"input":"Hello world","model":"invalid-model","user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, zstd
+      connection:
+      - keep-alive
+      content-length:
+      - '69'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"error\": {\n    \"message\": \"The requested model 'invalid-model'
+        does not exist.\",\n    \"type\": \"invalid_request_error\",\n    \"param\":
+        \"model\",\n    \"code\": \"model_not_found\"\n  }\n}"
+    headers:
+      CF-RAY:
+      - 93b221505d348f93-BOS
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '179'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 05 May 2025 17:59:10 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=rDIbdSmjDSSkZbkQrn0DAkHlvJJ9TEw8qmH_IpWs2Zw-1746467950-1.0.1.1-n66xRJG9lAyhN1u0Q6ssgz3R4ee6EuGGglkO7VbAKDsjZNzi1qojqapRqB7jgp4bxX2mOKr0P924G_mu4VR60JMm4w7zKgI8fFcpU6JUOls;
+        path=/; expires=Mon, 05-May-25 18:29:10 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=QYi3QxRT8iEmcjadwdZYElqCc1i1seVfTKEuTRh4_J0-1746467950811-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '116'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_6a636a831e66ad288047c02eb8c65732
+    status:
+      code: 400
+      message: Bad Request
+version: 1
