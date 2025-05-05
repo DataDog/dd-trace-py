@@ -342,7 +342,7 @@ class IastSpanReporter(NotNoneDictable):
 
         return value_parts
 
-    def _to_str(self) -> str:
+    def _to_str(self, dict_data=None) -> str:
         """
         Converts the IAST span reporter to a JSON string.
 
@@ -359,4 +359,6 @@ class IastSpanReporter(NotNoneDictable):
                     return origin_to_str(obj)
                 return json.JSONEncoder.default(self, obj)
 
+        if dict_data:
+            return json.dumps(dict_data, cls=OriginTypeEncoder)
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
