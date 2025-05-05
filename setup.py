@@ -2,6 +2,7 @@ import atexit
 import fnmatch
 import hashlib
 import os
+from os.path import exists, isfile
 import platform
 import re
 import shutil
@@ -74,6 +75,8 @@ IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+NATIVE_CRATE = HERE / "src" / "native"
+NATIVE_CRATE_TARGET_DIR = NATIVE_CRATE / "target"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -306,12 +309,69 @@ class CleanLibraries(CleanCommand):
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         shutil.rmtree(IAST_DIR / "*.so", True)
 
+    @staticmethod
+    def remove_rust():
+        if NATIVE_CRATE_TARGET_DIR.exists():
+            subprocess.run(
+                ["cargo", "clean"],
+                cwd=str(NATIVE_CRATE),
+                check=True,
+            )
+
     def run(self):
+        CleanLibraries.remove_rust()
         CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
 
 
-class CMakeBuild(build_ext):
+class CustomBuildExt(build_ext):
+    def run(self):
+        self.build_rust()
+        super().run()
+        for ext in self.extensions:
+            self.build_extension(ext)
+
+    def build_rust(self):
+
+        if not self.is_installed("dedup_headers"):
+            subprocess.run(
+                ["cargo", "install", "--git", "https://github.com/DataDog/libdatadog", "--bin", "dedup_headers", "tools"],
+                cwd=str(NATIVE_CRATE),
+                check=True,
+                )
+
+        if not NATIVE_CRATE_TARGET_DIR.exists():
+            dd_include_dir = NATIVE_CRATE_TARGET_DIR / "include" / "datadog"
+            # Setting env var so headers are placed in the proper target directory.
+            env = os.environ.copy()
+            env["CARGO_TARGET_DIR"] = str(NATIVE_CRATE_TARGET_DIR)
+
+            build_cmd = ["cargo", "build", "--release"]
+
+            if native_features:
+                features = ', '.join(native_features)
+                build_cmd += ["--features", features]
+
+            subprocess.run(
+                build_cmd,
+                cwd=str(NATIVE_CRATE),
+                check=True,
+                env=env,
+                )
+
+            subprocess.run(
+                ["dedup_headers", "common.h", "crashtracker.h", "profiling.h"],
+                cwd=str(dd_include_dir),
+                check=True,
+            )
+
+    @staticmethod
+    def is_installed(bin_file):
+        for path in os.environ.get("PATH", "").split(os.pathsep):
+            return os.path.isfile(os.path.join(path, bin_file)
+)
+        return False
+
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
@@ -605,6 +665,7 @@ else:
 
 
 if not IS_PYSTON:
+    native_features = []
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -662,6 +723,7 @@ if not IS_PYSTON:
         )
 
     if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) or CURRENT_OS == "Windows":
+        native_features.append("profiling")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -690,6 +752,7 @@ if not IS_PYSTON:
 
 else:
     ext_modules = []
+    native_feautes = []
 
 interpose_sccache()
 setup(
@@ -709,7 +772,7 @@ setup(
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     cmdclass={
-        "build_ext": CMakeBuild,
+        "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
@@ -780,15 +843,15 @@ setup(
         compiler_directives={"language_level": "3"},
     )
     + filter_extensions(get_exts_for("psutil")),
-    rust_extensions=filter_extensions(
-        [
-            RustExtension(
-                "ddtrace.internal.native._native",
-                path="src/native/Cargo.toml",
-                py_limited_api="auto",
-                binding=Binding.PyO3,
-                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-            ),
-        ]
-    ),
+    # rust_extensions=filter_extensions(
+    #     [
+    #         RustExtension(
+    #             "ddtrace.internal.native._native",
+    #             path="src/native/Cargo.toml",
+    #             py_limited_api="auto",
+    #             binding=Binding.PyO3,
+    #             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+    #         ),
+    #     ]
+    # ),
 )
