@@ -29,7 +29,7 @@ from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
-
+from ddtrace.propagation.http import HTTPPropagator
 
 @pytest.fixture
 def int_config():
@@ -973,6 +973,13 @@ def test_activate_distributed_headers_no_headers(int_config, tracer):
     trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None)
     assert tracer.context_provider.active() is None
 
+@mock.patch.object(HTTPPropagator, "extract", return_value=None)
+def test_activate_distributed_headers_missing_headers(int_config, tracer):
+    # Verify that when HTTPPropagator.extract returns None (no incoming headers),
+    # activate_distributed_headers returns early without error and leaves the tracer’s context empty.
+    int_config.myint["distributed_tracing_enabled"] = True
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=None, override =True)
+    assert tracer.context_provider.active() is None
 
 def test_activate_distributed_headers_override_true(int_config, tracer):
     int_config.myint["distributed_tracing_enabled"] = False
