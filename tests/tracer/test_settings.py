@@ -166,32 +166,30 @@ class TestIntegrationConfig(BaseTestCase):
 
     def test_app_analytics_deprecation(self):
         import warnings
+        warnings.simplefilter("always")
         with warnings.catch_warnings(record=True) as warns:
-            warnings.simplefilter("always")
-            
-            self.integration_config.name = "test-integration"
+            IntegrationConfig(self.config, "test")
+        assert len(warns) == 0
 
-
-            #self.integration_config.analytics_enabled = True
+        with warnings.catch_warnings(record=True) as warns:
             self.integration_config.analytics_enabled
-            getter_warning = str(warns[0].message)
-            assert "analytics_enabled is deprecated" in str(getter_warning)
-            assert "See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options" in str(getter_warning)
-            assert "will be removed in version '4.0.0'" in str(getter_warning)
-            
-            self.integration_config.analytics_sample_rate
-            setter_warning = str(warns[1].message)
-            assert "analytics_sample_rate is deprecated" in str(setter_warning)
-            assert "See the documentation migrate to the new configuration options: https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options" in str(setter_warning)
-            assert "will be removed in version '4.0.0'" in str(setter_warning)
+        assert 'analytics_enabled is deprecated and will be removed in version \'4.0.0\': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options' in str(warns[0].message)
 
+        with warnings.catch_warnings(record=True) as warns:  
+            self.integration_config.analytics_enabled=True
+        assert 'analytics_enabled is deprecated and will be removed in version \'4.0.0\': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options' in str(warns[0].message)
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_sample_rate
+        assert 'analytics_sample_rate is deprecated and will be removed in version \'4.0.0\': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options' in str(warns[0].message)
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_sample_rate = 0.5
+        assert 'analytics_sample_rate is deprecated and will be removed in version \'4.0.0\': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options' in str(warns[0].message)
+
+        with warnings.catch_warnings(record=True) as warns:
             self.integration_config.get_analytics_sample_rate()
-            getter_warning = str(warns[2].message)
-            assert "get_analytics_sample_rate is deprecated" in str(getter_warning)
-            assert "The method currently returns 1 always" in str(getter_warning)
-            assert "will be removed in version '4.0.0'" in str(getter_warning)
-            
-            assert len(warns) == 3
+        assert 'get_analytics_sample_rate is deprecated and will be removed in version \'4.0.0\': The method currently returns 1 always' in str(warns[0].message)
 
 
 
@@ -219,36 +217,3 @@ def test_x_datadog_tags(env, expected):
     with override_env(env):
         _ = Config()
         assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
-
-
-# @pytest.mark.subprocess()
-# def test_get_analytics_sample_rate_deprecation(env_overrides=dict(DD_TEST_ANALYTICS_ENABLED="true")):
-#     """Ensure App Analytics deprecation warning shows"""
-#     import warnings
-#     with warnings.catch_warnings(record=True) as warns:
-#         warnings.simplefilter("always")
-        
-#         from ddtrace.settings._config import Config
-#         from ddtrace.settings import IntegrationConfig
-
-#         config = Config()
-#         ic = IntegrationConfig(config, "test")
-        
-#         # test default values
-#         assert ic.analytics_enabled == False
-#         assert ic.analytics_sample_rate == 1.0
-
-#         # test updating values
-#         ic.analytics_enabled = True
-#         assert ic.analytics_enabled == True
-
-#         ic.analytics_sample_rate = 0.5
-#         assert ic.analytics_sample_rate == 0.5
-
-#         assert ic.get_analytics_sample_rate() == 1
-
-#         assert len(warns) == 1
-#         warning_message = str(warns[0].message)
-#         assert "analytics_sample_rate is deprecated" in warning_message
-#         assert "The method currently returns 1 always" in warning_message
-#         assert "will be removed in version '4.0.0'" in warning_message
