@@ -1,9 +1,5 @@
 import json
-import os
-import socket
 from typing import TYPE_CHECKING
-from typing import Optional
-from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
