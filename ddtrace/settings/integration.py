@@ -40,7 +40,7 @@ class IntegrationConfig(AttrDict):
         object.__setattr__(self, "integration_name", name)
         object.__setattr__(self, "hooks", Hooks())
         object.__setattr__(self, "http", HttpConfig())
-        
+
         # Trace Analytics was removed in v3.0.0
         # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
         self.setdefault("analytics_enabled", False)
@@ -106,31 +106,31 @@ class IntegrationConfig(AttrDict):
         if tag_name is None:
             return self.global_config._header_tag_name(header_name)
         return tag_name
-    
+
     def __getattr__(self, key):
         if key in ["analytics_enabled", "analytics_sample_rate"]:
             deprecate(
                 f"{key} is deprecated",
-                message="Controlling ingestion via analytics is no longer supported. " 
+                message="Controlling ingestion via analytics is no longer supported. "
                 "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
                 "?code-lang=python#migrate-to-the-new-configuration-options",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
         return super().__getattr__(key)
-    
+
     def __setattr__(self, key, value):
         if key in ["analytics_enabled", "analytics_sample_rate"]:
             deprecate(
                 f"{key} is deprecated",
-                message="Controlling ingestion via analytics is no longer supported. " 
+                message="Controlling ingestion via analytics is no longer supported. "
                 "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
                 "?code-lang=python#migrate-to-the-new-configuration-options",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
-        return super().__setattr__(key,value)
-    
+        return super().__setattr__(key, value)
+
     def get_analytics_sample_rate(self, use_global_config=False):
         """
         Returns analytics sample rate but only when integration-specific
