@@ -1,25 +1,38 @@
 [package]
 name = "ddtrace-native"
+build = "build/main.rs"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [profile.release]
-lto = true
 strip = "debuginfo"
-opt-level = 3
+codegen-units = 1
+lto = true
+opt-level = "s"
+
+[features]
+profiling = ["dep:datadog-profiling-ffi"]
 
 [dependencies]
-pyo3 = { version = "0.24", features = ["extension-module"] }
+pyo3 = { version = "0.24", features = ["extension-module" ] }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
+datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog",rev = "v18.0.0", optional = true, features = [
+    "cbindgen",
+    "crashtracker-collector",
+    "crashtracker-receiver",
+    "demangler"
+]}
+
 
 [build-dependencies]
-pyo3-build-config = "0.24"
-
+pyo3-build-config = "0.21.2"
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0", features = ["cbindgen"] }
 
 [lib]
-name = "_native"
+name = "native"
 path = "lib.rs"
 crate-type = ["cdylib"]
 
