@@ -625,7 +625,7 @@ if not IS_PYSTON:
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
-                else ["/std:c11"]
+                else ["/std:c11", "/experimental:c11atomics"]
             ),
         ),
         Extension(

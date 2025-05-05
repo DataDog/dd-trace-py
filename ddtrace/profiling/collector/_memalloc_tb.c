@@ -149,12 +149,6 @@ memalloc_tb_deinit(void)
     memalloc_tb_buffer_pool_clear(&g_memalloc_tb_buffer_pool);
 }
 
-size_t
-traceback_alloc_size(traceback_t* tb)
-{
-    return tb->size;
-}
-
 void
 traceback_free(traceback_t* tb)
 {
