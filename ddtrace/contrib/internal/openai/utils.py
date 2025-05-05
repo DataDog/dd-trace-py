@@ -176,6 +176,14 @@ class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
             for chunk in self.__wrapped__:
                 if chunk.type == "response.completed":
                     handle_response_tools(chunk.response, self._dd_span)
+                    print("Sync chunk response is", chunk.response)
+                    # Set response attributes
+                    if hasattr(chunk.response, "id"):
+                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
+                    if hasattr(chunk.response, "created_at"):
+                        self._dd_span.set_tag("openai.response.created_at", chunk.response.created_at)
+                    if hasattr(chunk.response, "model"):
+                        self._dd_span.set_tag("openai.response.model", chunk.response.model)
                     self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                     self._dd_span.finish()
                 yield chunk
@@ -220,8 +228,15 @@ class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
         try:
             async for chunk in self.__wrapped__:
                 if chunk.type == "response.completed":
-                    print("chunk response is", chunk.response)
+                    # Set response attributes
+                    if hasattr(chunk.response, "id"):
+                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
+                    if hasattr(chunk.response, "created_at"):
+                        self._dd_span.set_tag("openai.response.created_at", chunk.response.created_at)
+                    if hasattr(chunk.response, "model"):
+                        self._dd_span.set_tag("openai.response.model", chunk.response.model)
                     handle_response_tools(chunk.response, self._dd_span)
+                    print("Async chunk response is", chunk.response)
                     self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                     self._dd_span.finish()
                 yield chunk
@@ -276,7 +291,9 @@ def handle_response_tools(resp, span):
 
         if tool_dict:
             response_tools.append(tool_dict)
-    span.set_tag("openai.response.tools", response_tools)
+        print("response tools are", response_tools)
+    if response_tools != []:
+        span.set_tag("openai.response.tools", response_tools)
 
 
 def _compute_token_count(content, model):
