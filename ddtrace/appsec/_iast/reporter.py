@@ -56,9 +56,6 @@ class Evidence(NotNoneDictable):
 
         return _hash
 
-    def __repr__(self):
-        return f"Evidence(valueParts='{self.valueParts}', value={self.value})"
-
     def __hash__(self):
         return hash((self.value, self._valueParts_hash()))
 
