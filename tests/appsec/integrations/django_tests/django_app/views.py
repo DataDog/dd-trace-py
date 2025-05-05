@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
+import subprocess
 from typing import Any
 
 from django.db import connection
@@ -312,6 +313,16 @@ def command_injection(request):
     # label iast_command_injection
     os.system("dir -l " + value)
 
+    return HttpResponse("OK", status=200)
+
+
+def command_injection_subprocess(request):
+    cmd = request.POST.get("cmd", "")
+    filename = "/"
+    # label iast_command_injection_subprocess
+    subp = subprocess.Popen(args=[cmd, "-la", filename], shell=True)
+    subp.communicate()
+    subp.wait()
     return HttpResponse("OK", status=200)
 
 
