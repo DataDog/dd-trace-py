@@ -668,7 +668,7 @@ class _TraceContext:
     """
 
     @staticmethod
-    def decode_tag_val(tag_val):
+    def decode_tag_val(tag_val: str) -> str:
         # type str -> str
         return tag_val.replace("~", "=")
 
@@ -1026,7 +1026,11 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers, non_active_span=None):
+    def inject(
+        span_context: Context,
+        headers: Dict[str, str],
+        non_active_span: Optional[Span] = None,
+    ) -> None:
         # type: (Context, Dict[str, str], Optional[Span]) -> None
         """Inject Context attributes that have to be propagated as HTTP headers.
 
@@ -1095,7 +1099,7 @@ class HTTPPropagator(object):
             _TraceContext._inject(span_context, headers)
 
     @staticmethod
-    def extract(headers):
+    def extract(headers: Dict[str, str]) -> Context:
         # type: (Dict[str, str]) -> Context
         """Extract a Context from HTTP headers into a new Context.
         For tracecontext propagation we extract tracestate headers for
