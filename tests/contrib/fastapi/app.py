@@ -40,6 +40,7 @@ def get_app():
     async def websocket(websocket: WebSocket):
         await websocket.accept()
         await websocket.send_json({"test": "Hello WebSocket"})
+        await websocket.receive_text()
         await websocket.close()
 
     @app.get("/")

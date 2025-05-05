@@ -547,6 +547,7 @@ def test_traced_websocket(test_spans, snapshot_app):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}
+            websocket.send_text("ping")
 
 
 def test_dont_trace_websocket_by_default(client, test_spans):
@@ -554,6 +555,7 @@ def test_dont_trace_websocket_by_default(client, test_spans):
     with client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "Hello WebSocket"}
+        websocket.send_text("ping")
         spans = test_spans.pop_traces()
         assert len(spans) <= initial_event_count
 
