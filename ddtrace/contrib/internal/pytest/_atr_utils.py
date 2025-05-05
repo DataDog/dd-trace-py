@@ -10,7 +10,7 @@ from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_stri
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -22,7 +22,7 @@ from ddtrace.internal.test_visibility.api import InternalTest
 log = get_logger(__name__)
 
 
-class _ATR_RETRY_OUTCOMES(_PYTEST_STATUS):
+class _ATR_RETRY_OUTCOMES:
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
@@ -197,9 +197,9 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
+        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
         status_text="failed",
-        report_outcome=_PYTEST_STATUS.FAILED,
+        report_outcome=PYTEST_STATUS.FAILED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="red",
@@ -207,9 +207,9 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
+        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
         status_text="passed",
-        report_outcome=_PYTEST_STATUS.PASSED,
+        report_outcome=PYTEST_STATUS.PASSED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="green",
