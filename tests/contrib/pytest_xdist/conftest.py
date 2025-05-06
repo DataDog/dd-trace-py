@@ -7,7 +7,7 @@ from ddtrace.internal.ci_visibility._api_client import \
     TestVisibilityAPISettings
 
 
-@pytest.fixture(auto_use=True, scope="session")
+@pytest.fixture(autouse=True, scope="session")
 def mock_check_enabled_features():
     with mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
