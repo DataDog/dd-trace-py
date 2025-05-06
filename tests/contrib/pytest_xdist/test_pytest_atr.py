@@ -133,26 +133,16 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def setup_sitecustomize(self):
         sitecustomize_content = """
-# This is sitecustomize.py
-import sys
-try:
-    from unittest import mock
-    from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-    import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
+# sitecustomize.py
+from unittest import mock
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
 
-    patch_target = "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features"
-    _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
-        patch_target,
-        return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
-    )
-    _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
-
-except ImportError as e:
-    print(f"[sitecustomize.py] ImportError during patching: {e}.", file=sys.stderr)
-except AttributeError as e:
-    print(f"[sitecustomize.py] AttributeError during patching: {e}.", file=sys.stderr)
-except Exception as e:
-    print(f"[sitecustomize.py] UNEXPECTED ERROR during patching: {e}", file=sys.stderr)
+_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
+    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
+)
+_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 """
         self.testdir.makepyfile(sitecustomize=sitecustomize_content)
 
