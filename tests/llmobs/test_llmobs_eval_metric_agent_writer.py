@@ -8,10 +8,12 @@ from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.settings._agent import config as agent_config
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _categorical_metric_event
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _score_metric_event
+from tests.utils import override_env
 
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
 AGENT_PROXY_URL = f"{INTAKE_ENDPOINT}{EVP_PROXY_AGENT_BASE_PATH}{EVAL_ENDPOINT}"
+UNIX_AGENT_PROXY_URL = f"unix:///var/run/datadoc/apm.sock{EVP_PROXY_AGENT_BASE_PATH}{EVAL_ENDPOINT}"
 
 
 def test_writer_start(mock_writer_logs):
@@ -19,6 +21,16 @@ def test_writer_start(mock_writer_logs):
     llmobs_eval_metric_writer.start()
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsEvalMetricWriter", AGENT_PROXY_URL)])
     llmobs_eval_metric_writer.stop()
+
+
+def test_writer_start_unix_socket(mock_writer_logs):
+    with override_env(dict(DD_TRACE_AGENT_URL="unix:///var/run/datadoc/apm.sock")):
+        llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False)
+        llmobs_eval_metric_writer.start()
+        mock_writer_logs.debug.assert_has_calls(
+            [mock.call("started %r to %r", "LLMObsEvalMetricWriter", UNIX_AGENT_PROXY_URL)]
+        )
+        llmobs_eval_metric_writer.stop()
 
 
 def test_buffer_limit(mock_writer_logs):
