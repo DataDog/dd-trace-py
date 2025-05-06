@@ -159,7 +159,6 @@ heap_tracker_init(heap_tracker_t* heap_tracker)
 static void
 heap_tracker_wipe(heap_tracker_t* heap_tracker)
 {
-    /* TODO: free everything in the map? */
     memalloc_heap_map_delete(heap_tracker->allocs_m);
     memalloc_heap_map_delete(heap_tracker->freezer.allocs_m);
     ptr_array_wipe(&heap_tracker->freezer.frees);
@@ -274,12 +273,17 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
         return false;
     }
 
-    /* TODO: the array-based implementation had a size limit (uint16_t max).
-     * Do we want that? Pro: bounded memory use. Con: affects our accuracy.
-     * With the default 1MiB sampling interval, a full 2^16 entry array would
-     * represent a ~65GiB live heap. How often would we reach that size before
-     * performance degrades in some other way?
-     */
+    if (memalloc_heap_map_size(global_heap_tracker.allocs_m) +
+          memalloc_heap_map_size(global_heap_tracker.freezer.allocs_m) >
+        TRACEBACK_ARRAY_MAX_COUNT) {
+        /* TODO(nick) this is vestigial from the original array-based
+         * implementation. Do we actually want this? It gives us bounded memory
+         * use, but the size limit is arbitrary and once we hit the arbitrary
+         * limit our reported numbers will be inaccurate.
+         */
+        memlock_unlock(&g_memheap_lock);
+        return false;
+    }
 
     /* Avoid loops */
     if (!memalloc_take_guard()) {

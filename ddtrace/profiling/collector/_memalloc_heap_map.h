@@ -15,6 +15,9 @@ typedef struct memalloc_heap_map_t memalloc_heap_map_t;
 memalloc_heap_map_t*
 memalloc_heap_map_new();
 
+size_t
+memalloc_heap_map_size(memalloc_heap_map_t* m);
+
 /* Insert a traceback for a sampled allocation with the given address */
 void
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value);

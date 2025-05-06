@@ -18,6 +18,16 @@
  * implementation in a wrapper specialized for use by the heap profiler, both to
  * keep compilation fast (the cwisstables header is big) and to allow us to swap
  * out the implementation if we want.
+ *
+ * Note that the HeapSample tables will, in general, never free their backing
+ * memory unless we completely clear them. The table takes 17 bytes per entry: 8
+ * for the void* keys, 8 for the traceback* values, and 1 byte per entry for
+ * control metadata. Assuming a load factor target of ~50%, meaning our table
+ * has roughly twice as many slots as actual entries, then for our default
+ * maximum of 2^16 entries the table will be about 2MiB. A table this large
+ * would correspond to a program with a ~65GiB live heap with a 1MiB default
+ * sampling interval. Most of the memory usage of the profiler will come from
+ * the tracebacks themselves, which we _do_ free when we're done with them.
  */
 #if defined(_WIN_64) || defined(__x86_64__) || defined(__aarch_64__)
 CWISS_DECLARE_FLAT_HASHMAP(HeapSamples, void*, traceback_t*);
@@ -26,7 +36,12 @@ CWISS_DECLARE_FLAT_HASHMAP(HeapSamples, void*, traceback_t*);
  * multiplication, which is really slow on 32-bit.
  * For 32-bit, we define a custom hash function with reasonable quality.
  * Derived from:
- * https://github.com/Cyan4973/xxHash/blob/dev/doc/xxhash_spec.md#xxh32-algorithm-description
+ * https://github.com/Cyan4973/xxHash/blob/dev/doc/xxhash_spec.md#xxh32-algorithm-description.
+ *
+ * NOTE: cwisstable.h requires the hash function to return a size_t.
+ * On 32-bit platforms this is 32 bits, while the SwissTable design
+ * expects 64-bit hashes, with 7 of the bits are used for metadata.
+ * So we get much lower entropy on 32-bit platforms.
  */
 static size_t
 void_ptr_hash(const void* value)
@@ -74,6 +89,12 @@ memalloc_heap_map_new()
     return m;
 }
 
+size_t
+memalloc_heap_map_size(memalloc_heap_map_t* m)
+{
+    return HeapSamples_size(&m->map);
+}
+
 void
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 {
@@ -90,13 +111,12 @@ memalloc_heap_map_contains(memalloc_heap_map_t* m, void* key)
 traceback_t*
 memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key)
 {
-    /* TODO: erase might not actually shrink the map? We should probably do that
-     * periodically? */
     traceback_t* res = NULL;
     HeapSamples_Iter it = HeapSamples_find(&m->map, &key);
     HeapSamples_Entry* e = HeapSamples_Iter_get(&it);
     if (e != NULL) {
         res = e->val;
+        /* This erases the entry but won't shrink the table. */
         HeapSamples_erase_at(it);
     }
     return res;
@@ -127,15 +147,13 @@ memalloc_heap_map_export(memalloc_heap_map_t* m)
 void
 memalloc_heap_map_destructive_copy(memalloc_heap_map_t* dst, memalloc_heap_map_t* src)
 {
-    /* TODO: is this any better than copy followed by clear? _Maybe_ this
-     * saves memory, at the expense of doing more work to remove stuff as we
-     * go?
-     */
     HeapSamples_Iter it = HeapSamples_iter(&src->map);
     for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != NULL; e = HeapSamples_Iter_next(&it)) {
         HeapSamples_insert(&dst->map, e);
-        /* TODO: erase might not actually shrink the map?  I think we need to clear
-         * it at the end of this function if we want to reclaim the memory. */
+        /* Erasing the element doesn't free up the backing storage. This is
+         * probably fine; even at full capacity the table will probably only be
+         * ~1-2MiB
+         */
         HeapSamples_erase_at(it);
     }
 }
