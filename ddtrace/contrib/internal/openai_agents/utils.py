@@ -1,10 +1,9 @@
 from agents import Agent
+from agents import ComputerTool
+from agents import FileSearchTool
 from agents import Handoff
-from agents import (
-    WebSearchTool,
-    FileSearchTool,
-    ComputerTool,
-)
+from agents import WebSearchTool
+
 
 def create_agent_manifest(agent):
     manifest = {}
@@ -29,17 +28,18 @@ def create_agent_manifest(agent):
     handoffs = extract_handoffs_from_agent(agent)
     if handoffs:
         manifest["handoffs"] = handoffs
-    
+
     guardrails = extract_guardrails_from_agent(agent)
     if guardrails:
         manifest["guardrails"] = guardrails
-        
+
     return manifest
+
 
 def extract_model_settings_from_agent(agent):
     if not hasattr(agent, "model_settings"):
         return None
-    
+
     # convert model_settings to dict if it's not already
     model_settings = agent.model_settings
     if type(model_settings) != dict:
@@ -47,13 +47,14 @@ def extract_model_settings_from_agent(agent):
             model_settings = model_settings.__dict__
         else:
             return None
-    
+
     return make_json_compatible(model_settings)
+
 
 def extract_tools_from_agent(agent):
     if not hasattr(agent, "tools"):
         return None
-    
+
     tools = []
     for tool in agent.tools:
         tool_dict = {}
@@ -81,7 +82,7 @@ def extract_tools_from_agent(agent):
                 tool_dict["strict_json_schema"] = tool.strict_json_schema
             if hasattr(tool, "params_json_schema"):
                 parameter_schema = tool.params_json_schema
-                required_params = get_required_param_dict(parameter_schema.get("required", [])) 
+                required_params = get_required_param_dict(parameter_schema.get("required", []))
                 parameters = {}
                 if "properties" in parameter_schema:
                     for param, schema in parameter_schema["properties"].items():
@@ -94,14 +95,15 @@ def extract_tools_from_agent(agent):
                             param_dict["required"] = True
                         parameters[param] = param_dict
                 tool_dict["parameters"] = parameters
-        tools.append(tool_dict)                     
-    
+        tools.append(tool_dict)
+
     return tools
+
 
 def extract_handoffs_from_agent(agent):
     if not hasattr(agent, "handoffs"):
         return None
-    
+
     handoffs = []
     for handoff in agent.handoffs:
         if isinstance(handoff, Agent):
@@ -117,8 +119,9 @@ def extract_handoffs_from_agent(agent):
             if hasattr(handoff, "strict_json_schema"):
                 handoff_dict["strict_json_schema"] = handoff.strict_json_schema
         handoffs.append(handoff_dict)
-    
+
     return handoffs
+
 
 def extract_guardrails_from_agent(agent):
     guardrails = []
@@ -128,8 +131,10 @@ def extract_guardrails_from_agent(agent):
         guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
     return guardrails
 
+
 def get_required_param_dict(required_params):
     return {param: True for param in required_params}
+
 
 def make_json_compatible(obj):
     if isinstance(obj, dict):
