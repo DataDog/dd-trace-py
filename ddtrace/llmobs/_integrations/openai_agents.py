@@ -12,6 +12,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import GUARDRAIL_TYPE
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -25,6 +26,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
@@ -77,6 +79,16 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
         return llmobs_span
+    
+    def mark_guardrail_type(self, type: str):
+        if not self.llmobs_enabled:
+            return
+        current_llmobs_span = LLMObs._instance._current_span()
+        if not current_llmobs_span:
+            return
+        
+        current_llmobs_span._set_ctx_item(GUARDRAIL_TYPE, type)
+   
 
     def _llmobs_set_tags(
         self,
@@ -261,8 +273,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+        current_metadata = span._get_ctx_item(METADATA) or {}
         if oai_span.llmobs_metadata:
-            span._set_ctx_item(METADATA, oai_span.llmobs_metadata)
+            current_metadata.update(oai_span.llmobs_metadata)
+            span._set_ctx_item(METADATA, current_metadata)
 
         if not oai_span.error:
             return
@@ -275,8 +289,28 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
     def _llmobs_set_guardrail_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         guardrail_triggered = oai_span.guardrail_triggered
-        if guardrail_triggered is not None:
-            span._set_ctx_item(METADATA, {"guardrail_triggered": guardrail_triggered})
+        if guardrail_triggered is None:
+            return
+        guardrail_metadata = {"guardrail_triggered": guardrail_triggered}
+        guardrail_type = span._get_ctx_item(GUARDRAIL_TYPE)
+        if guardrail_type is not None:
+            guardrail_metadata["type"] = guardrail_type
+        span._set_ctx_item(METADATA, guardrail_metadata)
+
+        parent_agent_span = _get_nearest_llmobs_ancestor(span)
+        if parent_agent_span is None:
+            return
+
+        current_metadata = parent_agent_span._get_ctx_item(METADATA) or {}
+        parent_agent_guardrails: list = current_metadata.get("guardrails", [])
+        parent_agent_guardrails.append({
+            "name": span.name,
+            "type": guardrail_type,
+            "triggered": guardrail_triggered,
+        })
+        current_metadata["guardrails"] = parent_agent_guardrails
+        parent_agent_span._set_ctx_item(METADATA, current_metadata)
+
 
     def _llmobs_get_trace_info(
         self, oai_trace_or_span: Union[OaiSpanAdapter, OaiTraceAdapter]

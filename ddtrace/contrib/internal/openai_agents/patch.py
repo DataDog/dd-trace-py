@@ -34,6 +34,18 @@ async def patched_run_single_turn(agents, pin, func, instance, args, kwargs):
     s._set_ctx_item(AGENT_MANIFEST, agent_manifest)
     return r
 
+@with_traced_module_async
+async def patched_run_input_guardrail(agents, pin, func, instance, args, kwargs):
+    integration: OpenAIAgentsIntegration = getattr(agents, "_datadog_integration")
+    integration.mark_guardrail_type(type="input")
+    return await func(*args, **kwargs)
+
+@with_traced_module_async
+async def patched_run_output_guardrail(agents, pin, func, instance, args, kwargs):
+    integration: OpenAIAgentsIntegration = getattr(agents, "_datadog_integration")
+    integration.mark_guardrail_type(type="output")
+    return await func(*args, **kwargs)
+
 def patch():
     """
     Patch the instrumented methods
@@ -44,10 +56,14 @@ def patch():
     agents._datadog_patch = True
 
     Pin().onto(agents)
+    integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
+    agents._datadog_integration = integration
 
-    add_trace_processor(LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents)))
+    add_trace_processor(LLMObsTraceProcessor(integration))
     
     wrap(agents.Runner, "_run_single_turn", patched_run_single_turn(agents))
+    wrap(agents.InputGuardrail, "run", patched_run_input_guardrail(agents))
+    wrap(agents.OutputGuardrail, "run", patched_run_output_guardrail(agents))
 
 
 def unpatch():
@@ -60,3 +76,7 @@ def unpatch():
     agents._datadog_patch = False
 
     unwrap(agents.Runner, "_run_single_turn")
+    unwrap(agents.InputGuardrail, "run")
+    unwrap(agents.OutputGuardrail, "run")
+
+    delattr(agents, "_datadog_integration")
