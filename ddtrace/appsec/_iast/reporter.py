@@ -13,7 +13,8 @@ import zlib
 
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
-from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
+from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
+from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_id
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
@@ -63,7 +64,7 @@ class Evidence(NotNoneDictable):
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Location(NotNoneDictable):
+class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
     path: Optional[str] = None
     line: Optional[int] = None
@@ -73,9 +74,23 @@ class Location(NotNoneDictable):
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
 
+    def _to_dict(self):
+        result = {}
+        if self.spanId is not None:
+            result["spanId"] = self.spanId
+        if self.path is not None:
+            result["path"] = self.path
+        if self.line is not None:
+            result["line"] = self.line
+        if self.method is not None:
+            result["method"] = self.method
+        if self.class_name is not None:
+            result["class"] = self.class_name
+        return result
+
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Vulnerability(NotNoneDictable):
+class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
@@ -84,7 +99,6 @@ class Vulnerability(NotNoneDictable):
 
     def __post_init__(self):
         # avoid circular import
-        from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_id
 
         self.hash = zlib.crc32(repr(self).encode())
         stacktrace_id = get_iast_stacktrace_id()
@@ -96,6 +110,17 @@ class Vulnerability(NotNoneDictable):
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
+
+    def _to_dict(self):
+        to_dict = {
+            "type": self.type,
+            "evidence": self.evidence._to_dict(),
+            "location": self.location._to_dict(),
+            "hash": self.hash,
+        }
+        if self.stackId:
+            to_dict["stackId"] = self.stackId
+        return to_dict
 
 
 @dataclasses.dataclass
@@ -317,7 +342,7 @@ class IastSpanReporter(NotNoneDictable):
 
         return value_parts
 
-    def _to_str(self) -> str:
+    def _to_str(self, dict_data=None) -> str:
         """
         Converts the IAST span reporter to a JSON string.
 
@@ -334,4 +359,6 @@ class IastSpanReporter(NotNoneDictable):
                     return origin_to_str(obj)
                 return json.JSONEncoder.default(self, obj)
 
+        if dict_data:
+            return json.dumps(dict_data, cls=OriginTypeEncoder)
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
