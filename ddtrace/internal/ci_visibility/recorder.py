@@ -407,7 +407,7 @@ class CIVisibility(Service):
             self.tracer._span_aggregator.writer = writer
             self.tracer._recreate()
 
-    def _agent_evp_proxy_base_url(self) -> str | None:
+    def _agent_evp_proxy_base_url(self) -> Optional[str]:
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:
