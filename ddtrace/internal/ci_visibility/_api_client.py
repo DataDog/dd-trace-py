@@ -1,12 +1,13 @@
 import abc
-from base64 import b64decode
 import dataclasses
-from http.client import RemoteDisconnected
 import json
-from json import JSONDecodeError
 import os
 import socket
 import typing as t
+
+from base64 import b64decode
+from http.client import RemoteDisconnected
+from json import JSONDecodeError
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -47,6 +48,7 @@ from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.time import StopWatch
+
 
 if t.TYPE_CHECKING:
     from ddtrace.internal.utils.http import ConnectionType
