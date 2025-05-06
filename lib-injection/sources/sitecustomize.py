@@ -431,7 +431,7 @@ def _inject():
                 )
                 # Track whether library injection was successful
                 ddtrace.config._lib_was_injected = True
-                os.environ["_DD_SSI_INJECT_SUCCESSFUL"] = "true"
+                os.environ["_DD_SSI_INJECT_SUCCESSFUL"] = "1"
                 ddtrace.internal.telemetry.telemetry_writer.add_configuration("instrumentation_source", "ssi", "code")
             except Exception as e:
                 TELEMETRY_DATA.append(
