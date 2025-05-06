@@ -7,14 +7,16 @@ are checked.
 - The session object is patched to never be a faulty session, by default.
 """
 from unittest import mock
-# from xml.etree import ElementTree
 
+# from xml.etree import ElementTree
 import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+
+
 # from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
 
@@ -195,7 +197,7 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
 
         rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
-        spans = self.pop_spans()
+        _ = self.pop_spans()
         # session_span = _get_spans_from_list(spans, "session")[0]
         # assert session_span.get_tag("test.status") == "fail"
 
@@ -276,7 +278,8 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
         # assert class_func_skip_mark_spans[0].get_tag("test.status") == "skip"
         # assert class_func_skip_mark_spans[0].get_tag("test.is_retry") is None
 
-        # class_func_skip_inside_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_inside")
+        # class_func_skip_inside_spans = _get_spans_from_list(
+        # spans, "test", "SomeTestCase::test_class_func_skip_inside")
         # assert len(class_func_skip_inside_spans) == 1
         # assert class_func_skip_inside_spans[0].get_tag("test.status") == "skip"
         # assert class_func_skip_inside_spans[0].get_tag("test.is_retry") is None

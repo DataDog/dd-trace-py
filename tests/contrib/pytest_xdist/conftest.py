@@ -3,8 +3,8 @@
 from unittest import mock
 
 import pytest
-from ddtrace.internal.ci_visibility._api_client import \
-    TestVisibilityAPISettings
+
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 
 
 @pytest.fixture(autouse=True, scope="session")
