@@ -99,7 +99,17 @@ void
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { key = key, value = value };
-    HeapSamples_insert(&m->map, &k);
+    HeapSamples_Insert res = HeapSamples_insert(&m->map, &k);
+    if (!res.inserted) {
+        /* This shouldn't happen, but due to the current try-locking implementation
+         * we can hypothetically fail to remove a sample, leading to two entries
+         * with the same pointer. If we see this key already, then the allocation
+         * for the existing entry was freed. Replace it with the new one
+         */
+        HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
+        traceback_free(e->val);
+        e->val = value;
+    }
 }
 
 bool

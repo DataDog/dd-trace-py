@@ -18,7 +18,9 @@ memalloc_heap_map_new();
 size_t
 memalloc_heap_map_size(memalloc_heap_map_t* m);
 
-/* Insert a traceback for a sampled allocation with the given address */
+/* Insert a traceback for a sampled allocation with the given address.
+ * If there is already an entry for the given key, the old value will be freed
+ * and replaced with the given value */
 void
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value);
 
