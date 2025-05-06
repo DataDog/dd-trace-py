@@ -84,8 +84,8 @@ class VulnerabilityBase(Operation):
         evidence: Evidence,
         file_name: Optional[str],
         line_number: int,
-        function_name: str = "",
-        class_name: str = "",
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> bool:
