@@ -19,7 +19,7 @@ from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -201,7 +201,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = self._get_connection()
+        conn = get_connection(self._intake)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -225,15 +225,6 @@ class BaseLLMObsWriter(PeriodicService):
             raise
         finally:
             conn.close()
-
-    def _get_connection(self):
-        """Return the connection to the LLM Observability endpoint."""
-        parsed = verify_url(self._intake)
-        if parsed.scheme == "https":
-            return httplib.HTTPSConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
-        elif parsed.scheme == "http":
-            return httplib.HTTPConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
-        raise ConnectionError("Unable to connect, invalid URL: %s", self._intake)
 
     @property
     def _url(self) -> str:
