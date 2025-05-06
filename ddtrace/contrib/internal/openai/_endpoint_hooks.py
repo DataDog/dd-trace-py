@@ -10,7 +10,8 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
-from ddtrace.contrib.internal.openai.utils import handle_response_tools
+
+# from ddtrace.contrib.internal.openai.utils import handle_response_tools
 from ddtrace.internal.utils.version import parse_version
 
 
@@ -720,7 +721,7 @@ class _FileDownloadHook(_BaseFileHook):
         return resp
 
 
-class _ResponseHook(_EndpointHook):
+class _ResponseHook(_BaseCompletionHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = (
         "model",
@@ -742,13 +743,10 @@ class _ResponseHook(_EndpointHook):
         "truncation",
         "user",
     )
-    _response_attrs = ("created_at", "id", "model", "tools")
+    _response_attrs = ("created_at", "id", "model")
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createResponse"
-
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -764,7 +762,9 @@ class _ResponseHook(_EndpointHook):
             return resp
 
         if not kwargs.get("stream") and error is None:
-            handle_response_tools(resp, span)
+            # Skip _tag_tool_calls if tools is an empty list or None
+            if hasattr(resp, "tools") and resp.tools is not None and resp.tools != []:
+                _tag_tool_calls(integration, span, resp.tools, 0)
             integration.record_usage(span, resp.usage)
             span.finish()
-            return resp
+        return resp

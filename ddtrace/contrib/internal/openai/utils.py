@@ -162,20 +162,13 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             return
 
 
-class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
-    def __enter__(self):
-        self.__wrapped__.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-
+class TracedOpenAIResponseStream(TracedOpenAIStream):
     def __iter__(self):
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
                 if chunk.type == "response.completed":
-                    handle_response_tools(chunk.response, self._dd_span)
+                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
                     if hasattr(chunk.response, "id"):
                         self._dd_span.set_tag("openai.response.id", chunk.response.id)
                     if hasattr(chunk.response, "created_at"):
@@ -196,31 +189,8 @@ class TracedOpenAIResponseStream(BaseTracedOpenAIStream):
                 )
             self._dd_span.finish()
 
-    def __next__(self):
-        try:
-            chunk = self.__wrapped__.__next__()
-            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            return chunk
-        except StopIteration:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
 
-
-class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
-    async def __aenter__(self):
-        await self.__wrapped__.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-
+class TracedOpenAIAsyncResponseStream(TracedOpenAIAsyncStream):
     async def __aiter__(self):
         exception_raised = False
         try:
@@ -233,7 +203,7 @@ class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
                         self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
                     if hasattr(chunk.response, "model"):
                         self._dd_span.set_tag("openai.response.model", chunk.response.model)
-                    handle_response_tools(chunk.response, self._dd_span)
+                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
                     self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                     self._dd_span.finish()
                 yield chunk
@@ -247,49 +217,6 @@ class TracedOpenAIAsyncResponseStream(BaseTracedOpenAIStream):
                     self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
                 )
             self._dd_span.finish()
-
-    async def __anext__(self):
-        try:
-            chunk = await self.__wrapped__.__anext__()
-            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            return chunk
-        except StopAsyncIteration:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-
-def handle_response_tools(resp, span):
-    """Process and set tool information from the response to the span.
-
-    Args:
-        resp: The response object containing tool information
-        span: The span to set the tool information on
-    """
-    if not hasattr(resp, "tools") or isinstance(resp, type("ResponseCompletedEvent", (), {})):
-        return None
-
-    response_tools = []
-    for tool in resp.tools:
-        if not (hasattr(tool, "type") or hasattr(tool, "name")):
-            continue
-
-        tool_dict = {}
-        if hasattr(tool, "type"):
-            tool_dict["type"] = getattr(tool, "type")
-        if hasattr(tool, "name"):
-            tool_dict["name"] = getattr(tool, "name")
-
-        if tool_dict:
-            response_tools.append(tool_dict)
-    if response_tools != []:
-        span.set_tag("openai.response.tools", response_tools)
 
 
 def _compute_token_count(content, model):
@@ -488,7 +415,7 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
 
 
 def _tag_streamed_response(integration, span, completions_or_messages=None):
-    """Tagging logic for streamed completions and chat completions."""
+    """Tagging logic for streamed completions, chat completions, and response streams."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
         if text:
@@ -563,25 +490,50 @@ def _compute_completion_tokens(completions_or_messages, model_name):
     return estimated, num_completion_tokens
 
 
-def _tag_tool_calls(integration, span, tool_calls, choice_idx):
+def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
     # type: (...) -> None
     """
-    Tagging logic if function_call or tool_calls are provided in the chat response.
+    Tagging logic if function_call, tool_calls in the chat response, or tools are provided in the responses.
     Notes:
         - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
         - streamed responses are processed and collected as dictionaries rather than objects,
           so we need to handle both ways of accessing values.
     """
-    for idy, tool_call in enumerate(tool_calls):
-        if hasattr(tool_call, "function"):
-            # tool_call is further nested in a "function" object
-            tool_call = tool_call.function
-        function_arguments = _get_attr(tool_call, "arguments", "")
-        function_name = _get_attr(tool_call, "name", "")
-        span.set_tag_str(
-            "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-            integration.trunc(str(function_arguments)),
-        )
-        span.set_tag_str(
-            "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
-        )
+    # Handle response tools
+    if hasattr(tool_calls, "tools"):
+        response_tools = []
+        for tool in tool_calls.tools:
+            if not (hasattr(tool, "type") or hasattr(tool, "name")):
+                continue
+
+            tool_dict = {}
+            if hasattr(tool, "type"):
+                tool_dict["type"] = getattr(tool, "type")
+            if hasattr(tool, "name"):
+                tool_dict["name"] = getattr(tool, "name")
+
+            if tool_dict:
+                response_tools.append(tool_dict)
+
+        # Only set the tag if we have valid tools to report
+        if response_tools:
+            span.set_tag("openai.response.tools", response_tools)
+    # Handle tool_calls (function calls and tool calls)
+    if choice_idx is not None and tool_calls and tool_calls != []:
+        for idy, tool_call in enumerate(tool_calls):
+            if hasattr(tool_call, "function"):
+                # tool_call is further nested in a "function" object
+                tool_call = tool_call.function
+            function_arguments = _get_attr(tool_call, "arguments", "")
+            function_name = _get_attr(tool_call, "name", "")
+            # Only set arguments tag if there are actual arguments
+            if function_arguments and function_arguments.strip():
+                span.set_tag_str(
+                    "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
+                    integration.trunc(str(function_arguments)),
+                )
+            # Only set name tag if there is an actual name
+            if function_name and function_name.strip():
+                span.set_tag_str(
+                    "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
+                )
