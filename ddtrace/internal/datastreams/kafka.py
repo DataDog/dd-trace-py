@@ -64,7 +64,8 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
             log.error(
-                "Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more information. Tracer message header injection for Kafka is disabled."
+                "Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more "
+                "information. Tracer message header injection for Kafka is disabled."
             )
         if on_delivery is not None:
             on_delivery(err, msg)
