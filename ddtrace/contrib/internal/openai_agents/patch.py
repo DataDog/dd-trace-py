@@ -37,13 +37,13 @@ async def patched_run_single_turn(agents, pin, func, instance, args, kwargs):
 @with_traced_module_async
 async def patched_run_input_guardrail(agents, pin, func, instance, args, kwargs):
     integration: OpenAIAgentsIntegration = getattr(agents, "_datadog_integration")
-    integration.mark_guardrail_type(type="input")
+    integration.mark_guardrail_type(guardrail_type="input")
     return await func(*args, **kwargs)
 
 @with_traced_module_async
 async def patched_run_output_guardrail(agents, pin, func, instance, args, kwargs):
     integration: OpenAIAgentsIntegration = getattr(agents, "_datadog_integration")
-    integration.mark_guardrail_type(type="output")
+    integration.mark_guardrail_type(guardrail_type="output")
     return await func(*args, **kwargs)
 
 def patch():

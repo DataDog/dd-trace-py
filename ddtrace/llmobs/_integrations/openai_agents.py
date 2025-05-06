@@ -80,14 +80,14 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
         return llmobs_span
     
-    def mark_guardrail_type(self, type: str):
+    def mark_guardrail_type(self, guardrail_type: str):
         if not self.llmobs_enabled:
             return
         current_llmobs_span = LLMObs._instance._current_span()
         if not current_llmobs_span:
             return
         
-        current_llmobs_span._set_ctx_item(GUARDRAIL_TYPE, type)
+        current_llmobs_span._set_ctx_item(GUARDRAIL_TYPE, guardrail_type)
    
 
     def _llmobs_set_tags(
