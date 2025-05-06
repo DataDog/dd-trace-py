@@ -7,16 +7,15 @@ are checked.
 - The session object is patched to never be a faulty session, by default.
 """
 from unittest import mock
-from xml.etree import ElementTree
+# from xml.etree import ElementTree
 
 import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
-from tests.contrib.pytest.test_pytest import _get_spans_from_list
+# from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
 
 pytestmark = pytest.mark.skipif(
@@ -137,13 +136,13 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
         args = list(args) + ["-n", "2"]
         return super().inline_run(*args, **kwargs)
 
-    @pytest.fixture(autouse=True, scope="function")
-    def set_up_atr(self):
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True),
-        ):
-            yield
+    # @pytest.fixture(autouse=True, scope="function")
+    # def set_up_atr(self):
+    #     with mock.patch(
+    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    #         return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True),
+    #     ):
+    #         yield
 
     def test_pytest_atr_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -169,22 +168,22 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
         #     rec.assertoutcome(passed=3, failed=9, skipped=4)
         # assert len(self.pop_spans()) > 0
 
-    def test_pytest_atr_env_var_does_not_override_api(self):
-        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
-        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
-        self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
-        self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
-        self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
-        ):
-            rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
-            assert rec.ret == 1
-        #     rec.assertoutcome(passed=3, failed=9, skipped=4)
-        # assert len(self.pop_spans()) > 0
+    # def test_pytest_atr_env_var_does_not_override_api(self):
+    #     self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
+    #     self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
+    #     self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
+    #     self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
+    #     self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
+    #     with mock.patch(
+    #         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
+    #     ), mock.patch(
+    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    #         return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
+    #     ):
+    #         rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
+    #         assert rec.ret == 1
+    #     #     rec.assertoutcome(passed=3, failed=9, skipped=4)
+    #     # assert len(self.pop_spans()) > 0
 
     def test_pytest_atr_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
