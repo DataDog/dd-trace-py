@@ -141,7 +141,6 @@ class IntegrationConfig(AttrDict):
         #   `False` would mean `0` which is a different thing
         deprecate(
             "get_analytics_sample_rate is deprecated",
-            message="The method currently returns 1 always",
             category=DDTraceDeprecationWarning,
             removal_version="4.0.0",
         )
