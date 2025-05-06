@@ -54,7 +54,7 @@ def _check_report(tainted_path, label):
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == label
-    assert vulnerability["location"]["class_name"] == ""
+    assert vulnerability["location"]["class"] == ""
     assert vulnerability["hash"] == hash_value
 
 

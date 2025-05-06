@@ -908,7 +908,7 @@ def get_final_message_converse_stream_message(
     Returns:
         Dict containing the processed message with content and optional tool calls
     """
-    indices = sorted(message.get("context_block_indices", []))
+    indices = sorted(message.get("content_block_indicies", []))
     message_output = {"role": message["role"]}
 
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
@@ -920,7 +920,7 @@ def get_final_message_converse_stream_message(
         if not tool_block:
             continue
         tool_call = {
-            "name": tool_block.get("toolName", ""),
+            "name": tool_block.get("name", ""),
             "tool_id": tool_block.get("toolUseId", ""),
         }
         tool_input = tool_block.get("input")
