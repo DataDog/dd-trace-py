@@ -1,13 +1,12 @@
 import abc
+from base64 import b64decode
 import dataclasses
+from http.client import RemoteDisconnected
 import json
+from json import JSONDecodeError
 import os
 import socket
 import typing as t
-
-from base64 import b64decode
-from http.client import RemoteDisconnected
-from json import JSONDecodeError
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
