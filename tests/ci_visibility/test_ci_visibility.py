@@ -1601,7 +1601,6 @@ class TestCIVisibilityGzipSupport:
             civis._configure_writer(requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS)
             mock_writer.assert_called_once()
             _args, kwargs = mock_writer.call_args
-            # self.assertTrue(kwargs.get("use_gzip"))
             assert kwargs.get("use_gzip") is True
             CIVisibility.disable()
 
@@ -1637,7 +1636,6 @@ class TestCIVisibilityGzipSupport:
             civis._configure_writer(requests_mode=REQUESTS_MODE.EVP_PROXY_EVENTS)
             mock_writer.assert_called_once()
             _args, kwargs = mock_writer.call_args
-            # self.assertFalse(kwargs.get("use_gzip"))
             assert kwargs.get("use_gzip") is False
             civis._is_gzip_supported_by_agent.assert_called_once()
             CIVisibility.disable()
