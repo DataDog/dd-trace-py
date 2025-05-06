@@ -355,13 +355,17 @@ static inline uint32_t CWISS_LeadingZeroes64(uint64_t x) {
     return 63 - result;
   }
   #else
-  unsigned long result = 0;
+  // BEGIN MODIFICATION
+  // unsigned long result = 0; // multiple definition
+  // END MODIFICATION
   if ((x >> 32) && _BitScanReverse(&result, (unsigned long)(x >> 32))) {
     return 31 - result;
   }
-  if (_BitScanReverse(&result, static_cast<unsigned long>(x))) {
+  // BEGIN MODIFICATION
+  if (_BitScanReverse(&result, (unsigned long)(x))) {
     return 63 - result;
   }
+  // END MODIFICATION
   #endif
   return 64;
 #else
