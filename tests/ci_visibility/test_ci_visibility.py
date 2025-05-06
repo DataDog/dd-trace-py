@@ -22,6 +22,7 @@ import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -698,7 +699,8 @@ def test_civisibilitywriter_agentless_url_envvar():
         ), mock.patch("ddtrace.settings._config.Config", _get_default_civisibility_ddconfig()), mock.patch(
             "ddtrace.tracer", CIVisibilityTracer()
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), _dummy_noop_git_client(), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(
@@ -719,7 +721,7 @@ def test_civisibilitywriter_agentless_url_envvar():
             new_callable=mock.PropertyMock,
             return_value="http://onlytraces:1234",
         ), mock.patch("ddtrace.tracer", CIVisibilityTracer()), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=False
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url", return_value=None
         ), mock.patch(
             "ddtrace.internal.ci_visibility.writer.config", Config()
         ), mock.patch(

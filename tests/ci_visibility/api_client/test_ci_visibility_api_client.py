@@ -11,6 +11,7 @@ from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAP
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.settings._config import Config
@@ -418,7 +419,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(_env_vars, full_clear=True), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), mock.patch(
             "ddtrace.settings._agent.config.trace_agent_url", return_value="http://shouldntbeused:6218"
         ), mock.patch(
@@ -522,7 +524,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
         with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_is_available", return_value=True
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
+            return_value=EVP_PROXY_AGENT_BASE_PATH,
         ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
             "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
