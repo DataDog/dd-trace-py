@@ -16,7 +16,6 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
-
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_atr()),
     reason="Auto Test Retries requires v2 of the plugin and pytest >=7.0",
@@ -151,7 +150,6 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         args = list(args) + ["-n", "2"]
         return super().inline_run(*args, **kwargs)
 
-
     def test_pytest_atr_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
@@ -160,8 +158,6 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
         rec = self.inline_run()
         assert rec.ret == 1
-        # rec.assertoutcome(passed=3, failed=9, skipped=4)
-        # assert len(self.pop_spans()) == 0
 
     def test_pytest_atr_env_var_disables_retrying(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -173,25 +169,6 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             assert rec.ret == 1
-        #     rec.assertoutcome(passed=3, failed=9, skipped=4)
-        # assert len(self.pop_spans()) > 0
-
-    # def test_pytest_atr_env_var_does_not_override_api(self):
-    #     self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
-    #     self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
-    #     self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
-    #     self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
-    #     self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
-    #     with mock.patch(
-    #         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
-    #     ), mock.patch(
-    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    #         return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=False),
-    #     ):
-    #         rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "1"})
-    #         assert rec.ret == 1
-    #     #     rec.assertoutcome(passed=3, failed=9, skipped=4)
-    #     # assert len(self.pop_spans()) > 0
 
     def test_pytest_atr_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
@@ -211,9 +188,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         rec = self.inline_run("--ddtrace")
-        # spans = self.pop_spans()
         assert rec.ret == 1
-        # assert len(spans) == 48
 
     def test_pytest_atr_passes_session_when_test_pass(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -221,9 +196,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         rec = self.inline_run("--ddtrace")
-        # spans = self.pop_spans()
         assert rec.ret == 0
-        # assert len(spans) == 23
 
     def test_pytest_atr_does_not_retry_failed_setup_or_teardown(self):
         # NOTE: This feature only works for regular pytest tests. For tests inside unittest classes, setup and teardown
@@ -233,7 +206,6 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         rec = self.inline_run("--ddtrace")
-
         assert rec.ret == 1
 
     def test_pytest_atr_junit_xml(self):
