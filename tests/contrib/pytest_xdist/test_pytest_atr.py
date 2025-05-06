@@ -8,7 +8,6 @@ are checked.
 """
 from unittest import mock
 
-# from xml.etree import ElementTree
 import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
@@ -16,8 +15,6 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
-
-# from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
 
 pytestmark = pytest.mark.skipif(
@@ -133,18 +130,37 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistATRTestCase(PytestTestCaseBase):
+    @pytest.fixture(autouse=True, scope="function")
+    def setup_sitecustomize(self):
+        sitecustomize_content = """
+# This is sitecustomize.py
+import sys
+try:
+    from unittest import mock
+    from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+    import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
+
+    patch_target = "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features"
+    _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
+        patch_target,
+        return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
+    )
+    _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
+
+except ImportError as e:
+    print(f"[sitecustomize.py] ImportError during patching: {e}.", file=sys.stderr)
+except AttributeError as e:
+    print(f"[sitecustomize.py] AttributeError during patching: {e}.", file=sys.stderr)
+except Exception as e:
+    print(f"[sitecustomize.py] UNEXPECTED ERROR during patching: {e}", file=sys.stderr)
+"""
+        self.testdir.makepyfile(sitecustomize=sitecustomize_content)
+
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments
         args = list(args) + ["-n", "2"]
         return super().inline_run(*args, **kwargs)
 
-    # @pytest.fixture(autouse=True, scope="function")
-    # def set_up_atr(self):
-    #     with mock.patch(
-    #         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    #         return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True),
-    #     ):
-    #         yield
 
     def test_pytest_atr_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -197,94 +213,6 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
 
         rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
-        _ = self.pop_spans()
-        # session_span = _get_spans_from_list(spans, "session")[0]
-        # assert session_span.get_tag("test.status") == "fail"
-
-        # module_spans = _get_spans_from_list(spans, "module")
-        # assert len(module_spans) == 1
-        # assert module_spans[0].get_tag("test.status") == "fail"
-
-        # suite_spans = _get_spans_from_list(spans, "suite")
-        # assert len(suite_spans) == 5
-        # for suite_span in suite_spans:
-        #     suite_name = suite_span.get_tag("test.suite")
-        #     if suite_name in ("test_errors.py", "test_fail.py"):
-        #         assert suite_span.get_tag("test.status") == "fail"
-        #     elif suite_name == "test_skip.py":
-        #         assert suite_span.get_tag("test.status") == "skip"
-        #     else:
-        #         assert suite_span.get_tag("test.status") == "pass"
-
-        # func_fail_spans = _get_spans_from_list(spans, "test", "test_func_fail")
-        # assert len(func_fail_spans) == 6
-        # func_fail_retries = 0
-        # for func_fail_span in func_fail_spans:
-        #     assert func_fail_span.get_tag("test.status") == "fail"
-        #     if func_fail_span.get_tag("test.is_retry") == "true":
-        #         func_fail_retries += 1
-        # assert func_fail_retries == 5
-
-        # class_func_fail_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_fail")
-        # assert len(class_func_fail_spans) == 6
-        # class_func_fail_retries = 0
-        # for class_func_fail_span in class_func_fail_spans:
-        #     assert class_func_fail_span.get_tag("test.status") == "fail"
-        #     if class_func_fail_span.get_tag("test.is_retry") == "true":
-        #         class_func_fail_retries += 1
-        # assert class_func_fail_retries == 5
-
-        # func_fail_skip_spans = _get_spans_from_list(spans, "test", "test_func_retries_skip")
-        # assert len(func_fail_skip_spans) == 6
-        # func_fail_skip_retries = 0
-        # for func_fail_skip_span in func_fail_skip_spans:
-        #     func_fail_skip_is_retry = func_fail_skip_span.get_tag("test.is_retry") == "true"
-        #     assert func_fail_skip_span.get_tag("test.status") == ("skip" if func_fail_skip_is_retry else "fail")
-        #     if func_fail_skip_is_retry:
-        #         func_fail_skip_retries += 1
-        # assert func_fail_skip_retries == 5
-
-        # class_func_fail_skip_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_retries_skip")
-        # assert len(class_func_fail_skip_spans) == 6
-        # class_func_fail_skip_retries = 0
-        # for class_func_fail_skip_span in class_func_fail_skip_spans:
-        #     class_func_fail_skip_is_retry = class_func_fail_skip_span.get_tag("test.is_retry") == "true"
-        #     assert class_func_fail_skip_span.get_tag("test.status") == (
-        #         "skip" if class_func_fail_skip_is_retry else "fail"
-        #     )
-        #     if class_func_fail_skip_is_retry:
-        #         class_func_fail_skip_retries += 1
-        # assert class_func_fail_skip_retries == 5
-
-        # func_pass_spans = _get_spans_from_list(spans, "test", "test_func_pass")
-        # assert len(func_pass_spans) == 1
-        # assert func_pass_spans[0].get_tag("test.status") == "pass"
-        # assert func_pass_spans[0].get_tag("test.retry") is None
-
-        # # Skips are tested twice: once with a skip mark (skips during setup) and once using pytest.skip() in the
-        # # test body (skips during call), neither should be retried
-        # func_skip_mark_spans = _get_spans_from_list(spans, "test", "test_func_skip_mark")
-        # assert len(func_skip_mark_spans) == 1
-        # assert func_skip_mark_spans[0].get_tag("test.status") == "skip"
-        # assert func_skip_mark_spans[0].get_tag("test.is_retry") is None
-
-        # func_skip_inside_spans = _get_spans_from_list(spans, "test", "test_func_skip_inside")
-        # assert len(func_skip_inside_spans) == 1
-        # assert func_skip_inside_spans[0].get_tag("test.status") == "skip"
-        # assert func_skip_inside_spans[0].get_tag("test.is_retry") is None
-
-        # class_func_skip_mark_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_mark")
-        # assert len(class_func_skip_mark_spans) == 1
-        # assert class_func_skip_mark_spans[0].get_tag("test.status") == "skip"
-        # assert class_func_skip_mark_spans[0].get_tag("test.is_retry") is None
-
-        # class_func_skip_inside_spans = _get_spans_from_list(
-        # spans, "test", "SomeTestCase::test_class_func_skip_inside")
-        # assert len(class_func_skip_inside_spans) == 1
-        # assert class_func_skip_inside_spans[0].get_tag("test.status") == "skip"
-        # assert class_func_skip_inside_spans[0].get_tag("test.is_retry") is None
-
-        # assert len(spans) == 51
 
     def test_pytest_atr_fails_session_when_test_fails(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -315,17 +243,8 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
 
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         rec = self.inline_run("--ddtrace")
-        # spans = self.pop_spans()
-        # fails_setup_spans = _get_spans_from_list(spans, "test", "test_func_fails_setup")
-        # assert len(fails_setup_spans) == 1
-        # assert fails_setup_spans[0].get_tag("test.is_retry") != "true"
-
-        # fails_teardown_spans = _get_spans_from_list(spans, "test", "test_func_fails_teardown")
-        # assert len(fails_teardown_spans) == 1
-        # assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
 
         assert rec.ret == 1
-        # assert len(spans) == 5
 
     def test_pytest_atr_junit_xml(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -336,12 +255,3 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
 
         rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 1
-
-        # test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
-
-        # # There are 15 tests, but we get 16 in the JUnit XML output, because a test that passes during call but fails
-        # # during teardown is counted twice. This is a bug in pytest, not ddtrace.
-        # assert test_suite.attrib["tests"] == "16"
-        # assert test_suite.attrib["failures"] == "4"
-        # assert test_suite.attrib["skipped"] == "4"
-        # assert test_suite.attrib["errors"] == "2"
