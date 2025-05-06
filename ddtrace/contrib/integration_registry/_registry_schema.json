@@ -31,11 +31,11 @@
             "type": "string"
           },
           "supported_min": {
-            "description": "Minimum implied version supported by the integration (Major version was tested).",
+            "description": "The minimum version supported by this integration. While we typically test specific versions (e.g., 5.3), support is implied for the entire major version (e.g., 5.0+). This field represents the lowest major version where compatibility was tested.",
             "type": "string"
           },
           "supported_max": {
-            "description": "Maximum implied version supported by the integration. Equals 'latest' if the dependency is not pinned. Otherwise, the maximum version found in test lockfiles.",
+            "description": "The upper boundary of versions supported by this integration. Value is 'latest' when the integration supports all future versions, or, when capped, specifies the highest tested compatible version.",
             "type": "string"
           }
         },
