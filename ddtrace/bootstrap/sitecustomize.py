@@ -164,12 +164,16 @@ try:
             log.debug("additional sitecustomize not found")
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
-    # Detect if ddtrace-run is being used by checking if the bootstrap directory is in the python path
-    bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
-    if bootstrap_dir in sys.path:
-        telemetry_writer.add_configuration("instrumentation_source", "cmd_line", "code")
+
+    if os.getenv("_DD_SSI_INJECT_SUCCESSFUL"):
+        telemetry_writer.add_configuration("instrumentation_source", "ssi", "code")
     else:
-        telemetry_writer.add_configuration("instrumentation_source", "manual", "code")
+        # Detect if ddtrace-run is being used by checking if the bootstrap directory is in the python path
+        bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
+        if bootstrap_dir in sys.path:
+            telemetry_writer.add_configuration("instrumentation_source", "cmd_line", "code")
+        else:
+            telemetry_writer.add_configuration("instrumentation_source", "manual", "code")
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
