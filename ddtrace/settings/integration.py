@@ -128,13 +128,6 @@ class IntegrationConfig(AttrDict):
         )
 
     def get_analytics_sample_rate(self, use_global_config=False):
-        """
-        Returns analytics sample rate but only when integration-specific
-        analytics configuration is enabled with optional override with global
-        configuration
-        """
-        # Use `None` as a way to say that it was not defined,
-        #   `False` would mean `0` which is a different thing
         self.app_analytics_deprecated_warning("get_analytics_sample_rate")
         return 1
 
