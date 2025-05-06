@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from ddtrace.settings import HttpConfig
@@ -149,8 +151,6 @@ class TestIntegrationConfig(BaseTestCase):
         assert ic.service == "foo-svc"
 
     def test_app_analytics_property(self):
-        self.integration_config.name = "test-integration"
-
         # test default values
         assert self.integration_config.analytics_enabled is False
         assert self.integration_config.analytics_sample_rate == 1.0
@@ -165,8 +165,6 @@ class TestIntegrationConfig(BaseTestCase):
         assert self.integration_config.get_analytics_sample_rate() == 1
 
     def test_app_analytics_deprecation(self):
-        import warnings
-
         warnings.simplefilter("always")
         with warnings.catch_warnings(record=True) as warns:
             IntegrationConfig(self.config, "test")
@@ -203,7 +201,7 @@ class TestIntegrationConfig(BaseTestCase):
         with warnings.catch_warnings(record=True) as warns:
             self.integration_config.get_analytics_sample_rate()
         assert (
-            "get_analytics_sample_rate is deprecated and will be removed in version '4.0.0': The method currently returns 1 always"  # noqa:E501
+            "get_analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
             in str(warns[0].message)
         )
 

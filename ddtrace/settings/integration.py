@@ -45,8 +45,6 @@ class IntegrationConfig(AttrDict):
         # TODO(munir): Remove all references to analytics_enabled and analytics_sample_rate
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
-        self._analytics_enabled = False
-        self._analytics_sample_rate = 1.0
 
         service = os.getenv(
             "DD_%s_SERVICE" % name.upper(),
@@ -66,6 +64,8 @@ class IntegrationConfig(AttrDict):
             "http_tag_query_string",
             self.get_http_tag_query_string(getattr(self, "default_http_tag_query_string", None)),
         )
+
+    APP_ANALYTICS_CONFIG_NAMES = ("analytics_enabled", "analytics_sample_rate")
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
@@ -108,28 +108,24 @@ class IntegrationConfig(AttrDict):
         return tag_name
 
     def __getattr__(self, key):
-        if key in ["analytics_enabled", "analytics_sample_rate"]:
-            deprecate(
-                f"{key} is deprecated",
-                message="Controlling ingestion via analytics is no longer supported. "
-                "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
-                "?code-lang=python#migrate-to-the-new-configuration-options",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
+        if key in self.APP_ANALYTICS_CONFIG_NAMES:
+            self.app_analytics_deprecated_warning(key)
         return super().__getattr__(key)
 
     def __setattr__(self, key, value):
-        if key in ["analytics_enabled", "analytics_sample_rate"]:
-            deprecate(
-                f"{key} is deprecated",
-                message="Controlling ingestion via analytics is no longer supported. "
-                "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
-                "?code-lang=python#migrate-to-the-new-configuration-options",
-                category=DDTraceDeprecationWarning,
-                removal_version="4.0.0",
-            )
+        if key in self.APP_ANALYTICS_CONFIG_NAMES:
+            self.app_analytics_deprecated_warning(key)
         return super().__setattr__(key, value)
+
+    def app_analytics_deprecated_warning(self, key):
+        deprecate(
+            f"{key} is deprecated",
+            message="Controlling ingestion via analytics is no longer supported. "
+            "See https://docs.datadoghq.com/tracing/legacy_app_analytics/"
+            "?code-lang=python#migrate-to-the-new-configuration-options",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
 
     def get_analytics_sample_rate(self, use_global_config=False):
         """
@@ -139,11 +135,7 @@ class IntegrationConfig(AttrDict):
         """
         # Use `None` as a way to say that it was not defined,
         #   `False` would mean `0` which is a different thing
-        deprecate(
-            "get_analytics_sample_rate is deprecated",
-            category=DDTraceDeprecationWarning,
-            removal_version="4.0.0",
-        )
+        self.app_analytics_deprecated_warning("get_analytics_sample_rate")
         return 1
 
     def __repr__(self):
