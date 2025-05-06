@@ -37,6 +37,7 @@ _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 if TYPE_CHECKING:
     import http.client as httplib
+
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
