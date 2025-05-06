@@ -112,9 +112,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
             "mode": _EVP_PROXY,
             "agent_url": "http://myagent:1234",
             "expected_urls": {
-                "setting": "http://myagent:1234/evp_proxy/v2/api/v2/libraries/tests/services/setting",
-                "skippable": "http://myagent:1234/evp_proxy/v2/api/v2/ci/tests/skippable",
-                "tests": "http://myagent:1234/evp_proxy/v2/api/v2/ci/libraries/tests",
+                "setting": "http://myagent:1234/evp_proxy/v4/api/v2/libraries/tests/services/setting",
+                "skippable": "http://myagent:1234/evp_proxy/v4/api/v2/ci/tests/skippable",
+                "tests": "http://myagent:1234/evp_proxy/v4/api/v2/ci/libraries/tests",
             },
         },
     ]
@@ -141,9 +141,9 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         },
         _EVP_PROXY: {
             "endpoints": {
-                "setting": "/evp_proxy/v2/api/v2/libraries/tests/services/setting",
-                "skippable": "/evp_proxy/v2/api/v2/ci/tests/skippable",
-                "tests": "/evp_proxy/v2/api/v2/ci/libraries/tests",
+                "setting": "/evp_proxy/v4/api/v2/libraries/tests/services/setting",
+                "skippable": "/evp_proxy/v4/api/v2/ci/tests/skippable",
+                "tests": "/evp_proxy/v4/api/v2/ci/libraries/tests",
             },
             "headers": {
                 "X-Datadog-EVP-Subdomain": "api",
