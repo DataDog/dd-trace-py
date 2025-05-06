@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -579,6 +580,9 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+        self._baggage_tag_keys = _get_config(
+            "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
+        )
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
@@ -629,8 +633,6 @@ class Config(object):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
-        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -646,9 +648,9 @@ class Config(object):
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
 
-        self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
+        self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         self._lib_was_injected = False
-        self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
+        self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
@@ -777,10 +779,7 @@ class Config(object):
             item_names.append(key)
             item = self._config[key]
             item.set_value_source(value, origin)
-            if self._telemetry_enabled:
-                from ddtrace.internal.telemetry import telemetry_writer
-
-                telemetry_writer.add_configuration(item._name, item.value(), item.source())
+            telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):
@@ -851,9 +850,11 @@ class Config(object):
         """
         rc_rules = self._remove_invalid_rules(rc_rules)
         for rule in rc_rules:
-            tags = rule.get("tags")
-            if tags:
-                rule["tags"] = self._tags_to_dict(tags)
+            if "tags" in rule:
+                # Remote config provides sampling rule tags as a list,
+                # but DD_TRACE_SAMPLING_RULES expects them as a dict.
+                # Here we convert tags to a dict to ensure a consistent format.
+                rule["tags"] = self._tags_to_dict(rule["tags"])
 
         if global_sample_rate is not None:
             rc_rules.append({"sample_rate": global_sample_rate})

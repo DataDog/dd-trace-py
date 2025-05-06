@@ -1,7 +1,6 @@
 import time
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
@@ -29,7 +28,7 @@ class LLMObsTelemetryMetrics:
     ANNOTATIONS = "annotations"
     EVALS_SUBMITTED = "evals_submitted"
     SPANS_EXPORTED = "spans_exported"
-    USER_FLUSHES = "user_flushes"
+    USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
 
@@ -129,22 +128,17 @@ def record_span_event_size(event: LLMObsSpanEvent, event_size: int):
     )
 
 
-def record_dropped_span_payload(events: List[LLMObsSpanEvent], error: str):
-    tags = [("error", error)]
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS,
-        value=len(events),
-        tags=tuple(tags),
+def record_dropped_payload(num_events: int, event_type: str, error: str):
+    name = (
+        LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS
+        if event_type == "evaluation_metric"
+        else LLMObsTelemetryMetrics.DROPPED_SPAN_EVENTS
     )
-
-
-def record_dropped_eval_payload(events: List[Any], error: str):
     tags = [("error", error)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.DROPPED_EVAL_EVENTS,
-        value=len(events),
+        name=name,
+        value=num_events,
         tags=tuple(tags),
     )
 

@@ -16,7 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 1h
+  timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -149,7 +149,8 @@ microbenchmarks:
         - "appsec_iast_aspects_ospath"
         - "appsec_iast_aspects_re_module"
         - "appsec_iast_aspects_split"
-        - "appsec_iast_django_startup"
+        # Flaky timeouts on starting up
+        # - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         # Flaky. Timeout errors
         # - "encoder"
@@ -162,11 +163,21 @@ microbenchmarks:
         - "startup"
         - "ddtrace_run"
 
+"microbenchmarks flaky":
+  extends: .benchmarks
+  allow_failure: true
+  parallel:
+    matrix:
+      - SCENARIO:
+        # Flaky timeouts on starting up
+        - "appsec_iast_django_startup"
+
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
   stage: report
   when: always
+  allow_failure: true
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     if [[ -n "$CI_JOB_TOKEN" ]];
@@ -177,9 +188,10 @@ benchmarks-pr-comment:
     export PATH="$PATH:/platform/steps"
 
     (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
-    post-pr-comment.sh || :
-  except:
-    - main
+    if [ "$CI_COMMIT_REF_NAME" != "main" ];
+    then
+      post-pr-comment.sh || :
+    fi
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"

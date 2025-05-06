@@ -35,6 +35,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
@@ -309,7 +310,10 @@ class _DatadogMultiHeader:
             headers,
             default="0",
         )
-        sampling_priority = _extract_header_value(POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES, headers, default=USER_KEEP)  # type: ignore[arg-type]
+        sampling_priority = _extract_header_value(
+            POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
+            headers,
+        )
         origin = _extract_header_value(
             POSSIBLE_HTTP_HEADER_ORIGIN,
             headers,
@@ -344,8 +348,6 @@ class _DatadogMultiHeader:
         try:
             if sampling_priority is not None:
                 sampling_priority = int(sampling_priority)  # type: ignore[assignment]
-            else:
-                sampling_priority = sampling_priority
 
             if meta:
                 meta = validate_sampling_decision(meta)
@@ -1152,6 +1154,21 @@ class HTTPPropagator(object):
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
                         context = baggage_context
+
+                    if config._baggage_tag_keys:
+                        raw_keys = [k.strip() for k in config._baggage_tag_keys if k.strip()]
+                        # wildcard: tag all baggage keys
+                        if "*" in raw_keys:
+                            tag_keys = baggage_context.get_all_baggage_items().keys()
+                        else:
+                            tag_keys = raw_keys
+
+                        for stripped_key in tag_keys:
+                            if (value := baggage_context.get_baggage_item(stripped_key)) is not None:
+                                prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
+                                if prefixed_key not in context._meta:
+                                    context._meta[prefixed_key] = value
+
             if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])

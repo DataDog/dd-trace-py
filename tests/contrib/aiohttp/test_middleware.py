@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
@@ -382,7 +383,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     # with the right trace_id and parent_id
     assert span.trace_id == 100
     assert span.parent_id == 42
-    assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
 
 
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
