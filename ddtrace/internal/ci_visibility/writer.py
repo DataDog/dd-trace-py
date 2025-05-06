@@ -160,6 +160,7 @@ class CIVisibilityWriter(HTTPWriter):
             # self._report_metrics = report_metrics,
             reuse_connections=reuse_connections,
             headers=headers,
+            use_gzip=not use_evp,
         )
 
     def stop(self, timeout=None):
