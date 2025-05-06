@@ -343,9 +343,7 @@ def test_civisibility_init_evp_proxy_versions(
                 ci_visibility_instance._api_client,
                 ddtrace.internal.ci_visibility._api_client.EVPProxyTestVisibilityAPIClient,
             )
-            assert ci_visibility_instance._test_visibility_client._base_url.endswith(
-                expected_api_client_base_url_suffix
-            )
+            assert ci_visibility_instance._api_client._base_url.endswith(expected_api_client_base_url_suffix)
             assert ci_visibility_instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
             CIVisibility.disable()
 
