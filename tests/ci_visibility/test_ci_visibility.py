@@ -4,7 +4,6 @@ import json
 import multiprocessing
 import re
 import socket
-import textwrap
 import time
 from typing import Set
 from unittest.mock import Mock
@@ -23,6 +22,7 @@ from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -269,6 +269,84 @@ def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled
         CIVisibility.enable(service="test-service")
         assert CIVisibility._instance._itr_data is None
         CIVisibility.disable()
+
+
+@pytest.mark.parametrize(
+    "agent_info_response,expected_path",
+    [
+        (None, None),  # Agent info is None
+        ({}, None),  # Agent info is empty dict
+        ({"endpoints": []}, None),  # Endpoints list is empty
+        ({"endpoints": ["/dogstatsd"]}, None),  # No EVP proxy endpoints
+        ({"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH]}, EVP_PROXY_AGENT_BASE_PATH),  # Only v2
+        ({"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH_V4]}, EVP_PROXY_AGENT_BASE_PATH_V4),  # Only v4
+        (
+            {"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH_V4]},
+            EVP_PROXY_AGENT_BASE_PATH_V4,  # Both v2 and v4, v4 takes precedence
+        ),
+        (
+            {"endpoints": ["/dogstatsd", EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH]},
+            EVP_PROXY_AGENT_BASE_PATH_V4,  # Both v4 and v2, v4 takes precedence
+        ),
+    ],
+)
+@mock.patch("ddtrace.internal.agent.info")
+def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, expected_path):
+    """Tests the logic of CIVisibility._agent_evp_proxy_base_url"""
+    mock_agent_info.return_value = agent_info_response
+    # Create a minimal CIVisibility instance for testing the method
+    tracer = DummyTracer()
+    visibility = CIVisibility(tracer=tracer, service="test")
+    assert visibility._agent_evp_proxy_base_url() == expected_path
+
+
+@mock.patch("ddtrace.internal.agent.info", side_effect=Exception("Agent unreachable"))
+def test_agent_evp_proxy_base_url_agent_error(mock_agent_info):
+    """Tests _agent_evp_proxy_base_url when agent.info() raises an exception"""
+    tracer = DummyTracer()
+    visibility = CIVisibility(tracer=tracer, service="test")
+    assert visibility._agent_evp_proxy_base_url() is None
+
+
+@pytest.mark.parametrize(
+    "mock_evp_proxy_path, expected_api_client_base_url_suffix",
+    [
+        (EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH_V4),  # v4 detected
+        (EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH),  # v2 detected
+    ],
+)
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url")
+@mock.patch("ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings")
+@mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_get_default_env", return_value="ci-env")
+@mock.patch("ddtrace.internal.agent.info")  # Mock agent info used by _agent_get_default_env
+def test_civisibility_init_evp_proxy_versions(
+    mock_agent_info,
+    mock_agent_get_env,
+    mock_fetch_settings,
+    mock_agent_evp_base_url,
+    mock_evp_proxy_path,
+    expected_api_client_base_url_suffix,
+):
+    """Tests that CIVisibility initializes the correct EVPProxy client based on detected endpoint"""
+    mock_agent_evp_base_url.return_value = mock_evp_proxy_path
+    mock_fetch_settings.return_value = TestVisibilityAPISettings(False, False, False, False)
+    mock_agent_info.return_value = {"endpoints": [mock_evp_proxy_path], "default_env": "ci-env"}
+
+    with _ci_override_env({}), _dummy_noop_git_client():
+        with _patch_dummy_writer():
+            tracer = DummyTracer()
+            CIVisibility.enable(tracer=tracer, service="test-service")
+            ci_visibility_instance = CIVisibility._instance
+            assert ci_visibility_instance is not None
+            assert isinstance(
+                ci_visibility_instance._test_visibility_client,
+                ddtrace.internal.ci_visibility._api_client.EVPProxyTestVisibilityAPIClient,
+            )
+            assert ci_visibility_instance._test_visibility_client._base_url.endswith(
+                expected_api_client_base_url_suffix
+            )
+            assert ci_visibility_instance._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+            CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase._do_request")

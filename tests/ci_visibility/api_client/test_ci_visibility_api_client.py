@@ -12,6 +12,7 @@ from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPI
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.settings._config import Config
@@ -542,6 +543,7 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                     agent_url="http://patchedagenturl:6218",
                     dd_env="not_the_default_default_env",
                     dd_service="dd-test-py",
+                    evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH,
                 )
                 CIVisibility.enable()
                 assert CIVisibility.enabled is True
@@ -551,3 +553,31 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
                 assert CIVisibility._instance._api_client.__dict__ == expected_client.__dict__
             finally:
                 CIVisibility.disable()
+
+    @pytest.mark.parametrize(
+        "explicit_base_path, expected_suffix",
+        [
+            (EVP_PROXY_AGENT_BASE_PATH_V4, EVP_PROXY_AGENT_BASE_PATH_V4),  # Explicit v4
+            (EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH),  # Explicit v2
+            (None, EVP_PROXY_AGENT_BASE_PATH),  # Default (v2)
+        ],
+    )
+    def test_evp_proxy_client_constructor_base_url(self, explicit_base_path, expected_suffix):
+        """Tests that EVPProxyTestVisibilityAPIClient uses the correct base path."""
+        agent_url = "http://agent:8126"
+
+        kwargs = {
+            "agent_url": agent_url,
+            "itr_skipping_level": ITR_SKIPPING_LEVEL.TEST,
+            "git_data": None,
+            "configurations": None,
+            "dd_service": None,
+            "dd_env": None,
+            "timeout": 10.0,
+        }
+        if explicit_base_path:
+            kwargs["evp_proxy_base_url"] = explicit_base_path
+
+        client = EVPProxyTestVisibilityAPIClient(**kwargs)
+
+        assert client._base_url == f"{agent_url}{expected_suffix}"
