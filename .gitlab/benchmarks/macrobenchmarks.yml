@@ -7,7 +7,8 @@ variables:
 .macrobenchmarks:
   stage: test
   needs: []
-  tags: ["runner:apm-k8s-same-cpu"]
+  # tags: ["runner:apm-k8s-same-cpu"]
+  tags: ["arch:amd64"]
   timeout: 1h
   retry:
     max: 2
@@ -20,12 +21,15 @@ variables:
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
-    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
-    if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
-      bp-runner bp-runner.flask-realworld.yml --debug
-    else
-      bp-runner bp-runner.simple.yml --debug
-    fi
+    git clone --branch igoragoli/pre-release-gate-prototype https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    mkdir -p artifacts/ && cp mock-macrobenchmark-artifacts/* artifacts/
+  # script: |
+  #   git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+  #   if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
+  #     bp-runner bp-runner.flask-realworld.yml --debug
+  #   else
+  #     bp-runner bp-runner.simple.yml --debug
+  #   fi
   artifacts:
     name: "artifacts"
     when: always
