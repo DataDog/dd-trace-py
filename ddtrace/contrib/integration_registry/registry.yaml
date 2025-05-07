@@ -711,6 +711,12 @@ integrations:
   dependency_names:
   - pytest_benchmark
 
+- integration_name: pytest_xdist
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - pytest-xdist
+
 - integration_name: redis
   is_external_package: true
   is_tested: true
