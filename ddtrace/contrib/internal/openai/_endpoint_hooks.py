@@ -747,12 +747,11 @@ class _ResponseHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-
-        if not resp:
-            return resp
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
-        # if not kwargs.get("stream") and error is None:
+        if not resp:
+            return resp
+
         _tag_tool_calls(integration, span, resp, 0)
 
         integration.record_usage(span, resp.usage)

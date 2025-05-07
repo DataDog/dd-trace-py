@@ -501,22 +501,23 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
         # Only set the tag if we have valid tools to report
         if response_tools:
             span.set_tag("openai.response.tools", response_tools)
+        return
+
     # Handle tool_calls (function calls and tool calls)
-    if choice_idx is not None and tool_calls and tool_calls != []:
-        for idy, tool_call in enumerate(tool_calls):
-            if hasattr(tool_call, "function"):
-                # tool_call is further nested in a "function" object
-                tool_call = tool_call.function
-            function_arguments = _get_attr(tool_call, "arguments", "")
-            function_name = _get_attr(tool_call, "name", "")
-            # Only set arguments tag if there are actual arguments
-            if function_arguments and function_arguments.strip():
-                span.set_tag_str(
-                    "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-                    integration.trunc(str(function_arguments)),
-                )
-            # Only set name tag if there is an actual name
-            if function_name and function_name.strip():
-                span.set_tag_str(
-                    "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
-                )
+    for idy, tool_call in enumerate(tool_calls):
+        if hasattr(tool_call, "function"):
+            # tool_call is further nested in a "function" object
+            tool_call = tool_call.function
+        function_arguments = _get_attr(tool_call, "arguments", "")
+        function_name = _get_attr(tool_call, "name", "")
+        # Only set arguments tag if there are actual arguments
+        if function_arguments and function_arguments.strip():
+            span.set_tag_str(
+                "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
+                integration.trunc(str(function_arguments)),
+            )
+        # Only set name tag if there is an actual name
+        if function_name and function_name.strip():
+            span.set_tag_str(
+                "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
+            )
