@@ -51,7 +51,6 @@ if(WIN32)
         src/synchronized_sample_pool.cpp
         src/uploader.cpp
         src/uploader_builder.cpp)
-
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)

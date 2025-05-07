@@ -2,6 +2,6 @@
 other:
   - |
     crashtracker: uses PyO3 to provide a Python interface to the crashtracker
-    Rust library instead of using c++. Installs crashtracker_exe binary as part
+    Rust library instead of using C++. Installs crashtracker_exe binary as part
     of installation, a Python script that wraps around crashtracker receiver
     entry point used by ddtrace. This should have no impact on the user.
