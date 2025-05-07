@@ -12,7 +12,6 @@ from hypothesis.strategies import dictionaries
 from hypothesis.strategies import floats
 from hypothesis.strategies import integers
 from hypothesis.strategies import text
-import mock
 import msgpack
 import pytest
 
@@ -31,7 +30,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
