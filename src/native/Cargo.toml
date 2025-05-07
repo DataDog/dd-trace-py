@@ -7,7 +7,7 @@ edition = "2021"
 lto = true
 strip = "debuginfo"
 codegen-units = 1
-opt-level = "z"
+opt-level = 3
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
