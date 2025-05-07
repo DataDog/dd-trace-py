@@ -31,6 +31,7 @@ class LLMObsTelemetryMetrics:
     USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
+    USER_PROCESSOR_CALLED = "user_processor_called"
 
 
 def _find_integration_from_tags(tags):
@@ -153,6 +154,16 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
+    )
+
+
+def record_llmobs_user_processor_called(error: bool):
+    tags = [("error", "1" if error else "0")]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.USER_PROCESSOR_CALLED,
+        value=1,
+        tags=tuple(tags),
     )
 
 
