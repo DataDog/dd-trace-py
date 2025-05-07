@@ -25,8 +25,6 @@ class _ATR_RETRY_OUTCOMES(_PYTEST_STATUS):
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
-    # ATR_FINAL_PASSED = "dd_atr_final_passed"
-    # ATR_FINAL_FAILED = "dd_atr_final_failed"
 
 
 class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
@@ -81,11 +79,9 @@ def atr_handle_retries(
     atr_outcome = _atr_do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    # final_report = RetryTestReport(
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
-        # keywords=item.keywords,
         keywords={k: 1 for k in item.keywords},
         when="call",
         longrepr=longrepr,
@@ -133,7 +129,6 @@ def _atr_write_report_for_status(
     delete_reports: bool = True,
     retry_reason: str = "auto_test_retry",
 ):
-    # reports = terminalreporter.getreports(status_key)
     reports = [
         report
         for report in terminalreporter.getreports(report_outcome)
@@ -148,15 +143,6 @@ def _atr_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-        #     report.outcome = report_outcome
-        #     # Do not re-append a report if a report already exists for the item in the reports
-        #     for existing_reports in terminalreporter.stats.get(report_outcome, []):
-        #         if existing_reports.nodeid == report.nodeid:
-        #             break
-        #     else:
-        #         terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        # if delete_reports:
-        #     del terminalreporter.stats[status_key]
 
 
 def _atr_prepare_attempts_strings(
@@ -295,10 +281,6 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    # if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-    #     return (_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True}))
-    # if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-    #     return (_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True}))
     return None
 
 
