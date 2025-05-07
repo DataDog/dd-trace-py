@@ -306,10 +306,8 @@ Sampler::stop()
     // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
 
-    // Join the sampling thread if it's joinable
-    if (sampling_thread_.joinable()) {
-        sampling_thread_.join();
-    }
+    // Join the sampling thread
+    sampling_thread_.join();
 }
 
 void
