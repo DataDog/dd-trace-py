@@ -2,7 +2,7 @@
   {
     "name": "azure.functions.invoke",
     "service": "test-func",
-    "resource": "timer",
+    "resource": "Timer timer",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -15,7 +15,7 @@
       "component": "azure_functions",
       "language": "python",
       "runtime-id": "c20075ab351244ed9d9d5e688777e0b1",
-      "span.kind": "server"
+      "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1,

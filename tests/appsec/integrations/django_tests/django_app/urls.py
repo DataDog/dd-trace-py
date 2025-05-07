@@ -29,9 +29,17 @@ urlpatterns = [
     handler("appsec/block/$", views.block_callable_view, name="block"),
     handler("appsec/command-injection/$", views.command_injection, name="command_injection"),
     handler(
+        "appsec/command-injection-subprocess/$", views.command_injection_subprocess, name="command_injection_subprocess"
+    ),
+    handler(
         "appsec/command-injection/secure-mark/$",
         views.command_injection_secure_mark,
         name="command_injection_secure_mark",
+    ),
+    handler(
+        "appsec/xss/secure-mark/$",
+        views.xss_secure_mark,
+        name="xss_secure_mark",
     ),
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
     handler("appsec/taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
@@ -87,6 +95,7 @@ urlpatterns = [
     handler("appsec/xss/secure/$", views.xss_secure),
     handler("appsec/xss/safe/$", views.xss_http_request_parameter_template_safe),
     handler("appsec/xss/autoscape/$", views.xss_http_request_parameter_autoscape),
+    handler("appsec/propagation/ospathjoin/$", views.ospathjoin_propagation),
     path(
         "appsec/sqli_http_path_parameter/<str:q_http_path_parameter>/",
         views.sqli_http_path_parameter,

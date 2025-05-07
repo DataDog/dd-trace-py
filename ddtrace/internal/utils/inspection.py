@@ -22,7 +22,7 @@ def linenos(_) -> Set[int]:
 @linenos.register
 def _(code: CodeType) -> Set[int]:
     """Get the line numbers of a function."""
-    return {ln for _, ln in findlinestarts(code)} - {code.co_firstlineno}
+    return {ln for _, ln in findlinestarts(code) if ln is not None} - {code.co_firstlineno}
 
 
 @linenos.register

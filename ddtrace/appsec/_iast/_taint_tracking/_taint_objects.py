@@ -26,7 +26,7 @@ log = get_logger(__name__)
 def is_pyobject_tainted(pyobject: Any) -> bool:
     if not asm_config.is_iast_request_enabled:
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
 
     try:
@@ -67,7 +67,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         - Automatically handles bytes/bytearray to str conversion
     """
     # Early type validation
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return pyobject
 
     # Fast path for empty strings
@@ -100,7 +100,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
 def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
     if not asm_config.is_iast_request_enabled:
         return False
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return False
     try:
         set_ranges(pyobject, ranges)
@@ -113,7 +113,7 @@ def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
 def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not asm_config.is_iast_request_enabled:
         return tuple()
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
     try:
         return get_ranges(pyobject)
@@ -140,7 +140,7 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
 def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     if asm_config.is_iast_request_enabled:
-        if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):  # type: ignore[misc]
+        if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
             return pyobject
 
         for r in ranges:

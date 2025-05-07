@@ -49,7 +49,14 @@ httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, 'profi
             code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
 
         if self.profiling:
-            code += "import ddtrace.profiling.auto\n"
+            code += """
+import time
+import ddtrace.profiling.auto
+
+start = time.perf_counter()
+while time.perf_counter() - start < 1.0:
+    pass  # Busy wait
+"""
 
         # stage code for execution in a subprocess
         subp_cmd += [sys.executable, "-c", code]
