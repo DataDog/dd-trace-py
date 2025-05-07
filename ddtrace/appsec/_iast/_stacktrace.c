@@ -310,6 +310,9 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
 exit:
     FRAME_XDECREF(frame);
+    if (!result) {
+        result = PyTuple_Pack(4, Py_None, Py_None, Py_None, Py_None);
+    }
     in_stacktrace = 0;
     return result;
 }
