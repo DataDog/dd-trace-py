@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -540,7 +541,7 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-@snapshot()
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
     with override_config("fastapi", dict(_trace_asgi_websocket=True)):
@@ -548,6 +549,58 @@ def test_traced_websocket(test_spans, snapshot_app):
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}
             websocket.send_text("ping")
+
+
+# @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+# def test_traced_websocket_sampling_not_inherited(ddtrace_run_python_code_in_subprocess):
+#     code = """
+# import pytest
+# import sys
+# from fastapi import FastAPI, WebSocket
+# from fastapi.testclient import TestClient
+# from tests.utils import override_config
+# from tests.contrib.fastapi.conftest import snapshot_app
+
+# client = TestClient(snapshot_app)
+# with override_config("fastapi", {"_trace_asgi_websocket": True}):
+#     with client.websocket_connect("/ws") as websocket:
+#         data = websocket.receive_json()
+#         assert data == {"test": "Hello WebSocket"}
+#         websocket.send_text("ping")
+
+# if __name__ == "__main__":
+#     sys.exit(pytest.main(["-x", __file__]))
+#     """
+
+#     env = os.environ.copy()
+#     env["DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING"] = "false"
+
+#     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+#     assert err == b"", err.decode()
+
+#     assert status == 0, out.decode()
+
+
+# @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_long_running_websocket_session(test_spans, snapshot_app):
+    client = TestClient(snapshot_app)
+
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+
+            # simulate a long-running session with multiple messages
+            for i in range(5):
+                websocket.send_text(f"ping {i}")
+                response = websocket.receive_text()
+                assert f"pong {i}" in response
+                time.sleep(0.2)
+
+            # send final message and close the loop
+            websocket.send_text("goodbye")
+            farewell = websocket.receive_text()
+            assert "bye" in farewell
 
 
 def test_dont_trace_websocket_by_default(client, test_spans):

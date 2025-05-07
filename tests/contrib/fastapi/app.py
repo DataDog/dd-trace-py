@@ -40,8 +40,16 @@ def get_app():
     async def websocket(websocket: WebSocket):
         await websocket.accept()
         await websocket.send_json({"test": "Hello WebSocket"})
-        await websocket.receive_text()
-        await websocket.close()
+        while True:
+            try:
+                message = await websocket.receive_text()
+                if message == "goodbye":
+                    await websocket.send_text("bye")
+                    await websocket.close()
+                    break
+                await websocket.send_text(f"pong {message.split()[-1]}")
+            except Exception:
+                break
 
     @app.get("/")
     async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
