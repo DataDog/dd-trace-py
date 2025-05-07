@@ -157,8 +157,6 @@ _get_result_tuple(PyFrameObject* frame)
     PyObject* result = NULL;
     PyObject* filename_o = NULL;
     PyObject* line_o = NULL;
-    PyObject* funcname_o = NULL;
-    PyObject* classname_o = NULL;
 
     filename_o = GET_FILENAME(frame);
     if (!filename_o) {
@@ -227,6 +225,9 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
 exit:
     FRAME_XDECREF(frame);
+    if (!result) {
+        result = PyTuple_Pack(2, Py_None, Py_None);
+    }
     return result;
 }
 

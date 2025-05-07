@@ -129,6 +129,8 @@ class VulnerabilityBase(Operation):
                     return None
 
                 file_name, line_number = frame_info
+                if not file_name:
+                    return
 
                 file_name = cls._rel_path(file_name)
                 if not file_name:
