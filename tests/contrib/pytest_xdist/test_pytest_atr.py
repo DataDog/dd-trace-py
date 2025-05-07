@@ -167,7 +167,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
-            rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
+            rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             assert rec.ret == 1
 
     def test_pytest_atr_spans(self):
@@ -178,7 +178,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        rec = self.inline_run("--ddtrace", "-v")
+        rec = self.inline_run("--ddtrace")
         assert rec.ret == 1
 
     def test_pytest_atr_fails_session_when_test_fails(self):

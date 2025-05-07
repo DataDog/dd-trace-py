@@ -205,7 +205,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
     def test_attempt_to_fix_active_test_fail(self):
         self.testdir.makepyfile(test_active=_TEST_FAIL)
-        rec = self.inline_run("--ddtrace", "-v", "-s")
+        rec = self.inline_run("--ddtrace")
         assert rec.ret == 1
         assert_stats(rec, quarantined=0, passed=0, failed=1)
 
@@ -226,7 +226,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
     def test_attempt_to_fix_active_test_skip(self):
         self.testdir.makepyfile(test_active=_TEST_SKIP)
-        rec = self.inline_run("--ddtrace", "-v", "-s")
+        rec = self.inline_run("--ddtrace")
         assert rec.ret == 0
         assert_stats(rec, quarantined=0, passed=0, failed=0, skipped=1)
 
@@ -248,7 +248,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
     def test_pytest_attempt_to_fix_junit_xml_active(self):
         self.testdir.makepyfile(test_active=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
 
-        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml", "-v", "-s")
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 1
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
@@ -261,7 +261,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
     def test_pytest_attempt_to_fix_junit_xml_quarantined(self):
         self.testdir.makepyfile(test_quarantined=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
 
-        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml", "-v", "-s")
+        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 0
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
