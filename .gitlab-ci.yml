@@ -92,10 +92,21 @@ macrobenchmarks:
       when: always
     - when: manual
 
-# TODO: Potentially switch for a more meaningful name
 # TODO: Fix dependency. Because as soon as the "macrobenchmarks" trigger job
-# is triggered, the gates are run.
-pre-release-performance-quality-gates:
+# is triggered, the gates are run. Change to on_success once dependency timing is fixed
+# TODO: Only keep a single job named "pre-release-performance-quality-gates" or
+# with some more meaningful name.
+test-pre-release-performance-quality-gates-pass:
+  stage: gates
+  needs: ["macrobenchmarks"]
+  when: manual
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  script:
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
+    - bp-runner bp-runner.fail-on-breach.loose-thresholds.yml
+
+test-pre-release-performance-quality-gates-fail:
   stage: gates
   needs: ["macrobenchmarks"]
   # TODO: Change to on_success once dependency timing is fixed
@@ -104,8 +115,7 @@ pre-release-performance-quality-gates:
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
   script:
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
-    # TODO: Replace bp-runner configuration for standard bp-runner.fail-on-breach.yml
-    - bp-runner bp-runner.fail-on-breach.loose-threshold.yml
+    - bp-runner bp-runner.fail-on-breach.strict-thresholds.yml
 
 check_new_flaky_tests:
   stage: tests
