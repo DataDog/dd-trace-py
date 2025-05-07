@@ -1351,95 +1351,130 @@ async def test_openai_asyncio_cancellation(openai):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+)
 def test_response(openai, openai_vcr):
     """Ensure llmobs records are emitted for response endpoints when configured."""
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_response",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
-    ):
-        with openai_vcr.use_cassette("response.yaml"):
-            model = "gpt-4.1"
-            input_messages = multi_message_input
-            client = openai.OpenAI()
-            client.responses.create(
-                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
-            )
+    with openai_vcr.use_cassette("response.yaml"):
+        model = "gpt-4.1"
+        input_messages = multi_message_input
+        client = openai.OpenAI()
+        client.responses.create(
+            model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+        )
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_tools",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+)
+def test_response_tools(openai, openai_vcr):
+    """Ensure llmobs records are emitted for response endpoints when configured."""
+    with openai_vcr.use_cassette("response_tools.yaml"):
+        model = "gpt-4.1"
+        input_messages = multi_message_input
+        client = openai.OpenAI()
+        client.responses.create(model=model, input=input_messages, tools=[{"type": "web_search_preview"}])
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_error",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_error(openai, openai_vcr):
     """Assert errors when an invalid model is used."""
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_response_error",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
-    ):
-        with openai_vcr.use_cassette("response_create_error.yaml"):
-            with pytest.raises(openai.BadRequestError):
-                client = openai.OpenAI()
-                client.responses.create(
-                    model="invalid-model",  # Using an invalid model to trigger error
-                    input="Hello world",
-                    user="ddtrace-test",
-                )
+    with openai_vcr.use_cassette("response_create_error.yaml"):
+        with pytest.raises(openai.BadRequestError):
+            client = openai.OpenAI()
+            client.responses.create(
+                model="invalid-model",  # Using an invalid model to trigger error
+                input="Hello world",
+                user="ddtrace-test",
+            )
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 async def test_aresponse(openai, request_api_key, openai_vcr):
     """Assert spans are created with async client."""
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_aresponse",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
-    ):
-        with openai_vcr.use_cassette("response.yaml"):
-            client = openai.AsyncOpenAI()
-            await client.responses.create(
-                model="gpt-4.1",
-                input=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                user="ddtrace-test",
-            )
+    with openai_vcr.use_cassette("response.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.responses.create(
+            model="gpt-4.1",
+            input=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            user="ddtrace-test",
+        )
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_stream",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_stream(openai, openai_vcr):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_response_stream",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
-    ):
-        with openai_vcr.use_cassette("response_stream.yaml"):
-            model = "gpt-4.1"
-            client = openai.OpenAI()
-            resp = client.responses.create(
-                model=model,
-                input="Hello world",
-                stream=True,
-            )
-            _ = [c for c in resp]
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        model = "gpt-4.1"
+        client = openai.OpenAI()
+        resp = client.responses.create(
+            model=model,
+            input="Hello world",
+            stream=True,
+        )
+        _ = [c for c in resp]
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
 )
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_tools_stream",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+)
+def test_response_tools_stream(openai, openai_vcr):
+    with openai_vcr.use_cassette("response_tools_stream.yaml"):
+        model = "gpt-4.1"
+        client = openai.OpenAI()
+        resp = client.responses.create(
+            model=model,
+            input="Hello world",
+            stream=True,
+        )
+        _ = [c for c in resp]
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_stream",
+    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+)
 async def test_aresponse_stream(openai, openai_vcr):
-    with snapshot_context(
-        token="tests.contrib.openai.test_openai.test_aresponse_stream",
-        ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
-    ):
-        with openai_vcr.use_cassette("response_stream.yaml"):
-            client = openai.AsyncOpenAI()
-            resp = await client.responses.create(
-                model="gpt-4.1",
-                input=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                user="ddtrace-test",
-                stream=True,
-            )
-            _ = [c async for c in resp]
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        client = openai.AsyncOpenAI()
+        resp = await client.responses.create(
+            model="gpt-4.1",
+            input=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            user="ddtrace-test",
+            stream=True,
+        )
+        _ = [c async for c in resp]
