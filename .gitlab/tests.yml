@@ -8,7 +8,6 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   DD_PYTEST_USE_NEW_PLUGIN_BETA: "true"
   PYTEST_ADDOPTS: "-s"
-  DD_ENABLE_VPA: false  # disable only on 2.21/older release branche
   # CI_DEBUG_SERVICES: "true"
 
 include:
