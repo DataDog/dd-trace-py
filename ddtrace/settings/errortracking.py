@@ -17,7 +17,7 @@ class ErrorTrackingConfig(DDConfig):
 
     _report_handled_errors = DDConfig.v(str, "handled.errors", default="")
     # Specify the modules (user and third party mixed) for which we report handled exceptions
-    _modules_to_report = DDConfig.v(list, "handled.errors.modules", parser=parse_modules, default=[])
+    _modules_to_report = DDConfig.v(list, "handled.errors.include", parser=parse_modules, default=[])
 
     if sys.version_info >= (3, 12):
         """

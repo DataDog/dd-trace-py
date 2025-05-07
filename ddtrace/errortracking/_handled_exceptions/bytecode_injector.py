@@ -54,6 +54,9 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
 
     # Bytecode injection and code replacement
     code, _ = inject_invocation(injection_context, original_code.co_filename, "my.package")
+
+    # While testing, I found an app where we were arriving on a read-only __code__.
+    # The try/except is here to prevent crashing on these cases
     try:
         code_to_instr.__code__ = code
     except Exception:

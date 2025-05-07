@@ -294,7 +294,7 @@ class UserCodeErrorTestCases(TracerTestCase):
 
     @run_in_subprocess(
         env_overrides=dict(
-            DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="numpy,user_module",
+            DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="numpy,user_module",
         )
     )
     def test_user_code_reporting_with_filtered_third_party_and_user_code(self):
@@ -304,7 +304,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             expected_events={"min_events": 2, "messages_present": ["module caught error", "<error_numpy_f>"]},
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="submodule"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule"))
     def test_user_code_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",
@@ -317,7 +317,7 @@ class UserCodeErrorTestCases(TracerTestCase):
             use_submodules=True,
         )
 
-    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES="submodule.submodule_2"))
+    @run_in_subprocess(env_overrides=dict(DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE="submodule.submodule_2"))
     def test_user_code_narrowed_scoped_reporting(self):
         self._run_user_code_test(
             initial_value="",

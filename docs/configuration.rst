@@ -977,7 +977,7 @@ Error Tracking
           Possible values are: ``user|third_party|all``. Report handled exceptions
           of user code, third party packages or both.
 
-  DD_ERROR_TRACKING_HANDLED_ERRORS_MODULES:
+  DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE:
       type: String
       default: ""
 
