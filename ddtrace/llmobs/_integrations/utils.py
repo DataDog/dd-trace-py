@@ -452,17 +452,6 @@ class OaiSpanAdapter:
             if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
                 metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
 
-        if self.span_type == "agent":
-            agent_metadata: Dict[str, List[str]] = {
-                "handoffs": [],
-                "tools": [],
-            }
-            if self.handoffs:
-                agent_metadata["handoffs"] = load_oai_span_data_value(self.handoffs)
-            if self.tools:
-                agent_metadata["tools"] = load_oai_span_data_value(self.tools)
-            metadata.update(agent_metadata)
-
         if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
             custom_data = getattr(self._raw_oai_span.span_data, "data", None)
             if custom_data:
