@@ -8,12 +8,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import SAMPLING_HASH_MODULO
+from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
@@ -26,9 +28,6 @@ PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
 
 log = get_logger(__name__)
-
-# Has to be the same factor and key as the Agent to allow chained sampling
-KNUTH_FACTOR = 1111111111111111111
 
 
 class RateSampler:
@@ -49,7 +48,7 @@ class RateSampler:
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
     def sample(self, span: Span) -> bool:
-        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % MAX_UINT_64BITS) <= self.sampling_id_threshold
+        sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 
 
@@ -170,7 +169,7 @@ class DatadogSampler:
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
-        span.context._update_tags(span)
+        span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
         agent_service_based = False

@@ -209,6 +209,10 @@ class _CompletionHook(_BaseCompletionHook):
         return resp
 
 
+class _CompletionWithRawResponseHook(_CompletionHook):
+    pass
+
+
 class _ChatCompletionHook(_BaseCompletionHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = (
@@ -245,11 +249,13 @@ class _ChatCompletionHook(_BaseCompletionHook):
             span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
             span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
-            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+            stream_options = kwargs.get("stream_options", {})
+            if not isinstance(stream_options, dict):
+                stream_options = {}
+            if stream_options.get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
                 return
             span._set_ctx_item("_dd.auto_extract_token_chunk", True)
-            stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
 
@@ -276,6 +282,10 @@ class _ChatCompletionHook(_BaseCompletionHook):
                 _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
         return resp
+
+
+class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
+    pass
 
 
 class _EmbeddingHook(_EndpointHook):

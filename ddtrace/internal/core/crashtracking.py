@@ -7,10 +7,10 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
-from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
@@ -21,7 +21,7 @@ try:
     from ddtrace.internal.native._native import CrashtrackerConfiguration
     from ddtrace.internal.native._native import CrashtrackerReceiverConfig
     from ddtrace.internal.native._native import CrashtrackerStatus
-    from ddtrace.internal.native._native import Metadata
+    from ddtrace.internal.native._native import CrashtrackerMetadata
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
@@ -110,7 +110,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
         crashtracker_config.use_alt_stack,
         5000,  # timeout_ms
         stacktrace_resolver,
-        crashtracker_config.debug_url or agent.get_trace_url(),
+        crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
     )
 
@@ -125,7 +125,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
     tags = _get_tags(additional_tags)
 
-    metadata = Metadata("dd-trace-py", version.get_version(), "python", tags)
+    metadata = CrashtrackerMetadata("dd-trace-py", version.get_version(), "python", tags)
 
     return config, receiver_config, metadata
 

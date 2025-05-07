@@ -11,14 +11,14 @@ opt-level = "z"
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
-pyo3 = { version = "0.22.3", features = ["extension-module", "abi3-py38", "anyhow"] }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3", optional = true }
-datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3", optional = true }
+datadog-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v17.0.0", optional = true }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v16.0.3" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v17.0.0"}
+pyo3 = { version = "0.24", features = ["extension-module", "abi3-py38", "anyhow"] }
 
 [build-dependencies]
-pyo3-build-config = "0.21.2"
+pyo3-build-config = "0.24"
 
 [lib]
 name = "_native"
@@ -26,7 +26,7 @@ path = "lib.rs"
 crate-type = ["cdylib"]
 
 [features]
-crashtracker = ["dep:anyhow", "dep:ddcommon", "dep:datadog-crashtracker"]
+crashtracker = ["dep:anyhow", "dep:datadog-crashtracker"]
 
 [net]
 # Use git binary from the system instead of the built-in git client

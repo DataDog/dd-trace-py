@@ -55,6 +55,8 @@ VERSION_COMPAT_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "min_compatible_versions.csv")),
 )
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
+SITE_PKGS_MARKER = "site-packages-ddtrace-py"
+BOOTSTRAP_MARKER = "bootstrap"
 
 
 def get_oci_ddtrace_version():
@@ -69,25 +71,12 @@ def get_oci_ddtrace_version():
 
 def build_installed_pkgs():
     installed_packages = {}
-    if sys.version_info >= (3, 8):
-        try:
-            from importlib import metadata as importlib_metadata
+    try:
+        from importlib import metadata as importlib_metadata
 
-            installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-        except Exception as e:
-            _log("Failed to build installed packages list: %s" % e, level="debug")
-    else:
-        try:
-            import pkg_resources
-
-            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
-        except Exception:
-            try:
-                import importlib_metadata
-
-                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-            except Exception as e:
-                _log("Failed to build installed packages list: %s" % e, level="debug")
+        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+    except Exception as e:
+        _log("Failed to build installed packages list: %s" % e, level="debug")
     return {key.lower(): value for key, value in installed_packages.items()}
 
 
@@ -148,7 +137,7 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
     }
 
 
-def send_telemetry(event):
+def _send_telemetry(event):
     event_json = json.dumps(event)
     _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
@@ -161,15 +150,38 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    if p.stdin:
-        p.stdin.write(event_json)
-        p.stdin.close()
-        _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
-    else:
-        _log(
-            "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
-            level="error",
-        )
+    # Mimic Popen.__exit__ which was added in Python 3.3
+    try:
+        if p.stdin:
+            p.stdin.write(event_json)
+            _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+        else:
+            _log(
+                "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
+                level="error",
+            )
+    finally:
+        if p.stdin:
+            p.stdin.close()
+        if p.stderr:
+            p.stderr.close()
+        if p.stdout:
+            p.stdout.close()
+
+        # backwards compatible `p.wait(1)`
+        start = time.time()
+        while p.poll() is None:
+            if time.time() - start > 1:
+                p.kill()
+                break
+            time.sleep(0.05)
+
+
+def send_telemetry(event):
+    try:
+        _send_telemetry(event)
+    except Exception as e:
+        _log("Failed to send telemetry: %s" % e, level="error")
 
 
 def _get_clib():
@@ -250,7 +262,6 @@ def _inject():
     EXECUTABLES_DENY_LIST = build_denied_executables()
     integration_incomp = False
     runtime_incomp = False
-    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     spec = None
     try:
         # `find_spec` is only available in Python 3.4+
@@ -349,7 +360,7 @@ def _inject():
             return
 
         site_pkgs_path = os.path.join(
-            pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
+            pkgs_path, "%s%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
         )
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
@@ -381,20 +392,29 @@ def _inject():
                 # sitecustomize is preserved.
                 if SCRIPT_DIR in sys.path:
                     sys.path.remove(SCRIPT_DIR)
-                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), "bootstrap")
+                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), BOOTSTRAP_MARKER)
                 if bootstrap_dir not in sys.path:
                     sys.path.insert(0, bootstrap_dir)
 
                 import ddtrace.bootstrap.sitecustomize
 
+                path_segments_indicating_removal = [
+                    SCRIPT_DIR,
+                    SITE_PKGS_MARKER,
+                    os.path.join("ddtrace", BOOTSTRAP_MARKER),
+                ]
+
                 # Modify the PYTHONPATH for any subprocesses that might be spawned:
+                #   - Remove any preexisting entries related to ddtrace to ensure initial state is clean
                 #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
                 #     now that the package is installed.
                 #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
                 #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
-                python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
-                if SCRIPT_DIR in python_path:
-                    python_path.remove(SCRIPT_DIR)
+                python_path = [
+                    entry
+                    for entry in os.getenv("PYTHONPATH", "").split(os.pathsep)
+                    if not any(path in entry for path in path_segments_indicating_removal)
+                ]
                 python_path.insert(-1, site_pkgs_path)
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
@@ -409,6 +429,9 @@ def _inject():
                         ],
                     ),
                 )
+                # Track whether library injection was successful
+                ddtrace.config._lib_was_injected = True
+                ddtrace.internal.telemetry.telemetry_writer.add_configuration("instrumentation_source", "ssi", "code")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(

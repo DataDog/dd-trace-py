@@ -531,11 +531,7 @@ def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
 
     # Now check for the profiler_config tag
     assert b"profiler_config" in data
-    py_version = sys.version_info[:2]
-    if py_version >= (3, 8):
-        profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
-    else:
-        profiler_config = "stack_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
+    profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
     assert profiler_config.encode() in data
 
 

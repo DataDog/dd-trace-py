@@ -17,13 +17,13 @@ from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -68,7 +68,7 @@ _BASE_HEADERS: t.Dict[str, str] = {
 
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
-_UNIQUE_TESTS_TYPE = t.Set[InternalTestId]
+_KNOWN_TESTS_TYPE = t.Set[InternalTestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -118,6 +118,7 @@ class TestVisibilityAPISettings:
     require_git: bool = False
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
+    known_tests_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
@@ -386,6 +387,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
                 os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
+            known_tests_enabled = attributes["known_tests_enabled"]
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -426,6 +428,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=require_git,
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
+            known_tests_enabled=known_tests_enabled,
             early_flake_detection=early_flake_detection,
             test_management=test_management,
         )
@@ -436,6 +439,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=api_settings.require_git,
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
+            known_tests_enabled=api_settings.known_tests_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
             test_management_enabled=api_settings.test_management.enabled,
         )
@@ -515,7 +519,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+    def fetch_known_tests(self) -> t.Optional[t.Set[InternalTestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -523,7 +527,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        unique_test_ids: t.Set[InternalTestId] = set()
+        known_test_ids: t.Set[InternalTestId] = set()
 
         payload = {
             "data": {
@@ -540,7 +544,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", KNOWN_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
         except Exception:  # noqa: E722
             return None
@@ -562,15 +566,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 for suite, tests in suites.items():
                     suite_id = TestSuiteId(module_id, suite)
                     for test in tests:
-                        unique_test_ids.add(InternalTestId(suite_id, test))
+                        known_test_ids.add(InternalTestId(suite_id, test))
         except Exception:  # noqa: E722
             log.debug("Failed to parse unique tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
 
-        record_early_flake_detection_tests_count(len(unique_test_ids))
+        record_early_flake_detection_tests_count(len(known_test_ids))
 
-        return unique_test_ids
+        return known_test_ids
 
     def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
@@ -587,6 +591,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "type": "ci_app_libraries_tests_request",
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
+                    "commit_message": self._git_data.commit_message,
                 },
             }
         }
@@ -681,8 +686,9 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
+        evp_proxy_base_url: str = EVP_PROXY_AGENT_BASE_PATH,
     ):
-        base_url = combine_url_path(agent_url, EVP_PROXY_AGENT_BASE_PATH)
+        base_url = combine_url_path(agent_url, evp_proxy_base_url)
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
     def _get_headers(self):

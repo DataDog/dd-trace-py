@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Literal  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
@@ -19,13 +20,6 @@ if TYPE_CHECKING:
 
     from ddtrace.trace import Span  # noqa:F401
 
-import sys
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
 
 DBM_PARENT_SERVICE_NAME_KEY: Literal["ddps"] = "ddps"
 DBM_DATABASE_SERVICE_NAME_KEY: Literal["dddbs"] = "dddbs"
@@ -61,14 +55,16 @@ class _DBM_Propagator(object):
         self,
         sql_pos,
         sql_kw,
-        sql_injector=default_sql_injector,
+        comment_injector=default_sql_injector,
+        comment_generator=_generate_sql_comment,
         peer_hostname_tag="out.host",
         peer_db_name_tag="db.name",
         peer_service_tag="peer.service",
     ):
         self.sql_pos = sql_pos
         self.sql_kw = sql_kw
-        self.sql_injector = sql_injector
+        self.comment_injector = comment_injector
+        self.comment_generator = comment_generator
         self.peer_hostname_tag = peer_hostname_tag
         self.peer_db_name_tag = peer_db_name_tag
         self.peer_service_tag = peer_service_tag
@@ -88,7 +84,7 @@ class _DBM_Propagator(object):
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
-        sql_with_dbm_tags = self.sql_injector(dbm_comment, original_sql_statement)
+        sql_with_dbm_tags = self.comment_injector(dbm_comment, original_sql_statement)
         # replace the original query or procedure with sql_with_dbm_tags
         args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
         return args, kwargs
@@ -132,7 +128,7 @@ class _DBM_Propagator(object):
             db_span.set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
-        sql_comment = _generate_sql_comment(**dbm_tags)
+        sql_comment = self.comment_generator(**dbm_tags)
         if sql_comment:
             # replace leading whitespace with trailing whitespace
             return sql_comment.strip() + " "
@@ -162,6 +158,7 @@ _DBM_STANDARD_EVENTS = {
     "mysqldb.execute",
     "psycopg.execute",
     "pymysql.execute",
+    "pymongo.execute",
 }
 
 

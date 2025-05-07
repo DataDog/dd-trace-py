@@ -30,6 +30,7 @@ SUITE_TYPE = "test_suite_end"
 COVERAGE_TAG_NAME = "test.coverage"
 
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
+EVP_PROXY_AGENT_BASE_PATH_V4 = "/evp_proxy/v4"
 EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/citestcycle".format(EVP_PROXY_AGENT_BASE_PATH)
 AGENTLESS_ENDPOINT = "api/v2/citestcycle"
 AGENTLESS_COVERAGE_ENDPOINT = "api/v2/citestcov"
@@ -48,7 +49,7 @@ AGENTLESS_DEFAULT_SITE = "datadoghq.com"
 GIT_API_BASE_PATH = "/api/v2/git"
 SETTING_ENDPOINT = "/api/v2/libraries/tests/services/setting"
 SKIPPABLE_ENDPOINT = "/api/v2/ci/tests/skippable"
-UNIQUE_TESTS_ENDPOINT = "/api/v2/ci/libraries/tests"
+KNOWN_TESTS_ENDPOINT = "/api/v2/ci/libraries/tests"
 TEST_MANAGEMENT_TESTS_ENDPOINT = "/api/v2/test/libraries/test-management/tests"
 
 # Intelligent Test Runner constants

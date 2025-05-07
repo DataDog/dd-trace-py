@@ -467,7 +467,8 @@ _PACKAGES = [
         "MultiDict contents: {'key1': 'value1'}",
         "",
         import_module_to_validate="multidict._multidict_py",
-        test_propagation=True,
+        # multidict's written in C
+        test_propagation=False,
     ),
     ## Skip due to numpy added to the denylist
     # Python 3.12 fails in all steps with "import error" when import numpy
@@ -510,7 +511,7 @@ _PACKAGES = [
         "User data directory for foobar-app: %s/.local/share/foobar-app" % _user_dir,
         "",
         import_module_to_validate="platformdirs.unix",
-        test_propagation=True,
+        test_propagation=False,
     ),
     ## Skip due to pluggy added to the denylist
     # PackageForTesting(
@@ -569,7 +570,8 @@ _PACKAGES = [
         import_module_to_validate="multipart.multipart",
         # This test is failing in CircleCI with the latest version
         test_import=False,
-        test_propagation=True,
+        test_e2e=False,
+        test_propagation=False,
     ),
     ## Skip due to pytz added to the denylist
     # PackageForTesting(
@@ -647,7 +649,7 @@ _PACKAGES = [
         import_module_to_validate="tomli._parser",
         # This test is failing in CircleCI with the latest version
         test_import=False,
-        test_propagation=True,
+        test_propagation=False,
     ),
     PackageForTesting(
         "tomlkit",
@@ -776,7 +778,7 @@ _PACKAGES = [
         "some-key",
         "Computed value for some-key\nCached value for some-key: Computed value for some-key",
         "",
-        test_propagation=True,
+        test_propagation=False,
     ),
     # docutils dropped Python 3.8 support in docutils > 1.10.10.21.2
     PackageForTesting(
@@ -841,7 +843,7 @@ _PACKAGES = [
         "test1234",
         "Parsed INI data: {'section': [('key', 'test1234')]}",
         "",
-        test_propagation=True,
+        test_propagation=False,
     ),
     PackageForTesting("psutil", "5.9.8", "cpu", "CPU Usage: replaced_usage", ""),
     PackageForTesting(

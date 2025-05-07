@@ -13,24 +13,29 @@ Add all monkey-patching that needs to run by default here
 # to allow injecting a custom sitecustomize.py file into the Python process to
 # perform the correct initialisation for the library. All the actual
 # initialisation logic should be placed in preload.py.
-from ddtrace import LOADED_MODULES  # isort:skip
-
+import ddtrace  # isort:skip
 import logging  # noqa:I001
 import os  # noqa:F401
 import sys
 import warnings  # noqa:F401
 
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import _configure_log_injection
+from ddtrace._logger import DD_LOG_FORMAT
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.module import is_module_installed
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
+
 
 # Debug mode from the tracer will do the same here, so only need to do this otherwise.
 if config._logs_injection:
-    _configure_log_injection()
+    from ddtrace import patch
+
+    patch(logging=True)
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
 
 
 log = get_logger(__name__)
@@ -73,6 +78,7 @@ def cleanup_loaded_modules():
             "ddtrace",
             "concurrent",
             "typing",
+            "_operator",  # pickling issues with typing module
             "re",  # referenced by the typing module
             "sre_constants",  # imported by re at runtime
             "logging",
@@ -82,7 +88,7 @@ def cleanup_loaded_modules():
             "wrapt",
         ]
     )
-    for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
+    for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
         if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
             continue
 
@@ -158,9 +164,12 @@ try:
             log.debug("additional sitecustomize not found")
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
-
-    telemetry_writer.add_configuration("ddtrace_bootstrapped", True, "unknown")
-    telemetry_writer.add_configuration("ddtrace_auto_used", "ddtrace.auto" in sys.modules, "unknown")
+    # Detect if ddtrace-run is being used by checking if the bootstrap directory is in the python path
+    bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
+    if bootstrap_dir in sys.path:
+        telemetry_writer.add_configuration("instrumentation_source", "cmd_line", "code")
+    else:
+        telemetry_writer.add_configuration("instrumentation_source", "manual", "code")
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

@@ -9,22 +9,14 @@ static __thread int in_stacktrace = 0;
 #include <Python.h>
 #include <frameobject.h>
 #include <patchlevel.h>
-
-#ifdef _WIN32
-#define DD_TRACE_INSTALLED_PREFIX "\\ddtrace\\"
-#define TESTS_PREFIX "\\tests\\"
-#define SITE_PACKAGES_PREFIX "\\site-packages\\"
-#else
-#define DD_TRACE_INSTALLED_PREFIX "/ddtrace/"
-#define TESTS_PREFIX "/tests/"
-#define SITE_PACKAGES_PREFIX "/site-packages/"
-#endif
+#include <stdbool.h>
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) PyFrame_GetBack(frame)
+#define FRAME_INCREF(frame) Py_INCREF((PyObject*)frame)
 #define FRAME_DECREF(frame) Py_DecRef((PyObject*)frame)
 #define FRAME_XDECREF(frame) Py_XDECREF((PyObject*)frame)
 #define FILENAME_DECREF(filename) Py_DecRef(filename)
@@ -68,6 +60,7 @@ GET_FUNCTION(PyFrameObject* frame)
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
 #define GET_FILENAME(frame) ((PyObject*)(frame->f_code->co_filename))
+#define FRAME_INCREF(frame)
 #define FRAME_DECREF(frame)
 #define FRAME_XDECREF(frame)
 #define FILENAME_DECREF(filename)
@@ -87,6 +80,18 @@ GET_FUNCTION(PyFrameObject* frame)
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
 #endif
 #endif
+
+// Python standard library path
+static char* STDLIB_PATH = NULL;
+static ssize_t STDLIB_PATH_LEN = 0;
+
+// Python site-packages path
+static char* PURELIB_PATH = NULL;
+static ssize_t PURELIB_PATH_LEN = 0;
+
+// ddtrace module path
+static char* DDTRACE_PATH = NULL;
+static ssize_t DDTRACE_PATH_LEN = 0;
 
 static inline PyObject*
 SAFE_GET_LOCALS(PyFrameObject* frame)
@@ -121,6 +126,175 @@ GET_CLASS(PyFrameObject* frame)
 }
 
 /**
+ * Checks if the filename is special.
+ * For example, a frozen module (`<frozen 'os'>`), a template (`<template>`), etc.
+ */
+static inline bool
+_is_special_frame(const char* filename)
+{
+    return filename && strncmp(filename, "<", strlen("<")) == 0;
+}
+
+static inline bool
+_is_ddtrace_filename(const char* filename)
+{
+    return filename && DDTRACE_PATH && strncmp(filename, DDTRACE_PATH, DDTRACE_PATH_LEN) == 0;
+}
+
+static inline bool
+_is_site_packages_filename(const char* filename)
+{
+    const bool res = filename && PURELIB_PATH && strncmp(filename, PURELIB_PATH, PURELIB_PATH_LEN) == 0;
+    return res;
+}
+
+static inline bool
+_is_stdlib_filename(const char* filename)
+{
+    // site-packages is often a subdirectory of stdlib directory, so stdlib
+    // path is defined as prefixed by stdlib and not prefixed by purelib.
+    // TODO: As of Python 3.10, we could use sys.stdlib_module_names.
+    const bool res = filename && STDLIB_PATH && !_is_site_packages_filename(filename) &&
+                     strncmp(filename, STDLIB_PATH, STDLIB_PATH_LEN) == 0;
+    return res;
+}
+
+static char*
+get_sysconfig_path(const char* name)
+{
+    PyObject* sysconfig_mod = PyImport_ImportModule("sysconfig");
+    if (!sysconfig_mod) {
+        return NULL;
+    }
+
+    PyObject* path = PyObject_CallMethod(sysconfig_mod, "get_path", "s", name);
+    if (!path) {
+        Py_DECREF(sysconfig_mod);
+        return NULL;
+    }
+
+    const char* path_str = PyUnicode_AsUTF8(path);
+    char* res = NULL;
+    if (path_str) {
+        res = strdup(path_str);
+    }
+    Py_DECREF(path);
+    Py_DECREF(sysconfig_mod);
+    return res;
+}
+
+static char*
+get_ddtrace_path()
+{
+    char* res = NULL;
+    PyObject* ddtrace_mod = NULL;
+    PyObject* path = NULL;
+
+    ddtrace_mod = PyImport_ImportModule("ddtrace");
+    if (!ddtrace_mod) {
+        goto exit;
+    }
+
+    path = PyObject_GetAttrString(ddtrace_mod, "__file__");
+    if (!path) {
+        goto exit;
+    }
+
+    const char* path_str = PyUnicode_AsUTF8(path);
+    if (path_str) {
+        // Remove /__init__.py from the end. Suffix is removed by length,
+        // so no need to check for Windows vs Unix path separator.
+        const int ddtrace_len = sizeof("ddtrace") - 1;
+        const int suffix_len = sizeof("/__init__.py") - 1;
+        const int path_len = strlen(path_str);
+        if (path_len < ddtrace_len + suffix_len) {
+            goto exit;
+        }
+        const char* ddtrace_part = path_str + path_len - ddtrace_len - suffix_len;
+        if (strncmp(ddtrace_part, "ddtrace", ddtrace_len) != 0) {
+            goto exit;
+        }
+        res = strndup(path_str, path_len - suffix_len);
+    }
+
+    exit:
+    Py_XDECREF(path);
+    Py_XDECREF(ddtrace_mod);
+    return res;
+}
+
+/**
+ * Gets a reference to a PyFrameObject and walks up the stack until a relevant frame is found.
+ *
+ * Returns a new reference to the PyFrameObject.
+ *
+ * The caller is not responsible for DECREF'ing the given PyFrameObject, but it is responsible for
+ * DECREF'ing the returned PyFrameObject.
+ */
+static PyFrameObject*
+_find_relevant_frame(PyFrameObject* frame, bool allow_site_packages)
+{
+    while (NULL != frame) {
+        PyObject* filename_o = GET_FILENAME(frame);
+        if (!filename_o) {
+            FRAME_DECREF(frame);
+            return NULL;
+        }
+        const char* filename = PyUnicode_AsUTF8(filename_o);
+        if (_is_special_frame(filename) || _is_ddtrace_filename(filename) || _is_stdlib_filename(filename) ||
+            (!allow_site_packages && _is_site_packages_filename(filename))) {
+            PyFrameObject* prev_frame = GET_PREVIOUS(frame);
+            FRAME_DECREF(frame);
+            FILENAME_DECREF(filename_o);
+            frame = prev_frame;
+            continue;
+        }
+        FILENAME_DECREF(filename_o);
+        break;
+    }
+    return frame;
+}
+
+static PyObject*
+_get_result_tuple(PyFrameObject* frame)
+{
+    PyObject* result = NULL;
+    PyObject* filename_o = NULL;
+    PyObject* line_o = NULL;
+    PyObject* funcname_o = NULL;
+    PyObject* classname_o = NULL;
+
+    filename_o = GET_FILENAME(frame);
+    if (!filename_o) {
+        goto error;
+    }
+
+    // frame->f_lineno will not always return the correct line number
+    // you need to call PyCode_Addr2Line().
+    int line = GET_LINENO(frame);
+    line_o = Py_BuildValue("i", line);
+    if (!line_o) {
+        goto error;
+    }
+    funcname_o = GET_FUNCTION(frame);
+    if (!funcname_o) {
+        goto error;
+    }
+    classname_o = GET_CLASS(frame);
+    if (!classname_o) {
+        goto error;
+    }
+    result = PyTuple_Pack(4, filename_o, line_o, funcname_o, classname_o);
+
+error:
+    FILENAME_XDECREF(filename_o);
+    Py_XDECREF(line_o);
+    Py_XDECREF(funcname_o);
+    Py_XDECREF(classname_o);
+    return result;
+}
+
+/**
  * get_file_and_line
  *
  * Get the filename, line number, function name and class name of the original wrapped
@@ -130,106 +304,56 @@ GET_CLASS(PyFrameObject* frame)
  *     (filename, line_number, function name, class name)
  **/
 static PyObject*
-get_file_and_line(PyObject* Py_UNUSED(module), PyObject* cwd_obj)
+get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     // Mark that we are now capturing a stack trace to avoid reentrant calls on GET_LOCALS
     in_stacktrace = 1;
-
+    PyFrameObject* frame = NULL;
+    PyFrameObject* backup_frame = NULL;
+    PyObject* result = NULL;
     PyThreadState* tstate = PyThreadState_Get();
     if (!tstate) {
-        goto exit_0;
+        goto exit;
     }
 
-    int line;
-    PyObject* filename_o = NULL;
-    PyObject* result = NULL;
-    PyObject* cwd_bytes = NULL;
-    char* cwd = NULL;
-
-    if (!PyUnicode_FSConverter(cwd_obj, &cwd_bytes)) {
-        goto exit_0;
-    }
-    cwd = PyBytes_AsString(cwd_bytes);
-    if (!cwd) {
-        goto exit_0;
-    }
-
-    PyFrameObject* frame = GET_FRAME(tstate);
+    frame = GET_FRAME(tstate);
     if (!frame) {
-        goto exit_0;
+        goto exit;
     }
 
-    while (NULL != frame) {
-        filename_o = GET_FILENAME(frame);
-        if (!filename_o) {
-            goto exit;
-        }
-        const char* filename = PyUnicode_AsUTF8(filename_o);
-        if (((strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL)) ||
-            (strstr(filename, SITE_PACKAGES_PREFIX) != NULL || strstr(filename, cwd) == NULL)) {
-            PyFrameObject* prev_frame = GET_PREVIOUS(frame);
-            FRAME_DECREF(frame);
-            FILENAME_DECREF(filename_o);
-            frame = prev_frame;
-            continue;
-        }
-        /*
-         frame->f_lineno will not always return the correct line number
-         you need to call PyCode_Addr2Line().
-        */
-        line = GET_LINENO(frame);
-        PyObject* line_obj = Py_BuildValue("i", line);
-        if (!line_obj) {
-            goto exit;
-        }
-        PyObject* func_name = GET_FUNCTION(frame);
-        if (!func_name) {
-            Py_DecRef(line_obj);
-            goto exit;
-        }
-        PyObject* class_name = GET_CLASS(frame);
-        if (!class_name) {
-            Py_DecRef(line_obj);
-            Py_DecRef(func_name);
-            goto exit;
-        }
-        result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
-        Py_DecRef(func_name);
-        Py_DecRef(class_name);
-        Py_DecRef(line_obj);
-        break;
+    // Skip all frames until the first non-ddtrace and non-stdlib frame.
+    // Store that frame as backup (if any). If there is no better frame, fallback to this.
+    // This happens, for example, when the vulnerability is in a package installed in site-packages.
+    frame = _find_relevant_frame(frame, true);
+    if (NULL == frame) {
+        goto exit;
     }
-    if (result == NULL) {
-        goto exit_0;
+    backup_frame = frame;
+    FRAME_INCREF(backup_frame);
+
+    // Continue skipping until we find a frame that is both non-ddtrace and non-site-packages.
+    frame = _find_relevant_frame(frame, false);
+    if (NULL == frame) {
+        frame = backup_frame;
+        backup_frame = NULL;
+    } else {
+        FRAME_DECREF(backup_frame);
     }
+
+    result = _get_result_tuple(frame);
 
 exit:
-    Py_DecRef(cwd_bytes);
     FRAME_XDECREF(frame);
-    FILENAME_XDECREF(filename_o);
-    in_stacktrace = 0;
-    return result;
-
-exit_0:; /* Label must be followed by a statement */
-    // Return "", -1, "", ""
-    PyObject* line_obj = Py_BuildValue("i", -1);
-    filename_o = PyUnicode_FromString("");
-    PyObject* func_name = PyUnicode_FromString("");
-    PyObject* class_name = PyUnicode_FromString("");
-    result = PyTuple_Pack(4, filename_o, line_obj, func_name, class_name);
-    Py_DecRef(cwd_bytes);
-    FRAME_XDECREF(frame);
-    FILENAME_XDECREF(filename_o);
-    Py_DecRef(line_obj);
-    Py_DecRef(func_name);
-    Py_DecRef(class_name);
+    if (!result) {
+        result = PyTuple_Pack(4, Py_None, Py_None, Py_None, Py_None);
+    }
     in_stacktrace = 0;
     return result;
 }
 
 static PyMethodDef StacktraceMethods[] = { { "get_info_frame",
                                              (PyCFunction)get_file_and_line,
-                                             METH_O,
+                                             METH_NOARGS,
                                              "Stacktrace function: returns (filename, line, method, class)" },
                                            { NULL, NULL, 0, NULL } };
 
@@ -245,5 +369,17 @@ PyInit__stacktrace(void)
     PyObject* m = PyModule_Create(&stacktrace);
     if (m == NULL)
         return NULL;
+    STDLIB_PATH = get_sysconfig_path("stdlib");
+    if (STDLIB_PATH) {
+        STDLIB_PATH_LEN = strlen(STDLIB_PATH);
+    }
+    PURELIB_PATH = get_sysconfig_path("purelib");
+    if (PURELIB_PATH) {
+        PURELIB_PATH_LEN = strlen(PURELIB_PATH);
+    }
+    DDTRACE_PATH = get_ddtrace_path();
+    if (DDTRACE_PATH) {
+        DDTRACE_PATH_LEN = strlen(DDTRACE_PATH);
+    }
     return m;
 }

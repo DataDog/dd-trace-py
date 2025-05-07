@@ -61,6 +61,17 @@ pub struct CrashtrackerConfigurationPy {
     config: Option<CrashtrackerConfiguration>,
 }
 
+
+// additional_files: Vec<String>,
+// create_alt_stack: bool,
+// use_alt_stack: bool,
+// endpoint: Option<Endpoint>,
+// resolve_frames: StacktraceCollection,
+// mut signals: Vec<i32>,
+// timeout_ms: u32,
+// unix_socket_path: Option<String>,
+
+
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
@@ -84,6 +95,7 @@ impl CrashtrackerConfigurationPy {
                 use_alt_stack,
                 endpoint,
                 resolve_frames,
+                datadog_crashtracker::default_signals(),
                 timeout_ms,
                 unix_socket_path,
             )?),
@@ -141,14 +153,14 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(name = "Metadata", module = "datadog.internal._native")]
+#[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
 #[derive(Clone)]
-pub struct MetadataPy {
+pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,
 }
 
 #[pymethods]
-impl MetadataPy {
+impl CrashtrackerMetadataPy {
     #[new]
     pub fn new(
         library_name: String,
@@ -167,7 +179,7 @@ impl MetadataPy {
     }
 }
 
-impl RustWrapper for MetadataPy {
+impl RustWrapper for CrashtrackerMetadataPy {
     type Inner = Metadata;
     const INNER_TYPE_NAME: &'static str = "Metadata";
 
@@ -213,7 +225,7 @@ static INIT: Once = Once::new();
 pub fn crashtracker_init<'py>(
     mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
     mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
-    mut metadata: PyRefMut<'py, MetadataPy>,
+    mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
 ) -> anyhow::Result<()> {
     INIT.call_once(|| {
         let (config_opt, receiver_config_opt, metadata_opt) = (
@@ -251,7 +263,7 @@ pub fn crashtracker_init<'py>(
 pub fn crashtracker_on_fork<'py>(
     mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
     mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
-    mut metadata: PyRefMut<'py, MetadataPy>,
+    mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
 ) -> anyhow::Result<()> {
     let inner_config = (*config).take_inner_or_err()?;
     let inner_receiver_config = (*receiver_config).take_inner_or_err()?;

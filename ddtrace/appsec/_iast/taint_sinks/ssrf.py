@@ -1,18 +1,18 @@
 from typing import Callable
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.settings.asm import config as asm_config
-
-from ._base import VulnerabilityBase
 
 
 log = get_logger(__name__)
@@ -21,6 +21,7 @@ log = get_logger(__name__)
 @oce.register
 class SSRF(VulnerabilityBase):
     vulnerability_type = VULN_SSRF
+    secure_mark = VulnerabilityType.SSRF
 
 
 _FUNC_TO_URL_ARGUMENT = {
@@ -48,11 +49,14 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
         return
 
     if report_ssrf:
-        _set_metric_iast_executed_sink(SSRF.vulnerability_type)
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
-        if asm_config.is_iast_request_enabled and SSRF.has_quota():
+        if asm_config.is_iast_request_enabled:
             try:
-                if is_pyobject_tainted(report_ssrf):
+                if SSRF.has_quota() and SSRF.is_tainted_pyobject(report_ssrf):
                     SSRF.report(evidence_value=report_ssrf)
-            except Exception:
-                log.debug("Unexpected exception while reporting vulnerability", exc_info=True)
+
+                # Reports Span Metrics
+                _set_metric_iast_executed_sink(SSRF.vulnerability_type)
+                # Report Telemetry Metrics
+                increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, SSRF.vulnerability_type)
+            except Exception as e:
+                iast_error(f"propagation::sink_point::Error in _iast_report_ssrf. {e}")

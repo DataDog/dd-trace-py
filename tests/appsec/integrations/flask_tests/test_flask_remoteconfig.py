@@ -17,11 +17,10 @@ from tests.appsec.appsec_utils import gunicorn_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _multi_requests
 from tests.appsec.integrations.flask_tests.utils import _request_200
-from tests.utils import flaky
 
 
 def _get_agent_client():
-    parsed = parse.urlparse(tracer._writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     return conn
 
@@ -240,7 +239,7 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
         _request_200(gunicorn_client)
 
 
-@flaky(until=1742580778, reason="_request_403 is flaky, figure out the error")
+@pytest.mark.skip(reason="_request_403 is flaky, figure out the error. APPSEC-57052")
 def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())

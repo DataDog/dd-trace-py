@@ -27,6 +27,15 @@ Global Configuration
 
    Default: ``"kafka"``
 
+.. py:data:: ddtrace.config.kafka["distributed_tracing_enabled"]
+
+   Whether to enable distributed tracing between Kafka messages.
+
+   This option can also be set with the ``DD_KAFKA_PROPAGATION_ENABLED`` environment
+   variable.
+
+   Default: ``"False"``
+
 
 To configure the kafka integration using the
 ``Pin`` API::
@@ -40,4 +49,8 @@ To configure the kafka integration using the
     import confluent_kafka
 
     Pin.override(confluent_kafka, service="custom-service-name")
+
+**Note**: `Data Streams Monitoring <https://docs.datadoghq.com/data_streams/>`_ (``DD_DATA_STREAMS_ENABLED=true``) or
+distributed tracing (``DD_KAFKA_PROPAGATION_ENABLED=true``) will only work if Kafka message headers are supported.
+If `log.message.format.version` is set in the Kafka broker configuration, it must be set to `0.11.0.0` or higher.
 """

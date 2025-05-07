@@ -5,7 +5,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace import _hooks
+from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
@@ -14,7 +14,8 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-_DD_CONTEXTVAR: contextvars.ContextVar[Optional[Union[Context, Span]]] = contextvars.ContextVar(
+ActiveTrace = Union[Span, Context]
+_DD_CONTEXTVAR: contextvars.ContextVar[Optional[ActiveTrace]] = contextvars.ContextVar(
     "datadog_contextvar", default=None
 )
 
@@ -30,18 +31,18 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     """
 
     def __init__(self) -> None:
-        self._hooks = _hooks.Hooks()
+        self._hooks = Hooks()
 
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
 
     @abc.abstractmethod
-    def activate(self, ctx: Optional[Union[Context, Span]]) -> None:
+    def activate(self, ctx: Optional[ActiveTrace]) -> None:
         self._hooks.emit(self.activate, ctx)
 
     @abc.abstractmethod
-    def active(self) -> Optional[Union[Context, Span]]:
+    def active(self) -> Optional[ActiveTrace]:
         pass
 
     def _on_activate(
@@ -70,37 +71,14 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         self._hooks.deregister(self.activate, func)
         return func
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Optional[Union[Context, Span]]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]:
         """Method available for backward-compatibility. It proxies the call to
         ``self.active()`` and must not do anything more.
         """
         return self.active()
 
 
-class DatadogContextMixin(object):
-    """Mixin that provides active span updating suitable for synchronous
-    and asynchronous executions.
-    """
-
-    def activate(self, ctx: Optional[Union[Context, Span]]) -> None:
-        raise NotImplementedError
-
-    def _update_active(self, span: Span) -> Optional[Span]:
-        """Updates the active span in an executor.
-
-        The active span is updated to be the span's parent if the span has
-        finished until an unfinished span is found.
-        """
-        if span.finished:
-            new_active: Optional[Span] = span
-            while new_active and new_active.finished:
-                new_active = new_active._parent
-            self.activate(new_active)
-            return new_active
-        return span
-
-
-class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
+class DefaultContextProvider(BaseContextProvider):
     """Context provider that retrieves contexts from a context variable.
 
     It is suitable for synchronous programming and for asynchronous executors
@@ -115,14 +93,31 @@ class DefaultContextProvider(BaseContextProvider, DatadogContextMixin):
         ctx = _DD_CONTEXTVAR.get()
         return ctx is not None
 
-    def activate(self, ctx: Optional[Union[Span, Context]]) -> None:
+    def activate(self, ctx: Optional[ActiveTrace]) -> None:
         """Makes the given context active in the current execution."""
         _DD_CONTEXTVAR.set(ctx)
         super(DefaultContextProvider, self).activate(ctx)
 
-    def active(self) -> Optional[Union[Context, Span]]:
+    def active(self) -> Optional[ActiveTrace]:
         """Returns the active span or context for the current execution."""
         item = _DD_CONTEXTVAR.get()
         if isinstance(item, Span):
             return self._update_active(item)
         return item
+
+    def _update_active(self, span: Span) -> Optional[ActiveTrace]:
+        """Updates the active trace in an executor.
+
+        When a span finishes, the active span becomes its parent.
+        If no parent exists and the context is reactivatable, that context is restored.
+        """
+        if span.finished:
+            new_active: Optional[Span] = span
+            while new_active and new_active.finished:
+                if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
+                    self.activate(new_active._parent_context)
+                    return new_active._parent_context
+                new_active = new_active._parent
+            self.activate(new_active)
+            return new_active
+        return span

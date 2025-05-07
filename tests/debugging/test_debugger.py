@@ -1,4 +1,5 @@
 from collections import Counter
+from decimal import Decimal
 import os.path
 import sys
 from threading import Thread
@@ -57,6 +58,9 @@ def simple_debugger_test(probe, func):
         probe_id = probe.probe_id
 
         d.add_probes(probe)
+
+        # Check that we can still hash the code object
+        assert hash(func.__code__)
 
         try:
             func()
@@ -425,6 +429,16 @@ def test_debugger_metric_probe_simple_count(mock_metrics, stuff):
         stuff.Stuff().instancestuff()
         assert (
             call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
+
+
+def test_debugger_metric_probe_decimal(mock_metrics, stuff):
+    with debugger() as d:
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, value=Decimal(value := 3.14)))
+        stuff.Stuff().instancestuff()
+        assert (
+            call("probe.test.counter", value, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.increment.mock_calls
         )
 
