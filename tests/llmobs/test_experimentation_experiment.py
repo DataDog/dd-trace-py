@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 from unittest.mock import patch, MagicMock, call
+import functools
 
 import pytest
 import vcr
@@ -14,8 +15,8 @@ from ddtrace.llmobs.experimentation._experiment import ExperimentResults
 from ddtrace.llmobs.experimentation.utils._ui import Color
 
 # Hardcoded VCR credentials (replace for recording)
-DD_API_KEY = "replace when recording"
-DD_APPLICATION_KEY = "replace when recording"
+DD_API_KEY = "replace-with-api-key"
+DD_APPLICATION_KEY = "replace-with-app-key"
 DD_SITE = "us3.datadoghq.com"
 
 
@@ -31,7 +32,7 @@ def scrub_response_headers(response):
 def experiments_vcr():
     return vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "experiments_cassettes"),
-        record_mode="new_episodes",  # Change to 'all' or 'new_episodes' for recording
+        record_mode="all",  # Change to 'all' or 'new_episodes' for recording
         match_on=["path", "method", "body"],
         filter_headers=["DD-API-KEY", "DD-APPLICATION-KEY", "Openai-Api-Key", "Authorization"],
         before_record_response=scrub_response_headers,
@@ -114,6 +115,11 @@ def task_with_sleep(input, duration=0.1):
     """Task that sleeps for a specified duration."""
     time.sleep(duration)
     return f"Slept for {duration}s on input: {input}"
+
+def task_with_io(input, latency=1.0):
+    """Task that simulates I/O bound work by sleeping."""
+    time.sleep(latency)
+    return f"Simulated I/O for: {input} (took {latency}s)"
 
 @dne.evaluator
 def simple_match_evaluator(input, output, expected_output):
@@ -213,7 +219,7 @@ class TestExperimentInitialization:
             ({"models": "not-a-list"}, TypeError, "config\\[\\'models\\'\\] must be a list"),
             ({"models": [{"name": 123}]}, ValueError, "Invalid model at index 0: Model field 'name' must be of type str"),
             ({"models": [{"provider": False}]}, ValueError, "Invalid model at index 0: Model field 'provider' must be of type str"),
-            ({"models": [{"temperature": "hot"}]}, ValueError, "Invalid model at index 0: Model field 'temperature' must be of type"), # Adjusted match
+            ({"models": [{"temperature": "hot"}]}, ValueError, "Invalid model at index 0: Model field 'temperature' must be of type int or float, got str"), # Adjusted match
         ],
         ids=[
             "config_not_dict",
@@ -381,49 +387,94 @@ class TestExperimentRunTask:
         self._check_output_structure(exp.outputs[0])
 
     def test_run_task_concurrency(self, simple_local_dataset):
-        """Test that using more jobs speeds up execution for tasks with waits."""
-        # Use a small dataset and a task that sleeps
-        sleep_duration = 0.1
-        num_records = 3
-        small_data = [{"input": f"item {i}"} for i in range(num_records)]
-        small_dataset = dne.Dataset(name="concurrency-test-ds", data=small_data)
+        """Test that using more jobs speeds up execution for tasks with simulated I/O."""
+        # Configure test parameters
+        request_latency = 1.0  # Simulate 1 second latency
+        num_records = 20      # total records to process
+
+        # Create test dataset
+        prompts = [
+            f"Write a story about {topic}"
+            for topic in ["cats", "dogs", "birds", "fish"] * 5  # 4 topics × 5 = 20 records
+        ]
+        small_data = [
+            {"input": prompt, "expected_output": ""}
+            for prompt in prompts[:num_records]
+        ]
+        small_dataset = dne.Dataset(
+            name="concurrency-test-ds",
+            data=small_data
+        )
+
+
+        # Create a properly decorated task that includes the latency
+        # This task IS decorated
+        @dne.task
+        def fixed_latency_task(input):
+            # It calls the UNDECORATED task_with_io (now using time.sleep)
+            return task_with_io(input, latency=request_latency)
+
         exp = dne.Experiment(
             name="test-run-task-concurrency",
-            task=task_with_sleep, # Using the new task
+            task=fixed_latency_task, # Use the decorated wrapper task
             dataset=small_dataset,
             evaluators=[]
         )
 
-        # Run in local mode to avoid DD overhead affecting timing significantly
+        # Run with single thread first
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
-            # Time with 1 job
+            print(f"\nRunning concurrency test with 1 job (latency={request_latency}s)...")
             start_time_1 = time.time()
-            exp.run_task(jobs=1)
-            end_time_1 = time.time()
-            duration_1 = end_time_1 - start_time_1
+            exp.run(jobs=1, raise_errors=True)
+            duration_1 = time.time() - start_time_1
+            print(f"Duration (1 job): {duration_1:.3f}s")
 
-            # Reset run status to run again
+            # Reset for parallel run
             exp.has_run = False
             exp.outputs = []
+            exp.has_evaluated = False
+            exp.evaluations = []
 
-            # Time with multiple jobs (equal to number of records)
+            # Run with multiple threads
+            print(f"\nRunning concurrency test with {num_records} jobs (latency={request_latency}s)...")
             start_time_multi = time.time()
-            exp.run_task(jobs=num_records)
-            end_time_multi = time.time()
-            duration_multi = end_time_multi - start_time_multi
+            exp.run(jobs=num_records, raise_errors=True)
+            duration_multi = time.time() - start_time_multi
+            print(f"Duration ({num_records} jobs): {duration_multi:.3f}s")
 
         print(f"\nConcurrency test timings: jobs=1 -> {duration_1:.3f}s, jobs={num_records} -> {duration_multi:.3f}s")
 
-        # Assertions:
-        # The multi-job run should be significantly faster than the single-job run.
-        # It should take slightly longer than a single task's sleep duration due to overhead.
-        # The single-job run should take roughly num_records * sleep_duration + overhead.
-        assert duration_multi < duration_1
-        # Expect multi-job time roughly > sleep_duration and < 2 * sleep_duration
-        assert duration_multi > sleep_duration
-        assert duration_multi < sleep_duration * 2
-        # Expect single-job time roughly > num_records * sleep_duration
-        assert duration_1 > num_records * sleep_duration
+        # Assertions
+        assert duration_multi < duration_1, (
+            f"Multi-job ({duration_multi:.3f}s) was not faster than single-job ({duration_1:.3f}s)"
+        )
+
+        # The parallel run should take roughly the time of one task (plus some overhead)
+        assert duration_multi >= request_latency, (
+            f"Multi-job ({duration_multi:.3f}s) was faster than a single task ({request_latency}s)"
+        )
+        # Allow generous overhead for thread startup/management, but should be much less than serial
+        assert duration_multi < request_latency * 3, (
+            f"Multi-job ({duration_multi:.3f}s) took too long (expected < {request_latency * 3:.3f}s)"
+        )
+
+        # Check duration calculation correctness (approximate)
+        # Serial run should take roughly num_records * latency + small overhead
+        expected_serial_duration = num_records * request_latency
+        # Allow some overhead (e.g., 10% for scheduling, function calls)
+        assert duration_1 >= expected_serial_duration, \
+            f"Single-job duration ({duration_1:.3f}s) seems too fast, expected ~{expected_serial_duration:.3f}s"
+        assert duration_1 < expected_serial_duration * 1.2, \
+            f"Single-job duration ({duration_1:.3f}s) seems too slow, expected ~{expected_serial_duration:.3f}s"
+
+        # Parallel run should take roughly latency + small overhead
+        expected_parallel_duration = request_latency
+        # Allow some overhead, but it should be significantly less than serial
+        assert duration_multi >= expected_parallel_duration, \
+            f"Multi-job duration ({duration_multi:.3f}s) seems too fast, expected ~{expected_parallel_duration:.3f}s"
+        # Using * 3 multiplier for parallel overhead check already - keep it
+        assert duration_multi < expected_parallel_duration * 3, \
+            f"Multi-job duration ({duration_multi:.3f}s) seems too slow, expected < {expected_parallel_duration * 3:.3f}s"
 
     def test_run_task_needs_pushed_dataset_datadog(self, simple_local_dataset, experiments_vcr):
         """Raise ValueError if trying to run with non-pushed dataset in DD mode."""
@@ -635,7 +686,7 @@ class TestExperimentPushSummaryMetric:
         metric_value = 0.85
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
              with experiments_vcr.use_cassette("test_experiment_push_summary_metric_numeric.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value, position=0)
+                 existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: score, score_value: 0.85
 
     def test_push_summary_metric_categorical(self, existing_experiment, experiments_vcr):
@@ -644,7 +695,7 @@ class TestExperimentPushSummaryMetric:
         metric_value = "High"
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
              with experiments_vcr.use_cassette("test_experiment_push_summary_metric_categorical.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value, position=0)
+                 existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "high"
 
     def test_push_summary_metric_boolean(self, existing_experiment, experiments_vcr):
@@ -653,7 +704,7 @@ class TestExperimentPushSummaryMetric:
         metric_value = True
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
              with experiments_vcr.use_cassette("test_experiment_push_summary_metric_boolean.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value, position=0)
+                 existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "true"
 
     def test_push_summary_metric_before_create(self, simple_local_dataset):

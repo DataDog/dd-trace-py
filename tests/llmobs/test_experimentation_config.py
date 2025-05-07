@@ -262,10 +262,45 @@ class TestExperimentationConfig:
             api_key=self.API_KEY,
         )
 
-    def test_init_missing_required_args(self):
-        """Test init() raises TypeError when missing required arguments."""
-        with pytest.raises(TypeError):
-            config.init(project_name=self.PROJECT_NAME)
+    def test_init_with_default_args_and_env_vars(self):
+        """Test init() uses default ml_app/project_name constants when env vars are present."""
+        with patch.dict(
+            os.environ,
+            {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY, "DD_SITE": self.SITE},
+            clear=True,
+        ):
+            with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
+                config.init()
 
-        with pytest.raises(TypeError):
-            config.init(self.ML_APP)
+                assert config.is_initialized()
+                assert getattr(config, "_ML_APP") == config.DEFAULT_ML_APP
+                assert config.get_project_name() == config.DEFAULT_PROJECT_NAME
+
+                mock_llmobs_enable.assert_called_once_with(
+                    ml_app=config.DEFAULT_ML_APP,
+                    integrations_enabled=True,
+                    agentless_enabled=True,
+                    site=self.SITE,
+                    api_key=self.API_KEY,
+                )
+
+    def test_init_with_default_args_requires_credentials(self):
+        """Test init() with default args still requires credentials."""
+        # No env vars set
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ConfigurationError, match="DD_API_KEY .* not set"):
+                config.init()
+
+        # Only API key set
+        with patch.dict(os.environ, {"DD_API_KEY": self.API_KEY}, clear=True):
+            with pytest.raises(ConfigurationError, match="DD_APPLICATION_KEY .* not set"):
+                config.init()
+
+        # API key and App key set, but no site
+        with patch.dict(
+            os.environ,
+            {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY},
+            clear=True
+        ):
+            with pytest.raises(ConfigurationError, match="DD_SITE .* not set"):
+                config.init()

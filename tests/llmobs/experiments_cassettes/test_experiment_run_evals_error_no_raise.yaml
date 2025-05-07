@@ -191,4 +191,516 @@ interactions:
     status:
       code: 202
       message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7081009366093874331", "trace_id": "6819082c00000000476e08f7676cd8ea",
+      "metric_type": "categorical", "timestamp_ms": 1746470956065, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "7081009366093874331",
+      "trace_id": "6819082c00000000476e08f7676cd8ea", "metric_type": "categorical",
+      "timestamp_ms": 1746470956065, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 530, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "7891176741119480155", "trace_id":
+      "6819082c00000000cd255b6eb4260aab", "metric_type": "categorical", "timestamp_ms":
+      1746470956066, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "7891176741119480155", "trace_id": "6819082c00000000cd255b6eb4260aab",
+      "metric_type": "categorical", "timestamp_ms": 1746470956066, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 530, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:818690d3-b10f-4bb7-8898-7ae727e6dfdb"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2867'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/818690d3-b10f-4bb7-8898-7ae727e6dfdb/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:49:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "10270228433959181977", "trace_id": "68190f340000000041584317e7a7702a",
+      "metric_type": "categorical", "timestamp_ms": 1746472756616, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "10270228433959181977",
+      "trace_id": "68190f340000000041584317e7a7702a", "metric_type": "categorical",
+      "timestamp_ms": 1746472756616, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "17303699970198384620", "trace_id":
+      "68190f3400000000b04ae85bda30fa49", "metric_type": "categorical", "timestamp_ms":
+      1746472756617, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "17303699970198384620", "trace_id": "68190f3400000000b04ae85bda30fa49",
+      "metric_type": "categorical", "timestamp_ms": 1746472756617, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:886c68dd-61aa-44b7-beec-b1c330d0b460"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2871'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/886c68dd-61aa-44b7-beec-b1c330d0b460/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 19:19:24 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "4111424605709632873", "trace_id": "68191191000000003d87f0cbdfd93bf3",
+      "metric_type": "categorical", "timestamp_ms": 1746473361811, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "4111424605709632873",
+      "trace_id": "68191191000000003d87f0cbdfd93bf3", "metric_type": "categorical",
+      "timestamp_ms": 1746473361811, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "7640487382924041536", "trace_id":
+      "6819119100000000ec3066c0b8867700", "metric_type": "categorical", "timestamp_ms":
+      1746473361812, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "7640487382924041536", "trace_id": "6819119100000000ec3066c0b8867700",
+      "metric_type": "categorical", "timestamp_ms": 1746473361812, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:db6c30f3-248c-42ed-9a90-4b9e3ba55bec"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2867'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/db6c30f3-248c-42ed-9a90-4b9e3ba55bec/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 19:29:28 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "8858120242555025688", "trace_id": "6819129b00000000d148355065b26f6c",
+      "metric_type": "categorical", "timestamp_ms": 1746473627762, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "8858120242555025688",
+      "trace_id": "6819129b00000000d148355065b26f6c", "metric_type": "categorical",
+      "timestamp_ms": 1746473627762, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "6772202990418188658", "trace_id":
+      "6819129b000000009420dd8171099864", "metric_type": "categorical", "timestamp_ms":
+      1746473627764, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "6772202990418188658", "trace_id": "6819129b000000009420dd8171099864",
+      "metric_type": "categorical", "timestamp_ms": 1746473627764, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:ae7e718c-ed65-420c-916a-28996fadcb68"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2867'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/ae7e718c-ed65-420c-916a-28996fadcb68/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 19:33:54 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7841919993056100876", "trace_id": "681916a300000000ef585adf728d2242",
+      "metric_type": "categorical", "timestamp_ms": 1746474659074, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "7841919993056100876",
+      "trace_id": "681916a300000000ef585adf728d2242", "metric_type": "categorical",
+      "timestamp_ms": 1746474659074, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "148191156034212817", "trace_id":
+      "681916a3000000002807cc35f4efcab5", "metric_type": "categorical", "timestamp_ms":
+      1746474659074, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "148191156034212817", "trace_id": "681916a3000000002807cc35f4efcab5",
+      "metric_type": "categorical", "timestamp_ms": 1746474659074, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 535, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 131, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:7910760f-efef-4967-9148-a15414c3d502"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2865'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/7910760f-efef-4967-9148-a15414c3d502/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 19:51:05 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "5887794880078815311", "trace_id": "68191ff500000000e4ec1dfea523fbf8",
+      "metric_type": "categorical", "timestamp_ms": 1746477045109, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "5887794880078815311",
+      "trace_id": "68191ff500000000e4ec1dfea523fbf8", "metric_type": "categorical",
+      "timestamp_ms": 1746477045109, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "8279915519446935168", "trace_id":
+      "68191ff500000000f3f5dd27eee2937d", "metric_type": "categorical", "timestamp_ms":
+      1746477045110, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "8279915519446935168", "trace_id": "68191ff500000000f3f5dd27eee2937d",
+      "metric_type": "categorical", "timestamp_ms": 1746477045110, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:32b0cb62-0ed3-45d8-8ca4-bd48dce0668f"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2867'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/32b0cb62-0ed3-45d8-8ca4-bd48dce0668f/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 20:30:51 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "11809431922042247108", "trace_id": "681920fb00000000f10f6a06c3ac2a4d",
+      "metric_type": "categorical", "timestamp_ms": 1746477307096, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "11809431922042247108",
+      "trace_id": "681920fb00000000f10f6a06c3ac2a4d", "metric_type": "categorical",
+      "timestamp_ms": 1746477307096, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "8420665883625884381", "trace_id":
+      "681920fb00000000c709b746e80ee8d3", "metric_type": "categorical", "timestamp_ms":
+      1746477307098, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "8420665883625884381", "trace_id": "681920fb00000000c709b746e80ee8d3",
+      "metric_type": "categorical", "timestamp_ms": 1746477307098, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:4efb02b1-8f5f-4636-940d-3a31478cc22f"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2869'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/4efb02b1-8f5f-4636-940d-3a31478cc22f/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 20:35:14 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "1522397917395277999", "trace_id": "6819301200000000211eeffc9f5e05be",
+      "metric_type": "categorical", "timestamp_ms": 1746481170601, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "1522397917395277999",
+      "trace_id": "6819301200000000211eeffc9f5e05be", "metric_type": "categorical",
+      "timestamp_ms": 1746481170601, "label": "failing_evaluator", "categorical_value":
+      null, "error": {"message": "Evaluator failed intentionally", "type": "TypeError",
+      "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}, {"span_id": "17852586208597683397", "trace_id":
+      "681930120000000006fb10a80256af09", "metric_type": "categorical", "timestamp_ms":
+      1746481170602, "label": "simple_match_evaluator", "categorical_value": "false",
+      "error": null}, {"span_id": "17852586208597683397", "trace_id": "681930120000000006fb10a80256af09",
+      "metric_type": "categorical", "timestamp_ms": 1746481170602, "label": "failing_evaluator",
+      "categorical_value": null, "error": {"message": "Evaluator failed intentionally",
+      "type": "TypeError", "stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 537, in run_evaluations\n    evaluation_result = evaluator(input_data,
+      output, expected_output)\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 35, in wrapper\n    return func(input, output, expected_output)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 137, in failing_evaluator\n    raise TypeError(\"Evaluator failed intentionally\")\nTypeError:
+      Evaluator failed intentionally\n"}}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:b6aa2f7b-3012-4739-9d9f-99ce146be279"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '2869'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/b6aa2f7b-3012-4739-9d9f-99ce146be279/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 21:39:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
 version: 1

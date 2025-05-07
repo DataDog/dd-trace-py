@@ -60,7 +60,12 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
                     # Convert to float for consistency
                     data[field] = float(value)
                 else:
-                    raise TypeError(f"Model field '{field}' must be of type {expected_type.__name__}, got {type(value).__name__}")
+                    # Format type names correctly, handling tuples
+                    if isinstance(expected_type, tuple):
+                        type_names = " or ".join(t.__name__ for t in expected_type)
+                    else:
+                        type_names = expected_type.__name__
+                    raise TypeError(f"Model field '{field}' must be of type {type_names}, got {type(value).__name__}")
     
     return data
 
@@ -464,8 +469,10 @@ class Experiment:
                     )
 
         LLMObs.flush()
-        # Sleep slightly so any final data is flushed to backend
-        time.sleep(API_PROCESSING_TIME_SLEEP)
+        # Give the Datadog backend time to process **only when we're sending data there**.
+        # In local mode this unnecessary pause slows tests and user workflows.
+        if not _is_locally_initialized():
+            time.sleep(API_PROCESSING_TIME_SLEEP)
 
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
@@ -539,6 +546,10 @@ class Experiment:
                         },
                     }
                     if raise_errors:
+                        # Mark as evaluated *before* bubbling the error so the
+                        # experiment state is consistent with what actually ran.
+                        self.has_evaluated = True
+                        self.evaluations = evaluations
                         raise RuntimeError(
                             f"Evaluator '{evaluator.__name__}' failed on row {idx}: {str(e)}"
                         ) from e
@@ -546,6 +557,8 @@ class Experiment:
             evaluations.append({"idx": idx, "evaluations": evaluations_dict})
             progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
 
+        # Store evaluations after successful completion of all rows
+        self.evaluations = evaluations
         self.has_evaluated = True
         # Initialize ExperimentResults *before* running summary metrics,
         # but we'll update it if summary metrics run successfully.
@@ -729,7 +742,7 @@ class Experiment:
 
         return "\n".join(info)
 
-    def push_summary_metric(self, name: str, value: Union[int, float, bool, str], position: int, is_primary: bool = False) -> None:
+    def push_summary_metric(self, name: str, value: Union[int, float, bool, str], position: Optional[int] = None, is_primary: bool = False) -> None:
         """
         Push a single summary metric to Datadog for this experiment.
 
@@ -739,7 +752,7 @@ class Experiment:
         Args:
             name (str): Name of the metric (e.g., "f1", "accuracy", etc.)
             value (Union[int, float, bool, str]): Value of the metric. Can be numeric or categorical.
-            position (int): The index position of this metric function in the experiment's list.
+            position (int, optional): The index position of this metric function in the experiment's list.
             is_primary (bool): Whether this metric was marked as primary.
 
         Raises:
@@ -766,7 +779,8 @@ class Experiment:
             raise TypeError(f"Unsupported metric value type: {type(value)}. Must be int, float, bool, or str.")
 
         metric_metadata = { 
-            "position": position,
+            # Only include position if it's not None
+            **({"position": position} if position is not None else {}),
             "is_primary": is_primary,
         }
 

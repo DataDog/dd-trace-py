@@ -13,6 +13,8 @@ DEFAULT_CHUNK_SIZE = 300
 DEFAULT_CONCURRENT_JOBS = 10
 FLUSH_EVERY = 10
 API_PROCESSING_TIME_SLEEP = 6 # Based on events processor median processing time
+DEFAULT_ML_APP: str = "dne"
+DEFAULT_PROJECT_NAME: str = "Default Project"
 
 # Set of known valid Datadog site domains
 VALID_DD_SITES = {
@@ -58,8 +60,8 @@ def get_base_url() -> str:
 
 
 def init(
-    ml_app: str,
-    project_name: str,
+    ml_app: str = DEFAULT_ML_APP,
+    project_name: str = DEFAULT_PROJECT_NAME,
     site: str = None,
     api_key: str = None,
     application_key: str = None,

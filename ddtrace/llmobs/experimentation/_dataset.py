@@ -188,16 +188,17 @@ class Dataset:
 
     def _validate_data(self, data: List[Dict[str, Union[str, Dict[str, Any]]]]) -> None:
         """
-        Validate the structure and size of dataset records.
+        Validate the structure and size of dataset records. Allows empty data list.
 
         Args:
             data (List[Dict[str, Union[str, Dict[str, Any]]]]): List of dataset records to validate.
 
         Raises:
-            ValueError: If the data is empty, exceeds size limit, or has inconsistent structure.
+            ValueError: If the data exceeds size limit or has inconsistent structure (when not empty).
         """
+        # Allow empty data list - skip further validation if empty
         if not data:
-            raise ValueError("Data cannot be empty.")
+            return
 
         if len(data) > MAX_DATASET_ROWS:
             raise ValueError(f"Dataset cannot exceed {MAX_DATASET_ROWS} rows.")
@@ -245,7 +246,7 @@ class Dataset:
             version (int, optional): Specific version of the dataset to retrieve. If None, uses the latest version.
 
         Returns:
-            Dataset: A new Dataset instance populated with the records from Datadog.
+            Dataset: A new Dataset instance populated with the records from Datadog (can be empty).
 
         Raises:
             ValueError: If the dataset is not found or if the specified version doesn't exist.
@@ -253,7 +254,7 @@ class Dataset:
         """
         _validate_init()
         encoded_name = quote(name)
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{encoded_name}\""
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
 
         resp = exp_http_request("GET", url)
         response_data = resp.json()
@@ -303,9 +304,6 @@ class Dataset:
                     ) from e
                 raise ValueError(f"Dataset '{name}' not found") from e
             raise
-
-        if not records_data.get("data", []):
-            raise ValueError(f"Dataset '{name}' does not contain any records.")
 
         # Transform records into the expected format
         class_records = []
@@ -451,7 +449,7 @@ class Dataset:
         _validate_init()
         has_changes = any(len(chg) > 0 for chg in self._changes.values())
 
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{quote(self.name)}\""
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(self.name)}"
         response = exp_http_request("GET", url)
         existing_dataset_data = response.json().get("data", [])
 
@@ -854,7 +852,11 @@ class Dataset:
 
         info.extend([
             f"  Records: {record_count:,}",
-            f"  Structure: {', '.join(structure)}",
+        ])
+        # Only add structure if it was determined
+        if structure:
+             info.append(f"  Structure: {', '.join(structure)}")
+        info.extend([
             f"  Datadog: {dd_status}",
         ])
 
