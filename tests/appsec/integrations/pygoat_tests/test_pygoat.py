@@ -74,6 +74,8 @@ def assert_vulnerability_in_traces(
     assert spans, "No spans with meta"
     spans = [s for s in spans if "_dd.iast.json" in s["meta"]]
     assert spans, "No spans with iast data"
+    # Ignore vulns from login, which is done on every test
+    spans = [s for s in spans if s["meta"].get("http.route") != "login/"]
     assert len(spans) == 1, "A single span was expected"
     span = spans[0]
     vulns = json.loads(span["meta"]["_dd.iast.json"])["vulnerabilities"]
@@ -84,8 +86,7 @@ def assert_vulnerability_in_traces(
     location = vuln["location"]
     assert location.get("path") == file
     assert location.get("line") == line
-    # FIXME(APPSEC-57497): This should be named just `class`.
-    assert location.get("class_name") == class_
+    assert location.get("class") == class_
     assert location.get("method") == method
 
 
