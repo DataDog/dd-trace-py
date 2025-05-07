@@ -10,8 +10,6 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
-
-# from ddtrace.contrib.internal.openai.utils import handle_response_tools
 from ddtrace.internal.utils.version import parse_version
 
 
@@ -751,9 +749,6 @@ class _ResponseHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
 
-        if not resp:
-            return resp
-
         if kwargs.get("stream") and error is None:
             if _is_async_generator(resp):
                 return TracedOpenAIAsyncResponseStream(resp, integration, span, kwargs, is_completion=False)
@@ -761,10 +756,9 @@ class _ResponseHook(_BaseCompletionHook):
                 return TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
             return resp
 
-        if not kwargs.get("stream") and error is None:
-            # Skip _tag_tool_calls if tools is an empty list or None
-            if hasattr(resp, "tools") and resp.tools is not None and resp.tools != []:
-                _tag_tool_calls(integration, span, resp.tools, 0)
-            integration.record_usage(span, resp.usage)
-            span.finish()
+        if not resp:
+            return resp
+
+        _tag_tool_calls(integration, span, resp.tools, 0)
+        integration.record_usage(span, resp.usage)
         return resp
