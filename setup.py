@@ -603,6 +603,7 @@ else:
     else:
         debug_compile_args = []
 
+
 if not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -612,6 +613,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
             extra_compile_args=(
                 debug_compile_args
@@ -623,7 +625,7 @@ if not IS_PYSTON:
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
-                else ["/std:c11"]
+                else ["/std:c11", "/experimental:c11atomics"]
             ),
         ),
         Extension(
