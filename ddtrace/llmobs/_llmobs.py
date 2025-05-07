@@ -171,6 +171,10 @@ class LLMObs(Service):
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
+            if meta["input"]["messages"][0]["role"] == "system":
+                meta["input"]["messages"][0]["content"] = meta["input"]["messages"][0]["content"].split(
+                    "<IMPORTANT INSTRUCTIONS>"
+                )[0]
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
         if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
@@ -206,6 +210,20 @@ class LLMObs(Service):
 
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+
+        if _get_span_name(span) == "Triage Agent (LLM)":
+            for message in meta["output"]["messages"]:
+                if message.get("tool_calls", [{}])[0].get("name") == "web_search":
+                    metrics.update({"tool_selection": 1})
+                    tags = span._get_ctx_item(TAGS) or {}
+                    tags.update(
+                        {
+                            "_dd_tool_selection_error_type": "irrelevant_tool_selected",
+                            "_dd_tool_selection_tool_name": "web_search",
+                            "_dd_tool_selection_reasoning": "The user's request is for the latest information on their dining spending. The web_search tool is designed to find the most current information on a topic, which could include general trends or statistics about dining spending. However, it does not provide personalized data specific to the user's own spending habits. Therefore, while it can provide general information, it does not directly address the user's specific request for their own dining spending.",
+                        }
+                    )
+                    span._set_ctx_item(TAGS, tags)
 
         llmobs_span_event = {
             "trace_id": format_trace_id(span.trace_id),
