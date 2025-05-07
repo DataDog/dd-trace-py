@@ -6,6 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
@@ -19,6 +20,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -556,3 +558,8 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     return taint_pyobject(
         result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
     )
+
+
+def _on_set_http_meta(span, request_ip, raw_uri, route, method, *args):
+    if asm_config._iast_enabled and span.span_type == SpanTypes.WEB:
+        set_iast_request_endpoint(method, route)

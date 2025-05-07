@@ -1,24 +1,25 @@
 import os
 import sysconfig
-from typing import Any
-from typing import Callable
 from typing import Optional
+from typing import Set
+from typing import Text
 from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
+from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
+from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
-from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
-from .._utils import _is_iast_debug_enabled
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -56,29 +57,28 @@ def _check_positions_contained(needle, container):
     )
 
 
-class VulnerabilityBase(Operation):
+class VulnerabilityBase:
     vulnerability_type = ""
     secure_mark = 0
+    _reported_vulnerabilities: Set[Tuple[str, int]] = set()
+
+    @staticmethod
+    def has_quota():
+        if not asm_config._iast_deduplication_enabled:
+            return True
+
+        context = _get_iast_env()
+        return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
 
     @classmethod
-    def wrap(cls, func: Callable) -> Callable:
-        def wrapper(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-            """Get the current root Span and attach it to the wrapped function. We need the span to report the
-            vulnerability and update the context with the report information.
-            """
-            if not asm_config.is_iast_request_enabled:
-                if _is_iast_debug_enabled():
-                    log.debug(
-                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
-                        "is outside the context"
-                    )
-                return wrapped(*args, **kwargs)
-            elif cls.has_quota():
-                return func(wrapped, instance, args, kwargs)
-            else:
-                return wrapped(*args, **kwargs)
+    def is_not_reported(cls, filename: Text, lineno: int) -> bool:
+        if asm_config._iast_deduplication_enabled:
+            vulnerability_id = (filename, lineno)
+            if vulnerability_id in cls._reported_vulnerabilities:
+                return False
 
-        return wrapper
+            cls._reported_vulnerabilities.add(vulnerability_id)
+        return True
 
     @classmethod
     @taint_sink_deduplication
@@ -93,13 +93,6 @@ class VulnerabilityBase(Operation):
         *args,
         **kwargs,
     ) -> bool:
-        if not asm_config.is_iast_request_enabled:
-            if _is_iast_debug_enabled():
-                log.debug(
-                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
-                    "No request quota or this vulnerability is outside the context"
-                )
-            return False
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 
@@ -187,7 +180,7 @@ class VulnerabilityBase(Operation):
     @classmethod
     def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-        if cls.acquire_quota():
+        if should_process_vulnerability(cls.vulnerability_type):
             file_name = line_number = function_name = class_name = None
 
             if getattr(cls, "skip_location", False):
@@ -196,7 +189,7 @@ class VulnerabilityBase(Operation):
             else:
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
-                    cls.increment_quota()
+                    rollback_quota(cls.vulnerability_type)
                     return
 
             # Evidence is a string in weak cipher, weak hash and weak randomness
@@ -206,7 +199,7 @@ class VulnerabilityBase(Operation):
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
             # we need to restore the quota
             if not result:
-                cls.increment_quota()
+                rollback_quota(cls.vulnerability_type)
 
     @classmethod
     def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES) -> bool:

@@ -74,6 +74,16 @@ def set_iast_request_enabled(request_enabled) -> None:
         log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
 
 
+def set_iast_request_endpoint(method, route) -> None:
+    if asm_config._iast_enabled:
+        env = _get_iast_env()
+        if env:
+            env.endpoint_method = method
+            env.endpoint_route = route
+        else:
+            log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
+
+
 def _move_iast_data_to_root_span():
     return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 

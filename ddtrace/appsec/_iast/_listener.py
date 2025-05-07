@@ -9,6 +9,7 @@ from ddtrace.appsec._iast._handlers import _on_flask_patch
 from ddtrace.appsec._iast._handlers import _on_grpc_response
 from ddtrace.appsec._iast._handlers import _on_pre_tracedrequest_iast
 from ddtrace.appsec._iast._handlers import _on_request_init
+from ddtrace.appsec._iast._handlers import _on_set_http_meta
 from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
 from ddtrace.appsec._iast._handlers import _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
@@ -17,6 +18,7 @@ from ddtrace.internal import core
 
 
 def iast_listen():
+    core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
 

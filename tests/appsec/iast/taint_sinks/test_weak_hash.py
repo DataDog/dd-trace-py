@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
@@ -40,20 +41,15 @@ def iast_context_only_sha1():
 
 @pytest.fixture
 def iast_context_contextmanager_deduplication_enabled():
-    from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-
-    def iast_aux(deduplication_enabled=True, time_lapse=3600.0, max_vulns=10):
+    def iast_aux(deduplication_enabled=True, time_lapse=3600.0):
         from ddtrace.appsec._deduplications import deduplication
-        from ddtrace.appsec._iast.taint_sinks.weak_hash import WeakHash
 
         try:
-            WeakHash._vulnerability_quota = max_vulns
             old_value = deduplication._time_lapse
             deduplication._time_lapse = time_lapse
             yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=deduplication_enabled)
         finally:
             deduplication._time_lapse = old_value
-            del WeakHash._vulnerability_quota
 
     try:
         # Yield a context manager allowing to create several spans to test deduplication
@@ -306,7 +302,7 @@ def test_weak_check_hmac_secure(iast_context_defaults):
 
 
 @pytest.mark.parametrize("deduplication_enabled", (False, True))
-@pytest.mark.parametrize("time_lapse", (3600.0, 0.001))
+@pytest.mark.parametrize("time_lapse", (3600.0, 0.0001))
 def test_weak_hash_deduplication_expired_cache(
     iast_context_contextmanager_deduplication_enabled, deduplication_enabled, time_lapse
 ):
