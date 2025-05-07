@@ -253,7 +253,7 @@ class Dataset:
         """
         _validate_init()
         encoded_name = quote(name)
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{encoded_name}\""
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={encoded_name}"
 
         resp = exp_http_request("GET", url)
         response_data = resp.json()
@@ -439,7 +439,7 @@ class Dataset:
 
         _validate_init()
 
-        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]=\"{quote(self.name)}\""
+        url = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(self.name)}"
         existing_dataset = exp_http_request("GET", url).json().get("data", [])
 
         has_changes = any(len(chg) > 0 for chg in self._changes.values())
