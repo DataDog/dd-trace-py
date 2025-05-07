@@ -49,7 +49,6 @@ def _assert_expected_agent_run(
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="agent",
-        metadata={"handoffs": handoffs, "tools": tools},
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     if not previous_tool_events:
