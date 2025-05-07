@@ -104,20 +104,11 @@ def extract_handoffs_from_agent(agent):
     
     handoffs = []
     for handoff in agent.handoffs:
-        if isinstance(handoff, Agent):
-            handoff_dict = create_agent_manifest(handoff)
-        elif isinstance(handoff, Handoff):
-            handoff_dict = {}
-            if hasattr(handoff, "tool_name"):
-                handoff_dict["tool_name"] = handoff.tool_name
-            if hasattr(handoff, "tool_description"):
-                handoff_dict["tool_description"] = handoff.tool_description
-            if hasattr(handoff, "agent_name"):
-                handoff_dict["agent_name"] = handoff.agent_name
-            if hasattr(handoff, "strict_json_schema"):
-                handoff_dict["strict_json_schema"] = handoff.strict_json_schema
-        handoffs.append(handoff_dict)
-    
+        if isinstance(handoff, Agent) and hasattr(handoff, "name"):
+            handoffs.append(handoff.name)
+        elif isinstance(handoff, Handoff) and hasattr(handoff, "tool_name"):
+            handoffs.append(handoff.tool_name)
+
     return handoffs
 
 def extract_guardrails_from_agent(agent):

@@ -162,12 +162,13 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
-        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
-            meta["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
-        elif span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
+        if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        meta["metadata"] = span._get_ctx_item(METADATA) or {}
+        metadata = span._get_ctx_item(METADATA) or {}
+        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
+            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+        meta["metadata"] = metadata
         if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
             meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
         if span._get_ctx_item(INPUT_VALUE) is not None:
