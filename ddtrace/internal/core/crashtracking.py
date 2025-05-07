@@ -19,9 +19,9 @@ from ddtrace.settings.profiling import config_str
 is_available = True
 try:
     from ddtrace.internal.native._native import CrashtrackerConfiguration
+    from ddtrace.internal.native._native import CrashtrackerMetadata
     from ddtrace.internal.native._native import CrashtrackerReceiverConfig
     from ddtrace.internal.native._native import CrashtrackerStatus
-    from ddtrace.internal.native._native import CrashtrackerMetadata
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
