@@ -61,7 +61,6 @@ pub struct CrashtrackerConfigurationPy {
     config: Option<CrashtrackerConfiguration>,
 }
 
-
 // additional_files: Vec<String>,
 // create_alt_stack: bool,
 // use_alt_stack: bool,
@@ -70,7 +69,6 @@ pub struct CrashtrackerConfigurationPy {
 // mut signals: Vec<i32>,
 // timeout_ms: u32,
 // unix_socket_path: Option<String>,
-
 
 #[pymethods]
 impl CrashtrackerConfigurationPy {
