@@ -4,11 +4,13 @@ from sqlalchemy.exc import ProgrammingError
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from tests.appsec.integrations.packages_tests.db_utils import POSTGRES_HOST
 
 
 def sqli_simple(table):
-    engine = create_engine("postgresql://postgres:postgres@127.0.0.1/postgres")
+    engine = create_engine(f"postgresql://postgres:postgres@{POSTGRES_HOST}/postgres")
     with engine.connect() as connection:
+        connection.execute(text("SET statement_timeout = 1000"))
         try:
             connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
         except ProgrammingError:
