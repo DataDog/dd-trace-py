@@ -99,10 +99,10 @@ pre-release-performance-quality-gates:
   when: on_success
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  # TODO: Replace bp-runner configuration for standard bp-runner.fail-on-breach.yml
   script:
     - export ARTIFACTS_DIR=$(pwd)/artifacts &&
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype
-    # TODO: Replace for bp-runner.fail-on-breach.yml
     - bp-runner bp-runner.fail-on-breach.loose-threshold.yml
 
 check_new_flaky_tests:
