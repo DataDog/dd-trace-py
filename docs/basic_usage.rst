@@ -154,7 +154,8 @@ To enable automatic reporting of handled errors, you can set one of the two envi
 
 - ``DD_ERROR_TRACKING_HANDLED_ERRORS`` = ``user|third_party|all``. Report handled errors of: user code, third party packages or both.
 - ``DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE`` = ``module1, module2...``. List of modules for which you want to report handled errors.
-You need to specify the full name of the module. For instance for the module `security` in your `mysite` app, you need to specify
+
+You need to specify the full name of the module. For instance, to instrument the module `security` in your `mysite` app, you need to specify
 `mysite.security`
 
 Handled errors will be report in Error Tracking and attached to spans through span events.
