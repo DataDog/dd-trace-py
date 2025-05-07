@@ -55,7 +55,8 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
-                if chunk.type == "response.completed":
+                # Handle both completion and response types
+                if hasattr(chunk, "type") and chunk.type == "response.completed":
                     _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
                     if hasattr(chunk.response, "id"):
                         self._dd_span.set_tag("openai.response.id", chunk.response.id)
@@ -129,7 +130,8 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             async for chunk in self.__wrapped__:
-                if chunk.type == "response.completed":
+                # Handle both completion and response types
+                if hasattr(chunk, "type") and chunk.type == "response.completed":
                     _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
                     if hasattr(chunk.response, "id"):
                         self._dd_span.set_tag("openai.response.id", chunk.response.id)
@@ -276,7 +278,8 @@ def _loop_handler(span, chunk, streamed_chunks):
     When handling a streamed chat/completion and responses response,
     this function is called for each chunk in the streamed response.
     """
-    if chunk.type.startswith("response."):
+    # Handle both completion and response types
+    if hasattr(chunk, "type") and chunk.type.startswith("response."):
         if span.get_tag("openai.response.model") is None:
             span.set_tag("openai.response.model", chunk.response.model)
         if hasattr(chunk, "response"):
