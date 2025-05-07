@@ -11,16 +11,6 @@ static __thread int in_stacktrace = 0;
 #include <patchlevel.h>
 #include <stdbool.h>
 
-#ifdef _WIN32
-#define DD_TRACE_INSTALLED_PREFIX "\\ddtrace\\"
-#define TESTS_PREFIX "\\tests\\"
-#define SITE_PACKAGES_PREFIX "\\site-packages\\"
-#else
-#define DD_TRACE_INSTALLED_PREFIX "/ddtrace/"
-#define TESTS_PREFIX "/tests/"
-#define SITE_PACKAGES_PREFIX "/site-packages/"
-#endif
-
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
 #define GET_LINENO(frame) PyFrame_GetLineNumber((PyFrameObject*)frame)
@@ -99,6 +89,10 @@ static ssize_t STDLIB_PATH_LEN = 0;
 static char* PURELIB_PATH = NULL;
 static ssize_t PURELIB_PATH_LEN = 0;
 
+// ddtrace module path
+static char* DDTRACE_PATH = NULL;
+static ssize_t DDTRACE_PATH_LEN = 0;
+
 static inline PyObject*
 SAFE_GET_LOCALS(PyFrameObject* frame)
 {
@@ -144,7 +138,7 @@ _is_special_frame(const char* filename)
 static inline bool
 _is_ddtrace_filename(const char* filename)
 {
-    return filename && strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL;
+    return filename && DDTRACE_PATH && strncmp(filename, DDTRACE_PATH, DDTRACE_PATH_LEN) == 0;
 }
 
 static inline bool
@@ -186,6 +180,46 @@ get_sysconfig_path(const char* name)
     }
     Py_DECREF(path);
     Py_DECREF(sysconfig_mod);
+    return res;
+}
+
+static char*
+get_ddtrace_path()
+{
+    char* res = NULL;
+    PyObject* ddtrace_mod = NULL;
+    PyObject* path = NULL;
+
+    ddtrace_mod = PyImport_ImportModule("ddtrace");
+    if (!ddtrace_mod) {
+        goto exit;
+    }
+
+    path = PyObject_GetAttrString(ddtrace_mod, "__file__");
+    if (!path) {
+        goto exit;
+    }
+
+    const char* path_str = PyUnicode_AsUTF8(path);
+    if (path_str) {
+        // Remove /__init__.py from the end. Suffix is removed by length,
+        // so no need to check for Windows vs Unix path separator.
+        const int ddtrace_len = sizeof("ddtrace") - 1;
+        const int suffix_len = sizeof("/__init__.py") - 1;
+        const int path_len = strlen(path_str);
+        if (path_len < ddtrace_len + suffix_len) {
+            goto exit;
+        }
+        const char* ddtrace_part = path_str + path_len - ddtrace_len - suffix_len;
+        if (strncmp(ddtrace_part, "ddtrace", ddtrace_len) != 0) {
+            goto exit;
+        }
+        res = strndup(path_str, path_len - suffix_len);
+    }
+
+    exit:
+    Py_XDECREF(path);
+    Py_XDECREF(ddtrace_mod);
     return res;
 }
 
@@ -310,6 +344,9 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 
 exit:
     FRAME_XDECREF(frame);
+    if (!result) {
+        result = PyTuple_Pack(4, Py_None, Py_None, Py_None, Py_None);
+    }
     in_stacktrace = 0;
     return result;
 }
@@ -339,6 +376,10 @@ PyInit__stacktrace(void)
     PURELIB_PATH = get_sysconfig_path("purelib");
     if (PURELIB_PATH) {
         PURELIB_PATH_LEN = strlen(PURELIB_PATH);
+    }
+    DDTRACE_PATH = get_ddtrace_path();
+    if (DDTRACE_PATH) {
+        DDTRACE_PATH_LEN = strlen(DDTRACE_PATH);
     }
     return m;
 }
