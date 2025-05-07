@@ -225,7 +225,10 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
 
 
 def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    """Enforce the message role for the LLM span event."""
+    """
+    Enforce the message role for the LLM span event.
+    A message with a role of empty content will render as "Message" in the UI.
+    """
     for message in messages:
         if message.get("role") is None:
             message["role"] = ""

@@ -101,8 +101,20 @@ def _expected_llmobs_llm_span_event(
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
+            input_messages = [
+                input_message
+                if input_message.get("role") is not None
+                else {"role": "", "content": input_message["content"]}
+                for input_message in input_messages
+            ]
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
+            output_messages = [
+                output_message
+                if output_message.get("role") is not None
+                else {"role": "", "content": output_message["content"]}
+                for output_message in output_messages
+            ]
             meta_dict["output"].update({"messages": output_messages})
         if prompt is not None:
             meta_dict["input"].update({"prompt": prompt})
