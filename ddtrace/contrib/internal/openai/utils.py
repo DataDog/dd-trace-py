@@ -40,6 +40,10 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace the OpenAI stream for chat/completion and responses requests.
+    """
+
     def __enter__(self):
         self.__wrapped__.__enter__()
         return self
@@ -51,6 +55,13 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
+                if chunk.type == "response.completed":
+                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
+                    if hasattr(chunk.response, "id"):
+                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
+                    if hasattr(chunk.response, "created_at"):
+                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
+                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                 self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
@@ -103,6 +114,10 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace the AsyncOpenAI stream for chat/completion and responses requests.
+    """
+
     async def __aenter__(self):
         await self.__wrapped__.__aenter__()
         return self
@@ -114,6 +129,14 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             async for chunk in self.__wrapped__:
+                if chunk.type == "response.completed":
+                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
+                    if hasattr(chunk.response, "id"):
+                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
+                    if hasattr(chunk.response, "created_at"):
+                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
+                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
+
                 await self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
@@ -160,62 +183,6 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             self._streamed_chunks[0].insert(0, usage_chunk)
         except (StopAsyncIteration, GeneratorExit):
             return
-
-
-class TracedOpenAIResponseStream(TracedOpenAIStream):
-    def __iter__(self):
-        exception_raised = False
-        try:
-            for chunk in self.__wrapped__:
-                if chunk.type == "response.completed":
-                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
-                    if hasattr(chunk.response, "id"):
-                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
-                    if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
-                    if hasattr(chunk.response, "model"):
-                        self._dd_span.set_tag("openai.response.model", chunk.response.model)
-                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
-                yield chunk
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            exception_raised = True
-            raise
-        finally:
-            if not exception_raised:
-                _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-                )
-            self._dd_span.finish()
-
-
-class TracedOpenAIAsyncResponseStream(TracedOpenAIAsyncStream):
-    async def __aiter__(self):
-        exception_raised = False
-        try:
-            async for chunk in self.__wrapped__:
-                if chunk.type == "response.completed":
-                    # Set response attributes
-                    if hasattr(chunk.response, "id"):
-                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
-                    if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
-                    if hasattr(chunk.response, "model"):
-                        self._dd_span.set_tag("openai.response.model", chunk.response.model)
-                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
-                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
-                    self._dd_span.finish()
-                yield chunk
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            exception_raised = True
-            raise
-        finally:
-            if not exception_raised:
-                _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-                )
-            self._dd_span.finish()
 
 
 def _compute_token_count(content, model):
@@ -304,19 +271,26 @@ def _is_async_generator(resp):
 
 
 def _loop_handler(span, chunk, streamed_chunks):
-    """Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
-
-    When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
     """
-    if span.get_tag("openai.response.model") is None:
-        span.set_tag("openai.response.model", chunk.model)
-    if hasattr(chunk, "choices"):
-        for choice in chunk.choices:
-            streamed_chunks[choice.index].append(choice)
-    if hasattr(chunk, "response"):
-        streamed_chunks[0].append(chunk.response)
-    if getattr(chunk, "usage", None):
-        streamed_chunks[0].insert(0, chunk)
+    Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
+    When handling a streamed chat/completion and responses response,
+    this function is called for each chunk in the streamed response.
+    """
+    if chunk.type.startswith("response."):
+        if span.get_tag("openai.response.model") is None:
+            span.set_tag("openai.response.model", chunk.response.model)
+        if hasattr(chunk, "response"):
+            streamed_chunks[0].append(chunk.response)
+        if getattr(chunk, "usage", None):
+            streamed_chunks[0].insert(0, chunk.response)
+    else:
+        if span.get_tag("openai.response.model") is None:
+            span.set_tag("openai.response.model", chunk.model)
+        if hasattr(chunk, "choices"):
+            for choice in chunk.choices:
+                streamed_chunks[choice.index].append(choice)
+        if getattr(chunk, "usage", None):
+            streamed_chunks[0].insert(0, chunk)
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
@@ -524,7 +498,6 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
 
             if tool_dict:
                 response_tools.append(tool_dict)
-
         # Only set the tag if we have valid tools to report
         if response_tools:
             span.set_tag("openai.response.tools", response_tools)

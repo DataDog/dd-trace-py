@@ -1,8 +1,6 @@
 from openai.version import VERSION as OPENAI_VERSION
 
-from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncResponseStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
-from ddtrace.contrib.internal.openai.utils import TracedOpenAIResponseStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIStream
 from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.internal.openai.utils import _is_async_generator
@@ -104,6 +102,7 @@ class _BaseCompletionHook(_EndpointHook):
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
+                print("async")
                 return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
             elif _is_generator(resp):
                 return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
@@ -749,16 +748,12 @@ class _ResponseHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
 
-        if kwargs.get("stream") and error is None:
-            if _is_async_generator(resp):
-                return TracedOpenAIAsyncResponseStream(resp, integration, span, kwargs, is_completion=False)
-            elif _is_generator(resp):
-                return TracedOpenAIResponseStream(resp, integration, span, kwargs, is_completion=False)
-            return resp
-
         if not resp:
             return resp
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
+        # if not kwargs.get("stream") and error is None:
+        _tag_tool_calls(integration, span, resp, 0)
 
-        _tag_tool_calls(integration, span, resp.tools, 0)
         integration.record_usage(span, resp.usage)
         return resp
