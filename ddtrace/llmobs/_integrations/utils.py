@@ -648,17 +648,6 @@ class OaiSpanAdapter:
             if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
                 metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
 
-        if self.span_type == "agent":
-            agent_metadata: Dict[str, List[str]] = {
-                "handoffs": [],
-                "tools": [],
-            }
-            if self.handoffs:
-                agent_metadata["handoffs"] = load_oai_span_data_value(self.handoffs)
-            if self.tools:
-                agent_metadata["tools"] = load_oai_span_data_value(self.tools)
-            metadata.update(agent_metadata)
-
         if self.span_type == "custom" and hasattr(self._raw_oai_span.span_data, "data"):
             custom_data = getattr(self._raw_oai_span.span_data, "data", None)
             if custom_data:
@@ -921,7 +910,7 @@ def get_final_message_converse_stream_message(
     Returns:
         Dict containing the processed message with content and optional tool calls
     """
-    indices = sorted(message.get("context_block_indices", []))
+    indices = sorted(message.get("content_block_indicies", []))
     message_output = {"role": message["role"]}
 
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
@@ -933,7 +922,7 @@ def get_final_message_converse_stream_message(
         if not tool_block:
             continue
         tool_call = {
-            "name": tool_block.get("toolName", ""),
+            "name": tool_block.get("name", ""),
             "tool_id": tool_block.get("toolUseId", ""),
         }
         tool_input = tool_block.get("input")
