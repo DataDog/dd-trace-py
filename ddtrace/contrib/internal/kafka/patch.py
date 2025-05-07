@@ -62,7 +62,9 @@ _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPL
 
 
 class TracedProducerMixin:
-    def __init__(self, config, *args, **kwargs):
+    def __init__(self, config=None, *args, **kwargs):
+        if not config:
+            config = kwargs
         super(TracedProducerMixin, self).__init__(config, *args, **kwargs)
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
@@ -79,7 +81,9 @@ class TracedProducerMixin:
 
 
 class TracedConsumerMixin:
-    def __init__(self, config, *args, **kwargs):
+    def __init__(self, config=None, *args, **kwargs):
+        if not config:
+            config = kwargs
         super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
