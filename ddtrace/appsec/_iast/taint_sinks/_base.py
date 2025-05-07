@@ -138,9 +138,6 @@ class VulnerabilityBase:
             log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
             return None, None, None, None
 
-        if not cls.is_not_reported(file_name, line_number):
-            return None, None, None, None
-
         return file_name, line_number, function_name, class_name
 
     @staticmethod
@@ -183,15 +180,11 @@ class VulnerabilityBase:
         if should_process_vulnerability(cls.vulnerability_type):
             file_name = line_number = function_name = class_name = None
 
-            if getattr(cls, "skip_location", False):
-                if not cls.is_not_reported(cls.vulnerability_type, 0):
-                    return
-            else:
+            if not getattr(cls, "skip_location", False):
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
                     rollback_quota(cls.vulnerability_type)
                     return
-
             # Evidence is a string in weak cipher, weak hash and weak randomness
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name

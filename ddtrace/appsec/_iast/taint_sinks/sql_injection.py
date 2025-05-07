@@ -23,7 +23,7 @@ class SqlInjection(VulnerabilityBase):
 
 
 def check_and_report_sqli(
-    args: Tuple[Text], kwargs: Dict[str, Any], integration_name: Text, method: Callable[..., Any]
+    args: Tuple[Text, ...], kwargs: Dict[str, Any], integration_name: Text, method: Callable[..., Any]
 ) -> bool:
     """Check for SQL injection vulnerabilities in database operations and report them.
 
