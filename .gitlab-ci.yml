@@ -3,6 +3,7 @@ stages:
   - tests
   - shared-pipeline
   - benchmarks
+  - gates
   - release
 
 variables:
@@ -90,6 +91,19 @@ macrobenchmarks:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - when: manual
+
+# TODO: Potentially switch for a more meaningful name
+pre-release-performance-quality-gates:
+  stage: gates
+  needs: ["macrobenchmarks"]
+  when: on_success
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  script:
+    - export ARTIFACTS_DIR=$(pwd)/artifacts &&
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype
+    # TODO: Replace for bp-runner.fail-on-breach.yml
+    - bp-runner bp-runner.fail-on-breach.loose-threshold.yml
 
 check_new_flaky_tests:
   stage: tests
