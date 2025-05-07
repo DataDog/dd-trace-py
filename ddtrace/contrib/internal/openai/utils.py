@@ -421,14 +421,14 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
         if hasattr(usage, "input_tokens"):
             input_tokens = getattr(usage, "input_tokens", 0)
             span.set_metric("openai.response.usage.input_tokens", input_tokens)
-        elif hasattr(usage, "prompt_tokens"):
+        else:
             prompt_tokens = getattr(usage, "prompt_tokens", 0)
             span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
 
         if hasattr(usage, "output_tokens"):
             output_tokens = getattr(usage, "output_tokens", 0)
             span.set_metric("openai.response.usage.output_tokens", output_tokens)
-        elif hasattr(usage, "completion_tokens"):
+        else:
             completion_tokens = getattr(usage, "completion_tokens", 0)
             span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
         total_tokens = getattr(usage, "total_tokens", 0)
@@ -440,7 +440,9 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
 
+        span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
         span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
+        span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
         span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
         span.set_metric("openai.response.usage.total_tokens", total_tokens)
 
