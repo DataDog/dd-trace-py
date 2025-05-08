@@ -102,7 +102,6 @@ class _BaseCompletionHook(_EndpointHook):
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
-                print("async")
                 return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
             elif _is_generator(resp):
                 return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
