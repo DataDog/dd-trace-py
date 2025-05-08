@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy import text
+from sqlalchemy.exc import InternalError
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.exc import ProgrammingError
 
@@ -16,7 +17,10 @@ def sqli_simple(table):
             connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
         except (ProgrammingError, OperationalError):
             pass
-        query = text(f"SELECT 1 FROM {table}")
+        try:
+            query = text(f"SELECT 1 FROM {table}")
+        except InternalError:
+            pass
         # label test_sql_injection
         rows = connection.execute(query)
     return {"result": rows, "tainted": is_pyobject_tainted(table), "ranges": str(get_tainted_ranges(table))}
