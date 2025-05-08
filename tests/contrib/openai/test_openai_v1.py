@@ -1392,8 +1392,8 @@ def test_response_tools(openai, openai_vcr):
 def test_response_error(openai, openai_vcr):
     """Assert errors when an invalid model is used."""
     with openai_vcr.use_cassette("response_create_error.yaml"):
+        client = openai.OpenAI()
         with pytest.raises(openai.BadRequestError):
-            client = openai.OpenAI()
             client.responses.create(
                 model="invalid-model",  # Using an invalid model to trigger error
                 input="Hello world",

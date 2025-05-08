@@ -262,14 +262,14 @@ def _loop_handler(span, chunk, streamed_chunks):
     this function is called for each chunk in the streamed response.
     """
     # Handle both completion and response types
-    if hasattr(chunk, "type") and chunk.type.startswith("response."):
-        if span.get_tag("openai.response.model") is None:
-            if hasattr(chunk, "type") and chunk.type.startswith("response."):
-                response = getattr(chunk, "response", None)
-                model = getattr(response, "model", "")
-            else:
-                model = getattr(chunk, "model", "")
-            span.set_tag_str("openai.response.model", model)
+
+    if span.get_tag("openai.response.model") is None:
+        if hasattr(chunk, "type") and chunk.type.startswith("response."):
+            response = getattr(chunk, "response", None)
+            model = getattr(response, "model", "")
+        else:
+            model = getattr(chunk, "model", "")
+        span.set_tag_str("openai.response.model", model)
     if hasattr(chunk, "object") and "completion" in chunk.object.lower() and hasattr(chunk, "choices"):
         for choice in chunk.choices:
             streamed_chunks[choice.index].append(choice)
@@ -402,7 +402,7 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
             prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
-            prompt_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
 
     else:
