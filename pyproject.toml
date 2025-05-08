@@ -49,8 +49,6 @@ openai = [
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
-crashtracker_exe = "ddtrace.commands.crashtracker_exe:main"
-
 [project.entry-points.opentelemetry_context]
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
 
@@ -106,7 +104,7 @@ exclude = '''
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/internal/_tagset.pyx$
-  | ddtrace/internal/telemetry/metrics_namespaces.pyx$  
+  | ddtrace/internal/telemetry/metrics_namespaces.pyx$
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
