@@ -1439,6 +1439,7 @@ venv = Venv(
             command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
@@ -1542,36 +1543,6 @@ venv = Venv(
                         ],
                         "asynctest": "==0.13.0",
                     },
-                ),
-            ],
-        ),
-        Venv(
-            name="pytest_xdist",
-            command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_xdist/",
-            pkgs={
-                "msgpack": latest,
-                "more_itertools": "<8.11.0",
-                "pytest-randomly": latest,
-                "pytest-xdist": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={
-                        "pytest-bdd": latest,
-                    },
-                    venvs=[
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "true",
-                            },
-                        ),
-                        Venv(
-                            env={
-                                "_DD_PYTEST_USE_LEGACY_PLUGIN": "false",
-                            },
-                        ),
-                    ],
                 ),
             ],
         ),

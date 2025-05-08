@@ -321,7 +321,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_skip=_TEST_NEW_SKIP_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
-        rec = self.inline_run("--ddtrace")
+        rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
         spans = self.pop_spans()
         session_span = _get_spans_from_list(spans, "session")[0]
@@ -421,7 +421,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
     def test_pytest_efd_does_not_retry_failed_teardown(self):
         self.testdir.makepyfile(test_known_pass=_TEST_KNOWN_PASS_CONTENT)
         self.testdir.makepyfile(test_fails_setup=_TEST_NEW_FAILS_TEARDOWN)
-        rec = self.inline_run("--ddtrace")
+        rec = self.inline_run("--ddtrace", "-s")
         spans = self.pop_spans()
         fails_teardown_spans = _get_spans_from_list(spans, "test", "test_fails_teardown_01")
         assert len(fails_teardown_spans) == 1

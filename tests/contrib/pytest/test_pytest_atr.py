@@ -158,7 +158,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
-            rec = self.inline_run("--ddtrace", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
+            rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             rec.assertoutcome(passed=3, failed=9, skipped=4)
         assert len(self.pop_spans()) > 0
 
@@ -186,7 +186,7 @@ class PytestATRTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        rec = self.inline_run("--ddtrace")
+        rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
         spans = self.pop_spans()
         session_span = _get_spans_from_list(spans, "session")[0]

@@ -99,7 +99,7 @@ class PytestFreezegunTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run("--ddtrace", file_name)
+        self.inline_run("--ddtrace", "-s", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
