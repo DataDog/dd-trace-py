@@ -129,7 +129,7 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistATRTestCase(PytestTestCaseBase):
-    @pytest.fixture(autouse=True, scope="function")
+    #@pytest.fixture(autouse=True, scope="function")
     def setup_sitecustomize(self):
         sitecustomize_content = """
 # sitecustomize.py
@@ -153,6 +153,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         return super().inline_run(*args, **kwargs)
 
     def test_pytest_xdist_atr_no_ddtrace_does_not_retry(self):
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
@@ -162,6 +163,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         assert rec.ret == 1
 
     def test_pytest_xdist_atr_env_var_disables_retrying(self):
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
@@ -174,6 +176,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
     def test_pytest_xdist_atr_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
@@ -184,6 +187,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         assert rec.ret == 1
 
     def test_pytest_xdist_atr_fails_session_when_test_fails(self):
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
@@ -193,6 +197,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         assert rec.ret == 1
 
     def test_pytest_xdist_atr_passes_session_when_test_pass(self):
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
@@ -206,11 +211,13 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         # so tests will be retried as if they were failing tests.
         # See <https://docs.pytest.org/en/8.3.x/how-to/unittest.html#pdb-unittest-note>.
 
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         rec = self.inline_run("--ddtrace")
         assert rec.ret == 1
 
     def test_pytest_xdist_atr_junit_xml(self):
+        self.setup_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
