@@ -133,6 +133,8 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
     def setup_sitecustomize(self):
         sitecustomize_content = """
 # sitecustomize.py
+import sys
+print("sitecustomize.py loaded", file=sys.stderr)
 from unittest import mock
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
@@ -147,7 +149,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments
-        args = list(args) + ["-n", "2"]
+        args = list(args) + ["-n", "2", "-c", "/dev/null", "--disable-warnings"]
         return super().inline_run(*args, **kwargs)
 
     def test_pytest_atr_no_ddtrace_does_not_retry(self):
