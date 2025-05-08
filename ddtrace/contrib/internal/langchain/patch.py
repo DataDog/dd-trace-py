@@ -1003,6 +1003,8 @@ def _iast_taint_llm_output(prompts, completions):
 
 
 def _iast_taint_chat_model_output(messages, completions):
+    # XXX: DEBUGGING
+    log.debug("_iast_taint_chat_model_output: messages=%s, completions=%s", messages, completions)
     if not asm_config._iast_enabled:
         return
     if not isinstance(messages, (tuple, list)):
