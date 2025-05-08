@@ -55,14 +55,6 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
-                # Handle both completion and response types
-                if hasattr(chunk, "type") and chunk.type == "response.completed":
-                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
-                    if hasattr(chunk.response, "id"):
-                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
-                    if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
-                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
                 self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
@@ -130,15 +122,6 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         exception_raised = False
         try:
             async for chunk in self.__wrapped__:
-                # Handle both completion and response types
-                if hasattr(chunk, "type") and chunk.type == "response.completed":
-                    _tag_tool_calls(self._dd_integration, self._dd_span, chunk.response)
-                    if hasattr(chunk.response, "id"):
-                        self._dd_span.set_tag("openai.response.id", chunk.response.id)
-                    if hasattr(chunk.response, "created_at"):
-                        self._dd_span.set_tag_str("openai.response.created_at", str(chunk.response.created_at))
-                    self._dd_integration.record_usage(self._dd_span, chunk.response.usage)
-
                 await self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
@@ -281,19 +264,22 @@ def _loop_handler(span, chunk, streamed_chunks):
     # Handle both completion and response types
     if hasattr(chunk, "type") and chunk.type.startswith("response."):
         if span.get_tag("openai.response.model") is None:
-            span.set_tag("openai.response.model", chunk.response.model)
+            if getattr(chunk, "type", "").startswith("response.") and hasattr(chunk, "response"):
+                response = chunk.response
+                if span.get_tag("openai.response.model") is None:
+                    span.set_tag("openai.response.model", getattr(response, "model", ""))
         if hasattr(chunk, "response"):
             streamed_chunks[0].append(chunk.response)
         if getattr(chunk, "usage", None):
             streamed_chunks[0].insert(0, chunk.response)
-    else:
-        if span.get_tag("openai.response.model") is None:
-            span.set_tag("openai.response.model", chunk.model)
-        if hasattr(chunk, "choices"):
-            for choice in chunk.choices:
-                streamed_chunks[choice.index].append(choice)
-        if getattr(chunk, "usage", None):
-            streamed_chunks[0].insert(0, chunk)
+            return
+    if span.get_tag("openai.response.model") is None:
+        span.set_tag("openai.response.model", chunk.model)
+    if hasattr(chunk, "choices"):
+        for choice in chunk.choices:
+            streamed_chunks[choice.index].append(choice)
+    if getattr(chunk, "usage", None):
+        streamed_chunks[0].insert(0, chunk)
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
@@ -418,31 +404,20 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
     estimated = False
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
-        if hasattr(usage, "input_tokens"):
-            input_tokens = getattr(usage, "input_tokens", 0)
-            span.set_metric("openai.response.usage.input_tokens", input_tokens)
-        else:
-            prompt_tokens = getattr(usage, "prompt_tokens", 0)
-            span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
-
-        if hasattr(usage, "output_tokens"):
-            output_tokens = getattr(usage, "output_tokens", 0)
-            span.set_metric("openai.response.usage.output_tokens", output_tokens)
-        else:
-            completion_tokens = getattr(usage, "completion_tokens", 0)
-            span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
+        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
+            input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
+            output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
-        span.set_metric("openai.response.usage.total_tokens", total_tokens)
 
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
-        span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
-        span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
-        span.set_metric("openai.response.usage.total_tokens", total_tokens)
-
+    span.set_metric("openai.response.usage.prompt_tokens", input_tokens)
+    span.set_metric("openai.response.usage.completion_tokens", output_tokens)
+    span.set_metric("openai.response.usage.total_tokens", total_tokens)
     span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
     span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
 
@@ -479,7 +454,7 @@ def _compute_completion_tokens(completions_or_messages, model_name):
     return estimated, num_completion_tokens
 
 
-def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
+def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
     Tagging logic if function_call, tool_calls in the chat response, or tools are provided in the responses.
@@ -488,27 +463,6 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
         - streamed responses are processed and collected as dictionaries rather than objects,
           so we need to handle both ways of accessing values.
     """
-    # Handle response tools
-    if hasattr(tool_calls, "tools") and tool_calls.tools != []:
-        response_tools = []
-        for tool in tool_calls.tools:
-            if not (hasattr(tool, "type") or hasattr(tool, "name")):
-                continue
-
-            tool_dict = {}
-            if hasattr(tool, "type"):
-                tool_dict["type"] = getattr(tool, "type")
-            if hasattr(tool, "name"):
-                tool_dict["name"] = getattr(tool, "name")
-
-            if tool_dict:
-                response_tools.append(tool_dict)
-        # Only set the tag if we have valid tools to report
-        if response_tools:
-            span.set_tag("openai.response.tools", response_tools)
-        return
-
-    # Handle tool_calls (function calls and tool calls)
     for idy, tool_call in enumerate(tool_calls):
         if hasattr(tool_call, "function"):
             # tool_call is further nested in a "function" object
@@ -516,13 +470,12 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx=None):
         function_arguments = _get_attr(tool_call, "arguments", "")
         function_name = _get_attr(tool_call, "name", "")
         # Only set arguments tag if there are actual arguments
-        if function_arguments and function_arguments.strip():
-            span.set_tag_str(
-                "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-                integration.trunc(str(function_arguments)),
-            )
-        # Only set name tag if there is an actual name
-        if function_name and function_name.strip():
-            span.set_tag_str(
-                "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
-            )
+
+        span.set_tag_str(
+            "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
+            integration.trunc(str(function_arguments)),
+        )
+
+        span.set_tag_str(
+            "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
+        )

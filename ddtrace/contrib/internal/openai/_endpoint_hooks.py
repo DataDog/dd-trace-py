@@ -739,7 +739,7 @@ class _ResponseHook(_BaseCompletionHook):
         "truncation",
         "user",
     )
-    _response_attrs = ("created_at", "id", "model")
+    _response_attrs = ("model",)
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createResponse"
@@ -750,8 +750,5 @@ class _ResponseHook(_BaseCompletionHook):
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         if not resp:
             return resp
-
-        _tag_tool_calls(integration, span, resp, 0)
-
         integration.record_usage(span, resp.usage)
         return resp
