@@ -84,7 +84,7 @@ def test_django_weak_hash(client, test_spans, tracer):
     assert vulnerability["location"]["stackId"] == "1"
     assert vulnerability["location"]["line"] > 0
     assert vulnerability["location"]["method"] == "weak_hash_view"
-    assert vulnerability["location"]["class"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["evidence"]["value"] == "md5"
 
 
@@ -329,7 +329,7 @@ def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer)
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
     assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
-    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter_name_get"
     assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
