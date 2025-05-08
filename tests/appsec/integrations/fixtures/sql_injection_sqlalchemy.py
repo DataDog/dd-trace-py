@@ -17,6 +17,7 @@ def sqli_simple(table):
             connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
         except (ProgrammingError, OperationalError):
             pass
+        rows = []
         try:
             query = text(f"SELECT 1 FROM {table}")
             # label test_sql_injection
