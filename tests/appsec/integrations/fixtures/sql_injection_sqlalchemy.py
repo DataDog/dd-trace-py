@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.exc import ProgrammingError
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
@@ -13,7 +14,7 @@ def sqli_simple(table):
         connection.execute(text("SET statement_timeout = 1000"))
         try:
             connection.execute(text("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)"))
-        except ProgrammingError:
+        except (ProgrammingError, OperationalError):
             pass
         query = text(f"SELECT 1 FROM {table}")
         # label test_sql_injection
