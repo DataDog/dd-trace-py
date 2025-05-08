@@ -84,6 +84,7 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         agent_info = None
 
     if agent_info is None:
+        logger.debug("Could not get agent info, assuming that agentless mode should be used")
         return True
 
     endpoints = agent_info.get("endpoints", [])
