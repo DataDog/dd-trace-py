@@ -112,7 +112,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
         # Need to set PATH to find the right python binary
-        {"PATH": os.environ["PATH"]},  # env
+        os.environ.copy(),  # env
         crashtracker_exe_py, # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
