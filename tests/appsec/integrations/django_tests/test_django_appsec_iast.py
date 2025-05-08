@@ -79,6 +79,12 @@ def test_django_weak_hash(client, test_spans, tracer):
     assert str_json is not None, "no JSON tag in root span"
     vulnerability = json.loads(str_json)["vulnerabilities"][0]
     assert vulnerability["location"]["path"].endswith(TEST_FILE)
+    assert type(vulnerability["location"]["spanId"]) is int
+    assert vulnerability["location"]["spanId"] > 0
+    assert vulnerability["location"]["stackId"] == "1"
+    assert vulnerability["location"]["line"] > 0
+    assert vulnerability["location"]["method"] == "weak_hash_view"
+    assert vulnerability["location"]["class"] == ""
     assert vulnerability["evidence"]["value"] == "md5"
 
 
@@ -266,8 +272,13 @@ def test_django_sqli_http_request_parameter(client, test_spans, tracer):
             {"value": "'"},
         ]
     }
+    print(loaded["vulnerabilities"][0]["location"])
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -316,6 +327,10 @@ def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer)
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -365,6 +380,10 @@ def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter_name_post"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -835,6 +854,10 @@ def test_django_command_injection(client, test_spans, tracer):
     }
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "command_injection"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")

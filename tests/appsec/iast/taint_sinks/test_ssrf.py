@@ -55,6 +55,8 @@ def _check_report(tainted_path, label):
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == label
     assert "class" not in vulnerability["location"]
+    assert type(vulnerability["location"]["spanId"]) is int
+    assert "stackId" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value
 
 
