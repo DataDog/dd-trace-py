@@ -19,8 +19,8 @@ def sqli_simple(table):
             pass
         try:
             query = text(f"SELECT 1 FROM {table}")
+            # label test_sql_injection
+            rows = connection.execute(query)
         except InternalError:
             pass
-        # label test_sql_injection
-        rows = connection.execute(query)
     return {"result": rows, "tainted": is_pyobject_tainted(table), "ranges": str(get_tainted_ranges(table))}
