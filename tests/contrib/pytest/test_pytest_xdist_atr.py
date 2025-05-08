@@ -133,8 +133,6 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
     def setup_sitecustomize(self):
         sitecustomize_content = """
 # sitecustomize.py
-import sys  # TODO: deleteme
-sys.exit(1)  # TODO: deleteme
 from unittest import mock
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
