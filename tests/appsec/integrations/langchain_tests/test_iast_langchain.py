@@ -9,7 +9,6 @@ from langchain_core.agents import AgentActionMessageLog
 from langchain_core.language_models.fake import FakeListLLM
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration
-from langchain_core.outputs import Generation
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import PromptTemplate
 
