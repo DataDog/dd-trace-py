@@ -1,8 +1,15 @@
+import json
+
 from langchain.agents import AgentExecutor
 from langchain.agents import AgentType
 from langchain.agents import initialize_agent
+from langchain.agents.output_parsers.openai_functions import OpenAIFunctionsAgentOutputParser
 from langchain_community.tools.shell.tool import ShellTool
+from langchain_core.agents import AgentActionMessageLog
 from langchain_core.language_models.fake import FakeListLLM
+from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration
+from langchain_core.outputs import Generation
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import PromptTemplate
 
@@ -46,6 +53,22 @@ async def test_chat_prompt_template_aformat(iast_span_defaults):  # noqa: F811
     prompt = prepare_tainted_prompt()
     result = await template.aformat(prompt=prompt)
     assert is_pyobject_tainted(result)
+
+
+def test_openai_functions_agent_output_parser(iast_span_defaults):  # noqa: F811
+    ai_message = AIMessage(
+        content="Some content",
+        additional_kwargs=dict(
+            function_call={"name": "my-tool", "arguments": taint_string(json.dumps({"arg1": "value1"}))}
+        ),
+    )
+    generation = ChatGeneration(message=ai_message)
+    parser = OpenAIFunctionsAgentOutputParser()
+    result = parser.parse_result([generation])
+    assert result
+    assert isinstance(result, AgentActionMessageLog)
+    assert "arg1" in result.tool_input
+    assert is_pyobject_tainted(result.tool_input["arg1"])
 
 
 def test_llm_generate(iast_span_defaults):  # noqa: F811
@@ -161,3 +184,12 @@ def assert_cmdi():
 
     assert vulnerability["hash"]
     return vulnerability["location"]
+
+
+def taint_string(s: str) -> str:
+    return taint_pyobject(
+        pyobject=s,
+        source_name="test",
+        source_value=s,
+        source_origin=OriginType.PARAMETER,
+    )
