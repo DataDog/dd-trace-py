@@ -183,10 +183,9 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F
             function_call={"name": "terminal", "arguments": json.dumps({"commands": ["echo Hello World"]})}
         ),
     )
-    llm = FakeOpenAILLM(responses=[
-        ChatGeneration(message=ai_message),
-        ChatGeneration(message=AIMessage(content='END'))
-    ])
+    llm = FakeOpenAILLM(
+        responses=[ChatGeneration(message=ai_message), ChatGeneration(message=AIMessage(content="END"))]
+    )
     shell = ShellTool()
     prompt_template = ChatPromptTemplate.from_messages(
         [
@@ -214,7 +213,7 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F
     assert vulnerability["type"] == VULN_CMDI
     assert vulnerability["evidence"]["valueParts"] == [
         {"source": 0, "value": "echo "},
-        {"pattern": "fghijklmnop", "redacted": True, "source": 0}
+        {"pattern": "fghijklmnop", "redacted": True, "source": 0},
     ]
     assert "value" not in vulnerability["evidence"].keys()
     assert vulnerability["evidence"].get("pattern") is None
@@ -229,7 +228,6 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F
     assert location["line"]
     assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
     assert "class" not in location
-
 
 
 def prepare_cmdi_agent() -> AgentExecutor:

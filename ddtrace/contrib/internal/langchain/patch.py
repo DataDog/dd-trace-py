@@ -327,6 +327,9 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
+
+        _iast_taint_chat_model_output(chat_messages, chat_completions)
+
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
 
@@ -997,6 +1000,94 @@ def _iast_taint_llm_output(prompts, completions):
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
         _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
+
+
+def _iast_taint_chat_model_output(messages, completions):
+    if not asm_config._iast_enabled:
+        return
+    if not isinstance(messages, (tuple, list)):
+        return
+    if len(messages) == 0:
+        return
+    if not hasattr(completions, "generations"):
+        return
+    try:
+        generations = completions.generations
+        if not isinstance(generations, list):
+            return
+        if len(generations) == 0:
+            return
+
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+
+        source = None
+        for msgs in messages:
+            if not isinstance(msgs, list):
+                continue
+            for msg in msgs:
+                if not hasattr(msg, "content"):
+                    continue
+                tainted_ranges = get_tainted_ranges(msg.content)
+                if tainted_ranges:
+                    source = tainted_ranges[0].source
+                    break
+            else:
+                continue
+            break
+        if not source:
+            return
+
+        for gens in generations:
+            for gen in gens:
+                if hasattr(gen, "text"):
+                    text = gen.text
+                    if not isinstance(text, str):
+                        continue
+                    new_text = taint_pyobject(
+                        pyobject=text,
+                        source_name=source.name,
+                        source_value=source.value,
+                        source_origin=source.origin,
+                    )
+                    setattr(gen, "text", new_text)
+                if hasattr(gen, "message"):
+                    message = gen.message
+                    if not hasattr(message, "content"):
+                        continue
+                    content = message.content
+                    if isinstance(content, str):
+                        setattr(message, "content", _iast_taint_if_str(source, content))
+                    elif isinstance(content, list):
+                        setattr(message, "content", [_iast_taint_if_str(source, c) for c in content])
+                    elif isinstance(content, dict):
+                        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in message.items()})
+                    if hasattr(message, "additional_kwargs"):
+                        additional_kwargs = message.additional_kwargs
+                        if isinstance(additional_kwargs, dict) and "function_call" in additional_kwargs:
+                            # OpenAI-style tool call, arguments are passed serialized in JSON.
+                            function_call = additional_kwargs["function_call"]
+                            if isinstance(function_call, dict) and "arguments" in function_call:
+                                arguments = function_call["arguments"]
+                                if isinstance(arguments, str):
+                                    function_call["arguments"] = _iast_taint_if_str(source, arguments)
+    except Exception as e:
+        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+
+        _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
+
+
+def _iast_taint_if_str(source, obj):
+    if not isinstance(obj, str):
+        return obj
+    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+
+    return taint_pyobject(
+        pyobject=obj,
+        source_name=source.name,
+        source_value=source.value,
+        source_origin=source.origin,
+    )
 
 
 def _patch_embeddings_and_vectorstores():
