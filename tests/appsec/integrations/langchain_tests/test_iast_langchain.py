@@ -12,16 +12,13 @@ from langchain_core.outputs import ChatGeneration
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import PromptTemplate
 
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
-from tests.utils import override_env
 
-
-with override_env({"DD_IAST_ENABLED": "True"}):
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
 
