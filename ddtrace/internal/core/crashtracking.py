@@ -125,6 +125,8 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
 
 
 def is_started() -> bool:
+    if not is_available:
+        return False
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
