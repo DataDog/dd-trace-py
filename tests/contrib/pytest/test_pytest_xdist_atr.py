@@ -152,7 +152,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         args = list(args) + ["-n", "2", "-c", "/dev/null", "--disable-warnings"]
         return super().inline_run(*args, **kwargs)
 
-    def test_pytest_atr_no_ddtrace_does_not_retry(self):
+    def test_pytest_xdist_atr_no_ddtrace_does_not_retry(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
@@ -161,7 +161,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         rec = self.inline_run()
         assert rec.ret == 1
 
-    def test_pytest_atr_env_var_disables_retrying(self):
+    def test_pytest_xdist_atr_env_var_disables_retrying(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
@@ -172,7 +172,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
             rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             assert rec.ret == 1
 
-    def test_pytest_atr_spans(self):
+    def test_pytest_xdist_atr_spans(self):
         """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
@@ -183,7 +183,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         rec = self.inline_run("--ddtrace", "-v")
         assert rec.ret == 1
 
-    def test_pytest_atr_fails_session_when_test_fails(self):
+    def test_pytest_xdist_atr_fails_session_when_test_fails(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
@@ -192,7 +192,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         rec = self.inline_run("--ddtrace")
         assert rec.ret == 1
 
-    def test_pytest_atr_passes_session_when_test_pass(self):
+    def test_pytest_xdist_atr_passes_session_when_test_pass(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
@@ -200,7 +200,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         rec = self.inline_run("--ddtrace")
         assert rec.ret == 0
 
-    def test_pytest_atr_does_not_retry_failed_setup_or_teardown(self):
+    def test_pytest_xdist_atr_does_not_retry_failed_setup_or_teardown(self):
         # NOTE: This feature only works for regular pytest tests. For tests inside unittest classes, setup and teardown
         # happens at the 'call' phase, and we don't have a way to detect that the error happened during setup/teardown,
         # so tests will be retried as if they were failing tests.
@@ -210,7 +210,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         rec = self.inline_run("--ddtrace")
         assert rec.ret == 1
 
-    def test_pytest_atr_junit_xml(self):
+    def test_pytest_xdist_atr_junit_xml(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
