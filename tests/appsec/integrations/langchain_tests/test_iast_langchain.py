@@ -2,14 +2,19 @@ import json
 
 from langchain.agents import AgentExecutor
 from langchain.agents import AgentType
+from langchain.agents import create_openai_functions_agent
 from langchain.agents import initialize_agent
 from langchain.agents.output_parsers.openai_functions import OpenAIFunctionsAgentOutputParser
 from langchain_community.tools.shell.tool import ShellTool
 from langchain_core.agents import AgentActionMessageLog
+from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake import FakeListLLM
 from langchain_core.messages import AIMessage
+from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGeneration
+from langchain_core.outputs import ChatResult
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts import PromptTemplate
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -113,6 +118,39 @@ async def test_cmdi_with_shelltool_ainvoke(iast_span_defaults):  # noqa: F811
     assert span_report
 
 
+def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
+    ai_message = AIMessage(
+        content=["Some content"],
+        additional_kwargs=dict(
+            function_call={"name": "my-tool", "arguments": taint_string(json.dumps({"arg1": "value1"}))}
+        ),
+    )
+    generation = ChatGeneration(message=ai_message)
+    llm = FakeOpenAILLM(responses=[generation])
+    shell = ShellTool()
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful AI assistant.",
+            ),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+    agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
+    prompt = taint_string("I need to use the terminal tool to print a Hello World")
+    # label test_cmdi_with_openai_agent_invoke
+    res = agent.invoke({"input": prompt, "intermediate_steps": []})
+    assert res["output"] == "4"
+
+    location = assert_cmdi()
+    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["line"]
+    assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
+    assert "class" not in location
+
+
 def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     agent = prepare_cmdi_agent()
     prompt = prepare_tainted_prompt()
@@ -189,3 +227,41 @@ def taint_string(s: str) -> str:
         source_value=s,
         source_origin=OriginType.PARAMETER,
     )
+
+
+class FakeOpenAILLM(BaseChatModel):
+    """
+    Similar to FakeListLLM but returns ChatGeneration instead of str. Useful to mock OpenAI LLM.
+    """
+
+    responses: list[ChatGeneration]
+
+    iter: int = 0
+
+    @property
+    def _llm_type(self) -> str:
+        return "openai"
+
+    def _call(self, prompt: str, stop=None, run_manager=None, **kwargs) -> str:
+        raise ValueError("Not implemented")
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop=None,
+        run_manager=None,
+        **kwargs,
+    ) -> ChatResult:
+        assert self.iter < len(self.responses)
+        response = self.responses[self.iter]
+        self.iter += 1
+        return ChatResult(generations=[response])
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop=None,
+        run_manager=None,
+        **kwargs,
+    ) -> ChatResult:
+        return self._generate(messages)
