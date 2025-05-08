@@ -147,9 +147,6 @@ suites:
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
     runner: hatch
-    services:
-      - postgres
-      - mysql
   appsec_integrations_flask:
     parallelism: 17
     paths:
