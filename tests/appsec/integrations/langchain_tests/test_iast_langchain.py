@@ -124,7 +124,7 @@ def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
     assert location["line"]
     assert location["method"] == "test_cmdi_with_agent_invoke"
-    assert location["class"] == ""
+    assert "class" not in location
 
 
 async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
@@ -139,7 +139,7 @@ async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
     assert location["path"] == "langchain_experimental/llm_bash/bash.py"
     assert location["line"]
     assert location["method"] == "_run"
-    assert location["class"] == ""
+    assert "class" not in location
 
 
 def prepare_cmdi_agent() -> AgentExecutor:
