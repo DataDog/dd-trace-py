@@ -43,3 +43,17 @@ def test_mutability():
     before.update(after)
 
     assert before == after
+
+
+def test_probe_hash():
+    probe = create_log_line_probe(
+        probe_id="test_mutability",
+        version=2,
+        condition=DDExpression(dsl="True", callable=dd_compile(True)),
+        source_file="foo",
+        line=1,
+        template="",
+        segments=[],
+    )
+
+    assert hash(probe)
