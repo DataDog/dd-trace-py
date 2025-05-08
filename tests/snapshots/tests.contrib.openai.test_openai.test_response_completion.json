@@ -1,0 +1,44 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "createResponse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68190e3900000000",
+      "component": "openai",
+      "language": "python",
+      "openai.base_url": "https://api.openai.com/v1/",
+      "openai.organization.name": "datadog-staging",
+      "openai.request.client": "OpenAI",
+      "openai.request.endpoint": "/v1/responses",
+      "openai.request.max_output_tokens": "100",
+      "openai.request.method": "POST",
+      "openai.request.model": "gpt-4.1",
+      "openai.request.top_p": "0.9",
+      "openai.request.user": "ddtrace-test",
+      "openai.response.created_at": "1745952737.0",
+      "openai.response.id": "resp_68111fe174308191875e7af1b7f399cc0c2a24124645ef31",
+      "openai.response.model": "gpt-4.1-2025-04-14",
+      "openai.response.tools": "[]",
+      "openai.user.api_key": "sk-...6KQA",
+      "runtime-id": "7c2f65c1acac446b897bf004dbcef37d"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "openai.response.usage.input_tokens": 53,
+      "openai.response.usage.output_tokens": 46,
+      "openai.response.usage.total_tokens": 99,
+      "process_id": 62257
+    },
+    "duration": 9753000,
+    "start": 1746472505070046000
+  }]]

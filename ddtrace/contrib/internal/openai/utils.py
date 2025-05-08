@@ -264,18 +264,13 @@ def _loop_handler(span, chunk, streamed_chunks):
     # Handle both completion and response types
     if hasattr(chunk, "type") and chunk.type.startswith("response."):
         if span.get_tag("openai.response.model") is None:
-            if getattr(chunk, "type", "").startswith("response.") and hasattr(chunk, "response"):
-                response = chunk.response
-                if span.get_tag("openai.response.model") is None:
-                    span.set_tag("openai.response.model", getattr(response, "model", ""))
-        if hasattr(chunk, "response"):
-            streamed_chunks[0].append(chunk.response)
-        if getattr(chunk, "usage", None):
-            streamed_chunks[0].insert(0, chunk.response)
-            return
-    if span.get_tag("openai.response.model") is None:
-        span.set_tag("openai.response.model", chunk.model)
-    if hasattr(chunk, "choices"):
+            if hasattr(chunk, "type") and chunk.type.startswith("response."):
+                response = getattr(chunk, "response", None)
+                model = getattr(response, "model", "")
+            else:
+                model = getattr(chunk, "model", "")
+            span.set_tag_str("openai.response.model", model)
+    if hasattr(chunk, "object") and "completion" in chunk.object.lower() and hasattr(chunk, "choices"):
         for choice in chunk.choices:
             streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
@@ -405,9 +400,9 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
-            input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
-            output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+            prompt_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
 
     else:
@@ -415,8 +410,8 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
-    span.set_metric("openai.response.usage.prompt_tokens", input_tokens)
-    span.set_metric("openai.response.usage.completion_tokens", output_tokens)
+    span.set_metric("openai.response.usage.prompt_tokens", prompt_tokens)
+    span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
     span.set_metric("openai.response.usage.total_tokens", total_tokens)
     span.set_metric("openai.request.prompt_tokens_estimated", int(estimated))
     span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
@@ -469,7 +464,6 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
             tool_call = tool_call.function
         function_arguments = _get_attr(tool_call, "arguments", "")
         function_name = _get_attr(tool_call, "name", "")
-        # Only set arguments tag if there are actual arguments
 
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
