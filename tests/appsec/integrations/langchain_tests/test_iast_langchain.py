@@ -118,39 +118,6 @@ async def test_cmdi_with_shelltool_ainvoke(iast_span_defaults):  # noqa: F811
     assert span_report
 
 
-def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
-    ai_message = AIMessage(
-        content=["Some content"],
-        additional_kwargs=dict(
-            function_call={"name": "my-tool", "arguments": taint_string(json.dumps({"arg1": "value1"}))}
-        ),
-    )
-    generation = ChatGeneration(message=ai_message)
-    llm = FakeOpenAILLM(responses=[generation])
-    shell = ShellTool()
-    prompt_template = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are a helpful AI assistant.",
-            ),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ]
-    )
-    agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
-    prompt = taint_string("I need to use the terminal tool to print a Hello World")
-    # label test_cmdi_with_openai_agent_invoke
-    res = agent.invoke({"input": prompt, "intermediate_steps": []})
-    assert res["output"] == "4"
-
-    location = assert_cmdi()
-    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
-    assert location["line"]
-    assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
-    assert "class" not in location
-
-
 def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     agent = prepare_cmdi_agent()
     prompt = prepare_tainted_prompt()
@@ -178,6 +145,91 @@ async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
     assert location["line"]
     assert location["method"] == "_run"
     assert "class" not in location
+
+
+def test_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
+    ai_message = AIMessage(
+        content=["Some content"],
+        additional_kwargs=dict(
+            function_call={"name": "my-tool", "arguments": taint_string(json.dumps({"arg1": "value1"}))}
+        ),
+    )
+    llm = FakeOpenAILLM(responses=[ChatGeneration(message=ai_message)])
+    shell = ShellTool()
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful AI assistant.",
+            ),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+    agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
+    prompt = taint_string("I need to use the terminal tool to print a Hello World")
+    # label test_cmdi_with_openai_functions_agent_invoke
+    res = agent.invoke({"input": prompt, "intermediate_steps": []})
+    assert isinstance(res, AgentActionMessageLog)
+    assert res.tool == "my-tool"
+    assert res.tool_input == {"arg1": "value1"}
+    assert is_pyobject_tainted(res.tool_input["arg1"])
+
+
+def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
+    ai_message = AIMessage(
+        content=["Some content"],
+        additional_kwargs=dict(
+            function_call={"name": "terminal", "arguments": json.dumps({"commands": ["echo Hello World"]})}
+        ),
+    )
+    llm = FakeOpenAILLM(responses=[
+        ChatGeneration(message=ai_message),
+        ChatGeneration(message=AIMessage(content='END'))
+    ])
+    shell = ShellTool()
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful AI assistant.",
+            ),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+    agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
+    agent_executor = AgentExecutor(agent=agent, tools=[shell], verbose=True)
+    prompt = taint_string("I need to use the terminal tool to print a Hello World")
+    # label test_cmdi_with_openai_functions_agent_invoke
+    res = agent_executor.invoke({"input": prompt})
+    assert isinstance(res, dict)
+    assert res == {"input": prompt, "output": "END"}
+
+    span_report = _get_span_report()
+    assert span_report
+    data = span_report.build_and_scrub_value_parts()
+    vulnerability = data["vulnerabilities"][0]
+    source = data["sources"][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"source": 0, "value": "echo "},
+        {"pattern": "fghijklmnop", "redacted": True, "source": 0}
+    ]
+    assert "value" not in vulnerability["evidence"].keys()
+    assert vulnerability["evidence"].get("pattern") is None
+    assert vulnerability["evidence"].get("redacted") is None
+    assert source["name"] == "commands"
+    assert source["origin"] == OriginType.PARAMETER
+    assert "value" not in source.keys()
+
+    assert vulnerability["hash"]
+    location = vulnerability["location"]
+    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["line"]
+    assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
+    assert "class" not in location
+
 
 
 def prepare_cmdi_agent() -> AgentExecutor:
@@ -252,7 +304,7 @@ class FakeOpenAILLM(BaseChatModel):
         run_manager=None,
         **kwargs,
     ) -> ChatResult:
-        assert self.iter < len(self.responses)
+        assert self.iter < len(self.responses), f"too many calls: iter={self.iter} messages={messages}"
         response = self.responses[self.iter]
         self.iter += 1
         return ChatResult(generations=[response])
