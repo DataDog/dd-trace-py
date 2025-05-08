@@ -78,13 +78,13 @@ class Location:
         result = {}
         if self.spanId is not None:
             result["spanId"] = self.spanId
-        if self.path is not None:
+        if self.path:
             result["path"] = self.path
         if self.line is not None:
             result["line"] = self.line
-        if self.method is not None:
+        if self.method:
             result["method"] = self.method
-        if self.class_name is not None:
+        if self.class_name:
             result["class"] = self.class_name
         return result
 
