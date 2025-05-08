@@ -1,10 +1,6 @@
-"""Tests Early Flake Detection (EFD) functionality
+"""Tests Auto Test Retries (ATR) functionality interacting with pytest-xdist.
 
-The tests in this module only validate the behavior of EFD, so only counts and statuses of tests, retries, and sessions
-are checked.
-
-- The same known tests are used to override fetching of known tests.
-- The session object is patched to never be a faulty session, by default.
+The tests in this module only validate the exit status from pytest-xdist.
 """
 from unittest import mock
 
@@ -131,6 +127,10 @@ class SomeTestCase(unittest.TestCase):
 class PytestXdistATRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
     def setup_sitecustomize(self):
+        """
+        This allows to patch the tracer before the tests are run, so it works
+        in the xdist worker processes.
+        """
         sitecustomize_content = """
 # sitecustomize.py
 from unittest import mock
@@ -147,7 +147,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments
-        args = list(args) + ["-n", "2", "-c", "/dev/null", "--disable-warnings"]
+        args = list(args) + ["-n", "2", "-c", "/dev/null"]
         return super().inline_run(*args, **kwargs)
 
     def test_pytest_xdist_atr_no_ddtrace_does_not_retry(self):
