@@ -294,7 +294,7 @@ build_base_venvs:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '1'
+    PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
