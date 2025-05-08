@@ -424,17 +424,7 @@ class CIVisibility(Service):
         return None
 
     def _is_gzip_supported_by_agent(self) -> bool:
-        try:
-            info = agent.info(self.tracer._agent_url)
-        except Exception:
-            return False
-
-        if info:
-            endpoints = info.get("endpoints", [])
-            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH_V4 in endpoint for endpoint in endpoints):
-                return True
-        return False
-
+        return self._agent_evp_proxy_base_url() == EVP_PROXY_AGENT_BASE_PATH_V4
     def _agent_get_default_env(self) -> Optional[str]:
         try:
             info = agent.info(self.tracer._agent_url)
