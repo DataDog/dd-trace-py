@@ -58,6 +58,9 @@ def simple_debugger_test(probe, func):
 
         d.add_probes(probe)
 
+        # Check that we can still hash the code object
+        assert hash(func.__code__)
+
         try:
             func()
         except Exception:
