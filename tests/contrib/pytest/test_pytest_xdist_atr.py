@@ -129,7 +129,7 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistATRTestCase(PytestTestCaseBase):
-    #@pytest.fixture(autouse=True, scope="function")
+    # @pytest.fixture(autouse=True, scope="function")
     def setup_sitecustomize(self):
         sitecustomize_content = """
 # sitecustomize.py
