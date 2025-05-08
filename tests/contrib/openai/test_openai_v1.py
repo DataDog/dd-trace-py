@@ -1374,7 +1374,7 @@ def test_response(openai, openai_vcr):
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_tools(openai, openai_vcr):
-    """Ensure llmobs records are emitted for response endpoints when configured."""
+    """Ensure tools are recorded for response endpoints when configured."""
     with openai_vcr.use_cassette("response_tools.yaml"):
         model = "gpt-4.1"
         input_messages = multi_message_input
@@ -1451,11 +1451,7 @@ def test_response_tools_stream(openai, openai_vcr):
     with openai_vcr.use_cassette("response_tools_stream.yaml"):
         model = "gpt-4.1"
         client = openai.OpenAI()
-        resp = client.responses.create(
-            model=model,
-            input="Hello world",
-            stream=True,
-        )
+        resp = client.responses.create(model=model, input="Hello world", tools=[{"type": "web_search_preview"}])
         _ = [c for c in resp]
 
 
