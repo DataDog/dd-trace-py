@@ -509,7 +509,6 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="Fails on 3.13")
 def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
