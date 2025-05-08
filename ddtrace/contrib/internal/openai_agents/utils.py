@@ -11,7 +11,8 @@ def create_agent_manifest(agent):
     if hasattr(agent, "name"):
         manifest["name"] = agent.name
     if hasattr(agent, "instructions"):
-        manifest["instructions"] = agent.instructions
+        manifest["instructions"] = agent.instructions.split("<IMPORTANT INSTRUCTIONS>")[0]
+        print(manifest["instructions"])
     if hasattr(agent, "handoff_description"):
         manifest["handoff_description"] = agent.handoff_description
     if hasattr(agent, "model"):
