@@ -1,5 +1,4 @@
 import json
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config
