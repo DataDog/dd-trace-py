@@ -7,7 +7,6 @@ import os
 from os import getpid
 import sys
 from threading import RLock
-from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -26,6 +25,7 @@ from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -64,15 +64,9 @@ log = get_logger(__name__)
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
-if TYPE_CHECKING:
-    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-
-def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
-    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
+def _start_appsec_processor() -> Optional[AppSecSpanProcessor]:
     try:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
         return AppSecSpanProcessor()
     except Exception as e:
         # DDAS-001-01
@@ -423,19 +417,16 @@ class Tracer(object):
             try:
                 info = debug.collect(self)
             except Exception as e:
-                msg = "Failed to collect start-up logs: %s" % e
-                self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
+                log.warning("- DATADOG TRACER DIAGNOSTIC - Failed to collect start-up logs: %s", e)
             else:
                 if log.isEnabledFor(logging.INFO):
-                    msg = "- DATADOG TRACER CONFIGURATION - %s" % info
-                    self._log_compat(logging.INFO, msg)
+                    log.info("- DATADOG TRACER CONFIGURATION - %s", info)
 
                 # Always log errors since we're either in debug_mode or start up logs
                 # are enabled.
                 agent_error = info.get("agent_error")
                 if agent_error:
-                    msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
-                    self._log_compat(logging.WARNING, msg)
+                    log.warning("- DATADOG TRACER DIAGNOSTIC - %s", agent_error)
 
     def _child_after_fork(self):
         self._pid = getpid()
@@ -663,18 +654,6 @@ class Tracer(object):
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
-
-    def _log_compat(self, level, msg):
-        """Logs a message for the given level.
-
-        Instead, something like this will be printed to stderr:
-            No handlers could be found for logger "ddtrace.tracer"
-
-        Since the global tracer is configured on import and it is recommended
-        to import the tracer as early as possible, it will likely be the case
-        that there are no handlers installed yet.
-        """
-        log.log(level, msg)
 
     def trace(
         self,
