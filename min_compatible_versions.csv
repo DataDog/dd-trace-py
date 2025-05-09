@@ -18,6 +18,7 @@ anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
 asgiref,~=3.0
+astunparse,0
 async_generator,~=1.10
 asyncpg,~=0.23
 asynctest,==0.13.0
@@ -130,6 +131,7 @@ psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
 py-cpuinfo,~=8.0.0
+pycryptodome,0
 pyfakefs,0
 pylibmc,~=1.6.2
 pymemcache,~=3.4.2
@@ -165,6 +167,7 @@ rq,~=1.8.0
 ruamel.yaml,0
 sanic,~=20.12
 sanic-testing,~=0.8.3
+simplejson,0
 snowflake-connector-python,~=2.3.0
 spyne,0
 sqlalchemy,~=1.2.18

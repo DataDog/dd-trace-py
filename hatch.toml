@@ -276,36 +276,37 @@ flask = ["~=3.0"]
 
 ## ASM IAST module
 
-[envs.appsec_iast_default]
-template = "appsec_iast_default"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "requests",
-    "urllib3",
-    "pycryptodome",
-    "cryptography",
-    "astunparse",
-    "simplejson",
-    "grpcio",
-]
-
-[envs.appsec_iast_default.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-
-[envs.appsec_iast_default.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
-]
-
-[[envs.appsec_iast_default.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+# JJJ remove
+#[envs.appsec_iast_default]
+#template = "appsec_iast_default"
+#dependencies = [
+#    "pytest",
+#    "pytest-cov",
+#    "hypothesis",
+#    "requests",
+#    "urllib3",
+#    "pycryptodome",
+#    "cryptography",
+#    "astunparse",
+#    "simplejson",
+#    "grpcio",
+#]
+#
+#[envs.appsec_iast_default.env-vars]
+#_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+#DD_IAST_REQUEST_SAMPLING = "100"
+#DD_IAST_DEDUPLICATION_ENABLED = "false"
+#
+#
+#[envs.appsec_iast_default.scripts]
+#test = [
+#    "uname -a",
+#    "pip freeze",
+#    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
+#]
+#
+#[[envs.appsec_iast_default.matrix]]
+#python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## ASM IAST memcheck
 

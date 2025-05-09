@@ -137,6 +137,25 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_default",
+            command="pytest {cmdargs} tests/appsec/iast/",
+            pys=select_pys(),
+            pkgs={
+                    "requests": latest,
+                    "urllib3": latest,
+                    "pycryptodome": latest,
+                    "cryptography": latest,
+                    "astunparse": latest,
+                    "simplejson": latest,
+                    "grpcio": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            }
+        ),
+        Venv(
             name="tracer",
             command="pytest -v {cmdargs} tests/tracer/",
             pkgs={

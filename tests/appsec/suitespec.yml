@@ -37,7 +37,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -71,23 +71,6 @@ suites:
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
-#  appsec_iast_packages:
-#    env:
-#      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
-#    paths:
-#      - '@appsec_iast'
-#      - tests/appsec/iast_packages/*
-#    runner: hatch
-#    timeout: 50m
-#    cache:
-#      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
-#      paths:
-#        - .cache
-#    python_versions:
-#      - "3.9"
-#      - "3.10"
-#      - "3.11"
-#      - "3.12"
   iast_tdd_propagation:
     parallelism: 5
     paths:
