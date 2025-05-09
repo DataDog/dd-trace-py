@@ -1,6 +1,6 @@
-"""Tests Early Flake Detection (EFD) functionality
+"""Tests Auto Test Retries (ATR) functionality
 
-The tests in this module only validate the behavior of EFD, so only counts and statuses of tests, retries, and sessions
+The tests in this module only validate the behavior of ATR, so only counts and statuses of tests, retries, and sessions
 are checked.
 
 - The same known tests are used to override fetching of known tests.
