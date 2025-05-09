@@ -103,7 +103,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools",
  "lazy_static",
  "lazycell",
  "log",
@@ -250,7 +250,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 [[package]]
 name = "data-pipeline"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -279,7 +279,7 @@ dependencies = [
 [[package]]
 name = "datadog-ddsketch"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "prost",
 ]
@@ -287,7 +287,7 @@ dependencies = [
 [[package]]
 name = "datadog-library-config"
 version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "serde",
@@ -297,7 +297,7 @@ dependencies = [
 [[package]]
 name = "datadog-trace-normalization"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -306,7 +306,7 @@ dependencies = [
 [[package]]
 name = "datadog-trace-protobuf"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "prost",
  "serde",
@@ -316,7 +316,7 @@ dependencies = [
 [[package]]
 name = "datadog-trace-utils"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -341,7 +341,7 @@ dependencies = [
 [[package]]
 name = "ddcommon"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "cc",
@@ -378,7 +378,7 @@ dependencies = [
 [[package]]
 name = "ddtelemetry"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "base64",
@@ -414,7 +414,7 @@ dependencies = [
 [[package]]
 name = "dogstatsd-client"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "anyhow",
  "cadence",
@@ -740,15 +740,6 @@ checksum = "f4c7245a08504955605670dbf141fceab975f15ca21570696aebe9d2e71576bd"
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -785,9 +776,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.171"
+version = "0.2.172"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
+checksum = "d750af042f7ef4f724306de029d18836c26c1765a54a6a3f094cbd23a7267ffa"
 
 [[package]]
 name = "libloading"
@@ -1002,7 +993,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -1427,7 +1418,7 @@ checksum = "e502f78cdbb8ba4718f566c418c52bc729126ffd16baee5baa718cf25dd5a69a"
 [[package]]
 name = "tinybytes"
 version = "17.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=e232a6d#e232a6d33c4527380a28d9adc254be9b27dbe42e"
+source = "git+https://github.com/DataDog/libdatadog?rev=9ed5686#9ed5686ffef504c4a45af318e99cfba75e435ae4"
 dependencies = [
  "serde",
 ]

@@ -698,11 +698,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._exporter = self._create_exporter()
-        self.start_worker_thread()
 
     def start_worker_thread(self):
-        self._native_worker = threading.Thread(target=self._exporter.run_worker, daemon=True)
-        self._native_worker.start()
+        self._exporter.run_worker()
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -738,13 +736,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         """
         self._test_session_token = token
         self._exporter.stop_worker()
-        self._native_worker.join()
         self._exporter = self._create_exporter()
         self.start_worker_thread()
 
     def recreate(self):
-        if self._native_worker.is_alive():
-            self._exporter.stop_worker()
+        self._exporter.stop_worker()
         return self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,
@@ -827,8 +823,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
 
         try:
             # TODO: Return agent response from send
-            if not self._native_worker.is_alive:
-                self.start_worker_thread()
+            self.start_worker_thread()
             response_body = self._exporter.send(payload, count)
             if self._response_cb:
                 response = Response(body=response_body)
@@ -934,7 +929,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
 
         try:
             self._send_payload(encoded, n_traces, client)
-        except Exception:
+        except Exception as e:
             self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
@@ -942,10 +937,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
                 raise
             else:
                 log.error(
-                    "failed to send, dropping %d traces to intake at %s after %d retries",
+                    "failed to send, dropping %d traces to intake at %s after %d retries: %s",
                     n_traces,
                     self._intake_endpoint(client),
                     self.RETRY_ATTEMPTS,
+                    e,
                 )
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
@@ -967,7 +963,4 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         try:
             self.periodic()
         finally:
-            if self._native_worker.is_alive():
-                self._exporter.stop_worker()
-                self._native_worker.join()
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout

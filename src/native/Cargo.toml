@@ -9,10 +9,10 @@ opt-level = "z"
 
 [dependencies]
 pyo3 = { version = "0.24.0", features = ["extension-module", "abi3-py38", "anyhow"] }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "e232a6d" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "e232a6d" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "e232a6d" }
-tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "e232a6d" }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "9ed5686" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "9ed5686" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "9ed5686" }
+tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "9ed5686" }
 
 [build-dependencies]
 pyo3-build-config = "0.24"

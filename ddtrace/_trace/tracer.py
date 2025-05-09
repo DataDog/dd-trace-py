@@ -284,7 +284,6 @@ class Tracer(object):
     def _sample_before_fork(self) -> None:
         if isinstance(self._writer, NativeWriter):
             self._writer._exporter.stop_worker()
-            self._writer._native_worker.join()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)

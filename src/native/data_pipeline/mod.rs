@@ -1,10 +1,9 @@
-use std::time::Duration;
-
 use data_pipeline::trace_exporter::{
     TelemetryConfig, TraceExporter, TraceExporterBuilder, TraceExporterInputFormat,
     TraceExporterOutputFormat,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::time::Duration;
 mod exceptions;
 
 /// A wrapper arround [TraceExporterBuilder]
@@ -103,7 +102,7 @@ impl TraceExporterBuilderPy {
     }
 
     fn set_test_session_token(mut slf: PyRefMut<'_, Self>, token: &'_ str) -> PyResult<Py<Self>> {
-        //slf.try_as_mut()?.set_test_session_token(token);
+        slf.try_as_mut()?.set_test_session_token(token);
         Ok(slf.into())
     }
 
@@ -155,7 +154,7 @@ impl TraceExporterBuilderPy {
     ///
     /// The builder shouldn't be used
     fn build(&mut self) -> PyResult<TraceExporterPy> {
-        Ok(TraceExporterPy {
+        let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
                     .take()
@@ -163,7 +162,8 @@ impl TraceExporterBuilderPy {
                     .build()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
-        })
+        };
+        Ok(exporter)
     }
 
     fn debug(&self) -> String {
@@ -222,19 +222,15 @@ impl TraceExporterPy {
         Ok(())
     }
 
-    fn run_worker(&self, py: Python<'_>) -> PyResult<()> {
-        py.allow_threads(move || {
-            self.inner
-                .as_ref()
-                .ok_or(PyValueError::new_err(
-                    "TraceExporter has already been consumed",
-                ))?
-                .run_worker();
-            Ok(())
-        })
+    fn run_worker(&self) -> PyResult<()> {
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        exporter.run_worker();
+        Ok(())
     }
 
-    fn stop_worker(&self, py: Python<'_>) -> PyResult<()> {
+    fn stop_worker(&self) -> PyResult<()> {
         self.inner
             .as_ref()
             .ok_or(PyValueError::new_err(
