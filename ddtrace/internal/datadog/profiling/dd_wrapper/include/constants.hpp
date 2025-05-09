@@ -14,7 +14,7 @@ constexpr unsigned int g_backend_max_nframes = 512;
 // Maximum amount of time, in milliseconds, to wait for crashtracker signal handler
 constexpr uint64_t g_crashtracker_timeout_ms = 5000;
 
-// Default value for the max number of samples to keep in the SynchronizedSamplePool
+// Default value for the max number of samples to keep in the StaticSamplePool
 constexpr size_t g_default_sample_pool_capacity = 4;
 
 // Default name of the runtime.  This will almost certainly get overridden by the caller, but we set it here
