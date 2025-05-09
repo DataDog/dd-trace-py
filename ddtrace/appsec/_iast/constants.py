@@ -1,6 +1,4 @@
 import re
-from typing import Any
-from typing import Dict
 
 
 VULN_INSECURE_HASHING_TYPE = "WEAK_HASH"
@@ -17,8 +15,6 @@ VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_XSS = "XSS"
 VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
-
-VULNERABILITY_TOKEN_TYPE = Dict[int, Dict[str, Any]]
 
 HEADER_NAME_VALUE_SEPARATOR = ": "
 

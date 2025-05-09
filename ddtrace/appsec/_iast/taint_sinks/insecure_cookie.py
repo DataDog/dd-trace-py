@@ -7,7 +7,6 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
@@ -16,28 +15,25 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
+from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
 
 
-@oce.register
 class InsecureCookie(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_COOKIE
 
 
-@oce.register
 class NoHttpOnlyCookie(VulnerabilityBase):
     vulnerability_type = VULN_NO_HTTPONLY_COOKIE
     secure_mark = VulnerabilityType.NO_HTTPONLY_COOKIE
 
 
-@oce.register
 class NoSameSite(VulnerabilityBase):
     vulnerability_type = VULN_NO_SAMESITE_COOKIE
     secure_mark = VulnerabilityType.NO_SAMESITE_COOKIE
 
 
-@oce.register
 class CookiesVulnerability(VulnerabilityBase):
     vulnerability_type = "COOKIES_VULNERABILITY"
 
@@ -45,7 +41,7 @@ class CookiesVulnerability(VulnerabilityBase):
     def report_cookies(cls, evidence_value, insecure_cookie, no_http_only, no_samesite) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if insecure_cookie or no_http_only or no_samesite:
-            if cls.acquire_quota():
+            if should_process_vulnerability(InsecureCookie.vulnerability_type):
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
                     return
@@ -150,7 +146,7 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
             cookie_value = kwargs.get("value")
 
         if cookie_value and cookie_key:
-            if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+            if asm_config.is_iast_request_enabled and CookiesVulnerability.has_quota():
                 report_samesite = False
                 samesite = kwargs.get("samesite", "")
                 if samesite:

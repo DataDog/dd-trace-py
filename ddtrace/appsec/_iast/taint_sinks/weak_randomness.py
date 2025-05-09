@@ -1,9 +1,7 @@
-from .._overhead_control_engine import oce
 from ..constants import VULN_WEAK_RANDOMNESS
 from ._base import VulnerabilityBase
 
 
-@oce.register
 class WeakRandomness(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_RANDOMNESS
 

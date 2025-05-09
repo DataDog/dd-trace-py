@@ -82,6 +82,23 @@ def test_spans(tracer):
 
 
 @pytest.fixture
+def test_spans_2_vuln_per_request_deduplication(tracer):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_deduplication_enabled=True,
+            _iast_max_vulnerabilities_per_requests=2,
+            _iast_request_sampling=100.0,
+        )
+    ):
+        container = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        yield container
+        _end_iast_context_and_oce()
+        container.reset()
+
+
+@pytest.fixture
 def iast_spans_with_zero_sampling(tracer):
     """Fixture that provides a span container with IAST enabled but 0% sampling rate.
 
