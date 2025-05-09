@@ -278,7 +278,7 @@ class Response(object):
         )
 
 
-def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> "ConnectionType":
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""

@@ -1,19 +1,10 @@
 import json
-from typing import TYPE_CHECKING
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config
 
 from .utils.http import get_connection
-
-
-if TYPE_CHECKING:
-    from .http import HTTPConnection
-    from .http import HTTPSConnection
-    from .uds import UDSHTTPConnection
-
-ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
 
 
 log = get_logger(__name__)
