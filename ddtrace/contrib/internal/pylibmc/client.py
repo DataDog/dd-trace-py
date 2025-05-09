@@ -8,7 +8,6 @@ from wrapt import ObjectProxy
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
@@ -189,6 +188,3 @@ class TracedClient(ObjectProxy):
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
             span.set_tag_str(net.SERVER_ADDRESS, host)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pylibmc.get_analytics_sample_rate())

@@ -93,7 +93,6 @@ class PsycopgCore(AsyncioTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
-        # confirm analytics disabled by default
         self.reset()
 
         # run a query with an error and ensure all is well

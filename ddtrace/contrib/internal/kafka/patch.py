@@ -5,7 +5,6 @@ from time import time_ns
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -203,9 +202,6 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag(_SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
-        rate = config.kafka.get_analytics_sample_rate()
-        if rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
@@ -300,9 +296,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
         span.set_tag(_SPAN_MEASURED_KEY)
-        rate = config.kafka.get_analytics_sample_rate()
-        if rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())
