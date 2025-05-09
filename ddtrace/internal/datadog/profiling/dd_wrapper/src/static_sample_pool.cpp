@@ -10,7 +10,7 @@ int StaticSamplePool::head = -1;
 
 std::optional<Sample*> StaticSamplePool::take_sample()
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    mutex.lock();
     if (head < 0) {
         return std::nullopt;
     }
@@ -22,13 +22,20 @@ std::optional<Sample*> StaticSamplePool::take_sample()
 
 std::optional<Sample*> StaticSamplePool::return_sample(Sample* sample)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    mutex.lock();
     if (head + 1 >= static_cast<int>(CAPACITY)) {
         return sample;
     }
     ++head;
     pool[head] = sample;
     return std::nullopt;
+}
+
+void StaticSamplePool::postfork_child()
+{
+    if (mutex.try_lock()) {
+        mutex.unlock();
+    }
 }
 
 } // namespace Datadog

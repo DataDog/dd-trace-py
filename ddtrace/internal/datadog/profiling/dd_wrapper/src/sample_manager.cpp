@@ -64,6 +64,7 @@ void
 Datadog::SampleManager::postfork_child()
 {
     Datadog::Sample::postfork_child();
+    Datadog::StaticSamplePool::postfork_child();
 }
 
 void
