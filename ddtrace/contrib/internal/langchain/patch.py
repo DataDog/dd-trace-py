@@ -746,7 +746,6 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
-    print(f"traced_chat_stream: instance={instance}, args={args}, kwargs={kwargs}")
     integration: LangChainIntegration = langchain._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
