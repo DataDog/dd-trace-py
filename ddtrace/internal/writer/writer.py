@@ -48,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from .agent import ConnectionType  # noqa:F401
+    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)

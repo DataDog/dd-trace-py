@@ -1,16 +1,9 @@
 import json
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config
 
-from .http import HTTPConnection
-from .http import HTTPSConnection
-from .uds import UDSHTTPConnection
 from .utils.http import get_connection
-
-
-ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 log = get_logger(__name__)
