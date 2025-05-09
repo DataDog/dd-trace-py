@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
+from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -28,15 +29,16 @@ def _set_span_tag_iast_request_tainted(span):
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
-def start_iast_context():
+def start_iast_context(span=None):
     if asm_config._iast_enabled:
         create_propagation_context()
-        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
+        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
 
 
 def end_iast_context(span: Optional["Span"] = None):
     env = _get_iast_env()
     if env is not None and env.span is span:
+        update_global_vulnerability_limit(env)
         finalize_iast_env(env)
     reset_propagation_context()
 
@@ -78,8 +80,10 @@ def set_iast_request_endpoint(method, route) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
         if env:
-            env.endpoint_method = method
-            env.endpoint_route = route
+            if method:
+                env.endpoint_method = method
+            if route:
+                env.endpoint_route = route
         else:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
@@ -91,7 +95,7 @@ def _move_iast_data_to_root_span():
 def _iast_start_request(span=None, *args, **kwargs):
     try:
         if asm_config._iast_enabled:
-            start_iast_context()
+            start_iast_context(span)
             request_iast_enabled = False
             if oce.acquire_request(span):
                 request_iast_enabled = True

@@ -2,7 +2,6 @@ import os
 import sysconfig
 from typing import Optional
 from typing import Set
-from typing import Text
 from typing import Tuple
 from typing import Union
 
@@ -64,21 +63,8 @@ class VulnerabilityBase:
 
     @staticmethod
     def has_quota():
-        if not asm_config._iast_deduplication_enabled:
-            return True
-
         context = _get_iast_env()
         return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
-
-    @classmethod
-    def is_not_reported(cls, filename: Text, lineno: int) -> bool:
-        if asm_config._iast_deduplication_enabled:
-            vulnerability_id = (filename, lineno)
-            if vulnerability_id in cls._reported_vulnerabilities:
-                return False
-
-            cls._reported_vulnerabilities.add(vulnerability_id)
-        return True
 
     @classmethod
     @taint_sink_deduplication

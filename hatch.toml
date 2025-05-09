@@ -294,6 +294,7 @@ dependencies = [
 [envs.appsec_iast_default.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 
@@ -326,6 +327,7 @@ dependencies = [
 [envs.appsec_iast_memcheck.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_memcheck.scripts]
@@ -351,6 +353,7 @@ dependencies = [
 [envs.appsec_iast_native.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
@@ -380,6 +383,7 @@ dependencies = [
 [envs.appsec_iast_packages.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_packages.scripts]
@@ -414,6 +418,7 @@ dependencies = [
 [envs.iast_tdd_propagation.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.iast_tdd_propagation.scripts]
@@ -447,6 +452,7 @@ dependencies = [
 [envs.appsec_integrations_packages.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 
@@ -480,6 +486,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 
@@ -519,6 +526,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_flask.scripts]
@@ -576,6 +584,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_fastapi.scripts]

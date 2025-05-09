@@ -25,7 +25,7 @@ class IASTEnvironment:
         self.vulnerability_copy_global_limit: Dict[str, int] = {}
         self.vulnerabilities_request_limit: Dict[str, int] = {}
         self.vulnerability_budget: int = 0
-        self.is_first_vulnerability: bool = False
+        self.is_first_vulnerability: bool = True
         self.endpoint_method: str = ""
         self.endpoint_route: str = ""
 

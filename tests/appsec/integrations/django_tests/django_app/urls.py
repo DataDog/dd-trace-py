@@ -97,6 +97,11 @@ urlpatterns = [
     handler("appsec/xss/autoscape/$", views.xss_http_request_parameter_autoscape),
     handler("appsec/propagation/ospathjoin/$", views.ospathjoin_propagation),
     path(
+        "appsec/iast_sampling_by_route_method/<str:q_http_path_parameter>/",
+        views.iast_sampling_by_route_method,
+        name="iast_sampling_by_route_method",
+    ),
+    path(
         "appsec/sqli_http_path_parameter/<str:q_http_path_parameter>/",
         views.sqli_http_path_parameter,
         name="sqli_http_path_parameter",
