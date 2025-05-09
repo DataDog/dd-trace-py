@@ -272,7 +272,7 @@ appsec_iast_packages:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - riot run -p {PYTHON_VERSION} appsec_iast_packages
+    - riot run -p ${PYTHON_VERSION} appsec_iast_packages
         """
         )
 
