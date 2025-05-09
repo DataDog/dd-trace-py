@@ -72,7 +72,6 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
@@ -675,14 +674,6 @@ if not IS_PYSTON:
     if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
-                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                source_dir=CRASHTRACKER_DIR,
-                optional=False,
-            )
-        )
-
-        ext_modules.append(
-            CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                 source_dir=STACK_V2_DIR,
                 optional=False,
@@ -705,7 +696,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
@@ -794,6 +784,13 @@ setup(
                 path="src/native/Cargo.toml",
                 py_limited_api="auto",
                 binding=Binding.PyO3,
+                features=["crashtracker"]
+                if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
+                and is_64_bit_python()
+                else [],
+                rustc_flags=["-C", "link-arg=-Wl,-dead_strip"]
+                if CURRENT_OS == "Darwin"
+                else ["-C", "link-dead-code=no", "-C", "link-arg=-Wl,--gc-sections"],
                 debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
             ),
         ]

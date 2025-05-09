@@ -335,7 +335,6 @@ build_base_venvs:
       paths:
         - .riot/venv_*
         - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
         - ddtrace/internal/datadog/profiling/test/test_*
         - cache_used.txt
   artifacts:
@@ -344,7 +343,6 @@ build_base_venvs:
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
         """
         )
