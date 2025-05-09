@@ -284,6 +284,29 @@ class TracerTestCases(TracerTestCase):
             (dict(name="wrap.overwrite", service="webserver", meta=dict(args="(42,)", kwargs="{'kw_param': 42}")),),
         )
 
+    def test_tracer_wrap_generator(self):
+        @self.tracer.wrap("decorated_generator", service="s", resource="r", span_type="t")
+        def f(tag_name, tag_value):
+            # make sure we can still set tags
+            span = self.tracer.current_span()
+            span.set_tag(tag_name, tag_value)
+
+            for i in range(3):
+                yield i
+
+        result = list(f("a", "b"))
+        assert result == [0, 1, 2]
+
+        self.assert_span_count(1)
+        span = self.get_root_span()
+        span.assert_matches(
+            name="decorated_generator",
+            service="s",
+            resource="r",
+            span_type="t",
+            meta=dict(a="b"),
+        )
+
     def test_tracer_disabled(self):
         self.tracer.enabled = True
         with self.trace("foo") as s:
