@@ -10,6 +10,7 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  DD_DISABLE_VPA: true
   # CI_DEBUG_SERVICES: "true"
   DD_DISABLE_VPA: true
 
