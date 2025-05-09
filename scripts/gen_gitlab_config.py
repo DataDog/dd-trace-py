@@ -267,11 +267,11 @@ appsec_iast_packages:
   before_script:
     - !reference [.test_base_riot, before_script]
     - pyenv global "${PYTHON_VERSION}"
+    - pip install riot
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - pip{PYTHON_VERSION} install riot
     - riot run -p {PYTHON_VERSION} appsec_iast_packages
         """
         )
