@@ -1189,6 +1189,7 @@ def patch():
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     from langchain.chains.base import Chain  # noqa:F401
     from langchain_core.tools import BaseTool  # noqa:F401
+
     print("PATCHING LANGCHAIN")
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))

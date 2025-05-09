@@ -1,4 +1,6 @@
 import json
+from typing import AsyncIterator
+from typing import Iterator
 
 from langchain.agents import AgentExecutor
 from langchain.agents import AgentType
@@ -10,8 +12,10 @@ from langchain_core.agents import AgentActionMessageLog
 from langchain_core.language_models import BaseChatModel
 from langchain_core.language_models.fake import FakeListLLM
 from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessageChunk
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGeneration
+from langchain_core.outputs import ChatGenerationChunk
 from langchain_core.outputs import ChatResult
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
@@ -315,3 +319,19 @@ class FakeOpenAILLM(BaseChatModel):
         **kwargs,
     ) -> ChatResult:
         return self._generate(messages)
+
+    def _stream(
+        self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs
+    ) -> Iterator[ChatGenerationChunk]:
+        chat_result = self._generate(messages)
+        for gen in chat_result.generations:
+            full_msg = gen.message
+            msg_chunk = AIMessageChunk(content=full_msg.content, additional_kwargs=full_msg.additional_kwargs)
+            gen_chunk = ChatGenerationChunk(message=msg_chunk)
+            yield gen_chunk
+
+    async def _astream(
+        self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        for chunk in self._stream(messages):
+            yield chunk
