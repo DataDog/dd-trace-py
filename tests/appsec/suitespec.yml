@@ -75,7 +75,7 @@ suites:
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_packages/*
-    runner: hatch
+    runner: riot
     timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
