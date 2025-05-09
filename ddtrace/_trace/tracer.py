@@ -905,3 +905,7 @@ class Tracer(object):
                 forksafe.unregister(self._child_after_fork)
 
         self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+
+
+# Instantiate the global tracer
+tracer = Tracer()

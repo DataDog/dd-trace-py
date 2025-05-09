@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -38,7 +39,6 @@ import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
