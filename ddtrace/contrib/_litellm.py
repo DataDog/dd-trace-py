@@ -1,5 +1,5 @@
 """
-The LiteLLM integration instruments the LiteLLM Python SDK's sync and async ``completion`` and ``text_completion`` methods.
+The LiteLLM integration instruments the LiteLLM Python SDK's sync and async ``completion`` and ``text_completion`` methods as well as the ``route_request`` proxy server method.
 
 All traces submitted from the LiteLLM integration are tagged by:
 
