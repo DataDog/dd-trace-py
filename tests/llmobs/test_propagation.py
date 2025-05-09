@@ -5,7 +5,9 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 
@@ -28,6 +30,13 @@ def test_inject_llmobs_parent_id_simple(llmobs):
     with llmobs.workflow("LLMObs span") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "unnamed-ml-app"
+
+
+def test_inject_llmobs_ml_app_override(llmobs):
+    with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
@@ -178,9 +187,7 @@ def test_inject_distributed_headers_nested_llmobs_spans(llmobs):
     assert "llmobs_parent_id:{}".format(last_llmobs_span.span_id) in request_headers.get("tracestate")
 
 
-def test_activate_distributed_headers_propagate_correct_llmobs_parent_id_simple(
-    ddtrace_run_python_code_in_subprocess, llmobs
-):
+def test_activate_distributed_headers_propagate_simple(ddtrace_run_python_code_in_subprocess, llmobs_no_ml_app):
     """Test that the correct LLMObs parent ID is propagated in the headers in a simple distributed scenario.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a LLMObs span.
@@ -207,13 +214,14 @@ print(json.dumps(headers))
     assert status == 0, (stdout, stderr)
 
     headers = json.loads(stdout.decode())
-    llmobs.activate_distributed_headers(headers)
-    with llmobs.workflow("LLMObs span") as span:
+    llmobs_no_ml_app.activate_distributed_headers(headers)
+    with llmobs_no_ml_app.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+        assert span._get_ctx_item(ML_APP) == "test-app"  # should have been propagated
 
 
-def test_activate_distributed_headers_propagate_llmobs_parent_id_complex(ddtrace_run_python_code_in_subprocess, llmobs):
+def test_activate_distributed_headers_propagate_complex(ddtrace_run_python_code_in_subprocess, llmobs):
     """Test that the correct LLMObs parent ID is propagated in the headers in a more complex trace.
     Service A (subprocess) has a root LLMObs span and a non-LLMObs child span.
     Service B (outside subprocess) has a non-LLMObs local root span and a LLMObs child span.
@@ -246,6 +254,7 @@ print(json.dumps(headers))
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
             assert span._get_ctx_item(PARENT_ID_KEY) is None
             assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+            assert llm_span._get_ctx_item(ML_APP) == "unnamed-ml-app"  # should be the one set by `llmobs` fixture
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
@@ -278,6 +287,7 @@ print(json.dumps(headers))
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
+        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
 
 
 def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
