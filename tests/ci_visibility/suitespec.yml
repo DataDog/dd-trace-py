@@ -56,25 +56,24 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
-  ## Disabled as we already run these on riot
-  # pytest_v2:
-  #   parallelism: 7
-  #   paths:
-  #     - '@bootstrap'
-  #     - '@core'
-  #     - '@contrib'
-  #     - '@tracing'
-  #     - '@pytest'
-  #     - '@ci_visibility'
-  #     - '@coverage'
-  #     - '@codeowners'
-  #     - tests/contrib/pytest/*
-  #     - tests/contrib/pytest_benchmark/*
-  #     - tests/contrib/pytest_bdd/*
-  #     - tests/snapshots/tests.contrib.pytest.*
-  #   pattern: pytest_plugin_v2
-  #   runner: hatch
-  #   snapshot: true
+  pytest_v2:
+    parallelism: 7
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - tests/contrib/pytest/*
+      - tests/contrib/pytest_benchmark/*
+      - tests/contrib/pytest_bdd/*
+      - tests/snapshots/tests.contrib.pytest.*
+    pattern: pytest_plugin_v2
+    runner: hatch
+    snapshot: true
   selenium:
     parallelism: 4
     paths:
