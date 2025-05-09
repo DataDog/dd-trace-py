@@ -32,6 +32,10 @@ def iast_propagation_debug_log(msg, *args, **kwargs):
     log.debug("iast::propagation::error::%s", msg, *args, **kwargs)
 
 
+def iast_propagation_sink_point_debug_log(msg, *args, **kwargs):
+    log.debug("iast::propagation::sink_point::%s", msg, *args, **kwargs)
+
+
 def iast_instrumentation_ast_patching_errorr_log(msg):
     iast_error(msg, default_prefix="iast::instrumentation::ast_patching::")
 
