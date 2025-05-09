@@ -55,6 +55,11 @@ def do_operator_add_inplace_params(a, b):
     return a
 
 
+def do_operator_add_inplace_dict_key(a, key, b):
+    a[key] += b
+    return a[key]
+
+
 def do_operator_add_inplace_3_params(a, b, c):
     a += b
     a += c

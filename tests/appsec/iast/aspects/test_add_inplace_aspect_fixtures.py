@@ -53,6 +53,31 @@ class TestOperatorAddInplaceReplacement(object):
         result = mod.do_operator_add_inplace_params(string_input, bar)
         assert len(get_tainted_ranges(result)) == 1
 
+    def test_string_operator_add_inplace_dict_element_tainted_lhs(self) -> None:
+        string_input = taint_pyobject(
+            pyobject="foo",
+            source_name="test_string_operator_add_inplace_dict_element_tainted_lhs",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+        d = {"key": string_input}
+        assert get_tainted_ranges(string_input)
+        result = mod.do_operator_add_inplace_dict_key(d, "key", "bar")
+        assert len(get_tainted_ranges(result)) == 1
+        assert get_tainted_ranges(result) == get_tainted_ranges(string_input)
+
+    def test_string_operator_add_inplace_dict_element_tainted_rhs(self) -> None:
+        string_input = taint_pyobject(
+            pyobject="bar",
+            source_name="test_string_operator_add_inplace_dict_element_tainted_rhs",
+            source_value="bar",
+            source_origin=OriginType.PARAMETER,
+        )
+        d = {"key": "foo"}
+        assert get_tainted_ranges(string_input)
+        result = mod.do_operator_add_inplace_dict_key(d, "key", string_input)
+        assert len(get_tainted_ranges(result)) == 1
+
     def test_string_operator_add_inplace_two(self) -> None:
         string_input = taint_pyobject(
             pyobject="foo",
