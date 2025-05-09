@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    litellm: Adds tracing support for LiteLLM's ``route_request`` proxy method.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#litellm>`
+      for more information.
