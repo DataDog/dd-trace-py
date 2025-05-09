@@ -129,7 +129,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_packages",
-            pys=["3.9", "3.10", "3.11", "3.12"],
+            pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
             command="pytest {cmdargs} tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,

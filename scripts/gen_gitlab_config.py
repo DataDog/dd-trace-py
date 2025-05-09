@@ -253,7 +253,7 @@ appsec_iast_packages:
   timeout: 50m
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
