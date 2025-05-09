@@ -283,7 +283,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         headers = self._get_final_headers()
         url = combine_url_path(self._base_url, endpoint)
 
-        conn: t.Optional[ConnectionType] = None
+        conn: t.Optional["ConnectionType"] = None
         try:
             parsed_url = verify_url(url)
             url_path = parsed_url.path

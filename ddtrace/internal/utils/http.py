@@ -42,8 +42,8 @@ if TYPE_CHECKING:
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
 
-    ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
-    Connector = Callable[[], ContextManager[httplib.HTTPConnection]]
+ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
+Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
 
 
 log = logging.getLogger(__name__)
@@ -278,8 +278,7 @@ class Response(object):
         )
 
 
-def get_connection(url, timeout=DEFAULT_TIMEOUT):
-    # type: (str, float) -> ConnectionType
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> "ConnectionType":
     """Return an HTTP connection to the given URL."""
     parsed = verify_url(url)
     hostname = parsed.hostname or ""

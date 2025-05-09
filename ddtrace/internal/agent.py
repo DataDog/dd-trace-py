@@ -8,18 +8,12 @@ from ddtrace.settings._agent import config
 from .utils.http import get_connection
 
 
-DEFAULT_HOSTNAME = "localhost"
-DEFAULT_TRACE_PORT = 8126
-DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
-DEFAULT_UNIX_DSD_PATH = "/var/run/datadog/dsd.socket"
-DEFAULT_STATS_PORT = 8125
-
 if TYPE_CHECKING:  # pragma: no cover
     from .http import HTTPConnection
     from .http import HTTPSConnection
     from .uds import UDSHTTPConnection
 
-    ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
+ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
 
 
 log = get_logger(__name__)
