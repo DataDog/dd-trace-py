@@ -52,5 +52,5 @@ def test_openai_llm_appsec_iast_cmdi(iast_context_defaults):  # noqa: F811
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == "patch_langchain"
-    assert vulnerability["location"]["class"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value

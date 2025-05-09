@@ -66,10 +66,20 @@ class Evidence(NotNoneDictable):
 @dataclasses.dataclass(unsafe_hash=True)
 class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
     method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
     class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
+
+    def __post_init__(self):
+        self.hash = zlib.crc32(repr(self).encode())
+        stacktrace_id = get_iast_stacktrace_id()
+        self.stackId = None
+        if stacktrace_id:
+            str_id = str(stacktrace_id)
+            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+                self.stackId = str_id
 
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
@@ -78,14 +88,16 @@ class Location:
         result = {}
         if self.spanId is not None:
             result["spanId"] = self.spanId
-        if self.path is not None:
+        if self.path:
             result["path"] = self.path
         if self.line is not None:
             result["line"] = self.line
-        if self.method is not None:
+        if self.method:
             result["method"] = self.method
-        if self.class_name is not None:
+        if self.class_name:
             result["class"] = self.class_name
+        if self.stackId:
+            result["stackId"] = self.stackId
         return result
 
 
@@ -95,18 +107,9 @@ class Vulnerability:
     evidence: Evidence
     location: Location
     hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
-    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
 
     def __post_init__(self):
-        # avoid circular import
-
         self.hash = zlib.crc32(repr(self).encode())
-        stacktrace_id = get_iast_stacktrace_id()
-        self.stackId = None
-        if stacktrace_id:
-            str_id = str(stacktrace_id)
-            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
-                self.stackId = str_id
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
@@ -118,8 +121,6 @@ class Vulnerability:
             "location": self.location._to_dict(),
             "hash": self.hash,
         }
-        if self.stackId:
-            to_dict["stackId"] = self.stackId
         return to_dict
 
 
