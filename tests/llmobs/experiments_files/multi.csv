@@ -1,0 +1,5 @@
+prompt,context,expected_response,expected_certainty,category,difficulty
+France capital?,,Paris,0.9,geography,easy
+Largest planet?,Solar System,Jupiter,1.0,astronomy,medium
+What is DNA?,Biology,Deoxyribonucleic acid,0.95,science,hard
+Calculate 2+3,Math basics,5,1.0,mathematics,easy 

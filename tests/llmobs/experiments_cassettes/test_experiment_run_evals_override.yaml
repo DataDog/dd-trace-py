@@ -1,0 +1,134 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7511592829981964318", "trace_id": "67f557a10000000093f49612f2c00b05",
+      "metric_type": "score", "timestamp_ms": 1744132001038, "label": "length_evaluator",
+      "score_value": 18, "error": null}, {"span_id": "4889515230329386321", "trace_id":
+      "67f557a100000000aaee043f05b4ea80", "metric_type": "score", "timestamp_ms":
+      1744132001039, "label": "length_evaluator", "score_value": 12, "error": null}],
+      "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407", "experiment_id:0ccf9357-376e-4b57-b9a7-113e6a791a1b"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '607'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/0ccf9357-376e-4b57-b9a7-113e6a791a1b/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:06:46 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "15092952630267072814", "trace_id": "67f55a650000000003a9a91e43a004a1",
+      "metric_type": "score", "timestamp_ms": 1744132709208, "label": "length_evaluator",
+      "score_value": 18, "error": null}, {"span_id": "5813495575523415247", "trace_id":
+      "67f55a650000000097d030b3a3c54505", "metric_type": "score", "timestamp_ms":
+      1744132709209, "label": "length_evaluator", "score_value": 12, "error": null}],
+      "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407", "experiment_id:8c9ed714-2eb2-4963-9b20-7f77ee3e620c"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '608'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/8c9ed714-2eb2-4963-9b20-7f77ee3e620c/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:18:34 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "3598079796595292845", "trace_id": "67f5636b000000003db36da17c92c034",
+      "metric_type": "score", "timestamp_ms": 1744135019686, "label": "length_evaluator",
+      "score_value": 18, "error": null}, {"span_id": "4567455353624884790", "trace_id":
+      "67f5636b000000005bc41ec55abc76c3", "metric_type": "score", "timestamp_ms":
+      1744135019688, "label": "length_evaluator", "score_value": 12, "error": null}],
+      "tags": ["ddtrace.version:3.4.0.dev129+g96662098f.d20250407", "experiment_id:ca79dc24-90fb-4293-852c-13c22d4f3930"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '607'
+      Content-Type:
+      - application/json
+      Host:
+      - api.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.10
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/ca79dc24-90fb-4293-852c-13c22d4f3930/events
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/vnd.api+json
+      Date:
+      - Tue, 08 Apr 2025 17:57:03 GMT
+      content-length:
+      - '100'
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1
