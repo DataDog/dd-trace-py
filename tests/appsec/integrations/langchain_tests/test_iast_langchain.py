@@ -20,6 +20,7 @@ from langchain_core.outputs import ChatResult
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts import PromptTemplate
+import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
@@ -180,14 +181,15 @@ def test_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(res.tool_input["arg1"])
 
 
-def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
+@pytest.mark.parametrize("llm_class", ["FakeOpenAILLM", "FakeStreamingOpenAILLM"])
+def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults, llm_class):  # noqa: F811
     ai_message = AIMessage(
         content=["Some content"],
         additional_kwargs=dict(
             function_call={"name": "terminal", "arguments": json.dumps({"commands": ["echo Hello World"]})}
         ),
     )
-    llm = FakeOpenAILLM(
+    llm = globals()[llm_class](
         responses=[ChatGeneration(message=ai_message), ChatGeneration(message=AIMessage(content="END"))]
     )
     shell = ShellTool()
@@ -206,6 +208,61 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F
     prompt = taint_string("I need to use the terminal tool to print a Hello World")
     # label test_cmdi_with_openai_functions_agent_invoke
     res = agent_executor.invoke({"input": prompt})
+    assert isinstance(res, dict)
+    assert res == {"input": prompt, "output": "END"}
+
+    span_report = _get_span_report()
+    assert span_report
+    data = span_report.build_and_scrub_value_parts()
+    vulnerability = data["vulnerabilities"][0]
+    source = data["sources"][0]
+    assert vulnerability["type"] == VULN_CMDI
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"source": 0, "value": "echo "},
+        {"pattern": "fghijklmnop", "redacted": True, "source": 0},
+    ]
+    assert "value" not in vulnerability["evidence"].keys()
+    assert vulnerability["evidence"].get("pattern") is None
+    assert vulnerability["evidence"].get("redacted") is None
+    assert source["name"] == "commands"
+    assert source["origin"] == OriginType.PARAMETER
+    assert "value" not in source.keys()
+
+    assert vulnerability["hash"]
+    location = vulnerability["location"]
+    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["line"]
+    assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
+    assert "class" not in location
+
+
+@pytest.mark.parametrize("llm_class", ["FakeOpenAILLM", "FakeStreamingOpenAILLM"])
+async def test_cmdi_with_openai_functions_agent_ainvoke(iast_span_defaults, llm_class):  # noqa: F811
+    ai_message = AIMessage(
+        content=["Some content"],
+        additional_kwargs=dict(
+            function_call={"name": "terminal", "arguments": json.dumps({"commands": ["echo Hello World"]})}
+        ),
+    )
+    llm = globals()[llm_class](
+        responses=[ChatGeneration(message=ai_message), ChatGeneration(message=AIMessage(content="END"))]
+    )
+    shell = ShellTool()
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful AI assistant.",
+            ),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+    agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
+    agent_executor = AgentExecutor(agent=agent, tools=[shell], verbose=True)
+    prompt = taint_string("I need to use the terminal tool to print a Hello World")
+    # label test_cmdi_with_openai_functions_agent_ainvoke
+    res = await agent_executor.ainvoke({"input": prompt})
     assert isinstance(res, dict)
     assert res == {"input": prompt, "output": "END"}
 
@@ -319,6 +376,28 @@ class FakeOpenAILLM(BaseChatModel):
         **kwargs,
     ) -> ChatResult:
         return self._generate(messages)
+
+    def _stream(
+        self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs
+    ) -> Iterator[ChatGenerationChunk]:
+        chat_result = self._generate(messages)
+        for gen in chat_result.generations:
+            full_msg = gen.message
+            msg_chunk = AIMessageChunk(content=full_msg.content, additional_kwargs=full_msg.additional_kwargs)
+            gen_chunk = ChatGenerationChunk(message=msg_chunk)
+            yield gen_chunk
+
+    async def _astream(
+        self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        for chunk in self._stream(messages):
+            yield chunk
+
+
+class FakeStreamingOpenAILLM(FakeOpenAILLM):
+    """
+    Variant of FakeOpenAILLM for streaming responses. This behaves close to ChatOpenAI.
+    """
 
     def _stream(
         self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs
