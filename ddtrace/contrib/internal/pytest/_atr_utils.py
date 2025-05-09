@@ -6,7 +6,6 @@ import pytest
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
 from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
-from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type

@@ -2,15 +2,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import typing as t
 
-import _pytest
-from _pytest.logging import caplog_handler_key
-from _pytest.logging import caplog_records_key
 from _pytest.runner import runtestprotocol
-from _pytest.runner import CallInfo
 import pytest
 
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._types import tmppath_result_key
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
