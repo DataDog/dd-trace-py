@@ -226,7 +226,8 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
+    snapshot: true
   urllib:
     paths:
       - '@bootstrap'
