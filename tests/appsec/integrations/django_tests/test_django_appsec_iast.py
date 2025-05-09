@@ -1245,6 +1245,57 @@ def test_django_ospathjoin_propagation(client, test_spans, tracer):
 
 
 @pytest.mark.django_db()
+def test_django_iast_sampling(client, test_spans_2_vuln_per_request_deduplication, tracer):
+    list_vulnerabilities = []
+    for i in range(10):
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans_2_vuln_per_request_deduplication,
+            tracer,
+            url=f"/appsec/iast_sampling/?param=value{i}",
+        )
+        assert response.status_code == 200
+        assert str(response.content, encoding="utf-8") == f"OK:value{i}", response.content
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert len(loaded["vulnerabilities"]) == 1
+        assert loaded["sources"] == [
+            {"origin": "http.request.parameter", "name": "param", "redacted": True, "pattern": "abcdef"}
+        ]
+        for vuln in loaded["vulnerabilities"]:
+            assert vuln["type"] == VULN_SQL_INJECTION
+            list_vulnerabilities.append(vuln["location"]["line"])
+    assert (
+        len(list_vulnerabilities) == 10
+    ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+
+
+@pytest.mark.django_db()
+def test_django_iast_sampling_2(client, test_spans_2_vuln_per_request_deduplication, tracer):
+    list_vulnerabilities = []
+    for i in range(10):
+        root_span, response = _aux_appsec_get_root_span(
+            client,
+            test_spans_2_vuln_per_request_deduplication,
+            tracer,
+            url=f"/appsec/iast_sampling_2/?param=value{i}",
+        )
+        assert response.status_code == 200
+        assert str(response.content, encoding="utf-8") == f"OK:value{i}", response.content
+        if i > 0:
+            assert root_span.get_tag(IAST.JSON) is None
+        else:
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert len(loaded["vulnerabilities"]) == 2
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "param", "redacted": True, "pattern": "abcdef"}
+            ]
+            for vuln in loaded["vulnerabilities"]:
+                assert vuln["type"] == VULN_SQL_INJECTION
+                list_vulnerabilities.append(vuln["location"]["line"])
+    assert len(list_vulnerabilities) == 2, f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+
+
+@pytest.mark.django_db()
 def test_django_iast_sampling_by_route_method(client, test_spans_2_vuln_per_request_deduplication, tracer):
     list_vulnerabilities = []
     for i in range(10):

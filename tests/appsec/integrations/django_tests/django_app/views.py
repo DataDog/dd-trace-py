@@ -184,6 +184,21 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
 
 
+def iast_sampling(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_2(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
 def iast_sampling_by_route_method(request, q_http_path_parameter):
     param_tainted = request.GET.get("param")
     with connection.cursor() as cursor:
