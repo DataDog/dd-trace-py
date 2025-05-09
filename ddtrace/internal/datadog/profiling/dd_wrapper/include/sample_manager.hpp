@@ -2,7 +2,6 @@
 
 #include "constants.hpp"
 #include "sample.hpp"
-#include "synchronized_sample_pool.hpp"
 #include "types.hpp"
 
 #include <array>
@@ -20,7 +19,6 @@ class SampleManager
     static inline unsigned int max_nframes{ g_default_max_nframes };
     static inline SampleType type_mask{ SampleType::All };
     static inline size_t sample_pool_capacity{ g_default_sample_pool_capacity };
-    static inline std::unique_ptr<SynchronizedSamplePool> sample_pool{ nullptr };
 
   public:
     // Configuration
