@@ -128,6 +128,22 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_packages",
+            pys=["3.9", "3.10", "3.11", "3.12"],
+            command="pytest {cmdargs} tests/appsec/iast/packages/",
+            pkgs={
+                "requests": latest,
+                "astunparse": latest,
+                "flask": latest,
+                "virtualenv-clone": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",

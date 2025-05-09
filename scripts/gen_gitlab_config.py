@@ -249,7 +249,7 @@ def gen_appsec_iast_packages() -> None:
         f.write(
             """
 appsec_iast_packages:
-  extends: .test_base_hatch
+  extends: .test_base_riot
   timeout: 50m
   parallel:
     matrix:
@@ -265,13 +265,13 @@ appsec_iast_packages:
       paths:
         - .cache
   before_script:
-    - !reference [.test_base_hatch, before_script]
+    - !reference [.test_base_riot, before_script]
     - pyenv global "${PYTHON_VERSION}"
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export DD_FAST_BUILD="1"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+    - riot run -p {PYTHON_VERSION} appsec_iast_packages
         """
         )
 

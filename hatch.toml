@@ -363,34 +363,34 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## ASM appsec_iast_packages
-
-[envs.appsec_iast_packages]
-template = "appsec_iast_packages"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "astunparse",
-    "flask",
-    "virtualenv-clone"
-]
-
-[envs.appsec_iast_packages.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-[envs.appsec_iast_packages.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/appsec/iast_packages",
-]
-
-[[envs.appsec_iast_packages.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
+### ASM appsec_iast_packages
+#
+#[envs.appsec_iast_packages]
+#template = "appsec_iast_packages"
+#dependencies = [
+#    "pytest",
+#    "pytest-cov",
+#    "requests",
+#    "hypothesis",
+#    "astunparse",
+#    "flask",
+#    "virtualenv-clone"
+#]
+#
+#[envs.appsec_iast_packages.env-vars]
+#_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+#DD_IAST_REQUEST_SAMPLING = "100"
+#DD_IAST_DEDUPLICATION_ENABLED = "false"
+#
+#[envs.appsec_iast_packages.scripts]
+#test = [
+#    "uname -a",
+#    "pip freeze",
+#    "python -m pytest tests/appsec/iast_packages",
+#]
+#
+#[[envs.appsec_iast_packages.matrix]]
+#python = ["3.9", "3.10", "3.11", "3.12"]
 
 ## ASM iast_tdd_propagation
 
