@@ -60,7 +60,7 @@ def _end_iast_context_and_oce(span=None):
     oce.release_request()
 
 
-def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
+def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
     try:
         from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
         from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
@@ -77,6 +77,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
             _iast_deduplication_enabled=deduplication,
+            _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
@@ -109,6 +110,11 @@ def iast_context_defaults():
 @pytest.fixture
 def iast_context_deduplication_enabled(tracer):
     yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=True)
+
+
+@pytest.fixture
+def iast_context_2_vulnerabilities_per_requests(tracer):
+    yield from iast_context(dict(DD_IAST_ENABLED="true"), vulnerabilities_per_requests=2)
 
 
 @pytest.fixture
