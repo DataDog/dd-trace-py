@@ -509,6 +509,7 @@ def _process_result(item, call, result) -> _TestOutcome:
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
     # When ATR or EFD retries are active, we do not want makereport to generate results
+    # breakpoint()
     if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
         return
 
@@ -522,8 +523,8 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     test_outcome = _process_result(item, call, original_result)
 
-    # A None value for test_outcome.status implies the test has not finished yet
-    # Only continue to finishing the test if the test has finished, or if tearing down the test
+    # # A None value for test_outcome.status implies the test has not finished yet
+    # # Only continue to finishing the test if the test has finished, or if tearing down the test
     if test_outcome.status is None and call.when != "teardown":
         return
 
@@ -578,15 +579,15 @@ def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:
     # yield.
     failed_reports_initial_size = len(terminalreporter.stats.get(PYTEST_STATUS.FAILED, []))
 
-    if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
-        for failed_report in efd_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_efd() and InternalTestSession.efd_enabled():
+    #     for failed_report in efd_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
-    if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
-        for failed_report in atr_get_failed_reports(terminalreporter):
-            failed_report.outcome = PYTEST_STATUS.FAILED
-            terminalreporter.stats.setdefault("failed", []).append(failed_report)
+    # if _pytest_version_supports_atr() and InternalTestSession.atr_is_enabled():
+    #     for failed_report in atr_get_failed_reports(terminalreporter):
+    #         failed_report.outcome = PYTEST_STATUS.FAILED
+    #         terminalreporter.stats.setdefault("failed", []).append(failed_report)
 
     return failed_reports_initial_size
 
