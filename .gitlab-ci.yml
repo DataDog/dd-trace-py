@@ -12,7 +12,6 @@ variables:
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
   DD_DISABLE_VPA: true
   # CI_DEBUG_SERVICES: "true"
-  DD_DISABLE_VPA: true
 
 default:
   interruptible: true
