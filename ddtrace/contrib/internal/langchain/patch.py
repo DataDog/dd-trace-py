@@ -284,6 +284,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
+    print(f"traced_chat_model_generate: instance={instance}, args={args}, kwargs={kwargs}")
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
@@ -745,6 +746,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
+    print(f"traced_chat_stream: instance={instance}, args={args}, kwargs={kwargs}")
     integration: LangChainIntegration = langchain._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
@@ -958,6 +960,7 @@ def _iast_taint_llm_output(prompts, completions):
     Range propagation does not make sense in LLMs. So we get the first source in inputs, if any,
     and taint the full output with that source.
     """
+    print(f"_iast_taint_llm_output: prompts={prompts}, completions={completions}")
     if not asm_config._iast_enabled:
         return
     if not isinstance(prompts, (tuple, list)):
@@ -1004,7 +1007,7 @@ def _iast_taint_llm_output(prompts, completions):
 
 def _iast_taint_chat_model_output(messages, completions):
     # XXX: DEBUGGING
-    log.debug("_iast_taint_chat_model_output: messages=%s, completions=%s", messages, completions)
+    print(f"_iast_taint_chat_model_output: messages={messages}, completions={completions}")
     if not asm_config._iast_enabled:
         return
     if not isinstance(messages, (tuple, list)):
@@ -1186,7 +1189,7 @@ def patch():
     # ref: https://github.com/DataDog/dd-trace-py/issues/7123
     from langchain.chains.base import Chain  # noqa:F401
     from langchain_core.tools import BaseTool  # noqa:F401
-
+    print("PATCHING LANGCHAIN")
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap(
@@ -1199,6 +1202,7 @@ def patch():
         "language_models.chat_models.BaseChatModel.agenerate",
         traced_chat_model_agenerate(langchain),
     )
+
     wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))

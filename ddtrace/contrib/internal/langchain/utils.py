@@ -75,6 +75,7 @@ def shared_stream(
     on_span_finished,
     **extra_options,
 ):
+    print(f"shared_stream: instance={instance}, args={args}, kwargs={kwargs}")
     options = {
         "pin": pin,
         "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
