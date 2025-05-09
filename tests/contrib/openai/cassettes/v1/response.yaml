@@ -8,7 +8,7 @@ interactions:
       accept:
       - application/json
       accept-encoding:
-      - gzip, deflate, zstd
+      - gzip, deflate
       connection:
       - keep-alive
       content-length:
@@ -18,17 +18,17 @@ interactions:
       host:
       - api.openai.com
       user-agent:
-      - OpenAI/Python 1.76.0
+      - AsyncOpenAI/Python 1.76.2
       x-stainless-arch:
       - arm64
       x-stainless-async:
-      - 'false'
+      - async:asyncio
       x-stainless-lang:
       - python
       x-stainless-os:
       - MacOS
       x-stainless-package-version:
-      - 1.76.0
+      - 1.76.2
       x-stainless-read-timeout:
       - '600'
       x-stainless-retry-count:
@@ -40,23 +40,28 @@ interactions:
     method: POST
     uri: https://api.openai.com/v1/responses
   response:
-    body:
-      string: !!binary |
-        H4sIAAAAAAAAA3RTwW7bMAy95ysInZvAcpykzm1YsWHAgB1WbIdhMBiZjrXJkiFRXYsi/z5Ydpxm
-        ay9B/B5JPT6SzwsAoWuxB+Ep9NX2VkrZkNwV6+xWlvJ2t6EdNvKwa9ZlqVSmcswLmRfbYkPNWoqb
-        oYA7/CLF5yLOBhpx5QmZ6goHTu6KTbnJd+td4gIjxzDkKNf1hpjqMYm8d17swUZjEqDtOaKqiVGb
-        cM0G9lGxdvYK7/CxcpH7yBW735RImWUj52oyw9PHnpfFSi7zLN8ss2Ipi6mhlCj28GMBAPCcfmen
-        unA8G5Vnt6UajDpQc8i3tN7IJt9tUb5qVKrBTz2lKhQCHulCvOVIIpWzTPYi6aWsq7LnnumR5+wU
-        gNY6xrNPP35ekSl8D+K+JcizPIPvzpsavpLXFOAPBugNPlENyPDRuAPBZ90QfNBkatAW3nmj7ZGd
-        vYF7esSwgrtIwA64JXj/5dunu6UsoUdbU6fVTYLJsvYE4fJGO1RDBm51AEuRPRoImgk8ckseuEWb
-        clvXEQTGWscugGsS2KNnrXSPrO0RmLALKzF3eZr+zY0L70yyDEPQgdHyGDwEpiDRo0djyFTsnKkU
-        mrR67CONtKcH7WKozltfpf2YV9ATBme1PYr9NCtBTeM8vwga5h67Dv3TBC4ATuOBkH/QiirWNJyD
-        qKnBaMahisDOD9obNGEUw9T15JFjwuUqm9A01+n1xvkOL98vtibFzd2PAsamW6fV6FJkJ2biskOC
-        XV/1Yg/Zqhy/fbQqLVqSrQMezPm4Y1r5WZC2V/e5Wd/8j784+lm2QtVSfUnMRulT9r9nX2xfI16r
-        O0/srdLsGM2FLMvZrRimMdXsUdGSKUyz6oixRsbhodPi9BcAAP//AwBg/xKFcwUAAA==
+    content: "{\n  \"id\": \"resp_681e3a2c86e88191bab60fe448e0bc930fdfbc1e418dcde2\",\n
+      \ \"object\": \"response\",\n  \"created_at\": 1746811436,\n  \"status\": \"completed\",\n
+      \ \"error\": null,\n  \"incomplete_details\": null,\n  \"instructions\": null,\n
+      \ \"max_output_tokens\": 100,\n  \"model\": \"gpt-4.1-2025-04-14\",\n  \"output\":
+      [\n    {\n      \"id\": \"msg_681e3a2cf37c8191b62127f5cf9c6cd00fdfbc1e418dcde2\",\n
+      \     \"type\": \"message\",\n      \"status\": \"completed\",\n      \"content\":
+      [\n        {\n          \"type\": \"output_text\",\n          \"annotations\":
+      [],\n          \"text\": \"The 2020 World Series was played at Globe Life Field
+      in Arlington, Texas. This was the first time the World Series was held at a
+      neutral site due to the COVID-19 pandemic.\"\n        }\n      ],\n      \"role\":
+      \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+      null,\n  \"reasoning\": {\n    \"effort\": null,\n    \"summary\": null\n  },\n
+      \ \"service_tier\": \"default\",\n  \"store\": false,\n  \"temperature\": 1.0,\n
+      \ \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    }\n  },\n  \"tool_choice\":
+      \"auto\",\n  \"tools\": [],\n  \"top_p\": 0.9,\n  \"truncation\": \"disabled\",\n
+      \ \"usage\": {\n    \"input_tokens\": 53,\n    \"input_tokens_details\": {\n
+      \     \"cached_tokens\": 0\n    },\n    \"output_tokens\": 40,\n    \"output_tokens_details\":
+      {\n      \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 93\n  },\n  \"user\":
+      \"ddtrace-test\",\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 9380fee08936c5a6-IAD
+      - 93d2e3360ba8d697-IAD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -64,14 +69,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 29 Apr 2025 18:52:18 GMT
+      - Fri, 09 May 2025 17:23:57 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=ZBZ_gGawWFZR6g_amHJEvmq6eTrwHn.6T0arKW9gVW0-1745952738-1.0.1.1-P.TmPJmOrF49vIO_.9StvI17Ray1uycDvUw73C88oGotVOmLTyPooIHWvf0v2Q.CuZw8REvaclx9qcKBnHXVhxGr_2MsX2_o8TMbSVj4Wb8;
-        path=/; expires=Tue, 29-Apr-25 19:22:18 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=w1FD8qwuVDTjHdNQ1YHxJwIrAWI5GpExMSFp8iYJIho-1746811437-1.0.1.1-4dE.if41GCCG8xcHwozCx_mjVWsupKNIp4_1NHMrPjZO9J8yhSbO6oVcJcAZ1.P0mygmlSGtcHdsfkk_osLE2Cy6xhHnxm_K_AOi1T0V3ek;
+        path=/; expires=Fri, 09-May-25 17:53:57 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=EOcZHViEbTa_tPSVA8uhDzehfVRpUdeTnoMPw8C9f3I-1745952738788-0.0.1.1-604800000;
+      - _cfuvid=uc8eTG15YiXIOh.p15..yUkfL7n3x9cE._AVZ7lLOfM-1746811437454-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -84,14 +89,25 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '1371'
+      - '920'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999927'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
       x-request-id:
-      - req_0320a94becf7871df72beab48c3ecc6b
-    status:
-      code: 200
-      message: OK
+      - req_7c73c827059f6e1620608c74731d4a03
+    http_version: HTTP/1.1
+    status_code: 200
 version: 1

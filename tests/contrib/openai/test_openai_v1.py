@@ -1355,7 +1355,7 @@ async def test_openai_asyncio_cancellation(openai):
     token="tests.contrib.openai.test_openai.test_response",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-def test_response(openai, openai_vcr):
+def test_response(openai, openai_vcr, snapshot_tracer):
     """Ensure llmobs records are emitted for response endpoints when configured."""
     with openai_vcr.use_cassette("response.yaml"):
         model = "gpt-4.1"
@@ -1373,7 +1373,7 @@ def test_response(openai, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response_tools",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-def test_response_tools(openai, openai_vcr):
+def test_response_tools(openai, openai_vcr, snapshot_tracer):
     """Ensure tools are recorded for response endpoints when configured."""
     with openai_vcr.use_cassette("response_tools.yaml"):
         model = "gpt-4.1"
@@ -1389,7 +1389,7 @@ def test_response_tools(openai, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response_error",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-def test_response_error(openai, openai_vcr):
+def test_response_error(openai, openai_vcr, snapshot_tracer):
     """Assert errors when an invalid model is used."""
     with openai_vcr.use_cassette("response_create_error.yaml"):
         client = openai.OpenAI()
@@ -1408,15 +1408,16 @@ def test_response_error(openai, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-async def test_aresponse(openai, request_api_key, openai_vcr):
+async def test_aresponse(openai, openai_vcr, snapshot_tracer):
     """Assert spans are created with async client."""
     with openai_vcr.use_cassette("response.yaml"):
         client = openai.AsyncOpenAI()
+        input_messages = multi_message_input
         await client.responses.create(
             model="gpt-4.1",
-            input=[
-                {"role": "user", "content": "Who won the world series in 2020?"},
-            ],
+            input=input_messages,
+            top_p=0.9,
+            max_output_tokens=100,
             user="ddtrace-test",
         )
 
@@ -1428,7 +1429,7 @@ async def test_aresponse(openai, request_api_key, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response_stream",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-def test_response_stream(openai, openai_vcr):
+def test_response_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
         model = "gpt-4.1"
         client = openai.OpenAI()
@@ -1447,11 +1448,13 @@ def test_response_stream(openai, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response_tools_stream",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-def test_response_tools_stream(openai, openai_vcr):
+def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_tools_stream.yaml"):
         model = "gpt-4.1"
         client = openai.OpenAI()
-        resp = client.responses.create(model=model, input="Hello world", tools=[{"type": "web_search_preview"}])
+        resp = client.responses.create(
+            model=model, input="Hello world", tools=[{"type": "web_search_preview"}], stream=True
+        )
         _ = [c for c in resp]
 
 
@@ -1462,15 +1465,12 @@ def test_response_tools_stream(openai, openai_vcr):
     token="tests.contrib.openai.test_openai.test_response_stream",
     ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
-async def test_aresponse_stream(openai, openai_vcr):
+async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
         client = openai.AsyncOpenAI()
         resp = await client.responses.create(
             model="gpt-4.1",
-            input=[
-                {"role": "user", "content": "Who won the world series in 2020?"},
-            ],
-            user="ddtrace-test",
+            input="Hello world",
             stream=True,
         )
         _ = [c async for c in resp]

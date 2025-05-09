@@ -5,7 +5,7 @@ interactions:
       accept:
       - application/json
       accept-encoding:
-      - gzip, deflate, zstd
+      - gzip, deflate
       connection:
       - keep-alive
       content-length:
@@ -37,13 +37,12 @@ interactions:
     method: POST
     uri: https://api.openai.com/v1/responses
   response:
-    body:
-      string: "{\n  \"error\": {\n    \"message\": \"The requested model 'invalid-model'
-        does not exist.\",\n    \"type\": \"invalid_request_error\",\n    \"param\":
-        \"model\",\n    \"code\": \"model_not_found\"\n  }\n}"
+    content: "{\n  \"error\": {\n    \"message\": \"The requested model 'invalid-model'
+      does not exist.\",\n    \"type\": \"invalid_request_error\",\n    \"param\":
+      \"model\",\n    \"code\": \"model_not_found\"\n  }\n}"
     headers:
       CF-RAY:
-      - 93b221505d348f93-BOS
+      - 93d2d1eadadf1fe3-IAD
       Connection:
       - keep-alive
       Content-Length:
@@ -51,14 +50,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 05 May 2025 17:59:10 GMT
+      - Fri, 09 May 2025 17:12:08 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=rDIbdSmjDSSkZbkQrn0DAkHlvJJ9TEw8qmH_IpWs2Zw-1746467950-1.0.1.1-n66xRJG9lAyhN1u0Q6ssgz3R4ee6EuGGglkO7VbAKDsjZNzi1qojqapRqB7jgp4bxX2mOKr0P924G_mu4VR60JMm4w7zKgI8fFcpU6JUOls;
-        path=/; expires=Mon, 05-May-25 18:29:10 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=eWSmynaWqSwB9kYIEuxA0SkiL4jV9KeQt1Ltji5jjY8-1746810728-1.0.1.1-T_XpZWOKhpQrCFCEze9LAD3f0R2deD1vrcSM6do460vu8J4ardrqcJBj0v3uuPWK15Xd1ENyX5021211gYpZyP_h2Sow_5B0pJAWVFdMMx0;
+        path=/; expires=Fri, 09-May-25 17:42:08 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=QYi3QxRT8iEmcjadwdZYElqCc1i1seVfTKEuTRh4_J0-1746467950811-0.0.1.1-604800000;
+      - _cfuvid=3wcZ5CtrxRYDumqKYbpbJ5_iRqvuqEGSgcFsUZamju4-1746810728295-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       X-Content-Type-Options:
       - nosniff
@@ -75,8 +74,7 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       x-request-id:
-      - req_6a636a831e66ad288047c02eb8c65732
-    status:
-      code: 400
-      message: Bad Request
+      - req_5b160c26ff8ce5544c5fd8b680254b4b
+    http_version: HTTP/1.1
+    status_code: 400
 version: 1

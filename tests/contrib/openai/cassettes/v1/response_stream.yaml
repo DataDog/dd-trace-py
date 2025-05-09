@@ -1,15 +1,15 @@
 interactions:
 - request:
-    body: '{"input":[{"role":"user","content":"Who won the world series in 2020?"}],"model":"gpt-4.1","stream":true,"user":"ddtrace-test"}'
+    body: '{"input":"Hello world","model":"gpt-4.1","stream":true}'
     headers:
       accept:
       - application/json
       accept-encoding:
-      - gzip, deflate, zstd
+      - gzip, deflate
       connection:
       - keep-alive
       content-length:
-      - '127'
+      - '55'
       content-type:
       - application/json
       host:
@@ -38,342 +38,44 @@ interactions:
     uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: 'event: response.created
-
-        data: {"type":"response.created","response":{"id":"resp_681a6fb6634c8191ae87ac3434fc025700d0f404e2d7432c","object":"response","created_at":1746562998,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":"ddtrace-test","metadata":{}}}
-
-
-        event: response.in_progress
-
-        data: {"type":"response.in_progress","response":{"id":"resp_681a6fb6634c8191ae87ac3434fc025700d0f404e2d7432c","object":"response","created_at":1746562998,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":null,"user":"ddtrace-test","metadata":{}}}
-
-
-        event: response.output_item.added
-
-        data: {"type":"response.output_item.added","output_index":0,"item":{"id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","type":"message","status":"in_progress","content":[],"role":"assistant"}}
-
-
-        event: response.content_part.added
-
-        data: {"type":"response.content_part.added","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"text":""}}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"The"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        **"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"Los"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Angeles"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Dodgers"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"**"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        won"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        the"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        World"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Series"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        in"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        "}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"202"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"0"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"."}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        They"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        defeated"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        the"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Tampa"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Bay"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Rays"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":","}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        clin"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"ching"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        the"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        series"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        "}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"4"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        games"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        to"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        "}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"2"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"."}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        This"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        was"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        the"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Dodgers"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"''"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        first"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        World"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        Series"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        title"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        since"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"
-        "}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"198"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"8"}
-
-
-        event: response.output_text.delta
-
-        data: {"type":"response.output_text.delta","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"delta":"."}
-
-
-        event: response.output_text.done
-
-        data: {"type":"response.output_text.done","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"text":"The
-        **Los Angeles Dodgers** won the World Series in 2020. They defeated the Tampa
-        Bay Rays, clinching the series 4 games to 2. This was the Dodgers'' first
-        World Series title since 1988."}
-
-
-        event: response.content_part.done
-
-        data: {"type":"response.content_part.done","item_id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"text":"The
-        **Los Angeles Dodgers** won the World Series in 2020. They defeated the Tampa
-        Bay Rays, clinching the series 4 games to 2. This was the Dodgers'' first
-        World Series title since 1988."}}
-
-
-        event: response.output_item.done
-
-        data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"The
-        **Los Angeles Dodgers** won the World Series in 2020. They defeated the Tampa
-        Bay Rays, clinching the series 4 games to 2. This was the Dodgers'' first
-        World Series title since 1988."}],"role":"assistant"}}
-
-
-        event: response.completed
-
-        data: {"type":"response.completed","response":{"id":"resp_681a6fb6634c8191ae87ac3434fc025700d0f404e2d7432c","object":"response","created_at":1746562998,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"model":"gpt-4.1-2025-04-14","output":[{"id":"msg_681a6fb6e8ec8191a7cc29eab884913400d0f404e2d7432c","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"The
-        **Los Angeles Dodgers** won the World Series in 2020. They defeated the Tampa
-        Bay Rays, clinching the series 4 games to 2. This was the Dodgers'' first
-        World Series title since 1988."}],"role":"assistant"}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":17,"input_tokens_details":{"cached_tokens":0},"output_tokens":48,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":65},"user":"ddtrace-test","metadata":{}}}
-
-
-        '
+      string: "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_681e3e15125c8191afb05fabbf3b86d6047f076151f76bcc\",\"object\":\"response\",\"created_at\":1746812437,\"status\":\"in_progress\",\"error\":null,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"model\":\"gpt-4.1-2025-04-14\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":null,\"summary\":null},\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"auto\",\"tools\":[],\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}}}\n\nevent:
+        response.in_progress\ndata: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_681e3e15125c8191afb05fabbf3b86d6047f076151f76bcc\",\"object\":\"response\",\"created_at\":1746812437,\"status\":\"in_progress\",\"error\":null,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"model\":\"gpt-4.1-2025-04-14\",\"output\":[],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":null,\"summary\":null},\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"auto\",\"tools\":[],\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}}}\n\nevent:
+        response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"role\":\"assistant\"}}\n\nevent:
+        response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"text\":\"\"}}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"Hello\"}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"!\"}\n\nevent:
+        response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        \U0001F30D\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        How\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        can\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        I\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        assist\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        you\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"
+        today\"}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"delta\":\"?\"}\n\nevent:
+        response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"text\":\"Hello!
+        \U0001F30D How can I assist you today?\"}\n\nevent: response.content_part.done\ndata:
+        {\"type\":\"response.content_part.done\",\"item_id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"output_index\":0,\"content_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"text\":\"Hello!
+        \U0001F30D How can I assist you today?\"}}\n\nevent: response.output_item.done\ndata:
+        {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"text\":\"Hello!
+        \U0001F30D How can I assist you today?\"}],\"role\":\"assistant\"}}\n\nevent:
+        response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_681e3e15125c8191afb05fabbf3b86d6047f076151f76bcc\",\"object\":\"response\",\"created_at\":1746812437,\"status\":\"completed\",\"error\":null,\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":null,\"model\":\"gpt-4.1-2025-04-14\",\"output\":[{\"id\":\"msg_681e3e15a8608191aea93e9864c0dce8047f076151f76bcc\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"text\":\"Hello!
+        \U0001F30D How can I assist you today?\"}],\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"previous_response_id\":null,\"reasoning\":{\"effort\":null,\"summary\":null},\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"}},\"tool_choice\":\"auto\",\"tools\":[],\"top_p\":1.0,\"truncation\":\"disabled\",\"usage\":{\"input_tokens\":9,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":12,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":21},\"user\":null,\"metadata\":{}}}\n\n"
     headers:
       CF-RAY:
-      - 93bb31d3ad410a05-IAD
+      - 93d2fba359d10834-IAD
       Connection:
       - keep-alive
       Content-Type:
       - text/event-stream; charset=utf-8
       Date:
-      - Tue, 06 May 2025 20:23:18 GMT
+      - Fri, 09 May 2025 17:40:37 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=TYNsVrPeS4WXoNZjsvqpgNJf7zyq71x7Hj4DbA04Klk-1746562998-1.0.1.1-JKA_fkQMzLZEMKehqwStE.ASeIpe49QT.30d9NhK3eDcDe52hoqvLlYG_6KJtccypxZa9mFgAeGT_5kyJfzhj.3x6ZpVTBnAvZ5Q6QEqRyY;
-        path=/; expires=Tue, 06-May-25 20:53:18 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=6Q.XuWBGPg_5gtyVjPea5AXQxBKMQOLv0Pk0bbku_G8-1746812437-1.0.1.1-_UzHR3p1xvNiEm85gM0ve.g1BegagGfEBx2M8zFJjs8u.htuV1v2qDrnHCGOWtrmaN9FMOmLUzMYTkoKCKwiR4EfbWGCWzgOCGukISgAf8k;
+        path=/; expires=Fri, 09-May-25 18:10:37 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=QIWK8LY0fFbq.qdXsu0.PttYjzO0vEa2z6OeuzedQks-1746562998418-0.0.1.1-604800000;
+      - _cfuvid=9qRh9MqjW2Fq3kDHfo0OPu5Ux6VKR3TaPS2aBbeVg14-1746812437091-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -386,13 +88,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '33'
+      - '28'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       x-request-id:
-      - req_495de8a0617354c94b491447d770bb07
+      - req_41a9a13e4b5621808ae4aed63fb91677
     status:
       code: 200
       message: OK
