@@ -71,6 +71,12 @@ suites:
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
+  appsec_iast_packages:
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_packages/*
+    runner: hatch
+    timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
     paths:
