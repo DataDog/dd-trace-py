@@ -72,6 +72,9 @@ _RESOURCES = {
         "delete": _endpoint_hooks._FileDeleteHook,
         "retrieve_content": _endpoint_hooks._FileDownloadHook,
     },
+    "responses.Responses": {
+        "create": _endpoint_hooks._ResponseHook,
+    },
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
