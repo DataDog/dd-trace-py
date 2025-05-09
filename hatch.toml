@@ -782,7 +782,7 @@ DD_AGENT_PORT = "9126"
 test = [
     "pip freeze",
     "echo $PYTEST_ADDOPTS",
-    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
+    "pytest -c /dev/null --no-ddtrace --no-cov --junitxml=test-results/junit.xml tests/contrib/pytest {args:}",
 ]
 
 [[envs.pytest_plugin_v2.matrix]]
