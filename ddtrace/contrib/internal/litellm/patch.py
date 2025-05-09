@@ -1,6 +1,7 @@
 import sys
 
 import litellm
+from litellm.proxy.route_llm_request import route_request
 
 from ddtrace import config
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
@@ -116,6 +117,31 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     integration._model_map[requested_model] = (model, custom_llm_provider)
     return model, custom_llm_provider, dynamic_api_key, api_base
 
+@with_traced_module
+async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs):
+    integration = litellm._datadog_integration
+    model = None
+    host = None
+    data = get_argument_value(args, kwargs, 0, "data", None)
+    if data:
+        model = data.get("model", None)
+        host = data.get("proxy_server_request", {}).get("headers", {}).get("host", None)
+    breakpoint()
+    span = integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=False,
+    )
+    try:
+        return await func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
+
 
 def patch():
     if getattr(litellm, "_datadog_patch", False):
@@ -133,6 +159,7 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "proxy.route_llm_request.route_request", traced_proxy_route_request(litellm))
 
 
 def unpatch():
@@ -147,5 +174,6 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.main, "get_llm_provider")
+    unwrap(litellm.proxy.route_llm_request, "route_request")
 
     delattr(litellm, "_datadog_integration")
