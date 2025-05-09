@@ -8,11 +8,11 @@ from typing import Optional
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
-
 
 log = ddlogger.get_logger(__name__)
 API_SECURITY_LOGS = "api_security_callback"
@@ -90,14 +90,15 @@ class APIManager(Service):
     def _start_service(self) -> None:
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env, priority: int) -> Optional[bool]:
-        # Rate limit per route
-        # return None if missing route, method or status
-        # return False if sampled
-        # return True if we should collect
-        if priority <= 0:
-            return False
-
+    def _should_collect_schema(self, env) -> Optional[bool]:
+        """
+        Rate limit per route.
+        
+        Returns:
+            None: if missing route, method or status
+            False: if sampled
+            True: if we should collect
+        """
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         status = env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_STATUS)
@@ -144,12 +145,19 @@ class APIManager(Service):
                 priority = constants.USER_REJECT
             else:
                 priority = max(priorities)
-            should_collect = self._should_collect_schema(env, priority)
+
+            # return early if the sample will be rejected
+            if priority <= 0:
+                return
+
+            should_collect = self._should_collect_schema(env)
             if should_collect is None:
                 self._metrics._report_api_security(False, 0)
                 return
             if not should_collect:
                 return
+            if not asm_config._apm_tracing_enabled:
+                _asm_manual_keep(root)
         except Exception:
             extra = {"product": "appsec", "exec_limit": 6, "more_info": ":sample_request_failure"}
             log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
