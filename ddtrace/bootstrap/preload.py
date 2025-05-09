@@ -77,9 +77,12 @@ if config._otel_enabled:
 
 
 if config._llmobs_enabled:
-    from ddtrace.llmobs import LLMObs
+    try:
+        from ddtrace.llmobs import LLMObs
 
-    LLMObs.enable(_auto=True)
+        LLMObs.enable(_auto=True)
+    except Exception:
+        log.exception("Unable to enable LLMObs")
 
 
 @register_post_preload
