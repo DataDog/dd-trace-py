@@ -84,6 +84,33 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
+def _check_for_stack_v2_mode(config):
+    if not config.v2_enabled and not _check_for_stack_v2_available():
+        return "disabled"
+
+    mode = config._v2_mode
+    if mode not in ("writev", "process_vm_readv", "sigtrap"):
+        mode = "process_vm_readv"
+
+    # If we're here, then stack v2 has been imported by _check_for_stack_v2_available, so this will probably succeed
+    try:
+        from ddtrace.internal.datadog.profiling import stack_v2
+    except Exception:
+        return "disabled"
+
+    if "process_vm_readv" == mode and stack_v2.set_vm_read_mode(1):
+        return "process_vm_readv"
+    elif "sigtrap" == mode and stack_v2.set_vm_read_mode(2):
+        return "sigtrap"
+
+    # If we're here, then either the other modes were not specified, or they failed--try writev as a failover
+    if stack_v2.set_vm_read_mode(0):
+        return "writev"
+
+    # Boohoo, we failed
+    return "disabled"
+
+
 def _is_libdd_required(config):
     # This function consolidates the logic for force-enabling the libdd uploader.  Otherwise this will get enabled in
     # a bunch of separate places and it'll be tough to manage.
@@ -340,6 +367,15 @@ class ProfilingConfigStack(DDConfig):
 
     # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
     v2_enabled = DDConfig.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
+
+    _v2_mode = DDConfig.v(
+        str,
+        "v2_mode",
+        default="process_vm_readv",
+        help_type="String",
+        help="The mode to use for the v2 stack profiler. Can be one of 'writev', 'process_vm_readv', or 'sigtrap'.",
+    )
+    v2_mode = DDConfig.d(str, lambda c: _check_for_stack_v2_mode(c))
 
     v2_adaptive_sampling = DDConfig.v(
         bool,

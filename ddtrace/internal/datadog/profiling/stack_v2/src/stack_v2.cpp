@@ -191,6 +191,26 @@ stack_v2_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_v2_set_vm_read_mode(PyObject* self, PyObject* args)
+{
+    (void)self;
+    int new_vm_read_mode;
+    if (!PyArg_ParseTuple(args, "i", &new_vm_read_mode)) {
+        return NULL;
+    }
+
+    if (new_vm_read_mode < 0 || new_vm_read_mode > 2) {
+        new_vm_read_mode = 0;
+    }
+
+    if (!_set_vm_read_mode(new_vm_read_mode)) {
+        Py_RETURN_FALSE;
+    }
+
+    Py_RETURN_TRUE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
@@ -206,6 +226,7 @@ static PyMethodDef _stack_v2_methods[] = {
     { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_v2_link_tasks, METH_VARARGS, "Link two tasks" },
     { "set_adaptive_sampling", stack_v2_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_vm_read_mode", stack_v2_set_vm_read_mode, METH_VARARGS, "Set the VM reading mode" },
     { NULL, NULL, 0, NULL }
 };
 
