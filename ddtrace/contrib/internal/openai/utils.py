@@ -41,7 +41,7 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
     """
-    This class is used to trace the OpenAI stream for chat/completion and responses requests.
+    This class is used to trace OpenAI stream objects for chat/completion and responses.
     """
 
     def __enter__(self):
@@ -108,7 +108,7 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     """
-    This class is used to trace the AsyncOpenAI stream for chat/completion and responses requests.
+    This class is used to trace AsyncOpenAI stream objects for chat/completion and responses.
     """
 
     async def __aenter__(self):
@@ -258,10 +258,9 @@ def _is_async_generator(resp):
 def _loop_handler(span, chunk, streamed_chunks):
     """
     Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
-    When handling a streamed chat/completion and responses response,
+    When handling a streamed chat/completion/responses,
     this function is called for each chunk in the streamed response.
     """
-    # Handle both completion and response types
 
     if span.get_tag("openai.response.model") is None:
         if hasattr(chunk, "type") and chunk.type.startswith("response."):
@@ -371,7 +370,7 @@ def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[
 
 
 def _tag_streamed_response(integration, span, completions_or_messages=None):
-    """Tagging logic for streamed completions, chat completions, and response streams."""
+    """Tagging logic for streamed completions, chat completions, and responses."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
         if text:
@@ -393,7 +392,7 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
 
 
 def _set_token_metrics(span, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion and Responses responses.
+    """Set token span metrics on streamed chat/completion/responses.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
@@ -404,7 +403,6 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
             completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
-
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
@@ -452,7 +450,8 @@ def _compute_completion_tokens(completions_or_messages, model_name):
 def _tag_tool_calls(integration, span, tool_calls, choice_idx):
     # type: (...) -> None
     """
-    Tagging logic if function_call, tool_calls in the chat response, or tools are provided in the responses.
+    Tagging logic if function_call/tool_calls are provided in the chat response,
+    or tools are provided in the response object.
     Notes:
         - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
         - streamed responses are processed and collected as dictionaries rather than objects,
@@ -464,12 +463,10 @@ def _tag_tool_calls(integration, span, tool_calls, choice_idx):
             tool_call = tool_call.function
         function_arguments = _get_attr(tool_call, "arguments", "")
         function_name = _get_attr(tool_call, "name", "")
-
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
             integration.trunc(str(function_arguments)),
         )
-
         span.set_tag_str(
             "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
         )
