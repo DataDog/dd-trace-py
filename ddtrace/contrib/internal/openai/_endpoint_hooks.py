@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -717,3 +718,83 @@ class _FileDownloadHook(_BaseFileHook):
         else:
             span.set_metric("openai.response.total_bytes", getattr(resp, "total_bytes", 0))
         return resp
+
+
+class _ResponseHook(_EndpointHook):
+    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_kwarg_params = (
+        "model",
+        "include",
+        "instructions",
+        "max_output_tokens",
+        "metadata",
+        "parallel_tool_calls",
+        "previous_response_id",
+        "reasoning",
+        "service_tier",
+        "store",
+        "stream",
+        "temperature",
+        "text",
+        "tool_choice",
+        "tools",
+        "top_p",
+        "truncation",
+        "user",
+    )
+    _response_attrs = ("created_at", "id", "model", "tools")
+    ENDPOINT_NAME = "responses"
+    HTTP_METHOD_TYPE = "POST"
+    OPERATION_ID = "createResponseCompletion"
+
+    def _record_request(self, pin, integration, instance, span, args, kwargs):
+        super()._record_request(pin, integration, instance, span, args, kwargs)
+
+        input_data = kwargs.get("input", [])
+        if input_data:
+            if isinstance(input_data, str):
+                input_data = [input_data]
+
+            span._set_ctx_item("llmobs.response.input", input_data)
+
+    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        span._set_ctx_item(SPAN_KIND, "llm")
+
+        if not resp:
+            return resp
+
+        def handle_response_tools(resp, span):
+            if getattr(resp, "tools", None):
+                response_tools = [
+                    {
+                        k: v
+                        for k, v in {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}.items()
+                        if v is not None
+                    }
+                    for tool in resp.tools
+                    if hasattr(tool, "type") or hasattr(tool, "name")
+                ]
+                if response_tools:
+                    span.set_tag("openai.response.tools", response_tools)
+
+        if kwargs.get("stream") and error is None:
+            for s in resp:
+                if s.type == "response.completed":
+                    resp = s.response
+                    super()._record_response(pin, integration, span, args, kwargs, resp, error)
+                    span._set_ctx_item("llmobs.response.output", resp.output)
+                    handle_response_tools(resp, span)
+                    span.finish()
+                    break
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
+            integration.record_usage(span, resp.usage)
+            return resp
+
+        if not kwargs.get("stream") and error is None:
+            span._set_ctx_item("llmobs.response.output", resp.output)
+            handle_response_tools(resp, span)
+
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
+            integration.record_usage(span, resp.usage)
+            return resp
