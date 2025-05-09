@@ -29,6 +29,9 @@ def info(url=None):
 
     if resp.status == 404:
         # Remote configuration is not enabled or unsupported by the agent
+        log.debug(
+            "Attempted to fetch info from trace agent but remote configuration is not enabled or not supported by the agent"
+        )
         return None
 
     if resp.status < 200 or resp.status >= 300:
