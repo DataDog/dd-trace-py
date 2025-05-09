@@ -269,6 +269,7 @@ def _loop_handler(span, chunk, streamed_chunks):
         else:
             model = getattr(chunk, "model", "")
         span.set_tag_str("openai.response.model", model)
+    # Only run if the chunk is a completion/chat completion
     if hasattr(chunk, "object") and "completion" in chunk.object.lower() and hasattr(chunk, "choices"):
         for choice in chunk.choices:
             streamed_chunks[choice.index].append(choice)
@@ -396,6 +397,7 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
+    # Handles both input/output token usage for responses and prompt/response token usage for completions
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):

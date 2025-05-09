@@ -719,6 +719,7 @@ class _FileDownloadHook(_BaseFileHook):
 
 class _ResponseHook(_BaseCompletionHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    # Collecting all kwargs for responses
     _request_kwarg_params = (
         "model",
         "include",
