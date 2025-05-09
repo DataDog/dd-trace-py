@@ -561,6 +561,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
     outcome: pytest_TestReport
     outcome = yield
+    outcome.get_result()._excinfo = call.excinfo
 
     if not is_test_visibility_enabled():
         return
