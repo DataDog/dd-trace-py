@@ -932,6 +932,16 @@ class MatchNoSample(SamplingRule):
             0,
             None,
         ),
+        (  # Regression test for https://github.com/DataDog/dd-trace-py/issues/12775
+            # We should not match None values with ?* patterns.
+            DatadogSampler(
+                rules=[SamplingRule(sample_rate=0, name="?*", resource="?*", service="?*", tags={"key": "?*"})],
+            ),
+            AUTO_KEEP,
+            SamplingMechanism.DEFAULT,
+            0,
+            None,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mechanism, rule, limit, dummy_tracer):
