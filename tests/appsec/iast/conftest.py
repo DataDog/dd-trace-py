@@ -14,6 +14,7 @@ from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
@@ -58,6 +59,7 @@ def _start_iast_context_and_oce(span=None):
 def _end_iast_context_and_oce(span=None):
     end_iast_context(span)
     oce.release_request()
+    _reset_global_limit()
 
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
@@ -81,7 +83,8 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
-        _start_iast_context_and_oce(MockSpan())
+        span = MockSpan()
+        _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
         json_patch()
@@ -99,7 +102,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         header_injection_unpatch()
         code_injection_unpatch()
         langchain_unpatch()
-        _end_iast_context_and_oce()
+        _end_iast_context_and_oce(span)
 
 
 @pytest.fixture
@@ -109,7 +112,7 @@ def iast_context_defaults():
 
 @pytest.fixture
 def iast_context_deduplication_enabled(tracer):
-    yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=True)
+    yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=True, vulnerabilities_per_requests=2)
 
 
 @pytest.fixture
