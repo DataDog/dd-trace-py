@@ -18,6 +18,7 @@ public:
 
     static std::optional<Sample*> take_sample();
     static std::optional<Sample*> return_sample(Sample* sample);
+    static void postfork_child();
 
 private:
     static Sample* pool[CAPACITY];
