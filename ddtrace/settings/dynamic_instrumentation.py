@@ -95,9 +95,9 @@ class DynamicInstrumentationConfig(DDConfig):
     )
 
     diagnostics_interval = DDConfig.v(
-        int,
+        float,
         "diagnostics.interval",
-        default=3600,  # 1 hour
+        default=3600.0,  # 1 hour
         help_type="Integer",
         help="Interval in seconds for periodically emitting probe diagnostic messages",
     )
