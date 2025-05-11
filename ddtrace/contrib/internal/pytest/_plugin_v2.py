@@ -449,7 +449,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     setup_or_teardown_failed = False
     for report in reports:
         if report.failed:
-            _outcome_exc_info = TestExcInfo(report._excinfo.type, report._excinfo.value, report._excinfo.tb)
+            _outcome_exc_info = TestExcInfo(report._dd_excinfo.type, report._dd_excinfo.value, report._dd_excinfo.tb)
             if report.when in ('setup', 'teardown'):
                 setup_or_teardown_failed = True
 
@@ -495,10 +495,10 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     return True
 
 
-def _process_result(item, call, result) -> _TestOutcome:
+def _process_result(item, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
-    has_exception = call.excinfo is not None
+    has_exception = result._dd_excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -513,7 +513,7 @@ def _process_result(item, call, result) -> _TestOutcome:
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-    if call.when != "teardown" and not (has_exception or result.failed):
+    if result.when != "teardown" and not (has_exception or result.failed):
         return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
@@ -554,9 +554,9 @@ def _process_result(item, call, result) -> _TestOutcome:
         return _TestOutcome(TestStatus.FAIL)
 
     # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
-    if call.when == "setup" and result.failed:
+    if result.when == "setup" and result.failed:
         InternalTest.stash_set(test_id, "setup_failed", True)
-    elif call.when == "teardown" and result.failed:
+    elif result.when == "teardown" and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
@@ -577,7 +577,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-    test_outcome = _process_result(item, call, original_result)
+    test_outcome = _process_result(item, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test
@@ -598,7 +598,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
 
     outcome: pytest_TestReport
     outcome = yield
-    outcome.get_result()._excinfo = call.excinfo
+    outcome.get_result()._dd_excinfo = call.excinfo
 
     try:
         return _pytest_runtest_makereport(item, call, outcome)

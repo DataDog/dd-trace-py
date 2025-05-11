@@ -59,7 +59,7 @@ def _get_outcome_from_retry(
     for report in reports:
         if report.failed:
             report.outcome = outcomes.FAILED
-            _outcome_exc_info = TestExcInfo(report._excinfo.type, report._excinfo.value, report._excinfo.tb)
+            _outcome_exc_info = TestExcInfo(report._dd_excinfo.type, report._dd_excinfo.value, report._dd_excinfo.tb)
         elif report.skipped:
             report.outcome = outcomes.SKIPPED
         else:
