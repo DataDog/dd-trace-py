@@ -115,7 +115,7 @@ test-pre-release-performance-quality-gates-fail:
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
   script:
     - mkdir -p platform && cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
-    - bp-runner bp-runner.fail-on-breach.strict-thresholds.yml
+    - bp-runner --debug bp-runner.fail-on-breach.strict-thresholds.yml
 
 check_new_flaky_tests:
   stage: tests
