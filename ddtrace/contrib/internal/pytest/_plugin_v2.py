@@ -433,7 +433,55 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     # yield
 
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-    reports = runtestprotocol(item, nextitem=None, log=False)
+    reports = runtestprotocol(item, nextitem=nextitem, log=False)
+
+    ######### brought from _pytest_runtest_makereport to here ##############
+    # Record a result if we haven't already recorded it:
+
+    if any(report.failed for report in reports):
+        _outcome_status = TestStatus.FAIL
+    elif any(report.skipped for report in reports):
+        _outcome_status = TestStatus.SKIP
+    else:
+        _outcome_status = TestStatus.PASS
+
+    _outcome_exc_info = None
+    setup_or_teardown_failed = False
+    for report in reports:
+        if report.failed:
+            _outcome_exc_info = TestExcInfo(report._excinfo.type, report._excinfo.value, report._excinfo.tb)
+            if report.when in ('setup', 'teardown'):
+                setup_or_teardown_failed = True
+
+    original_result = reports[-1]
+    test_outcome = _TestOutcome(status=_outcome_status, skip_reason=None, exc_info=_outcome_exc_info)
+
+    test_id = _get_test_id_from_item(item)
+
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    # if original_result.failed and (is_quarantined or is_disabled):
+    #     # Ensure test doesn't count as failed for pytest's exit status logic
+    #     # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+    #     original_result.outcome = OUTCOME_QUARANTINED
+
+    # if original_result.failed or original_result.skipped:
+    #     InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
+
+    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
+    # NOTE: this mutates the original result's outcome
+    if setup_or_teardown_failed:
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+        return
+    # if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+    #     return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
+    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        return efd_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
+    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        return atr_handle_retries(test_id, item, 'teardown', original_result, test_outcome, is_quarantined=False)
+    #########################################################################
+
     for report in reports:
         if report.when == "call" or "passed" not in report.outcome:
             item.ihook.pytest_runtest_logreport(report=report)
@@ -540,40 +588,17 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     if item.config.pluginmanager.hasplugin("benchmark"):
         _set_benchmark_data_from_item(item)
 
-    # Record a result if we haven't already recorded it:
-    if not InternalTest.is_finished(test_id):
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
-
-    if original_result.failed and (is_quarantined or is_disabled):
-        # Ensure test doesn't count as failed for pytest's exit status logic
-        # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-        original_result.outcome = OUTCOME_QUARANTINED
-
-    if original_result.failed or original_result.skipped:
-        InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
-
-    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
-    # NOTE: this mutates the original result's outcome
-    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
-        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-        return
-    if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
+    if not is_test_visibility_enabled():
+        return
+
     outcome: pytest_TestReport
     outcome = yield
     outcome.get_result()._excinfo = call.excinfo
-
-    if not is_test_visibility_enabled():
-        return
 
     try:
         return _pytest_runtest_makereport(item, call, outcome)
