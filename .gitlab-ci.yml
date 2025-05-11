@@ -82,11 +82,11 @@ macrobenchmarks:
   needs: [ ]
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
+    strategy: depend  # Makes it depend on the status of the gates downstream
   variables:
     # Disable VPA for benchmarks
     KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
   allow_failure: true
-  strategy: depend  # Makes it depend on the status of the gates downstream
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
