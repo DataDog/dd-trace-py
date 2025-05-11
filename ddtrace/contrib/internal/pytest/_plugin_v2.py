@@ -67,6 +67,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
+from _pytest.runner import runtestprotocol
 
 
 if _pytest_version_supports_retries():
@@ -416,11 +417,11 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestModule.finish(module_id)
 
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+#@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem) -> None:
-    """Discovers tests, and starts tests, suites, and modules, then handles coverage data collection"""
+    # ꙮ Lie: """Discovers tests, and starts tests, suites, and modules, then handles coverage data collection"""
     if not is_test_visibility_enabled():
-        yield
+        #yield
         return
 
     try:
@@ -428,14 +429,22 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
-    # Yield control back to pytest to run the test
-    yield
+    # # Yield control back to pytest to run the test
+    # yield
+
+    item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+    reports = runtestprotocol(item, nextitem=None, log=False)
+    for report in reports:
+        if report.when == "call" or "passed" not in report.outcome:
+            item.ihook.pytest_runtest_logreport(report=report)
+    item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
     try:
-        return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
     except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
-        return
+
+    return True
 
 
 def _process_result(item, call, result) -> _TestOutcome:
