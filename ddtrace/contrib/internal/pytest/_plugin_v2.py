@@ -419,9 +419,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
 #@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem) -> None:
-    # ꙮ Lie: """Discovers tests, and starts tests, suites, and modules, then handles coverage data collection"""
     if not is_test_visibility_enabled():
-        #yield
         return
 
     try:
@@ -429,70 +427,64 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
-    # # Yield control back to pytest to run the test
-    # yield
-
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
+    test_outcome = _process_reports(item, reports)
 
-    ######### brought from _pytest_runtest_makereport to here ##############
-    # Record a result if we haven't already recorded it:
-
-    if any(report.failed for report in reports):
-        _outcome_status = TestStatus.FAIL
-    elif any(report.skipped for report in reports):
-        _outcome_status = TestStatus.SKIP
-    else:
-        _outcome_status = TestStatus.PASS
-
-    _outcome_exc_info = None
     setup_or_teardown_failed = False
     for report in reports:
-        if report.failed:
-            _outcome_exc_info = TestExcInfo(report._dd_excinfo.type, report._dd_excinfo.value, report._dd_excinfo.tb)
-            if report.when in ('setup', 'teardown'):
-                setup_or_teardown_failed = True
+        if report.failed and report.when in ('setup', 'teardown'):
+            setup_or_teardown_failed = True
 
-    original_result = reports[-1]
-    test_outcome = _TestOutcome(status=_outcome_status, skip_reason=None, exc_info=_outcome_exc_info)
+    original_result = reports[-1] # TODO: do not depend on this
 
     test_id = _get_test_id_from_item(item)
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    # if original_result.failed and (is_quarantined or is_disabled):
-    #     # Ensure test doesn't count as failed for pytest's exit status logic
-    #     # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-    #     original_result.outcome = OUTCOME_QUARANTINED
-
-    # if original_result.failed or original_result.skipped:
-    #     InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
-
-    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
-    # NOTE: this mutates the original result's outcome
-    if setup_or_teardown_failed:
-        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-        return
-    # if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-    #     return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        return efd_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
-    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, 'teardown', original_result, test_outcome, is_quarantined=False)
-    #########################################################################
-
     for report in reports:
         if report.when == "call" or "passed" not in report.outcome:
-            item.ihook.pytest_runtest_logreport(report=report)
+            if report.failed or report.skipped:
+                InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
+
+            if is_quarantined or is_disabled:
+                # Ensure test doesn't count as failed for pytest's exit status logic
+                # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+                report.outcome = OUTCOME_QUARANTINED
+
+        item.ihook.pytest_runtest_logreport(report=report)
+
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+
+    if setup_or_teardown_failed:
+        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+        attempt_to_fix_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
+    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        efd_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
+    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        atr_handle_retries(test_id, item, 'teardown', original_result, test_outcome, is_quarantined)
 
     try:
         _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
     except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
 
-    return True
+    return True  # tell pytest to not run other `pytest_runtest_protocol` hooks.
+
+
+def _process_reports(item, reports) -> _TestOutcome:
+    final_outcome = None
+    for report in reports:
+        outcome = _process_result(item, report)
+        if final_outcome is None or final_outcome.status is None:
+            final_outcome = outcome
+    return final_outcome
 
 
 def _process_result(item, result) -> _TestOutcome:
@@ -559,7 +551,7 @@ def _process_result(item, result) -> _TestOutcome:
     elif result.when == "teardown" and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
-    exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
+    exc_info = TestExcInfo(result._dd_excinfo.type, result._dd_excinfo.value, result._dd_excinfo.tb) if result._dd_excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
@@ -570,13 +562,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         return
 
     original_result = outcome.get_result()
-
     test_id = _get_test_id_from_item(item)
-
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
-
     test_outcome = _process_result(item, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
