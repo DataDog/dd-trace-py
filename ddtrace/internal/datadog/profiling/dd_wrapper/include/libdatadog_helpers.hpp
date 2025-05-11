@@ -69,6 +69,8 @@ struct DdogProfExporterDeleter
     {
         if (ptr) {
             ddog_prof_Exporter_drop(ptr);
+            // ptr is allocated on C++ side, only the inner pointer is owned by libdatadog
+            delete ptr;
         }
     }
 };
@@ -151,11 +153,11 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     return add_tag(tags, key_sv, val, errmsg);
 }
 
-inline std::variant<ddog_prof_ProfileExporter*, ddog_Error>
+inline std::variant<ddog_prof_ProfileExporter, ddog_Error>
 get_newexporter_result(ddog_prof_ProfileExporter_Result& res)
 {
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_OK_HANDLE_PROFILE_EXPORTER) {
-        return &res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        return res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
     } else {
         return res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
     }

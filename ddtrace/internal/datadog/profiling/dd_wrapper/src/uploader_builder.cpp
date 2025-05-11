@@ -160,16 +160,15 @@ Datadog::UploaderBuilder::build()
                                                                   ddog_prof_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
-    auto ddog_exporter_result = Datadog::get_newexporter_result(res);
-    ddog_prof_ProfileExporter* ddog_exporter = nullptr;
-    if (std::holds_alternative<ddog_prof_ProfileExporter*>(ddog_exporter_result)) {
-        ddog_exporter = std::get<ddog_prof_ProfileExporter*>(ddog_exporter_result);
-    } else {
-        auto& err = std::get<ddog_Error>(ddog_exporter_result);
+    if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
+        auto &err = res.err;
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
     }
+
+    // libdatadog owns the inner pointer, but C++ owns ddog_prof_ProfileExporter
+    auto ddog_exporter = new ddog_prof_ProfileExporter(res.ok);
 
     // 5s is a common timeout parameter for Datadog profilers
     const uint64_t max_timeout_ms = 5000;
