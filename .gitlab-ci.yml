@@ -114,7 +114,7 @@ test-pre-release-performance-quality-gates-fail:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
   script:
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
+    - mkdir -p platform && cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
     - ls 
     - pwd
     - ls platform
