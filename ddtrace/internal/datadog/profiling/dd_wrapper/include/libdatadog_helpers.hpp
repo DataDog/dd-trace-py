@@ -65,7 +65,7 @@ enum class ExportLabelKey
 // for us, so here's the deleter for the exporter.
 struct DdogProfExporterDeleter
 {
-    void operator()(ddog_prof_Exporter* ptr) const
+    void operator()(ddog_prof_ProfileExporter* ptr) const
     {
         if (ptr) {
             ddog_prof_Exporter_drop(ptr);
@@ -151,11 +151,11 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     return add_tag(tags, key_sv, val, errmsg);
 }
 
-inline std::variant<ddog_prof_Exporter*, ddog_Error>
-get_newexporter_result(const ddog_prof_Exporter_NewResult& res)
+inline std::variant<ddog_prof_ProfileExporter*, ddog_Error>
+get_newexporter_result(ddog_prof_ProfileExporter_Result& res)
 {
-    if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
-        return res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_OK_HANDLE_PROFILE_EXPORTER) {
+        return &res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
     } else {
         return res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
     }

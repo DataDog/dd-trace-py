@@ -27,7 +27,7 @@ class Uploader
     static inline std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel;
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
-    std::unique_ptr<ddog_prof_Exporter, DdogProfExporterDeleter> ddog_exporter;
+    std::unique_ptr<ddog_prof_ProfileExporter, DdogProfExporterDeleter> ddog_exporter;
 
     bool export_to_file(ddog_prof_EncodedProfile* encoded);
 
@@ -40,7 +40,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string_view _url, ddog_prof_Exporter* ddog_exporter);
+    Uploader(std::string_view _url, ddog_prof_ProfileExporter* ddog_exporter);
 };
 
 } // namespace Datadog

@@ -1,4 +1,5 @@
 #include "uploader_builder.hpp"
+
 #include "libdatadog_helpers.hpp"
 
 #include <mutex>
@@ -152,17 +153,17 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_Exporter_NewResult res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                              to_slice(profiler_version),
-                                                              to_slice(family),
-                                                              &tags,
-                                                              ddog_prof_Endpoint_agent(to_slice(url)));
+    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                                                                  to_slice(profiler_version),
+                                                                  to_slice(family),
+                                                                  &tags,
+                                                                  ddog_prof_Endpoint_agent(to_slice(url)));
     ddog_Vec_Tag_drop(tags);
 
     auto ddog_exporter_result = Datadog::get_newexporter_result(res);
-    ddog_prof_Exporter* ddog_exporter = nullptr;
-    if (std::holds_alternative<ddog_prof_Exporter*>(ddog_exporter_result)) {
-        ddog_exporter = std::get<ddog_prof_Exporter*>(ddog_exporter_result);
+    ddog_prof_ProfileExporter* ddog_exporter = nullptr;
+    if (std::holds_alternative<ddog_prof_ProfileExporter*>(ddog_exporter_result)) {
+        ddog_exporter = std::get<ddog_prof_ProfileExporter*>(ddog_exporter_result);
     } else {
         auto& err = std::get<ddog_Error>(ddog_exporter_result);
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
@@ -172,9 +173,9 @@ Datadog::UploaderBuilder::build()
 
     // 5s is a common timeout parameter for Datadog profilers
     const uint64_t max_timeout_ms = 5000;
-    ddog_prof_MaybeError set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
-    if (set_timeout_result.tag == DDOG_PROF_OPTION_ERROR_SOME_ERROR) {
-        auto& err = set_timeout_result.some;
+    auto set_timeout_result = ddog_prof_Exporter_set_timeout(ddog_exporter, max_timeout_ms);
+    if (set_timeout_result.tag == DDOG_VOID_RESULT_ERR) {
+        auto& err = set_timeout_result.err;
         std::string errmsg = Datadog::err_to_msg(&err, "Error setting timeout on exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         // If set_timeout had failed, then the ddog_exporter must have been a

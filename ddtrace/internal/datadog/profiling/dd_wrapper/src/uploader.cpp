@@ -23,10 +23,12 @@ DdogCancellationTokenDeleter::operator()(ddog_CancellationToken* ptr) const
     if (ptr != nullptr) {
         ddog_CancellationToken_cancel(ptr);
         ddog_CancellationToken_drop(ptr);
+        // ptr is allocated on C++ side, only the inner pointer is owned by libdatadog
+        delete ptr;
     }
 }
 
-Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_Exporter* _ddog_exporter)
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter* _ddog_exporter)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
 {
@@ -48,7 +50,14 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
         std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
-    out.write(reinterpret_cast<const char*>(encoded->buffer.ptr), encoded->buffer.len);
+    auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
+    if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
+        std::cerr << "Error getting bytes from encoded profile: "
+                  << err_to_msg(&bytes_res.err, "Error getting bytes from encoded profile") << std::endl;
+        ddog_Error_drop(&bytes_res.err);
+        return false;
+    }
+    out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
     if (out.fail()) {
         std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
@@ -60,7 +69,7 @@ bool
 Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
     // Serialize the profile
-    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr, nullptr);
+    ddog_prof_Profile_SerializeResult result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
     if (result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error serializing pprof");
@@ -76,11 +85,6 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return ret;
     }
 
-    const ddog_prof_Exporter_File pprof_file = {
-        .name = to_slice("auto.pprof"),
-        .file = ddog_Vec_U8_as_slice(&encoded->buffer),
-    };
-
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 
     std::string_view json_str = CodeProvenance::get_instance().get_json_str();
@@ -95,23 +99,21 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 
     auto build_res = ddog_prof_Exporter_Request_build(
       ddog_exporter.get(),
-      encoded->start,
-      encoded->end,
+      encoded,
       // files_to_compress_and_export
       {
         .ptr = reinterpret_cast<const ddog_prof_Exporter_File*>(to_compress_files.data()),
         .len = static_cast<uintptr_t>(to_compress_files.size()),
       },
-      // files_to_export_unmodified
-      { .ptr = &pprof_file, .len = 1 },
-      nullptr,
-      encoded->endpoints_stats,
-      nullptr,
-      nullptr);
+      ddog_prof_Exporter_Slice_File_empty(), // files_to_export_unmodified
+      nullptr,                               // optional_additional_tags
+      nullptr,                               // optional_internal_metadata_json
+      nullptr                                // optional_info_json
+    );
     ddog_prof_EncodedProfile_drop(encoded);
 
     if (build_res.tag ==
-        DDOG_PROF_EXPORTER_REQUEST_BUILD_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        DDOG_PROF_REQUEST_RESULT_ERR_HANDLE_REQUEST) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = build_res.err;                      // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error building request");
         std::cerr << errmsg << std::endl;
@@ -130,22 +132,22 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         // since we're recreating the uploader fresh every time anyway, we recreate one more thing.
         // NB wrapping this in a unique_ptr to easily add RAII semantics; maybe should just wrap it in a
         // class instead
-        cancel.reset(ddog_CancellationToken_new());
+        cancel.reset(new ddog_CancellationToken(ddog_CancellationToken_new()));
         std::unique_ptr<ddog_CancellationToken, DdogCancellationTokenDeleter> cancel_for_request;
-        cancel_for_request.reset(ddog_CancellationToken_clone(cancel.get()));
+        cancel_for_request.reset(new ddog_CancellationToken(ddog_CancellationToken_clone(cancel.get())));
 
         // Build and check the response object
-        ddog_prof_Exporter_Request* req = build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        ddog_prof_Exporter_SendResult res =
-          ddog_prof_Exporter_send(ddog_exporter.get(), &req, cancel_for_request.get());
-        if (res.tag == DDOG_PROF_EXPORTER_SEND_RESULT_ERR) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-            auto err = res.err;                              // NOLINT (cppcoreguidelines-pro-type-union-access)
+        ddog_prof_Request* req = &build_res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send(ddog_exporter.get(), req, cancel_for_request.get());
+        if (res.tag ==
+            DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+            auto err = res.err;                             // NOLINT (cppcoreguidelines-pro-type-union-access)
             errmsg = err_to_msg(&err, "Error uploading");
             std::cerr << errmsg << std::endl;
             ddog_Error_drop(&err);
             return false;
         }
-        ddog_prof_Exporter_Request_drop(&req);
+        ddog_prof_Exporter_Request_drop(req);
     }
 
     return true;
