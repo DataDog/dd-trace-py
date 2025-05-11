@@ -3,7 +3,6 @@ stages:
   - tests
   - shared-pipeline
   - benchmarks
-  - gates
   - release
 
 variables:
@@ -87,35 +86,11 @@ macrobenchmarks:
     # Disable VPA for benchmarks
     KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
   allow_failure: true
+  strategy: depend  # Makes it depend on the status of the gates downstream
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - when: manual
-
-# TODO: Fix dependency. Because as soon as the "macrobenchmarks" trigger job
-# is triggered, the gates are run. Change to on_success once dependency timing is fixed
-# TODO: Only keep a single job named "pre-release-performance-quality-gates" or
-# with some more meaningful name.
-test-pre-release-performance-quality-gates-pass:
-  stage: gates
-  needs: ["macrobenchmarks"]
-  when: manual
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
-  script:
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
-    - bp-runner bp-runner.fail-on-breach.loose-thresholds.yml
-
-test-pre-release-performance-quality-gates-fail:
-  stage: gates
-  needs: ["macrobenchmarks"]
-  # TODO: Change to on_success once dependency timing is fixed
-  when: manual
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
-  script:
-    - mkdir -p platform && cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
-    - bp-runner --debug bp-runner.fail-on-breach.strict-thresholds.yml
 
 check_new_flaky_tests:
   stage: tests

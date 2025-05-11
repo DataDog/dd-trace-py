@@ -1,5 +1,6 @@
 stages:
   - test
+  - gates
 
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
@@ -21,7 +22,7 @@ variables:
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
-    git clone --branch igoragoli/pre-release-gate-prototype https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    git clone --branch igoragoli/python/macrobenchmarks/pre-release-gate-prototype https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     mkdir -p artifacts/ && cp mock-macrobenchmark-artifacts/* artifacts/
   # script: |
   #   git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
@@ -366,3 +367,26 @@ baseline:
 #     DD_APPSEC_RASP_ENABLED: "true"
 #     IAST_WORST: "true"
 #     DD_SERVICE: "ddtrace-mb-attack-appsec-enabled-iast-enabled-ep-enabled"
+
+# TODO: Fix dependency. Because as soon as the "macrobenchmarks" trigger job
+# is triggered, the gates are run. Change to on_success once dependency timing is fixed
+# TODO: Only keep a single job named "pre-release-performance-quality-gates" or
+# with some more meaningful name.
+test-pre-release-performance-quality-gates-pass:
+  stage: gates
+  when: manual
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  script:
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
+    - ls 
+    - bp-runner bp-runner.fail-on-breach.loose-thresholds.yml
+
+test-pre-release-performance-quality-gates-fail:
+  stage: gates
+  when: manual
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  script:
+    - mkdir -p platform && cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
+    - bp-runner --debug bp-runner.fail-on-breach.strict-thresholds.yml
