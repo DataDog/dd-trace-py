@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import typing as t
 
+from _pytest.runner import runtestprotocol
 import pytest
 
 from ddtrace import DDTraceDeprecationWarning
@@ -15,7 +16,6 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
@@ -67,7 +67,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
-from _pytest.runner import runtestprotocol
 
 
 if _pytest_version_supports_retries():
@@ -417,7 +416,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestModule.finish(module_id)
 
 
-#@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem) -> None:
     if not is_test_visibility_enabled():
         return
@@ -433,10 +432,10 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     setup_or_teardown_failed = False
     for report in reports:
-        if report.failed and report.when in ('setup', 'teardown'):
+        if report.failed and report.when in ("setup", "teardown"):
             setup_or_teardown_failed = True
 
-    original_result = reports[-1] # TODO: do not depend on this
+    original_result = reports[-1]  # TODO: do not depend on this
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
@@ -464,11 +463,11 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
     elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        attempt_to_fix_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
+        attempt_to_fix_handle_retries(test_id, item, "teardown", original_result, test_outcome)
     elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        efd_handle_retries(test_id, item, 'teardown', original_result, test_outcome)
+        efd_handle_retries(test_id, item, "teardown", original_result, test_outcome)
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        atr_handle_retries(test_id, item, 'teardown', original_result, test_outcome, is_quarantined)
+        atr_handle_retries(test_id, item, "teardown", original_result, test_outcome, is_quarantined)
 
     try:
         _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
@@ -527,7 +526,7 @@ def _process_result(item, result) -> _TestOutcome:
                     InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 return _TestOutcome(TestStatus.PASS)
 
-        return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
+        return _TestOutcome(TestStatus.SKIP, result._dd_excinfo.value if result._dd_excinfo else None)
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
@@ -551,7 +550,11 @@ def _process_result(item, result) -> _TestOutcome:
     elif result.when == "teardown" and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
-    exc_info = TestExcInfo(result._dd_excinfo.type, result._dd_excinfo.value, result._dd_excinfo.tb) if result._dd_excinfo else None
+    exc_info = (
+        TestExcInfo(result._dd_excinfo.type, result._dd_excinfo.value, result._dd_excinfo.tb)
+        if result._dd_excinfo
+        else None
+    )
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
@@ -573,7 +576,6 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
     # Support for pytest-benchmark plugin
     if item.config.pluginmanager.hasplugin("benchmark"):
         _set_benchmark_data_from_item(item)
-
 
 
 @pytest.hookimpl(hookwrapper=True)
