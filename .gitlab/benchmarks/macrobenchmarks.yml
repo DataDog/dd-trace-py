@@ -379,7 +379,7 @@ test-pre-release-performance-quality-gates-pass:
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
   script:
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/python/macrobenchmarks/pre-release-gate-prototype)
-    - ls 
+    - benchmark_analyzer --version 
     - bp-runner bp-runner.fail-on-breach.loose-thresholds.yml
 
 test-pre-release-performance-quality-gates-fail:
