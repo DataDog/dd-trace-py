@@ -161,7 +161,7 @@ Datadog::UploaderBuilder::build()
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
-        auto &err = res.err;
+        auto& err = res.err;
         std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err); // errmsg contains a copy of err.message
         return errmsg;
