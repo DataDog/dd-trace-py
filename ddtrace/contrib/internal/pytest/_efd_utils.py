@@ -4,7 +4,6 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -24,13 +23,13 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 log = get_logger(__name__)
 
 
-class _EFD_RETRY_OUTCOMES:
+class _EFD_RETRY_OUTCOMES(PYTEST_STATUS):
     EFD_ATTEMPT_PASSED = "dd_efd_attempt_passed"
     EFD_ATTEMPT_FAILED = "dd_efd_attempt_failed"
     EFD_ATTEMPT_SKIPPED = "dd_efd_attempt_skipped"
+    # EFD_FINAL_FAILED = "dd_efd_final_failed"
+    # EFD_FINAL_SKIPPED = "dd_efd_final_skipped"
     EFD_FINAL_PASSED = "dd_efd_final_passed"
-    EFD_FINAL_FAILED = "dd_efd_final_failed"
-    EFD_FINAL_SKIPPED = "dd_efd_final_skipped"
     EFD_FINAL_FLAKY = "dd_efd_final_flaky"
 
 
@@ -38,8 +37,8 @@ _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
     EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
-    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
-    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
+    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.FAILED,
+    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.SKIPPED,
     EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
 }
 
@@ -88,13 +87,14 @@ def efd_handle_retries(
     efd_outcome = _efd_do_retries(item)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords=item.keywords,
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
+        user_properties=item.user_properties + [("dd_retry_reason", "early_flake_detection")],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -126,6 +126,11 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
 
     return InternalTest.efd_get_final_status(test_id)
 
+def get_user_property(report, key, default=None):
+    for k, v in report.user_properties:
+        if k == key:
+            return v
+    return default
 
 def _efd_write_report_for_status(
     terminalreporter: _pytest.terminal.TerminalReporter,
@@ -136,8 +141,14 @@ def _efd_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
+    retry_reason="early_flake_detection",
 ):
-    reports = terminalreporter.getreports(status_key)
+    reports = [
+        report
+        for report in terminalreporter.getreports(report_outcome)
+        if get_user_property(report, "dd_retry_reason") == retry_reason
+    ]
+
     markup_kwargs = {color: True}
     if reports:
         text = f"{len(reports)} {status_text}"
@@ -147,15 +158,15 @@ def _efd_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-            report.outcome = report_outcome
-            # Do not re-append a report if a report already exists for the item in the reports
-            for existing_reports in terminalreporter.stats.get(report_outcome, []):
-                if existing_reports.nodeid == report.nodeid:
-                    break
-            else:
-                terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        if delete_reports:
-            del terminalreporter.stats[status_key]
+        #     report.outcome = report_outcome
+        #     # Do not re-append a report if a report already exists for the item in the reports
+        #     for existing_reports in terminalreporter.stats.get(report_outcome, []):
+        #         if existing_reports.nodeid == report.nodeid:
+        #             break
+        #     else:
+        #         terminalreporter.stats.setdefault(report_outcome, []).append(report)
+        # if delete_reports:
+        #     del terminalreporter.stats[status_key]
 
 
 def _efd_prepare_attempts_strings(
@@ -178,6 +189,19 @@ def _efd_prepare_attempts_strings(
         del terminalreporter.stats[reports_key]
 
 
+import functools
+def _debugme(f):
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            raise
+    return wrapped
+
+@_debugme
 def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
     terminalreporter.write_sep("=", "Datadog Early Flake Detection", purple=True, bold=True)
     # Print summary info
@@ -186,7 +210,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
+        _EFD_RETRY_OUTCOMES.FAILED,
         "failed",
         PYTEST_STATUS.FAILED,
         raw_summary_strings,
@@ -206,7 +230,7 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _efd_write_report_for_status(
         terminalreporter,
-        _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
+        _EFD_RETRY_OUTCOMES.SKIPPED,
         "skipped",
         PYTEST_STATUS.SKIPPED,
         raw_summary_strings,
@@ -228,9 +252,22 @@ def efd_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
     # Flaky tests could have passed their initial attempt, so they need to be removed from the passed stats to avoid
     # overcounting:
     flaky_node_ids = {report.nodeid for report in terminalreporter.stats.get(_EFD_FLAKY_OUTCOME, [])}
+    all_passed_node_ids = {
+        report.nodeid
+        for report in terminalreporter.stats.get("passed", [])
+        if get_user_property(report, "dd_retry_reason") == "early_flake_detection"
+    }
+
     passed_reports = terminalreporter.stats.get("passed", [])
     if passed_reports:
-        terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
+        cleaned_passed_reports = []
+        for report in passed_reports:
+            if report.nodeid in flaky_node_ids:
+                continue
+            if report.nodeid in all_passed_node_ids and get_user_property(report, "dd_retry_reason") is None:
+                continue
+            cleaned_passed_reports.append(report)
+        terminalreporter.stats["passed"] = cleaned_passed_reports
 
     raw_attempt_strings = []
     markedup_attempts_strings = []
@@ -325,12 +362,13 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
+    # Writing the final outcome as passed so it can be serialized properly
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
+        return (_EFD_RETRY_OUTCOMES.PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+    # if report.outcome == _EFD_RETRY_OUTCOMES.FAILED:
+    #     return (_EFD_RETRY_OUTCOMES.FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
+    # if report.outcome == _EFD_RETRY_OUTCOMES.SKIPPED:
+    #     return (_EFD_RETRY_OUTCOMES.SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY:
         # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
         # count of terminal summary
