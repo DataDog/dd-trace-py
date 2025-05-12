@@ -546,7 +546,6 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
         """This pattern comes from a Request._receive property, which returns a callable"""
 
         async def wrapped_property_call():
-            print(f"FFFFFFFFFFFFFF _iast_instrument_starlette_request: {self}")
             body = await self._receive()
             return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
 
