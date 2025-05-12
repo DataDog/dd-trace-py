@@ -10,3 +10,4 @@ from json import loads as unpatched_json_loads  # noqa
 # to get a reference to the right threading module.
 import threading as _threading  # noqa
 import gc as _gc  # noqa
+import subprocess as _subprocess  # noqa

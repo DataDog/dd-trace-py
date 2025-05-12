@@ -25,12 +25,23 @@ log = get_logger(__name__)
 #
 
 if system() == "Linux":
+    # The standard find_library uses subprocess.Popen to execute ldconfig for dynamic library resolution,
+    # but since our subprocess is instrumented, this creates a cyclic dependency during import.
+    # To solve this, we temporarily replace subprocess.Popen with an unpatched version to avoid the cycle.
+    import subprocess
+
+    from ddtrace.internal._unpatched import _subprocess
+
+    original_popen = subprocess.Popen
+    subprocess.Popen = _subprocess.Popen
+
     try:
         asm_config._bypass_instrumentation_for_waf = True
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
     finally:
+        subprocess.Popen = original_popen
         asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
