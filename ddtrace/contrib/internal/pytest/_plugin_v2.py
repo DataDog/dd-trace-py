@@ -577,7 +577,6 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         return
 
     original_result = outcome.get_result()
-    test_id = _get_test_id_from_item(item)
     test_outcome = _process_result(item, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
