@@ -90,6 +90,7 @@ dependencies = [  # copied from library dependencies
     "bytecode",
 ]
 extra-dependencies = [
+    "reno~=3.5.0",
     "sphinx~=4.0",
     "sphinxcontrib-applehelp<1.0.8",
     "sphinxcontrib-devhelp<1.0.6",

@@ -29,9 +29,7 @@ from docutils import nodes
 from docutils import statemachine
 from docutils.parsers import rst
 from enchant.tokenize import Filter
-from packaging.version import Version
 from sphinx.util import logging
-from sphinx.util.nodes import nested_parse_with_titles
 import yaml
 
 
