@@ -416,9 +416,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestModule.finish(module_id)
 
 
-# @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_protocol(item, nextitem) -> None:
+@pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
+def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     if not is_test_visibility_enabled():
+        yield
         return
 
     try:
@@ -426,6 +427,16 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
+    yield
+
+    try:
+        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+    except Exception:  # noqa: E722
+        log.debug("encountered error during post-test", exc_info=True)
+
+
+@pytest.hookimpl(specname="pytest_runtest_protocol")
+def pytest_runtest_protocol(item, nextitem) -> None:
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     test_outcome = _process_reports(item, reports)
@@ -481,12 +492,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
         atr_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome, is_quarantined)
 
-    try:
-        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during post-test", exc_info=True)
-
-    return True  # tell pytest to not run other `pytest_runtest_protocol` hooks.
+    return True
 
 
 def _process_reports(item, reports) -> _TestOutcome:
