@@ -106,7 +106,7 @@ def _langchain_llm_generate_after(prompts, completions):
     except Exception as e:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
-        _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
+        _set_iast_error_metric("IAST propagation error. langchain _langchain_llm_generate_after. {}".format(e))
 
 
 def _langchain_chatmodel_generate_after(messages, completions):
@@ -178,7 +178,7 @@ def _langchain_chatmodel_generate_after(messages, completions):
     except Exception as e:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
-        _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
+        _set_iast_error_metric("IAST propagation error. langchain _langchain_chatmodel_generate_after. {}".format(e))
 
 
 def _langchain_stream_chunk_callback(interface_type, args, kwargs):
@@ -193,7 +193,10 @@ def _langchain_stream_chunk_callback(interface_type, args, kwargs):
 
 def _create_taint_chunk_callback(source):
     def _iast_chunk_taint(chunk):
-        _iast_taint_chunk(source, chunk)
+        try:
+            _langchain_iast_taint_chunk(source, chunk)
+        except Exception as e:
+            _set_iast_error_metric("IAST propagation error. langchain _langchain_iast_taint_chunk. {}".format(e))
 
     return _iast_chunk_taint
 
@@ -219,7 +222,7 @@ def _get_tainted_source_from_chat_prompt_value(chat_prompt_value):
     return None
 
 
-def _iast_taint_chunk(source, chunk):
+def _langchain_iast_taint_chunk(source, chunk):
     """
     Taints a chunk (type BaseMessageChunk, typically an AIMessageChunk) given a source.
     """
