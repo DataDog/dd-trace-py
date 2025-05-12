@@ -350,7 +350,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
-    if not (asm_config._asm_enabled or asm_config._iast_enabled):
+    if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
         return wrapped(*args, **kwargs)
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
