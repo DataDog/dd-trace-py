@@ -123,7 +123,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
 
     def test_attempt_to_fix_quarantined_test_fail(self):
         self.testdir.makepyfile(test_quarantined=_TEST_FAIL)
-        rec = self.inline_run("--ddtrace", "-q")
+        rec = self.inline_run("--ddtrace", "-v", "-s")
         assert rec.ret == 0
         assert_stats(rec, quarantined=1, passed=0, failed=0)
 
