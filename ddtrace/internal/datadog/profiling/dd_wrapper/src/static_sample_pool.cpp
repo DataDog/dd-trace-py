@@ -1,49 +1,41 @@
 #include "static_sample_pool.hpp"
 #include "sample.hpp"
 #include <optional>
+#include <atomic>
+#include <cstddef>
 
 namespace Datadog {
 
-Sample* StaticSamplePool::pool[StaticSamplePool::CAPACITY] = { nullptr };
-std::mutex StaticSamplePool::mutex;
-int StaticSamplePool::head = -1;
+static constexpr std::size_t CAPACITY = StaticSamplePool::CAPACITY;
+static std::atomic<Sample*> pool[CAPACITY];
 
-std::optional<Sample*> StaticSamplePool::take_sample()
-{
-    mutex.lock();
-    if (head < 0) {
-        return std::nullopt;
+struct StaticSamplePoolInitializer {
+    StaticSamplePoolInitializer() {
+        for (std::size_t i = 0; i < CAPACITY; ++i) {
+            pool[i].store(nullptr, std::memory_order_relaxed);
+        }
     }
-    Sample* s = pool[head];
-    pool[head] = nullptr;
-    --head;
-    return s;
-}
+} initializer;
 
-std::optional<Sample*> StaticSamplePool::return_sample(Sample* sample)
-{
-    mutex.lock();
-    if (head + 1 >= static_cast<int>(CAPACITY)) {
-        return sample;
+std::optional<Sample*> StaticSamplePool::take_sample() {
+    for (std::size_t i = 0; i < CAPACITY; ++i) {
+        Sample* s = pool[i].exchange(nullptr, std::memory_order_acq_rel);
+        if (s != nullptr) {
+            return s;
+        }
     }
-    ++head;
-    pool[head] = sample;
     return std::nullopt;
 }
 
-void StaticSamplePool::postfork_child()
-{
-    // Properly reinitialize the mutex using placement new
-    // This destroys the old mutex and constructs a new one in its place
-    std::mutex* mutexPtr = &mutex;
-    mutexPtr->~mutex();
-    new (mutexPtr) std::mutex();
-    
-    head = -1;
-    
-    // Clear any samples that might be in the pool
-    for (size_t i = 0; i < CAPACITY; i++) {
-        pool[i] = nullptr;
+std::optional<Sample*> StaticSamplePool::return_sample(Sample* sample) {
+    for (std::size_t i = 0; i < CAPACITY; ++i) {
+        Sample* expected = nullptr;
+        if (pool[i].compare_exchange_strong(expected, sample,
+                                            std::memory_order_acq_rel,
+                                            std::memory_order_relaxed)) {
+            return std::nullopt;
+        }
     }
+    return sample;
 }
 } // namespace Datadog
