@@ -33,9 +33,17 @@ std::optional<Sample*> StaticSamplePool::return_sample(Sample* sample)
 
 void StaticSamplePool::postfork_child()
 {
-    if (mutex.try_lock()) {
-        mutex.unlock();
+    // Properly reinitialize the mutex using placement new
+    // This destroys the old mutex and constructs a new one in its place
+    std::mutex* mutexPtr = &mutex;
+    mutexPtr->~mutex();
+    new (mutexPtr) std::mutex();
+    
+    head = -1;
+    
+    // Clear any samples that might be in the pool
+    for (size_t i = 0; i < CAPACITY; i++) {
+        pool[i] = nullptr;
     }
 }
-
 } // namespace Datadog
