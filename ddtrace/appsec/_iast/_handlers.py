@@ -546,6 +546,7 @@ def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
         """This pattern comes from a Request._receive property, which returns a callable"""
 
         async def wrapped_property_call():
+            print(f"FFFFFFFFFFFFFF _iast_instrument_starlette_request: {self}")
             body = await self._receive()
             return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
 
@@ -562,3 +563,15 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     return taint_pyobject(
         result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
     )
+
+
+def _iast_instrument_starlette_scope(scope, route):
+    try:
+        set_iast_request_endpoint(scope.get("method"), route)
+        if scope.get("path_params"):
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

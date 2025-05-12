@@ -53,7 +53,7 @@ class CodeInjection(VulnerabilityBase):
 
 
 def _iast_coi(wrapped, instance, args, kwargs):
-    if asm_config.is_iast_request_enabled:
+    if len(args) >= 1 and asm_config.is_iast_request_enabled:
         _iast_report_code_injection(args[0])
 
     caller_frame = None

@@ -43,6 +43,8 @@ class deduplication:
                 if len(self.reported_logs) >= self._max_cache_size:
                     self.reported_logs.popitem(last=False)
                 result = self.func(*args, **kwargs)
+            else:
+                result = False
         else:
             result = self.func(*args, **kwargs)
         return result
