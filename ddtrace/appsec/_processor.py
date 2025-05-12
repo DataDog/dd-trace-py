@@ -4,6 +4,7 @@ import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
+import sys
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
@@ -128,7 +129,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
+            log.critical("[DDAS-0005-00] WAF initialization failed %s", str(sys.modules), exc_info=True)
 
         self._update_required()
 
