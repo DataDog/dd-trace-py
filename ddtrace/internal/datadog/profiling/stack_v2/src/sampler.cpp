@@ -209,6 +209,7 @@ _stack_v2_atfork_child()
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
+    new (&greenlet_info_map_lock) std::mutex;
 }
 
 __attribute__((constructor)) void
