@@ -735,12 +735,12 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
-        llmobs_events[0] == _expected_llmobs_llm_span_event(
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
             input_messages=[
-                {"role": "system", "content": request_params.get("system")},
+                {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
             ],
             output_messages=[
@@ -813,12 +813,12 @@ class TestLLMObsBedrock:
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
 
-        llmobs_events[0] == _expected_llmobs_llm_span_event(
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="claude-3-sonnet-20240229-v1:0",
             model_provider="anthropic",
             input_messages=[
-                {"role": "system", "content": request_params.get("system")},
+                {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
             ],
             output_messages=[
@@ -835,7 +835,6 @@ class TestLLMObsBedrock:
                 }
             ],
             metadata={
-                "stop_reason": "tool_use",
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },

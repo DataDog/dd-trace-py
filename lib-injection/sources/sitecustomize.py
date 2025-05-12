@@ -262,7 +262,6 @@ def _inject():
     EXECUTABLES_DENY_LIST = build_denied_executables()
     integration_incomp = False
     runtime_incomp = False
-    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     spec = None
     try:
         # `find_spec` is only available in Python 3.4+
@@ -430,6 +429,10 @@ def _inject():
                         ],
                     ),
                 )
+                # Track whether library injection was successful
+                ddtrace.config._lib_was_injected = True
+                os.environ["_DD_SSI_INJECT_SUCCESSFUL"] = "1"
+                ddtrace.internal.telemetry.telemetry_writer.add_configuration("instrumentation_source", "ssi", "code")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
