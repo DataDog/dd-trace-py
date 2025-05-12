@@ -460,6 +460,10 @@ def pytest_runtest_protocol(item, nextitem) -> None:
             if report.failed or report.skipped:
                 InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
+            if is_quarantined or is_disabled:
+                # Ensure test doesn't count as failed for pytest's exit status logic
+                # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+                report.outcome = OUTCOME_QUARANTINED
 
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
@@ -477,11 +481,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
         if report.when == "call" or "passed" not in report.outcome:
 
-            if is_quarantined or is_disabled:
-                # Ensure test doesn't count as failed for pytest's exit status logic
-                # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-                report.outcome = OUTCOME_QUARANTINED
-
+            pass
 
 
     if "setup" in reports_dict:
