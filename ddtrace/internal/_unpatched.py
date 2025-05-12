@@ -11,3 +11,7 @@ from json import loads as unpatched_json_loads  # noqa
 import threading as _threading  # noqa
 import gc as _gc  # noqa
 from subprocess import Popen as unpatched_Popen  # noqa
+
+import sys
+
+del sys.modules["subprocess"]
