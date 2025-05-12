@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 from typing import Dict
 from typing import Optional
 
@@ -77,8 +78,8 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
     # First check whether crashtracker_exe command is available
-    crashtracker_exe_py = os.path.join(os.path.dirname(__file__), "crashtracker_exe.py")
-    if not os.path.exists(crashtracker_exe_py) or not os.access(crashtracker_exe_py, os.R_OK):
+    crashtracker_exe = shutil.which("dd_crashtracker_exe")
+    if not crashtracker_exe or not os.access(crashtracker_exe, os.X_OK):
         print("Failed to find crashtracker_exe in the scripts directory")
         return (None, None, None)
 
@@ -110,9 +111,8 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     # Create crashtracker receiver configuration
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        # Need to set PATH to find the right python binary
-        os.environ.copy(),  # env
-        crashtracker_exe_py,  # path_to_receiver_binary
+        {},  # env
+        crashtracker_exe,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
     )
