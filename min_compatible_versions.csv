@@ -148,6 +148,7 @@ pytest-cpp,0
 pytest-django[testing],==3.10.0
 pytest-mock,==2.0.0
 pytest-sanic,~=1.6.2
+pytest-xdist,0
 python-consul,>=1.1
 python-memcached,0
 python-multipart,0
