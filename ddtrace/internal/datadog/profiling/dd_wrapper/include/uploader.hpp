@@ -41,8 +41,7 @@ class Uploader
         // We need to call _drop() on the exporter and the cancellation token,
         // as their inner pointers are allocated on the Rust side. And since
         // there could be a request in flight, we first need to cancel it. Then,
-        // we drop the exporter and the cancellation token. We drop the exporter
-        // first, as it uses the cancellation token, to avoid a race condition.
+        // we drop the exporter and the cancellation token.
         ddog_CancellationToken_cancel(&cancel);
         ddog_prof_Exporter_drop(&ddog_exporter);
         ddog_CancellationToken_drop(&cancel);
@@ -55,6 +54,16 @@ class Uploader
 
     // In move constructor and move assignment operator, we clear inner pointer
     // of ddog_exporter in other to avoid double-free from the destructor.
+    // These were added as we started to calling ddog_prof_Exporter_drop()
+    // function in the destructor.
+    // We initially observed the double free error as we created a temporary
+    // object which then moved to std::variant. A simplified example and possible
+    // solution using std::variant constructor is here:
+    // https://gist.github.com/taegyunkim/9191e643e315be55e78e383ccc498713
+    // We also update the move constructor and move assignment operator to set
+    // the inner pointer to nullptr to avoid double-free. At the time of writing,
+    // we don't have code that uses move constructor and move assignment operator,
+    // but we add them to avoid any potential issues.
     Uploader(Uploader&& other) noexcept
     {
         ddog_exporter = other.ddog_exporter;

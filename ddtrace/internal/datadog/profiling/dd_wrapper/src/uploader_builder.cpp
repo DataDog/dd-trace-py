@@ -183,7 +183,16 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ output_filename, *ddog_exporter };
+    // We create a std::variant here instead of creating a temporary Uploader object.
+    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
+    // because above code creates a temporary Uploader object, moves it into the
+    // variant, and then the destructor of the temporary Uploader object is called
+    // when the temporary Uploader object goes out of scope.
+    // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
+    // in the destructor of Uploader. See comments in uploader.hpp for more details.
+    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
+                                                         output_filename,
+                                                         *ddog_exporter };
 }
 
 void
