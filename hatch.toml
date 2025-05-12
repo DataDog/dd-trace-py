@@ -87,7 +87,7 @@ dependencies = [  # copied from library dependencies
     "envier==0.6.1",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
-    "bytecode",  
+    "bytecode",
 ]
 extra-dependencies = [
     "sphinx~=4.0",
