@@ -1,0 +1,6 @@
+rulesets:
+  - python-best-practices:
+    rules:
+      any-type-disallow:
+        ignore:
+          - "ddtrace/appsec/_iast/secure_marks/sanitizers.py"
