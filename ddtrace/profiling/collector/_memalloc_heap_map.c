@@ -160,12 +160,9 @@ memalloc_heap_map_destructive_copy(memalloc_heap_map_t* dst, memalloc_heap_map_t
     HeapSamples_Iter it = HeapSamples_iter(&src->map);
     for (const HeapSamples_Entry* e = HeapSamples_Iter_get(&it); e != NULL; e = HeapSamples_Iter_next(&it)) {
         HeapSamples_insert(&dst->map, e);
-        /* Erasing the element doesn't free up the backing storage. This is
-         * probably fine; even at full capacity the table will probably only be
-         * ~1-2MiB
-         */
-        HeapSamples_erase_at(it);
     }
+    /* Can't erase inside the loop or the iterator is invalidated */
+    HeapSamples_clear(&src->map);
 }
 
 void

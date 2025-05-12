@@ -217,7 +217,7 @@ get_ddtrace_path()
         res = strndup(path_str, path_len - suffix_len);
     }
 
-    exit:
+exit:
     Py_XDECREF(path);
     Py_XDECREF(ddtrace_mod);
     return res;
