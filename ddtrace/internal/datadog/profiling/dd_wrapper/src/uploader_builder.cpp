@@ -167,8 +167,7 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    // libdatadog owns the inner pointer, but C++ owns ddog_prof_ProfileExporter
-    auto ddog_exporter = new ddog_prof_ProfileExporter(res.ok);
+    auto ddog_exporter = &res.ok;
 
     // 5s is a common timeout parameter for Datadog profilers
     const uint64_t max_timeout_ms = 5000;
@@ -184,7 +183,7 @@ Datadog::UploaderBuilder::build()
         return errmsg;
     }
 
-    return Datadog::Uploader{ output_filename, ddog_exporter };
+    return Datadog::Uploader{ output_filename, *ddog_exporter };
 }
 
 void
