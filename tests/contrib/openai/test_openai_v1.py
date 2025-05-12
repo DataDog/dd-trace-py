@@ -1353,7 +1353,6 @@ async def test_openai_asyncio_cancellation(openai):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response",
-    # ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response(openai, openai_vcr, snapshot_tracer):
     """Ensure llmobs records are emitted for response endpoints when configured."""
@@ -1371,7 +1370,6 @@ def test_response(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_tools",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_tools(openai, openai_vcr, snapshot_tracer):
     """Ensure tools are recorded for response endpoints when configured."""
@@ -1386,7 +1384,6 @@ def test_response_tools(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_error",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_error(openai, openai_vcr, snapshot_tracer):
     """Assert errors when an invalid model is used."""
@@ -1405,7 +1402,6 @@ def test_response_error(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 async def test_aresponse(openai, openai_vcr, snapshot_tracer):
     """Assert spans are created with async client."""
@@ -1426,7 +1422,6 @@ async def test_aresponse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_stream",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
@@ -1444,7 +1439,6 @@ def test_response_stream(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_tools_stream",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_tools_stream.yaml"):
@@ -1460,7 +1454,6 @@ def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_stream",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
