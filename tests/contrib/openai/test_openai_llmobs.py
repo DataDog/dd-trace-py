@@ -387,6 +387,39 @@ class TestLLMObsOpenaiV1:
             )
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 40, 0),
+        reason="`client.beta.chat.completions.stream` available in 1.40.0+",
+    )
+    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+            client = openai.OpenAI()
+            with client.beta.chat.completions.stream(model=model, messages=input_messages) as stream:
+                for chunk in stream:
+                    if hasattr(chunk, "chunk") and hasattr(chunk.chunk, "model"):
+                        resp_model = chunk.chunk.model
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        llmobs_span_event = mock_llmobs_writer.enqueue.call_args_list[0][0][0]
+        assert llmobs_span_event["meta"]["metadata"]["stream_options"]["include_usage"] is True
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"content": expected_completion, "role": "assistant"}],
+                metadata=mock.ANY,
+                token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
     def test_chat_completion_function_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
@@ -681,55 +714,6 @@ class TestLLMObsOpenaiV1:
         assert span_event["name"] == "Deepseek.createChatCompletion"
         assert span_event["meta"]["model_provider"] == "deepseek"
         assert span_event["meta"]["model_name"] == "deepseek-chat"
-
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        """Ensure llmobs records are not emitted for response endpoints when the base_url is specified."""
-        model = "gpt-4.1"
-        input_messages = multi_message_input
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
-        client.responses.create(
-            model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
-
-    @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_llmobs.test_response_completion")
-    def test_response_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        """Ensure llmobs records are emitted for response completion endpoints when configured."""
-        # Create a new cassette for this test
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create.yaml"):
-            model = "gpt-4.1"
-            input_messages = multi_message_input
-            client = openai.OpenAI()
-            client.responses.create(
-                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
-            )
-        span = mock_tracer.pop_traces()[0][0]
-        assert span.name == "openai.request"
-        assert span.resource == "createResponseCompletion"
-        assert span.get_tag("openai.request.model") == "gpt-4.1"
-
-    def test_response_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
-        with get_openai_vcr(subdirectory_name="v1").use_cassette(
-            "response_completion_streamed.yaml", record_mode="new_episodes"
-        ):
-            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
-                    mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
-                    mock_est.return_value = 2
-                    model = "gpt-4.1"
-                    client = openai.OpenAI()
-                    resp = client.responses.create(model=model, input="Hello world", stream=True)
-                    for _ in resp:
-                        pass
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        assert span.name == "openai.request"
-        assert span.resource == "createResponseCompletion"
-        assert span.get_tag("openai.request.model") == "gpt-4.1"
-        assert span.get_tag("openai.request.stream") == "True"
 
 
 @pytest.mark.parametrize(

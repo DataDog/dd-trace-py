@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import SPAN_KIND
 
 
 API_VERSION = "v1"
@@ -250,11 +249,13 @@ class _ChatCompletionHook(_BaseCompletionHook):
             span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
             span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
-            if kwargs.get("stream_options", {}).get("include_usage", None) is not None:
+            stream_options = kwargs.get("stream_options", {})
+            if not isinstance(stream_options, dict):
+                stream_options = {}
+            if stream_options.get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
                 return
             span._set_ctx_item("_dd.auto_extract_token_chunk", True)
-            stream_options = kwargs.get("stream_options", {})
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
 
@@ -718,8 +719,9 @@ class _FileDownloadHook(_BaseFileHook):
         return resp
 
 
-class _ResponseHook(_EndpointHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+class _ResponseHook(_BaseCompletionHook):
+    _request_arg_params = ()
+    # Collecting all kwargs for responses
     _request_kwarg_params = (
         "model",
         "include",
@@ -740,10 +742,10 @@ class _ResponseHook(_EndpointHook):
         "truncation",
         "user",
     )
-    _response_attrs = ("created_at", "id", "model", "tools")
+    _response_attrs = ("model",)
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
-    OPERATION_ID = "createResponseCompletion"
+    OPERATION_ID = "createResponse"
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
@@ -756,42 +758,9 @@ class _ResponseHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        span._set_ctx_item(SPAN_KIND, "llm")
-
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         if not resp:
             return resp
-
-        def handle_response_tools(resp, span):
-            if getattr(resp, "tools", None):
-                response_tools = [
-                    {
-                        k: v
-                        for k, v in {"type": getattr(tool, "type", None), "name": getattr(tool, "name", None)}.items()
-                        if v is not None
-                    }
-                    for tool in resp.tools
-                    if hasattr(tool, "type") or hasattr(tool, "name")
-                ]
-                if response_tools:
-                    span.set_tag("openai.response.tools", response_tools)
-
-        if kwargs.get("stream") and error is None:
-            for s in resp:
-                if s.type == "response.completed":
-                    resp = s.response
-                    super()._record_response(pin, integration, span, args, kwargs, resp, error)
-                    span._set_ctx_item("llmobs.response.output", resp.output)
-                    handle_response_tools(resp, span)
-                    span.finish()
-                    break
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
-            integration.record_usage(span, resp.usage)
-            return resp
-
-        if not kwargs.get("stream") and error is None:
-            span._set_ctx_item("llmobs.response.output", resp.output)
-            handle_response_tools(resp, span)
-
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
-            integration.record_usage(span, resp.usage)
-            return resp
+        integration.record_usage(span, resp.usage)
+        return resp

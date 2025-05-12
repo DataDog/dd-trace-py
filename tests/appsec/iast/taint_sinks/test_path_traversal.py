@@ -129,7 +129,7 @@ def test_path_traversal(module, function, iast_context_defaults):
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == path
-    assert vulnerability["location"]["class_name"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value
     assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": file_path}]
     assert "value" not in vulnerability["evidence"].keys()

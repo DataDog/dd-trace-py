@@ -221,3 +221,17 @@ def _report_rasp_skipped(rule_type: str, import_error: bool) -> None:
             "more_info": f":waf:rasp_rule_skipped:{rule_type}:{import_error}",
         }
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
+
+
+def _report_ato_sdk_usage(event_type: str, v2: bool = True) -> None:
+    version = "v2" if v2 else "v1"
+    try:
+        tags = (("event_type", event_type), ("sdk_version", version))
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "sdk.event", 1, tags=tags)
+    except Exception:
+        extra = {
+            "product": "appsec",
+            "exec_limit": 6,
+            "more_info": f":waf:sdk.event:{event_type}:{version}",
+        }
+        logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
