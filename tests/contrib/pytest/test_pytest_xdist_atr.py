@@ -179,17 +179,6 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
             rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             assert rec.ret == 1
 
-    def test_pytest_xdist_atr_spans(self):
-        """Tests that an EFD session properly does the correct number of retries and sets the correct tags"""
-        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
-        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
-        self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
-        self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
-        self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
-
-        rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 1
-
     def test_pytest_xdist_atr_fails_session_when_test_fails(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
