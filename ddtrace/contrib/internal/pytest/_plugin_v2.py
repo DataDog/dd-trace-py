@@ -592,12 +592,12 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
-    if not is_test_visibility_enabled():
-        return
-
     outcome: pytest_TestReport
     outcome = yield
     outcome.get_result()._dd_excinfo = call.excinfo
+
+    if not is_test_visibility_enabled():
+        return
 
     try:
         return _pytest_runtest_makereport(item, call, outcome)
