@@ -61,6 +61,20 @@ enum class ExportLabelKey
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
+// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
+// for us, so here's the deleter for the exporter.
+struct DdogProfExporterDeleter
+{
+    void operator()(ddog_prof_ProfileExporter* ptr) const
+    {
+        if (ptr) {
+            ddog_prof_Exporter_drop(ptr);
+            // ptr is allocated on C++ side, only the inner pointer is owned by libdatadog
+            delete ptr;
+        }
+    }
+};
+
 inline ddog_CharSlice
 to_slice(std::string_view str)
 {
