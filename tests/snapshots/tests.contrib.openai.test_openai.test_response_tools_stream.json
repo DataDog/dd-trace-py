@@ -22,7 +22,7 @@
       "openai.request.stream": "True",
       "openai.request.tools": "[{'type': 'web_search_preview'}]",
       "openai.response.model": "gpt-4.1-2025-04-14",
-      "openai.user.api_key": "sk-...6KQA",
+      "openai.user.api_key": "sk-...key>",
       "runtime-id": "94ddd3cacc11443097f540977c3f6d69"
     },
     "metrics": {

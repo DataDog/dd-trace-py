@@ -1,6 +1,4 @@
 ---
 features:
   - |
-    openai: This introduces APM Tracing for OpenAI Responses endpoint.
-
-
+    openai: This introduces tracing support for the OpenAI Responses endpoint.

@@ -40,7 +40,7 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
     """
-    This class is used to trace OpenAI stream objects for chat/completion and responses.
+    This class is used to trace OpenAI stream objects for chat/completion/response.
     """
 
     def __enter__(self):
@@ -107,7 +107,7 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
     """
-    This class is used to trace AsyncOpenAI stream objects for chat/completion and responses.
+    This class is used to trace AsyncOpenAI stream objects for chat/completion/response.
     """
 
     async def __aenter__(self):
@@ -269,9 +269,8 @@ def _loop_handler(span, chunk, streamed_chunks):
             model = getattr(chunk, "model", "")
         span.set_tag_str("openai.response.model", model)
     # Only run if the chunk is a completion/chat completion
-    if hasattr(chunk, "object") and "completion" in chunk.object.lower() and hasattr(chunk, "choices"):
-        for choice in chunk.choices:
-            streamed_chunks[choice.index].append(choice)
+    for choice in getattr(chunk, "choices", []):
+        streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
@@ -320,11 +319,10 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
 
 
 def _set_token_metrics(span, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion/responses.
+    """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
-    # Handles both input/output token usage for responses and prompt/response token usage for completions
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):

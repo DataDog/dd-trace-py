@@ -1353,7 +1353,7 @@ async def test_openai_asyncio_cancellation(openai):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response",
-    ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
+    # ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
 )
 def test_response(openai, openai_vcr, snapshot_tracer):
     """Ensure llmobs records are emitted for response endpoints when configured."""
@@ -1376,10 +1376,9 @@ def test_response(openai, openai_vcr, snapshot_tracer):
 def test_response_tools(openai, openai_vcr, snapshot_tracer):
     """Ensure tools are recorded for response endpoints when configured."""
     with openai_vcr.use_cassette("response_tools.yaml"):
-        model = "gpt-4.1"
         input_messages = multi_message_input
         client = openai.OpenAI()
-        client.responses.create(model=model, input=input_messages, tools=[{"type": "web_search_preview"}])
+        client.responses.create(model="gpt-4.1", input=input_messages, tools=[{"type": "web_search_preview"}])
 
 
 @pytest.mark.skipif(
@@ -1431,10 +1430,9 @@ async def test_aresponse(openai, openai_vcr, snapshot_tracer):
 )
 def test_response_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_stream.yaml"):
-        model = "gpt-4.1"
         client = openai.OpenAI()
         resp = client.responses.create(
-            model=model,
+            model="gpt-4.1",
             input="Hello world",
             stream=True,
         )
@@ -1450,10 +1448,9 @@ def test_response_stream(openai, openai_vcr, snapshot_tracer):
 )
 def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
     with openai_vcr.use_cassette("response_tools_stream.yaml"):
-        model = "gpt-4.1"
         client = openai.OpenAI()
         resp = client.responses.create(
-            model=model, input="Hello world", tools=[{"type": "web_search_preview"}], stream=True
+            model="gpt-4.1", input="Hello world", tools=[{"type": "web_search_preview"}], stream=True
         )
         _ = [c for c in resp]
 

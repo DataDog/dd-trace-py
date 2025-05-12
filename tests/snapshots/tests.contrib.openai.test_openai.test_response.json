@@ -23,7 +23,7 @@
       "openai.request.top_p": "0.9",
       "openai.request.user": "ddtrace-test",
       "openai.response.model": "gpt-4.1-2025-04-14",
-      "openai.user.api_key": "sk-...6KQA",
+      "openai.user.api_key": "sk-...key>",
       "runtime-id": "004faf115ab3455695f3b3ef95336182"
     },
     "metrics": {
@@ -36,8 +36,8 @@
       "openai.organization.ratelimit.tokens.limit": 30000000,
       "openai.organization.ratelimit.tokens.remaining": 29999927,
       "openai.response.usage.input_tokens": 53,
-      "openai.response.usage.output_tokens": 53,
-      "openai.response.usage.total_tokens": 106,
+      "openai.response.usage.output_tokens": 40,
+      "openai.response.usage.total_tokens": 93,
       "process_id": 27085
     },
     "duration": 1481426000,
