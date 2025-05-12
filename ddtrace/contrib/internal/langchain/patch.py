@@ -423,7 +423,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
         chat_completions = await func(*args, **kwargs)
 
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
 
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
