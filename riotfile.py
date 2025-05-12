@@ -1068,6 +1068,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="appsec_iast_memcheck",
+            command="pytest --memray --stacks=35 {cmdargs} tests/contrib/appsec_iast_memcheck",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "pytest-memray": latest,
+                "psycopg2-binary": "~=2.9.9",
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            }
+        ),
+        Venv(
             name="pymemcache",
             pys=select_pys(),
             pkgs={

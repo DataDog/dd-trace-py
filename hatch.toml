@@ -307,37 +307,6 @@ test = [
 [[envs.appsec_iast_default.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## ASM IAST memcheck
-
-[envs.appsec_iast_memcheck]
-template = "appsec_iast_memcheck"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "requests",
-    "urllib3",
-    "pycryptodome",
-    "cryptography",
-    "psycopg2-binary~=2.9.9",
-    "pytest-memray"
-]
-
-[envs.appsec_iast_memcheck.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-[envs.appsec_iast_memcheck.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
-]
-
-[[envs.appsec_iast_memcheck.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
-
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
