@@ -430,22 +430,34 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     test_outcome = _process_reports(item, reports)
 
-    setup_or_teardown_failed = False
-    for report in reports:
-        if report.failed and report.when in ("setup", "teardown"):
-            setup_or_teardown_failed = True
-
-    original_result = reports[-1]  # TODO: do not depend on this
+    reports_dict = {report.when: report for report in reports}
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
+    # ꙮ _ ꙮ
+    if setup_or_teardown_failed:
+        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+    elif not reports_dict.get("call"):
+        pass
+    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+        attempt_to_fix_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome)
+    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        efd_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome)
+    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        atr_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome, is_quarantined)
+
     for report in reports:
+        if report.failed and report.when in ("setup", "teardown"):
+            setup_or_teardown_failed = True
+
         if report.when == "call" or "passed" not in report.outcome:
             if report.failed or report.skipped:
                 InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
@@ -463,11 +475,11 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
     elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        attempt_to_fix_handle_retries(test_id, item, "teardown", original_result, test_outcome)
+        attempt_to_fix_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome)
     elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        efd_handle_retries(test_id, item, "teardown", original_result, test_outcome)
+        efd_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome)
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        atr_handle_retries(test_id, item, "teardown", original_result, test_outcome, is_quarantined)
+        atr_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome, is_quarantined)
 
     try:
         _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
