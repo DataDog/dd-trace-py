@@ -117,6 +117,7 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     integration._model_map[requested_model] = (model, custom_llm_provider)
     return model, custom_llm_provider, dynamic_api_key, api_base
 
+
 @with_traced_module
 async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
