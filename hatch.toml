@@ -87,10 +87,9 @@ dependencies = [  # copied from library dependencies
     "envier==0.6.1",
     "opentelemetry-api>=1",
     "opentracing>=2.0.0",
-    "bytecode",
+    "bytecode",  
 ]
 extra-dependencies = [
-    "reno[sphinx]~=3.5.0",
     "sphinx~=4.0",
     "sphinxcontrib-applehelp<1.0.8",
     "sphinxcontrib-devhelp<1.0.6",
@@ -103,6 +102,7 @@ extra-dependencies = [
     "sphinx-copybutton==0.5.1",
     # Later release of furo breaks formatting for code blocks
     "furo<=2023.05.20",
+    "standard-imghdr",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",
