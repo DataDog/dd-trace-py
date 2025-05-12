@@ -104,12 +104,13 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
                 n=1,
             )
 
-async def test_litellm_route_request(litellm, snapshot_context):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_route_request"):
-        from litellm.proxy.route_llm_request import route_request
-        await route_request(
-            data={"model": "gpt-3.5-turbo", "proxy_server_request": {"headers": {"host": "0.0.0.0:4000"}}},
-            route_type="acompletion",
-            llm_router=None,
-            user_model="gpt-3.5-turbo",
-        )
+
+@pytest.mark.snapshot(token="tests.contrib.litellm.test_litellm.test_litellm_route_request")
+async def test_litellm_route_request(litellm):
+    from litellm.proxy.route_llm_request import route_request
+    await route_request(
+        data={"model": "gpt-3.5-turbo", "proxy_server_request": {"headers": {"host": "0.0.0.0:4000"}}},
+        route_type="acompletion",
+        llm_router=None,
+        user_model="gpt-3.5-turbo",
+    )

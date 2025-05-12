@@ -120,13 +120,13 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
-    model = None
-    host = None
+    model, host = None, None
     data = get_argument_value(args, kwargs, 0, "data", None)
     if data:
         model = data.get("model", None)
-        host = data.get("proxy_server_request", {}).get("headers", {}).get("host", None)
-    breakpoint()
+        proxy_server_request = data.get("proxy_server_request", {})
+        headers = proxy_server_request.get("headers", {})
+        host = headers.get("host", None)
     span = integration.trace(
         pin,
         func.__name__,
