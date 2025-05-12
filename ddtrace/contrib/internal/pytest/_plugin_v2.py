@@ -456,8 +456,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         if report.failed and report.when in ("setup", "teardown"):
             setup_or_teardown_failed = True
 
-        if report.when == "call" or "passed" not in report.outcome:
-
+        if report.when == "call" or "failed" in report.outcome:
             if is_quarantined or is_disabled:
                 # Ensure test doesn't count as failed for pytest's exit status logic
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).

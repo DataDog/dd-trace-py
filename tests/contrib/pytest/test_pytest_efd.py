@@ -437,7 +437,7 @@ class PytestEFDTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_new_fail=_TEST_NEW_FAIL_CONTENT)
         self.testdir.makepyfile(test_new_flaky=_TEST_NEW_FLAKY_CONTENT)
 
-        rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
+        rec = self.inline_run("--ddtrace", "-v", "-s", "--junit-xml=out.xml")
         assert rec.ret == 1
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
