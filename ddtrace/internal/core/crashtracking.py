@@ -136,12 +136,13 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
     if not crashtracker_config.enabled:
         return False
 
-    config, receiver_config, metadata = _get_args(additional_tags)
-    if config is None or receiver_config is None or metadata is None:
-        print("Failed to start crashtracker: failed to construct crashtracker configuration")
-        return False
-
     try:
+        config, receiver_config, metadata = _get_args(additional_tags)
+        if config is None or receiver_config is None or metadata is None:
+            print("Failed to start crashtracker: failed to construct crashtracker configuration")
+            return False
+
+
         crashtracker_init(config, receiver_config, metadata)
 
         def crashtracker_fork_handler():
