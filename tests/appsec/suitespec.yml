@@ -53,6 +53,7 @@ suites:
       - tests/appsec/iast_memcheck/*
     retry: 2
     runner: hatch
+    timeout: 30m
   appsec_iast_native:
     parallelism: 6
     paths:
