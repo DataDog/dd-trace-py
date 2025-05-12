@@ -1,4 +1,5 @@
 from ddtrace.appsec._iast import enable_iast_propagation
+from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
 from tests.utils import override_env
@@ -16,4 +17,7 @@ def pytest_configure():
     ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
         patch_iast()
         enable_iast_propagation()
+        # load_iast needs to happen before langchain_patch call, so that
+        # listeners for langchain.patch are set up before they are dispatched.
+        load_iast()
         langchain_patch()
