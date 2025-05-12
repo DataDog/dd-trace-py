@@ -1,0 +1,7 @@
+rulesets:
+  - python-security:
+    rules:
+      os-system:
+        ignore:
+          - "tests/appsec/integrations/*"
+          - "benchmarks/*"
