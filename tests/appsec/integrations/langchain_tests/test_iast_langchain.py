@@ -10,6 +10,7 @@ from langchain.agents.output_parsers.openai_functions import OpenAIFunctionsAgen
 from langchain_community.tools.shell.tool import ShellTool
 from langchain_core.agents import AgentActionMessageLog
 from langchain_core.language_models import BaseChatModel
+from langchain_core.language_models import FakeListChatModel
 from langchain_core.language_models.fake import FakeListLLM
 from langchain_core.messages import AIMessage
 from langchain_core.messages import AIMessageChunk
@@ -89,6 +90,20 @@ async def test_llm_agenerate(iast_span_defaults):  # noqa: F811
     prompt = prepare_tainted_prompt()
     result = await llm.ainvoke(prompt)
     assert is_pyobject_tainted(result)
+
+
+def test_chatmodel_generate(iast_span_defaults):  # noqa: F811
+    chatmodel = FakeListChatModel(responses=["I am a fake chat model"])
+    prompt = prepare_tainted_prompt()
+    result = chatmodel.invoke(prompt)
+    assert is_pyobject_tainted(result.content)
+
+
+async def test_chatmodel_agenerate(iast_span_defaults):  # noqa: F811
+    chatmodel = FakeListChatModel(responses=["I am a fake chat model"])
+    prompt = prepare_tainted_prompt()
+    result = await chatmodel.ainvoke(prompt)
+    assert is_pyobject_tainted(result.content)
 
 
 def test_cmdi_with_shelltool_invoke(iast_span_defaults):  # noqa: F811
