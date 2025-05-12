@@ -142,7 +142,6 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             print("Failed to start crashtracker: failed to construct crashtracker configuration")
             return False
 
-
         crashtracker_init(config, receiver_config, metadata)
 
         def crashtracker_fork_handler():
