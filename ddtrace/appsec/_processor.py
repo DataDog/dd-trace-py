@@ -3,7 +3,6 @@ import errno
 import json
 from json.decoder import JSONDecodeError
 import os
-import os.path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
@@ -30,6 +29,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
@@ -118,7 +118,6 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and not hasattr(self, "_ddwaf"):
-                from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
                 import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 self.metrics = metrics
