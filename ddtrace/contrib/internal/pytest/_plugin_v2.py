@@ -437,6 +437,9 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
 
 @pytest.hookimpl(specname="pytest_runtest_protocol")
 def pytest_runtest_protocol(item, nextitem) -> None:
+    if not is_test_visibility_enabled():
+        return
+
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     test_outcome = _process_reports(item, reports)
