@@ -457,13 +457,14 @@ def pytest_runtest_protocol(item, nextitem) -> None:
             setup_or_teardown_failed = True
 
         if report.when == "call" or "passed" not in report.outcome:
-            if report.failed or report.skipped:
-                InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
             if is_quarantined or is_disabled:
                 # Ensure test doesn't count as failed for pytest's exit status logic
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
                 report.outcome = OUTCOME_QUARANTINED
+
+            if report.failed or report.skipped:
+                InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
@@ -476,13 +477,6 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         efd_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome)
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
         atr_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome, is_quarantined)
-
-    for report in reports:
-
-        if report.when == "call" or "passed" not in report.outcome:
-
-            pass
-
 
     if "setup" in reports_dict:
         item.ihook.pytest_runtest_logreport(report=reports_dict["setup"])
@@ -503,6 +497,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         atr_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome, is_quarantined)
 
     if "teardown" in reports_dict:
+        # Must be postponed to the very end because the junitxml plugin closes the <testcase> tag at teardown.
         item.ihook.pytest_runtest_logreport(report=reports_dict["teardown"])
 
     return True
