@@ -501,6 +501,8 @@ def _process_reports(item, reports) -> _TestOutcome:
         outcome = _process_result(item, report)
         if final_outcome is None or final_outcome.status is None:
             final_outcome = outcome
+            if final_outcome.status is not None:
+                return final_outcome
     return final_outcome
 
 
