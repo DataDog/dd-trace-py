@@ -26,8 +26,6 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.settings.asm import config as asm_config
-
 
 try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
@@ -41,7 +39,6 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.langchain.constants import API_KEY
-from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
@@ -49,6 +46,7 @@ from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -197,7 +195,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
 
         completions = func(*args, **kwargs)
 
-        _iast_taint_llm_output(prompts, completions)
+        core.dispatch("langchain.llm.generate.after", (prompts, completions))
 
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
@@ -256,7 +254,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
         completions = await func(*args, **kwargs)
 
-        _iast_taint_llm_output(prompts, completions)
+        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
 
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
@@ -328,7 +326,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
         chat_completions = func(*args, **kwargs)
 
-        _iast_taint_chat_model_output(chat_messages, chat_completions)
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
 
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
@@ -424,6 +422,9 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
+
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
 
@@ -951,145 +952,6 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
     return tool_output
 
 
-def _iast_taint_llm_output(prompts, completions):
-    """
-    Taints the output of an LLM call if its inputs are tainted.
-
-    Range propagation does not make sense in LLMs. So we get the first source in inputs, if any,
-    and taint the full output with that source.
-    """
-    if not asm_config._iast_enabled:
-        return
-    if not isinstance(prompts, (tuple, list)):
-        return
-    if not hasattr(completions, "generations"):
-        return
-    try:
-        generations = completions.generations
-        if not isinstance(generations, list):
-            return
-
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-        source = None
-        for prompt in prompts:
-            if not isinstance(prompt, str):
-                continue
-            tainted_ranges = get_tainted_ranges(prompt)
-            if tainted_ranges:
-                source = tainted_ranges[0].source
-                break
-        if not source:
-            return
-        for gens in generations:
-            for gen in gens:
-                if not hasattr(gen, "text"):
-                    continue
-                text = gen.text
-                if not isinstance(text, str):
-                    continue
-                new_text = taint_pyobject(
-                    pyobject=text,
-                    source_name=source.name,
-                    source_value=source.value,
-                    source_origin=source.origin,
-                )
-                setattr(gen, "text", new_text)
-    except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
-
-
-def _iast_taint_chat_model_output(messages, completions):
-    if not asm_config._iast_enabled:
-        return
-    if not isinstance(messages, (tuple, list)):
-        return
-    if len(messages) == 0:
-        return
-    if not hasattr(completions, "generations"):
-        return
-    try:
-        generations = completions.generations
-        if not isinstance(generations, list):
-            return
-        if len(generations) == 0:
-            return
-
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-        source = None
-        for msgs in messages:
-            if not isinstance(msgs, list):
-                continue
-            for msg in msgs:
-                if not hasattr(msg, "content"):
-                    continue
-                tainted_ranges = get_tainted_ranges(msg.content)
-                if tainted_ranges:
-                    source = tainted_ranges[0].source
-                    break
-            else:
-                continue
-            break
-        if not source:
-            return
-
-        for gens in generations:
-            for gen in gens:
-                if hasattr(gen, "text"):
-                    text = gen.text
-                    if not isinstance(text, str):
-                        continue
-                    new_text = taint_pyobject(
-                        pyobject=text,
-                        source_name=source.name,
-                        source_value=source.value,
-                        source_origin=source.origin,
-                    )
-                    setattr(gen, "text", new_text)
-                if hasattr(gen, "message"):
-                    message = gen.message
-                    if not hasattr(message, "content"):
-                        continue
-                    content = message.content
-                    if isinstance(content, str):
-                        setattr(message, "content", _iast_taint_if_str(source, content))
-                    elif isinstance(content, list):
-                        setattr(message, "content", [_iast_taint_if_str(source, c) for c in content])
-                    elif isinstance(content, dict):
-                        setattr(message, "content", {k: _iast_taint_if_str(source, v) for k, v in message.items()})
-                    if hasattr(message, "additional_kwargs"):
-                        additional_kwargs = message.additional_kwargs
-                        if isinstance(additional_kwargs, dict) and "function_call" in additional_kwargs:
-                            # OpenAI-style tool call, arguments are passed serialized in JSON.
-                            function_call = additional_kwargs["function_call"]
-                            if isinstance(function_call, dict) and "arguments" in function_call:
-                                arguments = function_call["arguments"]
-                                if isinstance(arguments, str):
-                                    function_call["arguments"] = _iast_taint_if_str(source, arguments)
-    except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain _iast_taint_llm_output. {}".format(e))
-
-
-def _iast_taint_if_str(source, obj):
-    if not isinstance(obj, str):
-        return obj
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    return taint_pyobject(
-        pyobject=obj,
-        source_name=source.name,
-        source_value=source.value,
-        source_origin=source.origin,
-    )
-
-
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -1197,7 +1059,6 @@ def patch():
         "language_models.chat_models.BaseChatModel.agenerate",
         traced_chat_model_agenerate(langchain),
     )
-
     wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
@@ -1227,23 +1088,7 @@ def patch():
     if langchain_community:
         _patch_embeddings_and_vectorstores()
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        wrap("langchain_core", "prompts.prompt.PromptTemplate.format", iast_propagate_prompt_template_format)
-        wrap("langchain_core", "prompts.prompt.PromptTemplate.aformat", iast_propagate_prompt_template_aformat)
-
-        def wrap_output_parser(module, parser):
-            # Ensure not double patched
-            if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
-                wrap(module, "%s.parse" % parser, iast_propagate_output_parse)
-            if not isinstance(deep_getattr(module, "%s.aparse" % parser), wrapt.ObjectProxy):
-                wrap(module, "%s.aparse" % parser, iast_propagate_output_aparse)
-
-        try:
-            with_agent_output_parser(wrap_output_parser)
-        except Exception as e:
-            _set_iast_error_metric("IAST propagation error. langchain wrap_output_parser. {}".format(e))
+    core.dispatch("langchain.patch", tuple())
 
 
 def unpatch():
@@ -1268,7 +1113,6 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
-
     if langchain_openai:
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     if langchain_pinecone:
@@ -1277,100 +1121,6 @@ def unpatch():
     if langchain_community:
         _unpatch_embeddings_and_vectorstores()
 
-    if asm_config._iast_enabled:
-        unwrap(langchain_core.prompts.prompt.PromptTemplate, "format")
-        unwrap(langchain_core.prompts.prompt.PromptTemplate, "aformat")
+    core.dispatch("langchain.unpatch", tuple())
 
     delattr(langchain, "_datadog_integration")
-
-
-def iast_propagate_prompt_template_format(func, instance, args, kwargs):
-    """
-    Propagate taint in PromptTemplate.format, from any input, to the output.
-    """
-    result = func(*args, **kwargs)
-    return _iast_propagate_prompt_template_format_inner(kwargs, result)
-
-
-async def iast_propagate_prompt_template_aformat(func, instance, args, kwargs):
-    """
-    Propagate taint in PromptTemplate.aformat, from any input, to the output.
-    """
-    result = await func(*args, **kwargs)
-    return _iast_propagate_prompt_template_format_inner(kwargs, result)
-
-
-def _iast_propagate_prompt_template_format_inner(kwargs, result):
-    try:
-        if not asm_config.is_iast_request_enabled:
-            return result
-
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-        source = None
-        for value in kwargs.values():
-            ranges = get_tainted_ranges(value)
-            if ranges:
-                source = ranges[0].source
-                break
-        if source:
-            return taint_pyobject(result, source.name, source.value, source.origin)
-    except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain iast_propagate_prompt_template_format. {}".format(e))
-    return result
-
-
-def iast_propagate_output_parse(func, instance, args, kwargs):
-    result = func(*args, **kwargs)
-    return _iast_propagate_output_parse_inner(args, kwargs, result)
-
-
-async def iast_propagate_output_aparse(func, instance, args, kwargs):
-    result = await func(*args, **kwargs)
-    return _iast_propagate_output_parse_inner(args, kwargs, result)
-
-
-def _iast_propagate_output_parse_inner(args, kwargs, result):
-    try:
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-        try:
-            from langchain_core.agents import AgentAction
-            from langchain_core.agents import AgentFinish
-        except ImportError:
-            from langchain.agents import AgentAction
-            from langchain.agents import AgentFinish
-        ranges = get_tainted_ranges(args[0])
-        if ranges:
-            source = ranges[0].source
-            if isinstance(result, AgentAction):
-                result.tool_input = taint_pyobject(result.tool_input, source.name, source.value, source.origin)
-            elif isinstance(result, AgentFinish) and "output" in result.return_values:
-                values = result.return_values
-                values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
-    except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain taint_parser_output. {}".format(e))
-
-    return result
-
-
-def with_agent_output_parser(f):
-    import langchain.agents
-
-    queue = [(langchain.agents, agent_output_parser_classes)]
-
-    while len(queue) > 0:
-        module, current = queue.pop(0)
-        if isinstance(current, str):
-            if hasattr(module, current):
-                f(module, current)
-        elif isinstance(current, dict):
-            for name, value in current.items():
-                if hasattr(module, name):
-                    queue.append((getattr(module, name), value))
