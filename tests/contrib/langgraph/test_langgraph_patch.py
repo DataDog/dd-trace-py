@@ -23,6 +23,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_wrapped(RunnableSeq.invoke)
         self.assert_wrapped(RunnableSeq.ainvoke)
+        self.assert_wrapped(RunnableSeq.astream)
         self.assert_wrapped(Pregel.stream)
         self.assert_wrapped(Pregel.astream)
         self.assert_wrapped(PregelLoop.tick)
@@ -34,6 +35,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_wrapped(RunnableSeq.invoke)
         self.assert_not_wrapped(RunnableSeq.ainvoke)
+        self.assert_not_wrapped(RunnableSeq.astream)
         self.assert_not_wrapped(Pregel.stream)
         self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
@@ -45,6 +47,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_double_wrapped(RunnableSeq.invoke)
         self.assert_not_double_wrapped(RunnableSeq.ainvoke)
+        self.assert_not_double_wrapped(RunnableSeq.astream)
         self.assert_not_double_wrapped(Pregel.stream)
         self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
