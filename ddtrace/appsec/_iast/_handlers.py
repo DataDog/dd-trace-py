@@ -566,11 +566,12 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 def _iast_instrument_starlette_scope(scope, route):
     try:
-        set_iast_request_endpoint(scope.get("method"), route)
-        if scope.get("path_params"):
-            for k, v in scope["path_params"].items():
-                scope["path_params"][k] = taint_pyobject(
-                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                )
+        if asm_config.is_iast_request_enabled:
+            set_iast_request_endpoint(scope.get("method"), route)
+            if scope.get("path_params"):
+                for k, v in scope["path_params"].items():
+                    scope["path_params"][k] = taint_pyobject(
+                        v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                    )
     except Exception:
         iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
