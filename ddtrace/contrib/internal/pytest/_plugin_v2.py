@@ -484,7 +484,11 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     if retry_handler:
         # Retry handler is responsible for logging the test reports.
         retry_handler(
-            test_id=test_id, item=item, test_reports=reports_dict, test_outcome=test_outcome, is_quarantined=is_quarantined
+            test_id=test_id,
+            item=item,
+            test_reports=reports_dict,
+            test_outcome=test_outcome,
+            is_quarantined=is_quarantined,
         )
     else:
         # If no retry handler, we log the reports ourselves.
@@ -572,11 +576,7 @@ def _process_result(item, result) -> _TestOutcome:
     elif result.when == "teardown" and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
-    exc_info = (
-        TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb)
-        if report_excinfo
-        else None
-    )
+    exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb) if report_excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 

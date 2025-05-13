@@ -4,13 +4,11 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
@@ -100,7 +98,8 @@ def efd_handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
-        user_properties=item.user_properties + [
+        user_properties=item.user_properties
+        + [
             ("dd_retry_reason", "early_flake_detection"),
             ("dd_efd_final_outcome", efd_outcome.value),
         ],
@@ -346,7 +345,7 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         if efd_outcome == "skipped":
             return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
         if efd_outcome == "flaky":
-            # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
-            # count of terminal summary
+            # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the
+            # final count of terminal summary
             return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
     return None

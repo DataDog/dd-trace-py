@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import re
 import typing as t
+import weakref
 
 import pytest
 
@@ -239,5 +240,4 @@ def get_user_property(report, key, default=None):
     return default
 
 
-import weakref
 excinfo_by_report = weakref.WeakKeyDictionary()

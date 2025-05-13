@@ -7,9 +7,9 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.internal import core
 
 
