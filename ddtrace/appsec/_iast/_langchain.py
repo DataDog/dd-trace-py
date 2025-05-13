@@ -46,8 +46,8 @@ def _langchain_patch():
         "agents.structured_chat.output_parser.StructuredChatOutputParser",
     )
     for class_ in agent_output_parser_classes:
-        wrap("langchain", class_ + ".format", _wrapper_prompt_template_format)
-        wrap("langchain", class_ + ".aformat", _wrapper_prompt_template_aformat)
+        wrap("langchain", class_ + ".format", _wrapper_agentoutput_parse)
+        wrap("langchain", class_ + ".aformat", _wrapper_agentoutput_aparse)
 
 
 def _langchain_unpatch():
