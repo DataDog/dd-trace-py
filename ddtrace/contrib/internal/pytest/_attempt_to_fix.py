@@ -45,6 +45,10 @@ def attempt_to_fix_handle_retries(
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get("setup")
+    call_report = test_reports.get("call")
+    teardown_report = test_reports.get("teardown")
+
     retry_outcomes = _RETRY_OUTCOMES
     final_outcomes = _FINAL_OUTCOMES
 
@@ -56,12 +60,16 @@ def attempt_to_fix_handle_retries(
         XPASS=retry_outcomes.ATTEMPT_FAILED,
     )
 
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if call_report := test_reports.get("call"):
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
             call_report.outcome = outcomes.FAILED
         elif test_outcome.status == TestStatus.SKIP:
             call_report.outcome = outcomes.SKIPPED
+
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     retries_outcome = _do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
@@ -69,13 +77,15 @@ def attempt_to_fix_handle_retries(
     final_report = RetryTestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords=item.keywords,
+        keywords={k: 1 for k in item.keywords},
         when="call",
         longrepr=longrepr,
         outcome=final_outcomes[retries_outcome],
         user_properties=item.user_properties,
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
+
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:

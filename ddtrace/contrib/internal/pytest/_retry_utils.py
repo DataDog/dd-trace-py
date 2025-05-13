@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.internal import core
 
 
@@ -59,7 +60,8 @@ def _get_outcome_from_retry(
     for report in reports:
         if report.failed:
             report.outcome = outcomes.FAILED
-            _outcome_exc_info = TestExcInfo(report._dd_excinfo.type, report._dd_excinfo.value, report._dd_excinfo.tb)
+            report_excinfo = excinfo_by_report.get(report)
+            _outcome_exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb)
         elif report.skipped:
             report.outcome = outcomes.SKIPPED
         else:

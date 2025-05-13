@@ -10,9 +10,11 @@ from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_stri
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
@@ -37,10 +39,10 @@ class _EFD_RETRY_OUTCOMES:
 _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
-    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
-    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
-    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
-    EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
+    EFDTestStatus.ALL_PASS: PYTEST_STATUS.PASSED,
+    EFDTestStatus.ALL_FAIL: PYTEST_STATUS.FAILED,
+    EFDTestStatus.ALL_SKIP: PYTEST_STATUS.SKIPPED,
+    EFDTestStatus.FLAKY: PYTEST_STATUS.PASSED,
 }
 
 
@@ -91,13 +93,17 @@ def efd_handle_retries(
     efd_outcome = _efd_do_retries(item)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords=item.keywords,
+        keywords={k: 1 for k in item.keywords},
         when="call",
         longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
+        user_properties=item.user_properties + [
+            ("dd_retry_reason", "early_flake_detection"),
+            ("dd_efd_final_outcome", efd_outcome.value),
+        ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -330,14 +336,17 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY:
-        # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
-        # count of terminal summary
-        return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
+
+    if get_user_property(report, "dd_retry_reason") == "early_flake_detection":
+        efd_outcome = get_user_property(report, "dd_efd_final_outcome")
+        if efd_outcome == "passed":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+        if efd_outcome == "failed":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
+        if efd_outcome == "skipped":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
+        if efd_outcome == "flaky":
+            # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
+            # count of terminal summary
+            return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
     return None

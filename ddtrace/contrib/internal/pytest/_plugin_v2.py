@@ -37,6 +37,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -465,8 +466,8 @@ def pytest_runtest_protocol(item, nextitem) -> None:
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
                 report.outcome = OUTCOME_QUARANTINED
 
-            if report.failed or report.skipped:
-                InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
+        if report.failed or report.skipped:
+            InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
     retry_handler = None
 
@@ -509,7 +510,8 @@ def _process_reports(item, reports) -> _TestOutcome:
 def _process_result(item, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
-    has_exception = result._dd_excinfo is not None
+    report_excinfo = excinfo_by_report.get(result)
+    has_exception = report_excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -546,7 +548,7 @@ def _process_result(item, result) -> _TestOutcome:
                     InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 return _TestOutcome(TestStatus.PASS)
 
-        return _TestOutcome(TestStatus.SKIP, result._dd_excinfo.value if result._dd_excinfo else None)
+        return _TestOutcome(TestStatus.SKIP, report_excinfo.value if report_excinfo else None)
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
@@ -571,8 +573,8 @@ def _process_result(item, result) -> _TestOutcome:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = (
-        TestExcInfo(result._dd_excinfo.type, result._dd_excinfo.value, result._dd_excinfo.tb)
-        if result._dd_excinfo
+        TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb)
+        if report_excinfo
         else None
     )
 
@@ -602,7 +604,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
     outcome: pytest_TestReport
     outcome = yield
-    outcome.get_result()._dd_excinfo = call.excinfo
+    excinfo_by_report[outcome.get_result()] = call.excinfo
 
     if not is_test_visibility_enabled():
         return

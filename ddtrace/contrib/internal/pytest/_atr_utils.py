@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -97,12 +98,6 @@ def atr_handle_retries(
     item.ihook.pytest_runtest_logreport(report=final_report)
 
     item.ihook.pytest_runtest_logreport(report=teardown_report)
-
-def get_user_property(report, key, default=None):
-    for k, v in report.user_properties:
-        if k == key:
-            return v
-    return default
 
 
 def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:

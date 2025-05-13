@@ -230,3 +230,14 @@ class _TestOutcome(t.NamedTuple):
     status: t.Optional[TestStatus] = None
     skip_reason: t.Optional[str] = None
     exc_info: t.Optional[TestExcInfo] = None
+
+
+def get_user_property(report, key, default=None):
+    for k, v in report.user_properties:
+        if k == key:
+            return v
+    return default
+
+
+import weakref
+excinfo_by_report = weakref.WeakKeyDictionary()
