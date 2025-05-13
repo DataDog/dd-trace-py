@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: 'f39aed19359eb81da6e2bfe8251694e8e2907201' # taegyunkim/py-patchelf
+          ref: '72eb1933c3cfa0464c9cadc31a73d50c2dbfeb74' # taegyunkim/py-patchelf
 
       - name: Build agent
         run: ./build.sh -i agent
@@ -67,7 +67,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: 'f39aed19359eb81da6e2bfe8251694e8e2907201' # taegyunkim/py-patchelf
+          ref: '72eb1933c3cfa0464c9cadc31a73d50c2dbfeb74' # taegyunkim/py-patchelf
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -120,7 +120,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: 'f39aed19359eb81da6e2bfe8251694e8e2907201' # taegyunkim/py-patchelf
+          ref: '72eb1933c3cfa0464c9cadc31a73d50c2dbfeb74' # taegyunkim/py-patchelf
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -302,7 +302,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: 'f39aed19359eb81da6e2bfe8251694e8e2907201' # taegyunkim/py-patchelf
+          ref: '72eb1933c3cfa0464c9cadc31a73d50c2dbfeb74' # taegyunkim/py-patchelf
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
