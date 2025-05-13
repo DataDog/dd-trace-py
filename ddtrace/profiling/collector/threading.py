@@ -24,10 +24,11 @@ class ThreadingLockCollector(_lock.LockCollector):
         return threading.Lock
 
     def _set_patch_target(
-        self, value  # type: typing.Any
+        self,
+        value,  # type: typing.Any
     ):
         # type: (...) -> None
-        threading.Lock = value  # type: ignore[misc]
+        threading.Lock = value
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

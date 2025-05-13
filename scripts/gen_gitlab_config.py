@@ -23,6 +23,7 @@ class JobSpec:
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
+    allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
 
@@ -96,6 +97,9 @@ class JobSpec:
         if self.timeout is not None:
             lines.append(f"  timeout: {self.timeout}")
 
+        if self.allow_failure:
+            lines.append("  allow_failure: true")
+
         return "\n".join(lines)
 
 
@@ -160,22 +164,11 @@ def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
     from needs_testrun import pr_matches_patterns
 
+    checks: list[tuple[str, str]] = []
+
     def check(name: str, command: str, paths: t.Set[str]) -> None:
         if pr_matches_patterns(paths):
-            with TESTS_GEN.open("a") as f:
-                print(f'"{name}":', file=f)
-                print("  extends: .testrunner", file=f)
-                print("  stage: precheck", file=f)
-                print("  needs: []", file=f)
-                print("  variables:", file=f)
-                print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
-                print("  script:", file=f)
-                print("    - pip cache info", file=f)
-                print(f"    - {command}", file=f)
-                print("  cache:", file=f)
-                print("    key: v1-precheck-pip-cache", file=f)
-                print("    paths:", file=f)
-                print("      - .cache", file=f)
+            checks.append((name, command))
 
     check(
         name="Style",
@@ -205,44 +198,47 @@ def gen_pre_checks() -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+        paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
         command="hatch run lint:suitespec-check",
         paths={"*"},
     )
+    if not checks:
+        return
 
-
-def gen_appsec_iast_packages() -> None:
-    """Generate the list of jobs for the appsec_iast_packages tests."""
     with TESTS_GEN.open("a") as f:
         f.write(
             """
-appsec_iast_packages:
-  extends: .test_base_hatch
-  timeout: 50m
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+prechecks:
+  extends: .testrunner
+  stage: setup
+  needs: []
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
-    PYTEST_ADDOPTS: '-s'
-  cache:
-    # Share pip between jobs of the same Python version
-      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
-      paths:
-        - .cache
-  before_script:
-    - !reference [.test_base_hatch, before_script]
-    - pyenv global "${PYTHON_VERSION}"
   script:
-    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
-    - export DD_FAST_BUILD="1"
-    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+    - |
+      echo -e "\\e[0Ksection_start:`date +%s`:pip_cache_info[collapsed=true]\\r\\e[0KPip cache info"
+      pip cache info
+      echo -e "\\e[0Ksection_end:`date +%s`:pip_cache_info\\r\\e[0K"
+        """
+        )
+        for i, (name, command) in enumerate(checks):
+            f.write(
+                rf"""
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:section_{i}[collapsed=true]\\r\\e[0K{name}"
+      {command}
+      echo -e "\e[0Ksection_end:`date +%s`:section_{i}\\r\\e[0K"
+            """
+            )
+        f.write(
+            """
+  cache:
+    key: v1-precheck-pip-cache
+    paths:
+      - .cache
         """
         )
 
@@ -258,13 +254,14 @@ def gen_build_base_venvs() -> None:
             f"""
 build_base_venvs:
   extends: .testrunner
-  stage: riot
+  stage: setup
+  needs: []
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '1'
+    PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
@@ -300,7 +297,7 @@ build_base_venvs:
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    # Re-use job artifacts between runs if no native source files have been changed
+    # Reuse job artifacts between runs if no native source files have been changed
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
       paths:
         - .riot/venv_*

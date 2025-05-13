@@ -2,6 +2,7 @@ from copy import copy
 import os
 import subprocess  # nosec
 import sys
+from unittest import mock
 
 import pytest
 
@@ -11,11 +12,13 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tain
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
+from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"
@@ -25,7 +28,7 @@ _PARAMS = ["/bin/ls", "-l"]
 _BAD_DIR_DEFAULT = "forbidden_dir/"
 
 
-def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function="", class_name=""):
+def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function=None, class_name=None):
     function_name = label if not function else function
     if value_parts is None:
         value_parts = [
@@ -53,7 +56,7 @@ def _assert_vulnerability(label, value_parts=None, source_name="", check_value=F
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == function_name
-    assert vulnerability["location"]["class_name"] == class_name
+    assert vulnerability["location"].get("class") == class_name
     assert vulnerability["hash"] == hash_value
 
 
@@ -212,6 +215,28 @@ def test_string_cmdi(iast_context_defaults):
     data = _get_iast_data()
 
     assert len(list(data["vulnerabilities"])) == 1
+
+
+@pytest.mark.skipif(sys.platform not in ["linux", "darwin"], reason="Only for Unix")
+def test_string_cmdi_secure_mark(iast_context_defaults):
+    cmd = taint_pyobject(
+        pyobject="dir -l .",
+        source_name="test_run",
+        source_value="dir -l .",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    # Mock the quote function
+    cmd_function = mock.Mock(return_value=cmd)
+
+    # Apply the sanitizer
+    result = cmdi_sanitizer(cmd_function, None, [cmd], {})
+
+    subprocess.run(result, shell=True, check=True)
+
+    # Verify the result is marked as secure
+    span_report = _get_span_report()
+    assert span_report is None
 
 
 def test_cmdi_deduplication(iast_context_deduplication_enabled):

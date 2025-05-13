@@ -11,16 +11,12 @@ import typing
 import wrapt
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.logger import get_logger
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.settings.profiling import config
 from ddtrace.trace import Tracer
-
-
-LOG = get_logger(__name__)
 
 
 def _current_thread():
@@ -108,8 +104,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                     handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
                 handle.flush_sample()
 
-            except Exception as e:
-                LOG.debug("Failed to record a lock acquire event: %s", e)
+            except Exception:
                 pass  # nosec
 
     def acquire(self, *args, **kwargs):
@@ -133,7 +128,8 @@ class _ProfiledLock(wrapt.ObjectProxy):
             # and unlocked lock, and the expected behavior is to propagate that.
             del self._self_acquired_at
         except AttributeError:
-            LOG.debug("Failed to delete _self_acquired_at")
+            # We just ignore the error, if the attribute is not found.
+            pass
         try:
             return inner_func(*args, **kwargs)
         finally:
@@ -266,12 +262,12 @@ class LockCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         """Start collecting lock usage."""
         self.patch()
-        super(LockCollector, self)._start_service()
+        super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self):
         # type: (...) -> None
         """Stop collecting lock usage."""
-        super(LockCollector, self)._stop_service()
+        super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
 
     def patch(self):

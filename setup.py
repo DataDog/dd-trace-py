@@ -79,7 +79,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.24.0"
+LIBDDWAF_VERSION = "1.24.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -603,6 +603,7 @@ else:
     else:
         debug_compile_args = []
 
+
 if not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -612,11 +613,19 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
             extra_compile_args=(
-                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"] + fast_build_args
+                debug_compile_args
+                # If NDEBUG is set, assert statements are compiled out. Make
+                # sure we explicitly set this for normal builds, and explicitly
+                # _unset_ it for debug builds in case the CFLAGS from sysconfig
+                # include -DNDEBUG
+                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
+                + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
+                + fast_build_args
                 if CURRENT_OS != "Windows"
-                else ["/std:c11"]
+                else ["/std:c11", "/experimental:c11atomics"]
             ),
         ),
         Extension(
@@ -652,9 +661,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (
-        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
-    ) or CURRENT_OS == "Windows":
+    if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) or CURRENT_OS == "Windows":
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -663,7 +670,7 @@ if not IS_PYSTON:
             )
         )
 
-    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
@@ -728,6 +735,11 @@ setup(
                     include_dirs=["."],
                     libraries=encoding_libraries,
                     define_macros=encoding_macros,
+                ),
+                Extension(
+                    "ddtrace.internal.telemetry.metrics_namespaces",
+                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                    language="c",
                 ),
                 Cython.Distutils.Extension(
                     "ddtrace.profiling.collector.stack",

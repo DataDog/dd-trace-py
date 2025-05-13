@@ -2,17 +2,18 @@ from typing import List
 from typing import Union
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._metrics import increment_iast_span_metric
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CMDI
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
+from .._logs import iast_propagation_sink_point_debug_log
+from .._overhead_control_engine import oce
 from ._base import VulnerabilityBase
 
 
@@ -42,26 +43,33 @@ def unpatch() -> None:
 @oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
+    secure_mark = VulnerabilityType.COMMAND_INJECTION
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
 
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
-    _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     try:
-        if asm_config.is_iast_request_enabled and CommandInjection.has_quota():
-            from .._taint_tracking.aspects import join_aspect
+        if asm_config.is_iast_request_enabled:
+            if CommandInjection.has_quota():
+                iast_propagation_sink_point_debug_log("Check command injection sink point")
+                from .._taint_tracking.aspects import join_aspect
 
-            if isinstance(shell_args, (list, tuple)):
-                for arg in shell_args:
-                    if is_pyobject_tainted(arg):
-                        report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
-                        break
-            elif is_pyobject_tainted(shell_args):
-                report_cmdi = shell_args
+                if isinstance(shell_args, (list, tuple)):
+                    for arg in shell_args:
+                        if CommandInjection.is_tainted_pyobject(arg):
+                            report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
+                            break
+                elif CommandInjection.is_tainted_pyobject(shell_args):
+                    report_cmdi = shell_args
 
-            if report_cmdi:
-                CommandInjection.report(evidence_value=report_cmdi)
+                if report_cmdi:
+                    iast_propagation_sink_point_debug_log("Reporting command injection")
+                    CommandInjection.report(evidence_value=report_cmdi)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_report_ssrf. {e}")
+        iast_error(f"propagation::sink_point::Error in _iast_report_cmdi. {e}")

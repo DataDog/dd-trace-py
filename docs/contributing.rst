@@ -59,8 +59,7 @@ At this time, do not use the merge queue option.
 Backporting
 -----------
 
-Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the :ref:`version support policy<versioning_release>`.
+Each minor version has its own branch.
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.

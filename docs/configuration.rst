@@ -269,7 +269,7 @@ Traces
 
    DD_TRACE_PROPAGATION_STYLE:
      default: |
-         ``datadog,tracecontext``
+         ``datadog,tracecontext,baggage``
      
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers and injecting trace context into outbound request headers.
@@ -278,7 +278,7 @@ Traces
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, and ``none``.
+         The supported values are ``datadog``, ``b3multi``, ``tracecontext``, ``baggage``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
          When ``none`` is the only propagator listed, propagation is disabled.
@@ -293,6 +293,7 @@ Traces
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
        v1.7.0: Added support for ``tracecontext`` W3C headers. Changed the default value to ``DD_TRACE_PROPAGATION_STYLE="tracecontext,datadog"``.
        v2.6.0: Updated default value to ``datadog,tracecontext``.
+       v2.16.0: Updated default value to ``datadog,tracecontex,baggage``.
 
    DD_TRACE_SPAN_TRACEBACK_MAX_SIZE:
       type: Integer
@@ -913,6 +914,20 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACE_BAGGAGE_TAG_KEYS:
+      type: String
+      default: "user.id,account.id,session.id"
+
+      description: |
+         A comma-separated list of baggage keys to be automatically attached as tags on spans.
+         For each key specified, if a corresponding baggage key is present and has a non-empty value,
+         the key-value pair will be added to the span's metadata using the key name formatted as ``baggage.<key>``.
+         If you want to turn off this feature, set the configuration value to an empty string.
+         When set to `*`, **all** baggage keys will be converted into span tags. Use with caution: this may unintentionally expose sensitive or internal data if not used intentionally.
+
+      version_added: 
+         v3.6.0:
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 .. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
@@ -947,3 +962,24 @@ Live Debugging
 --------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
+
+Error Tracking
+--------------
+.. ddtrace-configuration-options::
+  DD_ERROR_TRACKING_HANDLED_ERRORS:
+      type: String
+      default: ""
+
+      description: |
+          Report automatically handled errors to Error Tracking.
+          Handled errors are also attached to spans through span events.
+
+          Possible values are: ``user|third_party|all``. Report handled exceptions
+          of user code, third party packages or both.
+
+  DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE:
+      type: String
+      default: ""
+
+      description: |
+          Comma-separated list of Python modules for which we report handled errors.

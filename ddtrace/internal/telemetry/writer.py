@@ -39,13 +39,9 @@ from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
 from .logging import DDTelemetryLogHandler
-from .metrics import CountMetric
-from .metrics import DistributionMetric
-from .metrics import GaugeMetric
-from .metrics import MetricTagType  # noqa:F401
-from .metrics import RateMetric
 from .metrics_namespaces import MetricNamespace
-from .metrics_namespaces import NamespaceMetricType  # noqa:F401
+from .metrics_namespaces import MetricTagType
+from .metrics_namespaces import MetricType
 
 
 log = get_logger(__name__)
@@ -153,6 +149,7 @@ class TelemetryWriter(PeriodicService):
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
         super(TelemetryWriter, self).__init__(interval=min(config.HEARTBEAT_INTERVAL, 10))
+
         # Decouples the aggregation and sending of the telemetry events
         # TelemetryWriter events will only be sent when _periodic_count == _periodic_threshold.
         # By default this will occur at 10 second intervals.
@@ -451,8 +448,8 @@ class TelemetryWriter(PeriodicService):
         with self._service_lock:
             del self._configuration_queue[configuration_name]
 
-    def add_configuration(self, configuration_name, configuration_value, origin="unknown"):
-        # type: (str, Any, str) -> None
+    def add_configuration(self, configuration_name, configuration_value, origin="unknown", config_id=None):
+        # type: (str, Any, str, Optional[str]) -> None
         """Creates and queues the name, origin, value of a configuration"""
         if isinstance(configuration_value, dict):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
@@ -462,12 +459,16 @@ class TelemetryWriter(PeriodicService):
             # convert unsupported types to strings
             configuration_value = str(configuration_value)
 
+        config = {
+            "name": configuration_name,
+            "origin": origin,
+            "value": configuration_value,
+        }
+        if config_id:
+            config["config_id"] = config_id
+
         with self._service_lock:
-            self._configuration_queue[configuration_name] = {
-                "name": configuration_name,
-                "origin": origin,
-                "value": configuration_value,
-            }
+            self._configuration_queue[configuration_name] = config
 
     def add_configurations(self, configuration_list):
         """Creates and queues a list of configurations"""
@@ -508,12 +509,11 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                GaugeMetric,
+                MetricType.GAUGE,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
-                self.interval,
             )
 
     def add_rate_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
@@ -522,12 +522,11 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                RateMetric,
+                MetricType.RATE,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
-                self.interval,
             )
 
     def add_count_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: int = 1, tags: MetricTagType = None):
@@ -536,22 +535,24 @@ class TelemetryWriter(PeriodicService):
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                CountMetric,
+                MetricType.COUNT,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
 
-    def add_distribution_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value, tags: MetricTagType = None):
+    def add_distribution_metric(
+        self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None
+    ):
         """
         Queues distributions metric
         """
         if self.status == ServiceStatus.RUNNING or self.enable():
             self._namespace.add_metric(
-                DistributionMetric,
+                MetricType.DISTRIBUTION,
                 namespace,
-                name,
+                str(name),  # Some callers use a class E(str, enum.Enum) for the name, Cython doesn't like that.
                 value,
                 tags,
             )
@@ -563,14 +564,13 @@ class TelemetryWriter(PeriodicService):
             self._logs = set()
         return log_metrics
 
-    def _generate_metrics_event(self, namespace_metrics):
-        # type: (NamespaceMetricType) -> None
+    def _generate_metrics_event(self, namespace_metrics) -> None:
         for payload_type, namespaces in namespace_metrics.items():
             for namespace, metrics in namespaces.items():
                 if metrics:
                     payload = {
                         "namespace": namespace,
-                        "series": [m.to_dict() for m in metrics.values()],
+                        "series": metrics,
                     }
                     log.debug("%s request payload, namespace %s", payload_type, namespace)
                     if payload_type == TELEMETRY_TYPE_DISTRIBUTION:
@@ -588,7 +588,7 @@ class TelemetryWriter(PeriodicService):
         self._app_started()
         self._app_product_change()
 
-        namespace_metrics = self._namespace.flush()
+        namespace_metrics = self._namespace.flush(float(self.interval))
         if namespace_metrics:
             self._generate_metrics_event(namespace_metrics)
 

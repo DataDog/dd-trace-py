@@ -18,6 +18,10 @@ For C++, requirements vary by system, but you’ll need a C++ compiler and `cmak
 
 - On Ubuntu:
 
+  When using GCC, you need versions that have fixes for `this bug`_
+
+..  _this bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95189
+
 .. code-block:: bash
 
     sudo apt-get install build-essential cmake
@@ -43,7 +47,7 @@ To install all dependencies in one step, use:
 
 .. code-block:: bash
 
-    pip install . --no-build-isolation --no-install
+    pip install 'setuptools_scm[toml]>=4' 'cython' 'cmake>=3.24.2,<3.28' 'setuptools-rust<2'
 
 Note that `pip install -e` (described below) also installs these build dependencies automatically.
 

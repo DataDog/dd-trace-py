@@ -1,4 +1,5 @@
 #include "profile.hpp"
+
 #include "libdatadog_helpers.hpp"
 
 #include <functional>
@@ -22,11 +23,15 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
              ddog_prof_Profile& profile)
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
-    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
-        const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
-        std::cerr << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
+            std::cerr << errmsg << std::endl;
+        }
         ddog_Error_drop(&err);
         return false;
     }
@@ -40,15 +45,19 @@ bool
 Datadog::Profile::cycle_buffers()
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
     std::swap(last_profile, cur_profile);
 
     // Clear the profile before using it
-    auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
+    auto res = ddog_prof_Profile_reset(&cur_profile);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        const std::string errmsg = err_to_msg(&err, "Error resetting profile");
-        std::cout << "Could not drop profile:" << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error resetting profile");
+            std::cerr << "Could not drop profile:" << errmsg << std::endl;
+        }
         ddog_Error_drop(&err);
         return false;
     }
@@ -142,6 +151,7 @@ Datadog::Profile::profile_release()
 void
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     // In contemporary dd-trace-py, it is expected that the initialization path is in
     // a single thread, and done only once.
     // However, it doesn't cost us much to keep this initialization tight.
@@ -160,7 +170,10 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
         // TODO fix this
-        std::cerr << "No valid sample types were enabled" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "No valid sample types were enabled" << std::endl;
+        }
         return;
     }
     type_mask = static_cast<SampleType>(mask_as_int);
@@ -171,11 +184,17 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     // We need to initialize the profiles
     const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
-        std::cerr << "Error initializing top half of profile storage" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Error initializing profile" << std::endl;
+        }
         return;
     }
     if (!make_profile(sample_types, &default_period, last_profile)) {
-        std::cerr << "Error initializing bottom half of profile storage" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Error initializing last profile" << std::endl;
+        }
         return;
     }
 
@@ -192,12 +211,16 @@ Datadog::Profile::val()
 bool
 Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
     auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-        const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");
-        std::cerr << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");
+            std::cerr << errmsg << std::endl;
+        }
         ddog_Error_drop(&err);
         return false;
     }

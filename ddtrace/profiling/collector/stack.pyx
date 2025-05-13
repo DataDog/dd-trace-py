@@ -465,6 +465,7 @@ class StackCollector(collector.PeriodicCollector):
             # itself, but it's a little bit fiddly and it's easier to make it correct here.
             # TODO take the `threading` import out of here and just handle it in v2 startup
             threading.init_stack_v2()
+            stack_v2.set_adaptive_sampling(config.stack.v2_adaptive_sampling)
             stack_v2.start()
 
     def _start_service(self):
@@ -514,8 +515,5 @@ class StackCollector(collector.PeriodicCollector):
 
         used_wall_time_ns = time.monotonic_ns() - now
         self.interval = self._compute_new_interval(used_wall_time_ns)
-
-        if self._stack_collector_v2_enabled:
-            stack_v2.set_interval(self.interval)
 
         return all_events

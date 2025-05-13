@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where spans and evaluation metrics were not being sent via Unix sockets.

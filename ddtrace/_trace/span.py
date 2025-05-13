@@ -15,7 +15,6 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace import config
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
@@ -54,6 +53,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
+from ddtrace.settings._config import config
 
 
 _NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
@@ -129,6 +129,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
+        "_parent_context",
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
@@ -211,6 +212,7 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
+        self._parent_context: Optional[Context] = context
         self._context = context.copy(self.trace_id, self.span_id) if context else None
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
@@ -813,13 +815,13 @@ class Span(object):
             self.name,
         )
 
+    @property
+    def _is_top_level(self) -> bool:
+        """Return whether the span is a "top level" span.
 
-def _is_top_level(span: Span) -> bool:
-    """Return whether the span is a "top level" span.
-
-    Top level meaning the root of the trace or a child span
-    whose service is different from its parent.
-    """
-    return (span._local_root is span) or (
-        span._parent is not None and span._parent.service != span.service and span.service is not None
-    )
+        Top level meaning the root of the trace or a child span
+        whose service is different from its parent.
+        """
+        return (self._local_root is self) or (
+            self._parent is not None and self._parent.service != self.service and self.service is not None
+        )

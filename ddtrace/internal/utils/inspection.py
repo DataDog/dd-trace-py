@@ -22,7 +22,7 @@ def linenos(_) -> Set[int]:
 @linenos.register
 def _(code: CodeType) -> Set[int]:
     """Get the line numbers of a function."""
-    return {ln for _, ln in findlinestarts(code)} - {code.co_firstlineno}
+    return {ln for _, ln in findlinestarts(code) if ln is not None} - {code.co_firstlineno}
 
 
 @linenos.register
@@ -126,7 +126,7 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
-@lru_cache()
+@lru_cache(maxsize=(1 << 14))  # 16k entries
 def functions_for_code(code: CodeType) -> List[FunctionType]:
     import gc
 

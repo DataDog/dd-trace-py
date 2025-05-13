@@ -28,7 +28,6 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
-    Datadog::CodeProvenance::postfork_child();
     Datadog::UploaderBuilder::postfork_child();
 }
 
@@ -329,46 +328,54 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
-        std::cerr << "ddup_upload() called before ddup_init()" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
+        }
         return false;
     }
 
-    bool success = false;
-    {
-        // There are a few things going on here.
-        //   * profile_borrow takes a reference in a way that locks the areas where the profile might
-        //     be modified.  It gets released and cleared after uploading.
-        //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-        //     we have for now.
-        auto uploader = Datadog::UploaderBuilder::build();
-        struct
-        {
-            void operator()(Datadog::Uploader& uploader)
-            {
-                uploader.upload(Datadog::Sample::profile_borrow());
-                Datadog::Sample::profile_release();
-                Datadog::Sample::profile_clear_state();
-            }
-            void operator()(const std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
-        } visitor;
-        std::visit(visitor, uploader);
+    auto uploader_or_err = Datadog::UploaderBuilder::build();
+
+    if (std::holds_alternative<std::string>(uploader_or_err)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+        }
+        return false;
     }
-    return success;
+
+    // Get the reference to the uploader
+    auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
+    // There are a few things going on here.
+    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
+    //  be modified.  It gets released and cleared after uploading.
+    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+    //   we have for now.
+    uploader.upload(Datadog::Sample::profile_borrow());
+    Datadog::Sample::profile_release();
+    Datadog::Sample::profile_clear_state();
+    return true;
 }
 
 void
 ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_set_endpoint(&profile, span_id, trace_endpoint_slice);
         if (!res.ok) {
             auto err = res.err;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }
@@ -378,14 +385,18 @@ ddup_profile_set_endpoints(
 void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
         if (!res.ok) {
             auto err = res.err;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }

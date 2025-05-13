@@ -105,6 +105,7 @@ exclude = '''
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/internal/_tagset.pyx$
+  | ddtrace/internal/telemetry/metrics_namespaces.pyx$  
   | ddtrace/profiling/collector/_traceback.pyx$
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$

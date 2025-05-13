@@ -1,18 +1,16 @@
 import abc
 from collections import defaultdict
-from threading import Lock
+from itertools import chain
+from os import environ
 from threading import RLock
 from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Union
 
-from ddtrace import config
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -21,13 +19,26 @@ from ddtrace.internal import telemetry
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling import is_single_span_sampled
+from ddtrace.internal.serverless import has_aws_lambda_agent_extension
+from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.serverless import in_azure_function
+from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.writer import AgentResponse
+from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._config import config
+from ddtrace.settings.asm import config as asm_config
 
 
 try:
@@ -117,18 +128,18 @@ class TraceSamplingProcessor(TraceProcessor):
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    def __init__(
-        self,
-        compute_stats_enabled: bool,
-        sampler: DatadogSampler,
-        single_span_rules: List[SpanSamplingRule],
-        apm_opt_out: bool,
-    ):
+    def __init__(self, compute_stats_enabled: bool, single_span_rules: List[SpanSamplingRule], apm_opt_out: bool):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
-        self.sampler = sampler
         self.single_span_rules = single_span_rules
         self.apm_opt_out = apm_opt_out
+        if self.apm_opt_out:
+            # If ASM is enabled but tracing is disabled,
+            # we need to set the rate limiting to 1 trace per minute
+            # for the backend to consider the service as alive.
+            self.sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+        else:
+            self.sampler = DatadogSampler()
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -190,7 +201,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
-        if _is_top_level(span):
+        if span._is_top_level:
             span.set_metric("_dd.top_level", 1)
 
 
@@ -250,17 +261,38 @@ class SpanAggregator(SpanProcessor):
         partial_flush_enabled: bool,
         partial_flush_min_spans: int,
         trace_processors: Iterable[TraceProcessor],
-        writer: TraceWriter,
+        writer: Optional[TraceWriter] = None,
     ):
-        self._partial_flush_enabled = partial_flush_enabled
-        self._partial_flush_min_spans = partial_flush_min_spans
-        self._trace_processors = trace_processors
-        self._writer = writer
-
+        # Set partial flushing
+        self.partial_flush_enabled = partial_flush_enabled
+        self.partial_flush_min_spans = partial_flush_min_spans
+        # Initialize trace processors
+        self.sampling_processor = TraceSamplingProcessor(
+            config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
+        )
+        self.tags_processor = TraceTagsProcessor()
+        self.trace_processors = trace_processors
+        # Initialize writer
+        if writer is not None:
+            self.writer: TraceWriter = writer
+        elif SpanAggregator._use_log_writer():
+            self.writer = LogWriter()
+        else:
+            verify_url(agent_config.trace_agent_url)
+            self.writer = AgentWriter(
+                agent_url=agent_config.trace_agent_url,
+                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+                sync_mode=SpanAggregator._use_sync_mode(),
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (config._trace_compute_stats or asm_config._apm_opt_out)
+                else {},
+                report_metrics=not asm_config._apm_opt_out,
+                response_callback=self._agent_response_callback,
+            )
+        # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
-        self._lock: Union[RLock, Lock] = RLock() if config._span_aggregator_rlock else Lock()
-
-        # Tracks the number of spans created and tags each count with the api that was used
+        self._lock: RLock = RLock()
+        # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
         self._span_metrics: Dict[str, DefaultDict] = {
             "spans_created": defaultdict(int),
@@ -271,10 +303,12 @@ class SpanAggregator(SpanProcessor):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"{self._partial_flush_enabled}, "
-            f"{self._partial_flush_min_spans}, "
-            f"{self._trace_processors}, "
-            f"{self._writer})"
+            f"{self.partial_flush_enabled}, "
+            f"{self.partial_flush_min_spans}, "
+            f"{self.sampling_processor},"
+            f"{self.tags_processor},"
+            f"{self.trace_processors}, "
+            f"{self.writer})"
         )
 
     def on_span_start(self, span: Span) -> None:
@@ -299,7 +333,7 @@ class SpanAggregator(SpanProcessor):
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
-            should_partial_flush = self._partial_flush_enabled and trace.num_finished >= self._partial_flush_min_spans
+            should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
             if trace.num_finished == len(trace.spans) or should_partial_flush:
                 trace_spans = trace.spans
                 trace.spans = []
@@ -335,7 +369,7 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in self._trace_processors:
+                for tp in chain(self.trace_processors, [self.sampling_processor, self.tags_processor]):
                     try:
                         if spans is None:
                             return
@@ -344,11 +378,61 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                self._writer.write(spans)
+                self.writer.write(spans)
                 return
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def _agent_response_callback(self, resp: AgentResponse) -> None:
+        """Handle the response from the agent.
+
+        The agent can return updated sample rates for the priority sampler.
+        """
+        try:
+            self.sampling_processor.sampler.update_rate_by_service_sample_rates(
+                resp.rate_by_service,
+            )
+        except ValueError as e:
+            log.error("Failed to set agent service sample rates: %s", str(e))
+
+    @staticmethod
+    def _use_log_writer() -> bool:
+        """Returns whether the LogWriter should be used in the environment by
+        default.
+
+        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
+        is not available in the Lambda.
+        """
+        if (
+            environ.get("DD_AGENT_HOST")
+            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+            or environ.get("DD_TRACE_AGENT_URL")
+        ):
+            # If one of these variables are set, we definitely have an agent
+            return False
+        elif in_aws_lambda() and has_aws_lambda_agent_extension():
+            # If the Agent Lambda extension is available then an AgentWriter is used.
+            return False
+        elif in_gcp_function() or in_azure_function():
+            return False
+        else:
+            return in_aws_lambda()
+
+    @staticmethod
+    def _use_sync_mode() -> bool:
+        """Returns, if an `AgentWriter` is to be used, whether it should be run
+         in synchronous mode by default.
+
+        There are only two cases in which this is desirable:
+
+        - AWS Lambdas can have the Datadog agent installed via an extension.
+          When it's available traces must be sent synchronously to ensure all
+          are received before the Lambda terminates.
+        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
+          Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
+        """
+        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
     def shutdown(self, timeout: Optional[float]) -> None:
         """
@@ -374,13 +458,14 @@ class SpanAggregator(SpanProcessor):
         ]
         if unfinished_spans:
             log.warning(
-                "Shutting down tracer with %d unfinished spans. " "Unfinished spans will not be sent to Datadog: %s",
+                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
                 len(unfinished_spans),
                 ", ".join(unfinished_spans),
             )
 
         try:
-            self._writer.stop(timeout)
+            self._traces.clear()
+            self.writer.stop(timeout)
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass

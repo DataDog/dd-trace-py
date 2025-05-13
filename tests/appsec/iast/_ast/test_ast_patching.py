@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import logging
-import os
 from unittest import mock
 
 import astunparse
@@ -15,15 +14,6 @@ from tests.utils import override_env
 
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
-
-
-@pytest.fixture(autouse=True, scope="module")
-def clear_iast_env_vars():
-    if IAST.PATCH_MODULES in os.environ:
-        os.environ.pop("_DD_IAST_PATCH_MODULES")
-    if IAST.DENY_MODULES in os.environ:
-        os.environ.pop("_DD_IAST_DENY_MODULES")
-    yield
 
 
 @pytest.mark.parametrize(
@@ -159,11 +149,14 @@ def test_astpatch_source_unchanged(module_name):
 
 
 def test_should_iast_patch_allow_first_party():
-    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
-    assert (
-        iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str")
-        == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
-    )
+    assert iastpatch.should_iast_patch("file_in_my_project.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("file_in_my_project.print_str") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("html") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+
+
+def test_should_iast_patch_allow_user_allowlist():
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_USER_ALLOWLIST
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str") == iastpatch.ALLOWED_USER_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_vendored():
@@ -174,7 +167,18 @@ def test_should_not_iast_patch_if_vendored():
 def test_should_iast_patch_deny_by_default_if_third_party():
     # note that modules here must be in the ones returned by get_package_distributions()
     # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
-    assert iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list") == iastpatch.DENIED_NOT_FOUND
+    assert (
+        iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list")
+        == iastpatch.DENIED_BUILTINS_DENYLIST
+    )
+
+
+def test_should_iast_patch_allow_by_default_if_third_party():
+    # note that modules here must be in the ones returned by get_package_distributions()
+    # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
+    assert iastpatch.should_iast_patch("pygments") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule.submodule2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
 
 
 def test_should_not_iast_patch_if_not_in_static_allowlist():
@@ -183,15 +187,228 @@ def test_should_not_iast_patch_if_not_in_static_allowlist():
     assert iastpatch.should_iast_patch("pip.foo.bar") == iastpatch.DENIED_NOT_FOUND
 
 
-def test_should_not_iast_patch_if_stdlib():
-    assert iastpatch.should_iast_patch("base64") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("itertools") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("http") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("os.path") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("os") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("sys.platform") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("sys") == iastpatch.DENIED_BUILTINS_DENYLIST
-    assert iastpatch.should_iast_patch("sys.my.sub.module") == iastpatch.DENIED_BUILTINS_DENYLIST
+@pytest.mark.parametrize(
+    "module_name",
+    {
+        "__future__",
+        "_ast",
+        "_compression",
+        "_thread",
+        "abc",
+        "aifc",
+        "argparse",
+        "array",
+        "ast",
+        "asynchat",
+        "asyncio",
+        "asyncore",
+        "atexit",
+        "audioop",
+        "base64",
+        "bdb",
+        "binascii",
+        "bisect",
+        "builtins",
+        "bz2",
+        "cProfile",
+        "calendar",
+        "cgi",
+        "cgitb",
+        "chunk",
+        "cmath",
+        "cmd",
+        "code",
+        "codecs",
+        "codeop",
+        "collections",
+        "colorsys",
+        "compileall",
+        "concurrent",
+        "configparser",
+        "contextlib",
+        "contextvars",
+        "copy",
+        "copyreg",
+        "crypt",
+        "csv",
+        "ctypes",
+        "curses",
+        "dataclasses",
+        "datetime",
+        "dbm",
+        "decimal",
+        "difflib",
+        "dis",
+        "distutils",
+        "doctest",
+        "email",
+        "encodings",
+        "ensurepip",
+        "enum",
+        "errno",
+        "faulthandler",
+        "fcntl",
+        "filecmp",
+        "fileinput",
+        "fnmatch",
+        "fractions",
+        "ftplib",
+        "functools",
+        "gc",
+        "getopt",
+        "getpass",
+        "gettext",
+        "glob",
+        "graphlib",
+        "grp",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "hmac",
+        "http",
+        "idlelib",
+        "imaplib",
+        "imghdr",
+        "imp",
+        "importlib",
+        "inspect",
+        "io",
+        "_io",
+        "ipaddress",
+        "itertools",
+        "json",
+        "keyword",
+        "lib2to3",
+        "linecache",
+        "locale",
+        "logging",
+        "lzma",
+        "mailbox",
+        "mailcap",
+        "marshal",
+        "math",
+        "mimetypes",
+        "mmap",
+        "modulefinder",
+        "msilib",
+        "msvcrt",
+        "multiprocessing",
+        "netrc",
+        "nis",
+        "nntplib",
+        "ntpath",
+        "numbers",
+        "opcode",
+        "operator",
+        "optparse",
+        "os",
+        "os.path",
+        "ossaudiodev",
+        "pathlib",
+        "pdb",
+        "pickle",
+        "pickletools",
+        "pipes",
+        "pkgutil",
+        "platform",
+        "plistlib",
+        "poplib",
+        "posix",
+        "posixpath",
+        "pprint",
+        "profile",
+        "pstats",
+        "pty",
+        "pwd",
+        "py_compile",
+        "pyclbr",
+        "pydoc",
+        "queue",
+        "quopri",
+        "random",
+        "re",
+        "readline",
+        "reprlib",
+        "resource",
+        "rlcompleter",
+        "runpy",
+        "sched",
+        "secrets",
+        "select",
+        "selectors",
+        "shelve",
+        "shutil",
+        "signal",
+        "site",
+        "smtpd",
+        "smtplib",
+        "sndhdr",
+        "socket",
+        "socketserver",
+        "spwd",
+        "sqlite3",
+        "sre",
+        "sre_compile",
+        "sre_constants",
+        "sre_parse",
+        "ssl",
+        "stat",
+        "statistics",
+        "string",
+        "stringprep",
+        "struct",
+        "subprocess",
+        "sunau",
+        "symtable",
+        "sys",
+        "sysconfig",
+        "syslog",
+        "tabnanny",
+        "tarfile",
+        "telnetlib",
+        "tempfile",
+        "termios",
+        "test",
+        "textwrap",
+        "threading",
+        "time",
+        "timeit",
+        "tkinter",
+        "token",
+        "tokenize",
+        "tomllib",
+        "trace",
+        "traceback",
+        "tracemalloc",
+        "tty",
+        "turtle",
+        "turtledemo",
+        "types",
+        "typing",
+        "unicodedata",
+        "unittest",
+        "uu",
+        "uuid",
+        "venv",
+        "warnings",
+        "wave",
+        "weakref",
+        "webbrowser",
+        "winreg",
+        "winsound",
+        "wsgiref",
+        "xdrlib",
+        "xml",
+        "xmlrpc",
+        "zipapp",
+        "zipfile",
+        "zipimport",
+        "zlib",
+        "zoneinfo",
+    },
+)
+def test_should_not_iast_patch_if_stdlib(module_name):
+    assert iastpatch.should_iast_patch(module_name) == iastpatch.DENIED_BUILTINS_DENYLIST
 
 
 def test_module_path_none(caplog):

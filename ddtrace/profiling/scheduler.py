@@ -29,6 +29,7 @@ class Scheduler(periodic.PeriodicService):
         self._configured_interval: float = self.interval
         self._last_export: int = 0  # Overridden in _start_service
         self._tracer = tracer
+        self._enable_code_provenance: bool = config.code_provenance
 
     def _start_service(self):
         # type: (...) -> None
@@ -48,7 +49,7 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        ddup.upload(self._tracer)
+        ddup.upload(self._tracer, self._enable_code_provenance)
         self._last_export = time.time_ns()
         return
 
