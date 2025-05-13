@@ -81,7 +81,6 @@ def efd_handle_retries(
         else:
             # When skip happens during setup, we don't have a call report.
             setup_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
-            InternalTest.mark_skip(test_id)
 
     item.ihook.pytest_runtest_logreport(report=setup_report)
 
