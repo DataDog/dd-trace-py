@@ -131,6 +131,7 @@ psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
 py-cpuinfo,~=8.0.0
+pycryptodome,0
 pyfakefs,0
 pylibmc,~=1.6.2
 pymemcache,~=3.4.2
@@ -147,6 +148,7 @@ pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
 pytest-cpp,0
 pytest-django[testing],==3.10.0
+pytest-memray,0
 pytest-mock,==2.0.0
 pytest-sanic,~=1.6.2
 pytest-xdist,0
