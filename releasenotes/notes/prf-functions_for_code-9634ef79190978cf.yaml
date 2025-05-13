@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    code origin for spans: fixes a performance issue with exit spans.
