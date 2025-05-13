@@ -71,6 +71,7 @@ from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.settings._config import _get_config
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -80,7 +81,7 @@ _global_skipped_elements = 0
 
 # COVER_SESSION is an experimental feature flag that provides full coverage (similar to coverage run), and is an
 # experimental feature. It currently significantly increases test import time and should not be used.
-COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
+COVER_SESSION = _get_config("_DD_COVER_SESSION", False, asbool)
 
 
 def encode_test_parameter(parameter):
@@ -426,7 +427,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
         # Freezegun is proactively patched to avoid it interfering with internal timing
         ddtrace.patch(freezegun=True)
 
-        COVER_SESSION = asbool(os.environ.get("_DD_COVER_SESSION", "false"))
+        COVER_SESSION = _get_config("_DD_COVER_SESSION", False, asbool)
 
         if USE_DD_COVERAGE:
             from ddtrace.ext.git import extract_workspace_path
