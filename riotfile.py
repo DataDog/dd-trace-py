@@ -1084,6 +1084,28 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="appsec_integrations_pygoat",
+            pys=["3.10", "3.11", "3.12"],
+            pkgs={
+                "requests": latest,
+                "pyyaml": "==6.0.1",
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_DEBUG": "false",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_TRACE_AGENT_URL": "http://0.0.0.0:9126",
+                "DD_FAST_BUILD": "1",
+                "PYDONTWRITEBYTECODE": "1",
+                "PYTHONUNBUFFERED": "1",
+            },
+            command="bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh {cmdargs}",
+        ),
+        Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code

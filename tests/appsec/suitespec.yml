@@ -113,7 +113,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_packages:
     env:
