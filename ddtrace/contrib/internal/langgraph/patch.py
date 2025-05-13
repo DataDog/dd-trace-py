@@ -99,6 +99,61 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
 
 
 @with_traced_module
+def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
+    """
+    Typically, RunnableSeq.ainvoke() is called when being run as a task for its parent Pregel (CompiledGraph).
+    However, when using Pregel.astream_events() (inherited from langchain's Runnable), it calls RunnableSeq.astream()
+    instead (see ref).
+
+    This function returns a generator wrapper that yields the results of RunnableSeq.astream(),
+    ending the span after the stream is consumed, otherwise following the logic of traced_runnable_seq_ainvoke().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+
+    node_name = _get_node_name(instance)
+
+    if node_name in ("_write", "_route"):
+        return func(*args, **kwargs)
+    if node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["_dd.subgraph"] = True
+        return func(*args, **kwargs)
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
+    )
+    result = None
+    try:
+        result = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+        span.finish()
+        raise
+
+    async def _astream():
+        item = None
+        while True:
+            try:
+                item = await result.__anext__()
+                yield item
+            except StopAsyncIteration:
+                response = item[-1] if isinstance(item, tuple) else item
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
+                span.finish()
+                break
+            except Exception:
+                span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+                span.finish()
+                raise
+
+    return _astream()
+
+
+@with_traced_module
 def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
     """
     Trace the streaming of a Pregel (CompiledGraph) instance.
@@ -222,6 +277,7 @@ def patch():
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
+    wrap(RunnableSeq, "astream", traced_runnable_seq_astream(langgraph))
     wrap(Pregel, "stream", traced_pregel_stream(langgraph))
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
@@ -239,6 +295,7 @@ def unpatch():
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
+    unwrap(RunnableSeq, "astream")
     unwrap(Pregel, "stream")
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
