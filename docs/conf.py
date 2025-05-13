@@ -17,8 +17,6 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
-# Force build_docs to run
-
 from datetime import datetime
 import os
 import os.path
