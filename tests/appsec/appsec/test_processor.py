@@ -5,6 +5,8 @@ import os.path
 import mock
 import pytest
 
+from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _metrics
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
@@ -19,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
+from tests.appsec.utils import get_waf_addresses
 from tests.appsec.utils import is_blocked
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -75,10 +78,10 @@ def test_ddwaf_ctx(tracer):
     with asm_context(tracer=tracer, config=config_good_rules) as span:
         processor = AppSecSpanProcessor()
         processor.on_span_start(span)
-        ctx = processor._span_to_waf_ctx.get(span)
+        ctx = _asm_request_context._get_asm_context()
         assert ctx
         processor.on_span_finish(span)
-        assert span not in processor._span_to_waf_ctx
+        assert _asm_request_context._get_asm_context() is None
 
 
 @pytest.mark.parametrize("rule, _exc", [(rules.RULES_MISSING_PATH, IOError), (rules.RULES_BAD_PATH, ValueError)])
@@ -155,6 +158,8 @@ def test_headers_collection(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -183,6 +188,8 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -205,7 +212,7 @@ def test_ip_block(tracer):
             rules.Config(),
         )
     assert get_triggers(span)
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span)
 
 
@@ -217,24 +224,31 @@ def test_ip_not_block(tracer, ip):
             rules.Config(),
         )
 
-    assert core.get_item("http.request.remote_ip", span) == ip
+    assert get_waf_addresses("http.request.remote_ip") == ip
     assert is_blocked(span) is False
 
 
 def test_ip_update_rules_and_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
         tracer._appsec_processor._update_rules(
-            {
-                "rules_data": [
+            [],
+            [
+                (
+                    "ASM",
+                    "Datadog/1/ASM/data",
                     {
-                        "data": [
-                            {"value": rules._IP.BLOCKED},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
+                        "rules_data": [
+                            {
+                                "data": [
+                                    {"value": rules._IP.BLOCKED},
+                                ],
+                                "id": "blocked_ips",
+                                "type": "ip_with_expiration",
+                            },
+                        ]
                     },
-                ]
-            }
+                )
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -242,24 +256,31 @@ def test_ip_update_rules_and_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span1) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
 
 
 def test_ip_update_rules_expired_no_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
         tracer._appsec_processor._update_rules(
-            {
-                "rules_data": [
+            [],
+            [
+                (
+                    "ASM",
+                    "Datadog/1/ASM/data",
                     {
-                        "data": [
-                            {"expiration": 1662804872, "value": rules._IP.BLOCKED},
-                        ],
-                        "id": "blocked_ips",
-                        "type": "ip_with_expiration",
+                        "rules_data": [
+                            {
+                                "data": [
+                                    {"expiration": 1662804872, "value": rules._IP.BLOCKED},
+                                ],
+                                "id": "blocked_ips",
+                                "type": "ip_with_expiration",
+                            },
+                        ]
                     },
-                ]
-            }
+                )
+            ],
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -267,7 +288,7 @@ def test_ip_update_rules_expired_no_block(tracer):
                 rules.Config(),
             )
 
-    assert core.get_item("http.request.remote_ip", span) == rules._IP.BLOCKED
+    assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
 
 
@@ -282,6 +303,9 @@ def test_ip_update_rules_expired_no_block(tracer):
         "meta." + FINGERPRINTING.HEADER,
         "meta." + FINGERPRINTING.ENDPOINT,
         "meta." + FINGERPRINTING.SESSION,
+        "service",
+        "meta._dd.base_service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -300,6 +324,9 @@ def test_appsec_span_tags_snapshot(tracer):
         "metrics._dd.appsec.waf.duration_ext",
         APPSEC_JSON_TAG,
         "meta._dd.appsec.event_rules.errors",
+        "service",
+        "meta._dd.base_service",
+        "meta._dd.rc.client_id",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
@@ -340,6 +367,7 @@ def test_ddwaf_not_raises_exception():
             rules_json,
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
+            _metrics,
         )
 
 
@@ -469,7 +497,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 def test_ddwaf_run():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -489,7 +517,7 @@ def test_ddwaf_run():
 def test_ddwaf_run_timeout():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
             "server.request.cookies": {"attack{}".format(i): "1' or '1' = '{}'".format(i) for i in range(100)},
@@ -505,7 +533,7 @@ def test_ddwaf_run_timeout():
 def test_ddwaf_info():
     with open(rules.RULES_GOOD_PATH) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == len(rules_json["rules"])
@@ -517,7 +545,7 @@ def test_ddwaf_info():
 def test_ddwaf_info_with_2_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json")) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -533,7 +561,7 @@ def test_ddwaf_info_with_2_errors():
 def test_ddwaf_info_with_3_errors():
     with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json")) as rule_set:
         rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"")
+        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -546,7 +574,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
+        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -582,7 +610,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
     config.http_tag_query_string = True
 
     with caplog.at_level(logging.DEBUG), mock.patch(
-        "ddtrace.appsec._ddwaf.ddwaf_run", side_effect=OSError("ddwaf run failed")
+        "ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -628,42 +656,48 @@ def test_asm_context_registration(tracer):
     assert core.get_item(_ASM_CONTEXT) is None
 
 
-CUSTOM_RULE_METHOD = {
-    "custom_rules": [
+CUSTOM_RULE_METHOD = [
+    (
+        "ASM",
+        "Datadog/1/ASM/data",
         {
-            "conditions": [
+            "custom_rules": [
                 {
-                    "operator": "match_regex",
-                    "parameters": {
-                        "inputs": [{"address": "server.request.method"}],
-                        "options": {"case_sensitive": False},
-                        "regex": "GET",
-                    },
-                }
-            ],
-            "id": "32b243c7-26eb-4046-adf4-custom",
-            "name": "test required",
-            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-            "transformers": [],
-        },
-        {
-            "conditions": [
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "server.request.method"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-adf4-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                },
                 {
-                    "operator": "match_regex",
-                    "parameters": {
-                        "inputs": [{"address": "usr.login"}],
-                        "options": {"case_sensitive": False},
-                        "regex": "GET",
-                    },
-                }
-            ],
-            "id": "32b243c7-26eb-4046-bbbb-custom",
-            "name": "test required",
-            "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
-            "transformers": [],
+                    "conditions": [
+                        {
+                            "operator": "match_regex",
+                            "parameters": {
+                                "inputs": [{"address": "usr.login"}],
+                                "options": {"case_sensitive": False},
+                                "regex": "GET",
+                            },
+                        }
+                    ],
+                    "id": "32b243c7-26eb-4046-bbbb-custom",
+                    "name": "test required",
+                    "tags": {"category": "attack_attempt", "custom": "1", "type": "custom"},
+                    "transformers": [],
+                },
+            ]
         },
-    ]
-}
+    )
+]
 
 
 def test_required_addresses():
@@ -683,7 +717,7 @@ def test_required_addresses():
         "usr.id",
     }
 
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
 
     assert processor._addresses_to_keep == {
         "grpc.server.request.message",
@@ -706,10 +740,13 @@ def test_required_addresses():
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+    from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
+    from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
     processor = AppSecSpanProcessor()
-    processor._update_rules(CUSTOM_RULE_METHOD)
+    processor._update_rules([], CUSTOM_RULE_METHOD)
+    mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
 
     with asm_context(tracer=tracer, config=config_asm) as span:
         # first call must send all data to the waf

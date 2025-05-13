@@ -4,6 +4,7 @@ from dataclasses import field
 import dis
 from enum import Enum
 import gzip
+from hashlib import sha1
 from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
@@ -25,7 +26,6 @@ import typing as t
 
 from ddtrace import config
 from ddtrace.internal import packages
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
@@ -39,6 +39,7 @@ from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.symbol_db import config as symdb_config
 
 
@@ -46,6 +47,7 @@ log = get_logger(__name__)
 
 SOF = 0
 EOF = 2147483647
+MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
 @cached()
@@ -203,6 +205,12 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
+        source_git_hash = sha1()  # nosec B324
+        source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
+        with module_origin.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                source_git_hash.update(chunk)
+
         return Scope(
             scope_type=ScopeType.MODULE,
             name=module.__name__,
@@ -211,6 +219,7 @@ class Scope:
             end_line=0,
             symbols=symbols,
             scopes=scopes,
+            language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
     @_get_from.register
@@ -496,7 +505,7 @@ class ScopeContext:
         # replace it with the compressed JSON.
         body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
 
-        with connector(get_trace_url(), timeout=5.0)() as conn:
+        with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
@@ -516,7 +525,11 @@ def is_module_included(module: ModuleType) -> bool:
 
     # Check if it is user code
     module_origin = origin(module)
-    if module_origin is None:
+    if module_origin is None or not module_origin.exists():
+        return False
+
+    if module_origin.stat().st_size > MAX_FILE_SIZE:
+        # Skip large files
         return False
 
     if packages.is_user_code(module_origin):
@@ -533,12 +546,14 @@ def is_module_included(module: ModuleType) -> bool:
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
     __scope_limit__ = 400
+    __file_number_limit__ = 10000
 
     def __init__(self) -> None:
         super().__init__()
 
         self._seen_modules: t.Set[str] = set()
         self._update_called = False
+        self._processed_files_count = 0
 
         self._process_unseen_loaded_modules()
 
@@ -547,6 +562,10 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         # installed and upload the symbols that are marked for inclusion.
         context = ScopeContext()
         for name, module in list(sys.modules.items()):
+            if self._processed_files_count >= self.__file_number_limit__:
+                log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
+                break
+
             # Skip modules that are being initialized as they might not be
             # fully loaded yet.
             try:
@@ -572,6 +591,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             if scope is not None:
                 log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
                 context.add_scope(scope)
+                self._processed_files_count += 1
 
             # Batching: send at most 100 module scopes at a time
             n = len(context)
@@ -597,6 +617,10 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             )
 
     def after_import(self, module: ModuleType) -> None:
+        if self._processed_files_count >= self.__file_number_limit__:
+            log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
+            return
+
         if not is_module_included(module):
             log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
@@ -604,6 +628,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         scope = Scope.from_module(module)
         if scope is not None:
             self._upload_context(ScopeContext([scope]))
+            self._processed_files_count += 1
 
     @classmethod
     def update(cls):

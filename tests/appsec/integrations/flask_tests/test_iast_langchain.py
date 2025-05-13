@@ -2,8 +2,8 @@ import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.internal.module import is_module_installed
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
 from tests.appsec.iast.conftest import iast_context_defaults  # noqa: F401
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_env
@@ -52,5 +52,5 @@ def test_openai_llm_appsec_iast_cmdi(iast_context_defaults):  # noqa: F811
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == "patch_langchain"
-    assert vulnerability["location"]["class_name"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value

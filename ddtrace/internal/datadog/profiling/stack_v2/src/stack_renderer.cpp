@@ -1,7 +1,8 @@
 #include "stack_renderer.hpp"
 
 #include "thread_span_links.hpp"
-#include "utf8_validate.hpp"
+
+#include "echion/strings.h"
 
 using namespace Datadog;
 
@@ -66,7 +67,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view)
+StackRenderer::render_task_begin()
 {
     static bool failed = false;
     if (failed) {
@@ -106,49 +107,52 @@ StackRenderer::render_task_begin(std::string_view)
 }
 
 void
-StackRenderer::render_stack_begin()
+StackRenderer::render_stack_begin(long long, long long, const std::string&)
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
 
 void
-StackRenderer::render_python_frame(std::string_view name, std::string_view file, uint64_t line)
+StackRenderer::render_frame(Frame& frame)
 {
     if (sample == nullptr) {
         std::cerr << "Received a new frame without sample storage.  Some profiling data has been lost." << std::endl;
         return;
     }
 
-    // Normally, further utf-8 validation would be pointless here, but we may be reading data where the
-    // string pointer was valid, but the string is actually garbage data at the exact time of the read.
-    // This is rare, but blowing some cycles on early validation allows the sample to be retained by
-    // libdatadog, so we can evaluate the actual impact of this scenario in live scenarios.
-    static const std::string_view invalid = "<invalid_utf8>";
-    if (!utf8_check_is_valid(name.data(), name.size())) {
-        name = invalid;
+    // Ordinarily we could just call frame_cache->lookup() here, but our
+    // underlying frame is owned by the LRUCache, which may have cleaned it up,
+    // causing the table keys to be garbage.  Since individual frames in
+    // the stack may be bad, this isn't a failable condition.  Instead, populate
+    // some defaults.
+    static constexpr std::string_view missing_filename = "<unknown file>";
+    static constexpr std::string_view missing_name = "<unknown function>";
+    std::string_view filename_str;
+    std::string_view name_str;
+    try {
+        filename_str = string_table.lookup(frame.filename);
+    } catch (StringTable::Error&) {
+        filename_str = missing_filename;
     }
-    if (!utf8_check_is_valid(file.data(), file.size())) {
-        file = invalid;
+
+    try {
+        name_str = string_table.lookup(frame.name);
+    } catch (StringTable::Error&) {
+        name_str = missing_name;
     }
+
+    auto line = frame.location.line;
+
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
     if (!pushed_task_name and line == 0) {
-        ddup_push_task_name(sample, name);
+        ddup_push_task_name(sample, name_str);
         pushed_task_name = true;
         // And return early to avoid pushing task name as a frame
         return;
     }
 
-    ddup_push_frame(sample, name, file, 0, line);
-}
-
-void
-StackRenderer::render_native_frame(std::string_view name, std::string_view file, uint64_t line)
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-    (void)name;
-    (void)file;
-    (void)line;
+    ddup_push_frame(sample, name_str, filename_str, 0, line);
 }
 
 void
@@ -166,7 +170,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end()
+StackRenderer::render_stack_end(MetricType, uint64_t)
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;

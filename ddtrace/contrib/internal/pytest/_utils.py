@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 import re
 import typing as t
@@ -8,6 +7,7 @@ import typing as t
 import pytest
 
 from ddtrace.contrib.internal.pytest.constants import ATR_MIN_SUPPORTED_VERSION
+from ddtrace.contrib.internal.pytest.constants import ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
@@ -24,13 +24,14 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import undecorated
+from ddtrace.settings._config import _get_config
 
 
 log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = not asbool(os.environ.get("_DD_PYTEST_USE_LEGACY_PLUGIN", "false"))
+_USE_PLUGIN_V2 = not _get_config("_DD_PYTEST_USE_LEGACY_PLUGIN", False, asbool)
 
 
 class _PYTEST_STATUS:
@@ -128,8 +129,8 @@ def _get_session_command(session: pytest.Session):
     command = "pytest"
     if getattr(session.config, "invocation_params", None):
         command += " {}".format(" ".join(session.config.invocation_params.args))
-    if os.environ.get("PYTEST_ADDOPTS"):
-        command += " {}".format(os.environ.get("PYTEST_ADDOPTS"))
+    if _get_config("PYTEST_ADDOPTS", False, asbool):
+        command += " {}".format(_get_config("PYTEST_ADDOPTS", False, asbool))
     return command
 
 
@@ -172,6 +173,10 @@ def _pytest_version_supports_efd():
 
 def _pytest_version_supports_atr():
     return _get_pytest_version_tuple() >= ATR_MIN_SUPPORTED_VERSION
+
+
+def _pytest_version_supports_attempt_to_fix():
+    return _get_pytest_version_tuple() >= ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 
 
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:

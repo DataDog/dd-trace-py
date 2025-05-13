@@ -7,6 +7,10 @@ benchmark-serverless:
     project: DataDog/serverless-tools
     strategy: depend
   needs: []
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL

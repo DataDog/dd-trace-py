@@ -17,6 +17,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -75,7 +76,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = config._get_from(instance)
+    cfg = ddtrace.trace.Pin._get_config(instance)
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -97,7 +98,7 @@ def _wrap_send(func, instance, args, kwargs):
 
         # Configure trace search sample rate
         # DEV: analytics enabled on per-session basis
-        cfg = config._get_from(instance)
+        cfg = Pin._get_config(instance)
         analytics_enabled = cfg.get("analytics_enabled")
         if analytics_enabled:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))

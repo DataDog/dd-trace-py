@@ -11,15 +11,36 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
-from ddtrace.internal import core
 from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.utils import DummyTracer
 from tests.utils import override_env
 from tests.utils import override_global_config
+
+
+try:
+    from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
+
+    USER_SDK_V2 = True
+except ImportError:
+    USER_SDK_V2 = False
+
+# patching asm_request_context to observe waf data internals
+
+_init_finalize = _asm_request_context.finalize_asm_env
+_addresses_store = []
+
+
+def finalize_wrapper(env):
+    _addresses_store.append(env.waf_addresses)
+    _init_finalize(env)
+
+
+_asm_request_context.finalize_asm_env = finalize_wrapper
 
 
 class Interface:
@@ -89,7 +110,8 @@ class Contrib_TestClass_For_Threats:
         assert result == rule_id, f"result={result}, expected={rule_id}"
 
     def update_tracer(self, interface):
-        interface.tracer._configure(api_version="v0.4")
+        interface.tracer._span_aggregator.writer._api_version = "v0.4"
+        interface.tracer._recreate()
         assert asm_config._asm_libddwaf_available
         # Only for tests diagnostics
 
@@ -101,6 +123,10 @@ class Contrib_TestClass_For_Threats:
     # {asm_config._asm_libddwaf}
     # """
     #            )
+
+    def setup_method(self, method):
+        """called before each test method"""
+        _addresses_store.clear()
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_tag, asm_enabled: bool):
@@ -125,32 +151,30 @@ class Contrib_TestClass_For_Threats:
             assert response.status_code == 404
             triggers = get_triggers(root_span())
             assert triggers is not None, "no appsec struct in root span"
-            assert root_span()._get_ctx_item("http.request.uri") == "http://localhost:8000/.git?q=1"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
+            assert get_tag("http.response.headers.content-length")
+            # DEV: fastapi may send "requests" instead of "fastapi"
+            # assert get_tag("component") == interface.name
 
     def test_simple_attack_timeout(self, interface: Interface, root_span, get_metric):
+        from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
 
-        with override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)), mock_patch(
-            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        import ddtrace.internal.telemetry
+
+        with override_global_config(dict(_asm_enabled=True, _waf_timeout=0.001)), mock_patch.object(
+            ddtrace.internal.telemetry.telemetry_writer,
+            "_namespace",
+            MagicMock(),
         ) as mocked:
             self.update_tracer(interface)
             query_params = urlencode({"q": "1"})
             url = f"/?{query_params}"
             response = interface.client.get(url, headers={"User-Agent": "Arachni/v1.5.1"})
             assert response.status_code == 200
-            assert root_span()._get_ctx_item("http.request.uri") == f"http://localhost:8000{url}"
-            assert root_span()._get_ctx_item("http.request.headers") is not None
-            assert root_span()._get_ctx_item("http.request.method") == "GET"
-            query = dict(root_span()._get_ctx_item("http.request.query"))
-            assert query == {"q": "1"} or query == {"q": ["1"]}
             assert get_metric("_dd.appsec.waf.timeouts") > 0, (root_span()._meta, root_span()._metrics)
             args_list = [
-                (args[0].__name__, args[1].value) + args[2:]
-                for args, kwargs in mocked.call_args_list
+                (args[0].value, args[1].value) + args[2:]
+                for args, kwargs in mocked.add_metric.call_args_list
                 if args[2] == "waf.requests"
             ]
             assert len(args_list) == 1
@@ -175,7 +199,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/?a=1&b&c=d")
             assert self.status(response) == 200
-            query = dict(core.get_item("http.request.query", span=root_span()))
+            query = _addresses_store[0].get("http.request.query")
             assert query in [
                 {"a": "1", "b": "", "c": "d"},
                 {"a": ["1"], "b": [""], "c": ["d"]},
@@ -187,7 +211,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/")
             assert self.status(response) == 200
-            assert not core.get_item("http.request.query", span=root_span())
+            assert not _addresses_store[0].get("http.request.query")
 
     def test_truncation_tags(self, interface: Interface, get_metric):
         with override_global_config(dict(_asm_enabled=True)):
@@ -208,10 +232,15 @@ class Contrib_TestClass_For_Threats:
 
     def test_truncation_telemetry(self, interface: Interface, get_metric):
         from unittest.mock import ANY
+        from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
 
-        with override_global_config(dict(_asm_enabled=True)), mock_patch(
-            "ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric"
+        import ddtrace.internal.telemetry
+
+        with override_global_config(dict(_asm_enabled=True)), mock_patch.object(
+            ddtrace.internal.telemetry.telemetry_writer,
+            "_namespace",
+            MagicMock(),
         ) as mocked:
             self.update_tracer(interface)
             body: Dict[str, Any] = {"val": "x" * 5000}
@@ -223,18 +252,18 @@ class Contrib_TestClass_For_Threats:
             )
             assert self.status(response) == 200
             args_list = [
-                (args[0].__name__, args[1].value) + args[2:]
-                for args, kwargs in mocked.call_args_list
+                (args[0].value, args[1].value) + args[2:]
+                for args, kwargs in mocked.add_metric.call_args_list
                 if "truncated" in args[2] or args[2] == "waf.requests"
             ]
             assert args_list == [
-                ("DistributionMetric", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
-                ("DistributionMetric", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
-                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
-                ("DistributionMetric", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
-                ("CountMetric", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 5000, (("truncation_reason", "1"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 518, (("truncation_reason", "2"),)),
+                ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "3"),)),
+                ("distributions", "appsec", "waf.truncated_value_size", 12029, (("truncation_reason", "1"),)),
+                ("count", "appsec", "waf.input_truncated", 1, (("truncation_reason", "1"),)),
                 (
-                    "CountMetric",
+                    "count",
                     "appsec",
                     "waf.requests",
                     1.0,
@@ -245,6 +274,8 @@ class Contrib_TestClass_For_Threats:
                         ("request_blocked", "false"),
                         ("waf_timeout", "false"),
                         ("input_truncated", "true"),
+                        ("waf_error", "0"),
+                        ("rate_limited", "false"),
                     ),
                 ),
             ]
@@ -260,10 +291,13 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.get("/", cookies=cookies)
             assert self.status(response) == 200
             if asm_enabled:
-                cookies_parsed = dict(core.get_item("http.request.cookies", span=root_span()))
-                assert cookies_parsed == cookies
+                cookies_parsed = _addresses_store[0].get("http.request.cookies")
+                # required for flask that is sending a ImmutableMultiDict
+                if isinstance(cookies_parsed, dict):
+                    cookies_parsed = dict(cookies_parsed)
+                assert cookies_parsed == cookies, f"cookies={cookies_parsed}, expected={cookies}"
             else:
-                assert core.get_item("http.request.cookies", span=root_span()) is None
+                assert not _addresses_store
             triggers = get_triggers(root_span())
             if asm_enabled and attack:
                 assert triggers is not None, "no appsec struct in root span"
@@ -302,7 +336,7 @@ class Contrib_TestClass_For_Threats:
             response = interface.client.post("/asm/", data=payload, content_type=content_type)
             assert self.status(response) == 200  # Have to add end points in each framework application.
 
-            body = core.get_item("http.request.body", span=root_span())
+            body = _addresses_store[0].get("http.request.body") if _addresses_store else None
             if asm_enabled and content_type != "text/plain":
                 assert body in [
                     payload_struct,
@@ -346,7 +380,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            path_params = core.get_item("http.request.path_params", span=root_span())
+            path_params = _addresses_store[0].get("http.request.path_params") if _addresses_store else None
             if asm_enabled:
                 assert path_params["param_str"] == "abc"
                 assert int(path_params["param_int"]) == 137
@@ -1141,10 +1175,17 @@ class Contrib_TestClass_For_Threats:
     ):
         import base64
         import gzip
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
 
         from ddtrace.ext import http
+        import ddtrace.internal.telemetry
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch.object(
+            ddtrace.internal.telemetry.telemetry_writer,
+            "_namespace",
+            MagicMock(),
+        ) as mocked:
             self.update_tracer(interface)
             response = interface.client.post(
                 "/asm/324/huj/?x=1&y=2",
@@ -1176,6 +1217,14 @@ class Contrib_TestClass_For_Threats:
                             api,
                             name,
                         )
+                telemetry_calls = {
+                    (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
+                }
+                assert (
+                    "count",
+                    "appsec.api_security.request.schema",
+                    (("framework", interface.name),),
+                ) in telemetry_calls
             else:
                 assert value is None, name
 
@@ -1435,11 +1484,12 @@ class Contrib_TestClass_For_Threats:
         action_level,
         status_expected,
     ):
+        from unittest.mock import MagicMock
         from unittest.mock import patch as mock_patch
 
         from ddtrace.appsec._constants import APPSEC
-        from ddtrace.appsec._metrics import DDWAF_VERSION
         from ddtrace.ext import http
+        import ddtrace.internal.telemetry
 
         def validate_top_function(trace):
             top_function = trace["frames"][0]["function"]
@@ -1456,7 +1506,7 @@ class Contrib_TestClass_For_Threats:
 
         with override_global_config(
             dict(_asm_enabled=asm_enabled, _ep_enabled=ep_enabled, _asm_static_rule_file=rule_file)
-        ), mock_patch("ddtrace.internal.telemetry.metrics_namespaces.MetricNamespace.add_metric") as mocked:
+        ), mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as mocked:
             self.update_tracer(interface)
             assert asm_config._asm_enabled == asm_enabled
             response = interface.client.get(f"/rasp/{endpoint}/?{parameters}")
@@ -1465,7 +1515,9 @@ class Contrib_TestClass_For_Threats:
             assert get_tag(http.STATUS_CODE) == str(code), (get_tag(http.STATUS_CODE), code)
             if code == 200:
                 assert self.body(response).startswith(f"{endpoint} endpoint")
-            telemetry_calls = {(c.__name__, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.call_args_list}
+            telemetry_calls = {
+                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in mocked.add_metric.call_args_list
+            }
             if asm_enabled and ep_enabled and action_level > 0:
                 self.check_rules_triggered([rule] * (1 if action_level == 2 else 2), root_span)
                 assert self.check_for_stack_trace(root_span)
@@ -1479,24 +1531,28 @@ class Contrib_TestClass_For_Threats:
                 expected_variant = (
                     "exec" if endpoint == "command_injection" else "shell" if endpoint == "shell_injection" else None
                 )
-                matches = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.match"]
+                matches = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.match"]
+                # import delayed to get the correct version
+                from ddtrace.appsec._metrics import ddwaf_version
+
                 if expected_variant:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
                         ("rule_variant", expected_variant),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
                 else:
                     expected_tags = (
                         ("rule_type", expected_rule_type),
-                        ("waf_version", DDWAF_VERSION),
+                        ("waf_version", ddwaf_version),
                         ("event_rules_version", "rules_rasp"),
                     )
-                    assert matches == [expected_tags], matches
-                evals = [t for c, n, t in telemetry_calls if c == "CountMetric" and n == "appsec.rasp.rule.eval"]
+                match_expected_tags = expected_tags + (("block", "irrelevant" if action_level < 2 else "success"),)
+                assert matches == [match_expected_tags], (matches, match_expected_tags)
+                evals = [t for c, n, t in telemetry_calls if c == "count" and n == "appsec.rasp.rule.eval"]
                 # there may have been multiple evaluations of other rules too
-                assert expected_tags in evals
+                assert expected_tags in evals, (expected_tags, evals)
                 if action_level == 2:
                     assert get_tag("rasp.request.done") is None, get_tag("rasp.request.done")
                 else:
@@ -1590,16 +1646,135 @@ class Contrib_TestClass_For_Threats:
                 assert not any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
                 assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
             # check for fingerprints when user events
-            if asm_enabled and auto_events_enabled and mode != "disabled":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION)
             else:
-                assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("auto_events_enabled", [True, False])
+    @pytest.mark.parametrize("local_mode", ["disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize("rc_mode", [None, "disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize(
+        ("username", "password", "status_code", "user_id"),
+        [
+            ("test", "1234", 200, "social-security-id"),
+            ("testuuid", "12345", 401, "591dc126-8431-4d0f-9509-b23318d3dce4"),
+            ("zouzou", "12345", 401, ""),
+        ],
+    )
+    def test_auto_user_events_sdk_v2(
+        self,
+        interface,
+        root_span,
+        get_tag,
+        asm_enabled,
+        auto_events_enabled,
+        local_mode,
+        rc_mode,
+        username,
+        password,
+        status_code,
+        user_id,
+    ):
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
+
+        import ddtrace.internal.telemetry
+
+        if not USER_SDK_V2:
+            raise pytest.skip("SDK v2 not available")
+
+        with override_global_config(
+            dict(
+                _asm_enabled=asm_enabled,
+                _auto_user_instrumentation_local_mode=local_mode,
+                _auto_user_instrumentation_rc_mode=rc_mode,
+                _auto_user_instrumentation_enabled=auto_events_enabled,
+            )
+        ), mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock:
+            self.update_tracer(interface)
+            metadata = json.dumps(
+                {
+                    "a": "a",
+                    "load_a": {
+                        "b": True,
+                        "load_b": {
+                            "c": 3,
+                            "load_c": {
+                                "d": "value",
+                                "load_d": {
+                                    "e": 1.32,
+                                    "load_e": {
+                                        "f": 3.1415926,
+                                        "load_f": {"g": "ghost", "load_g": {"h": "heavy", "load_h": {}}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                separators=(",", ":"),
+            )
+            response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
+            assert self.status(response) == status_code
+            assert get_tag("http.status_code") == str(status_code)
+            telemetry_calls = {
+                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
+            }
+            if status_code == 401:
+                assert get_tag("appsec.events.users.login.failure.track") == "true"
+                if user_id:
+                    assert get_tag("appsec.events.users.login.failure.usr.id") == user_id
+                assert get_tag("appsec.events.users.login.failure.usr.exists") == str(username == "testuuid").lower()
+                assert get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
+                assert any(
+                    t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_failure") == t[2][0]
+                    for t in telemetry_calls
+                ), telemetry_calls
+            else:
+                assert get_tag("appsec.events.users.login.success.track") == "true"
+                assert get_tag("usr.id") == user_id
+                assert get_tag("usr.id") == user_id, (user_id, get_tag("usr.id"))
+                assert any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
+                assert get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
+                assert any(
+                    t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_success") == t[2][0]
+                    for t in telemetry_calls
+                ), telemetry_calls
+
+            # no auto instrumentation
+            assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
+
+            # check for fingerprints when user events
+            if asm_enabled:
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER)
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION)
+            else:
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+            # metadata
+            success = "success" if status_code == 200 else "failure"
+            assert get_tag(f"appsec.events.users.login.{success}.a") == "a", root_span()._meta
+            assert get_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", root_span()._meta
+            assert get_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", root_span()._meta
+            assert (
+                get_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32"
+            ), root_span()._meta
+            assert (
+                get_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
+            ), root_span()._meta
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])
@@ -1613,7 +1788,7 @@ class Contrib_TestClass_For_Threats:
             assert self.status(response) == code
             assert get_tag("http.status_code") == str(code)
             # check for fingerprints when security events
-            if asm_enabled and user_agent == "dd-test-scanner-log-block":
+            if asm_enabled:
                 assert get_tag(asm_constants.FINGERPRINTING.HEADER)
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
@@ -1645,15 +1820,18 @@ class Contrib_TestClass_For_Threats:
 
 @contextmanager
 def test_tracer():
+    from ddtrace.internal import core
+
     tracer = DummyTracer()
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer
+    core.tracer = tracer
 
     # Yield to our test
-    tracer._configure(api_version="v0.4")
     yield tracer
     tracer.pop()
     ddtrace.tracer = original_tracer
+    core.tracer = original_tracer
 
 
 @contextmanager

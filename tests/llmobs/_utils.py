@@ -11,8 +11,11 @@ except ImportError:
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
@@ -48,6 +51,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
+    if span._get_ctx_item(INTEGRATION):
+        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -72,6 +77,7 @@ def _expected_llmobs_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -87,8 +93,11 @@ def _expected_llmobs_llm_span_event(
     error: error type
     error_message: error message
     error_stack: error stack
+    span_links: whether there are span links present on this span.
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+    )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
@@ -130,6 +139,7 @@ def _expected_llmobs_non_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -143,8 +153,11 @@ def _expected_llmobs_non_llm_span_event(
     error: error type
     error_message: error message
     error_stack: error stack
+    span_links: whether there are span links present on this span.
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+    )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
         if input_value is not None:
@@ -176,6 +189,7 @@ def _llmobs_base_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     span_event = {
         "trace_id": format_trace_id(span.trace_id),
@@ -196,10 +210,14 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
+    if span_links:
+        span_event["span_links"] = mock.ANY
     return span_event
 
 
 def _get_llmobs_parent_id(span: Span):
+    if span._get_ctx_item(PARENT_ID_KEY):
+        return span._get_ctx_item(PARENT_ID_KEY)
     if not span._parent:
         return "undefined"
     parent = span._parent
@@ -577,6 +595,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -659,6 +678,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -690,6 +710,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -745,6 +766,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
             "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -791,3 +813,27 @@ def _expected_span_link(span_event, link_from, link_to):
         "span_id": span_event["span_id"],
         "attributes": {"from": link_from, "to": link_to},
     }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+        super().enqueue(event)
+
+
+def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
+    """
+    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
+    """
+    found = False
+    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
+    for span_link in to_span_event["span_links"]:
+        if span_link["span_id"] == expected_to_span_id:
+            assert span_link["attributes"] == {"from": from_io, "to": to_io}
+            found = True
+            break
+    assert found

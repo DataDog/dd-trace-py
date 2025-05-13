@@ -12,7 +12,6 @@ from hypothesis.strategies import dictionaries
 from hypothesis.strategies import floats
 from hypothesis.strategies import integers
 from hypothesis.strategies import text
-import mock
 import msgpack
 import pytest
 
@@ -508,8 +507,45 @@ def test_span_link_v04_encoding():
     ]
 
 
-@pytest.mark.parametrize("version", ["v0.4", "v0.5"])
-def test_span_event_encoding_msgpack(version):
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
+)
+def test_span_event_encoding_msgpack():
+    import os
+
+    import mock
+
+    from ddtrace.internal.encoding import MSGPACK_ENCODERS
+    from ddtrace.trace import Span
+    from tests.tracer.test_encoders import decode
+
+    expected_top_level_span_encoding = [
+        {
+            b"name": b"Something went so wrong",
+            b"time_unix_nano": 1,
+            b"attributes": {b"type": {b"type": 0, b"string_value": b"error"}},
+        },
+        {
+            b"name": b"I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
+            b"time_unix_nano": 17353464354546,
+            b"attributes": {
+                b"emotion": {b"type": 0, b"string_value": b"happy"},
+                b"rating": {b"type": 3, b"double_value": 9.8},
+                b"other": {
+                    b"type": 4,
+                    b"array_value": {
+                        b"values": [
+                            {b"type": 2, b"int_value": 1},
+                            {b"type": 3, b"double_value": 9.5},
+                            {b"type": 2, b"int_value": 1},
+                        ]
+                    },
+                },
+                b"idol": {b"type": 1, b"bool_value": False},
+            },
+        },
+        {b"name": b"We are going to the moon", b"time_unix_nano": 2234567890123456},
+    ]
     span = Span("s1")
     span._add_event("Something went so wrong", {"type": "error"}, 1)
     span._add_event(
@@ -520,9 +556,14 @@ def test_span_event_encoding_msgpack(version):
     with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
+    # Get test parameters from environment variables
+    version = os.getenv("DD_TRACE_API_VERSION")
+    trace_native_span_events = os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
+
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0])
+    data = encoder.encode()
+    decoded_trace = decode(data[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -530,17 +571,28 @@ def test_span_event_encoding_msgpack(version):
 
     if version == "v0.5":
         encoded_span_meta = decoded_trace[0][0][9]
+        assert b"events" in encoded_span_meta
+        assert (
+            encoded_span_meta[b"events"]
+            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
+            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
+            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
+            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
+        )
+    elif trace_native_span_events:
+        encoded_span_meta = decoded_trace[0][0]
+        assert b"span_events" in encoded_span_meta
+        assert encoded_span_meta[b"span_events"] == expected_top_level_span_encoding
     else:
         encoded_span_meta = decoded_trace[0][0][b"meta"]
-
-    assert b"events" in encoded_span_meta
-    assert (
-        encoded_span_meta[b"events"]
-        == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-        b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-        b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-        b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-    )
+        assert b"events" in encoded_span_meta
+        assert (
+            encoded_span_meta[b"events"]
+            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
+            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
+            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
+            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
+        )
 
 
 def test_span_link_v05_encoding():
@@ -617,7 +669,8 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    trace = tracer._writer.pop()
+
+    trace = tracer._span_aggregator.writer.pop()
     assert trace, "DummyWriter failed to encode the trace"
 
     encoder.put(trace)

@@ -8,7 +8,7 @@ from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 
@@ -117,7 +117,7 @@ def test_propagate_ranges_with_no_context(caplog):
         result = mod.do_index(string_input, 3)
         assert result == "d"
     log_messages = [record.message for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9, 0), reason="Python version not supported by IAST")

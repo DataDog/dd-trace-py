@@ -255,10 +255,6 @@ class BotocoreTest(TracerTestCase):
         ), "Expected 'internal.schema.DEFAULT_SPAN_SERVICE_NAME' but got {}".format(span.service)
         assert span.name == "aws.ec2.request"
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 8),
-        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
-    )
     @mock_dynamodb
     def test_dynamodb_put_get(self):
         ddb = self.session.create_client("dynamodb", region_name="us-west-2")
@@ -301,10 +297,6 @@ class BotocoreTest(TracerTestCase):
         # cannot create span pointers for this item.
         assert not span._links
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 8),
-        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
-    )
     @mock_dynamodb
     def test_dynamodb_put_get_with_table_primary_key_mapping(self):
         ddb = self.session.create_client("dynamodb", region_name="us-west-2")
@@ -365,10 +357,6 @@ class BotocoreTest(TracerTestCase):
             ),
         ]
 
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 8),
-        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
-    )
     @mock_dynamodb
     def test_dynamodb_put_get_with_broken_table_primary_key_mapping(self):
         ddb = self.session.create_client("dynamodb", region_name="us-west-2")
@@ -4096,10 +4084,6 @@ class BotocoreTest(TracerTestCase):
                 s3.list_objects(bucket="mybucket")
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
-    @pytest.mark.skipif(
-        PYTHON_VERSION_INFO < (3, 8),
-        reason="Skipping for older py versions whose latest supported moto versions don't have the right dynamodb api",
-    )
     @mock_dynamodb
     def test_dynamodb_payload_tagging(self):
         with self.override_config(

@@ -5,16 +5,19 @@ import json
 import time
 from typing import Optional
 
-from ddtrace import constants
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
-from ddtrace.internal.logger import get_logger
+import ddtrace.constants as constants
+from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
 from ddtrace.settings.asm import config as asm_config
 
 
-log = get_logger(__name__)
+log = ddlogger.get_logger(__name__)
+API_SECURITY_LOGS = "api_security_callback"
+ddlogger.set_tag_rate_limit(API_SECURITY_LOGS, ddlogger.HOUR)
+
 _sentinel = object()
 
 
@@ -74,9 +77,11 @@ class APIManager(Service):
 
         from ddtrace.appsec import _processor as appsec_processor
         import ddtrace.appsec._asm_request_context as _asm_request_context
+        import ddtrace.appsec._metrics as _metrics
 
         self._asm_context = _asm_request_context
         self._appsec_processor = appsec_processor
+        self._metrics = _metrics
 
     def _stop_service(self) -> None:
         self._asm_context.remove_context_callback(self._schema_callback, global_callback=True)
@@ -85,8 +90,11 @@ class APIManager(Service):
     def _start_service(self) -> None:
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env, priority: int) -> bool:
+    def _should_collect_schema(self, env, priority: int) -> Optional[bool]:
         # Rate limit per route
+        # return None if missing route, method or status
+        # return False if sampled
+        # return True if we should collect
         if priority <= 0:
             return False
 
@@ -101,7 +109,7 @@ class APIManager(Service):
                 bool(route),
                 bool(status),
             )
-            return False
+            return None
         end_point_hash = hash((route, method, status))
         current_time = time.monotonic()
         previous_time = self._hashtable.get(end_point_hash, M_INFINITY)
@@ -136,19 +144,16 @@ class APIManager(Service):
                 priority = constants.USER_REJECT
             else:
                 priority = max(priorities)
-            if not self._should_collect_schema(env, priority):
+            should_collect = self._should_collect_schema(env, priority)
+            if should_collect is None:
+                self._metrics._report_api_security(False, 0)
+                return
+            if not should_collect:
                 return
         except Exception:
-            log.warning("Failed to sample request for schema generation", exc_info=True)
+            extra = {"product": "appsec", "exec_limit": 6, "more_info": ":sample_request_failure"}
+            log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
             return
-
-        # we need the request content type on the span
-        try:
-            headers = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, _sentinel)
-            if headers is not _sentinel:
-                self._appsec_processor._set_headers(root, headers, kind="request")
-        except Exception:
-            log.debug("Failed to enrich request span with headers", exc_info=True)
 
         waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
         for address, _, transform in self.COLLECTED:
@@ -165,21 +170,19 @@ class APIManager(Service):
         result = self._asm_context.call_waf_callback(waf_payload)
         if result is None:
             return
+        nb_schemas = 0
         for meta, schema in result.derivatives.items():
             b64_gzip_content = b""
             try:
                 b64_gzip_content = base64.b64encode(
-                    gzip.compress(json.dumps(schema, separators=",:").encode())
+                    gzip.compress(json.dumps(schema, separators=(",", ":")).encode())
                 ).decode()
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLargeSchemaException
                 root._meta[meta] = b64_gzip_content
+                nb_schemas += 1
             except Exception:
-                self._log_limiter.limit(
-                    log.warning,
-                    "Failed to get schema from %r [schema length=%d]:\n%s",
-                    address,
-                    len(b64_gzip_content),
-                    repr(value)[:256],
-                    exc_info=True,
-                )
+                extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}
+                log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
+        env.api_security_reported = nb_schemas
+        self._metrics._report_api_security(True, nb_schemas)

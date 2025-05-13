@@ -44,11 +44,11 @@ def mock_tracer(ddtrace_global_config, vertexai):
         pin = Pin.get_from(vertexai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin._override(vertexai, tracer=mock_tracer)
-        pin.tracer._configure()
+        pin.tracer.configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False, agentless_enabled=False)
         yield mock_tracer
     except Exception:
         yield

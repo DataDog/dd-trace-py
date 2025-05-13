@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "Timer timer",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67ed8ced00000000",
+      "aas.function.name": "timer",
+      "aas.function.trigger": "Timer",
+      "component": "azure_functions",
+      "language": "python",
+      "runtime-id": "c20075ab351244ed9d9d5e688777e0b1",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 30417
+    },
+    "duration": 548917,
+    "start": 1743621357729982629
+  }]]

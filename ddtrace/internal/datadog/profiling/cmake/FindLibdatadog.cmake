@@ -74,11 +74,15 @@ get_filename_component(Datadog_ROOT "${LIBDD_OUTPUT_FOLDER}" ABSOLUTE)
 set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
 # Configure library preferences (static over shared)
-set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
-set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+if(NOT WIN32)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+endif()
 
 # Find the package
 find_package(Datadog REQUIRED)
 
-# Restore library preferences
-set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
+if(NOT WIN32)
+    # Restore library preferences
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
+endif()

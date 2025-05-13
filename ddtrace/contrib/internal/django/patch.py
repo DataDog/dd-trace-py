@@ -482,8 +482,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
         tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
-        distributed_headers_config=config.django,
+        integration_config=config.django,
         distributed_headers=request_headers,
+        activate_distributed_headers=True,
         pin=pin,
     ) as ctx, ctx.span:
         core.dispatch(
@@ -860,10 +861,15 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                     request_user = request.user._wrapped
                 else:
                     request_user = request.user
+                if hasattr(request, "session") and hasattr(request.session, "session_key"):
+                    session_key = request.session.session_key
+                else:
+                    session_key = None
                 core.dispatch(
                     "django.process_request",
                     (
                         request_user,
+                        session_key,
                         mode,
                         kwargs,
                         pin,

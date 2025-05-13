@@ -8,9 +8,9 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "_dd.appsec.event_rules.version": "1.13.3",
+      "_dd.appsec.event_rules.version": "1.14.2",
       "_dd.appsec.json": "{\"triggers\":[\n  {\n    \"rule\": {\n      \"id\": \"nfd-000-006\",\n      \"name\": \"Detect failed attempt to fetch sensitive files\",\n      \"tags\": {\n        \"capec\": \"1000/118/169\",\n        \"category\": \"attack_attempt\",\n        \"confidence\": \"1\",\n        \"cwe\": \"200\",\n        \"type\": \"security_scanner\"\n      }\n    },\n    \"rule_matches\": [\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"^404$\",\n        \"parameters\": [\n          {\n            \"address\": \"server.response.status\",\n            \"highlight\": [\n              \"404\"\n            ],\n            \"key_path\": [],\n            \"value\": \"404\"\n          }\n        ]\n      },\n      {\n        \"operator\": \"match_regex\",\n        \"operator_value\": \"\\\\.(cgi|bat|dll|exe|key|cert|crt|pem|der|pkcs|pkcs|pkcs[0-9]*|nsf|jsa|war|java|class|vb|vba|so|git|svn|hg|cvs)([^a-zA-Z0-9_]|$)\",\n        \"parameters\": [\n          {\n            \"address\": \"server.request.uri.raw\",\n            \"highlight\": [\n              \".git\"\n            ],\n            \"key_path\": [],\n            \"value\": \"/.git\"\n          }\n        ]\n      }\n    ]\n  }\n]}",
-      "_dd.appsec.waf.version": "1.22.0",
+      "_dd.appsec.waf.version": "1.24.1",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
       "_dd.p.ts": "02",
@@ -23,7 +23,7 @@
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 159,
+      "_dd.appsec.event_rules.loaded": 166,
       "_dd.appsec.waf.duration": 103.238,
       "_dd.appsec.waf.duration_ext": 174.04556274414062,
       "_dd.top_level": 1,

@@ -1,6 +1,10 @@
-# -*- coding: utf-8 -*-
+from pathlib import Path
+from pathlib import PosixPath
 from unittest import mock
 
+from hypothesis import given
+from hypothesis.strategies import from_type
+from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -13,10 +17,48 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import string_strategies
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+
+
+@given(
+    one_of(string_strategies),
+)
+def test_str_aspect(text):
+    kwargs = {}
+    assert ddtrace_aspects.str_aspect(str, 0, text, **kwargs) == str(text, **kwargs)
+
+
+@given(from_type(Path))
+def test_str_aspect_path(path):
+    assert ddtrace_aspects.str_aspect(str, 0, path) == str(path)
+
+
+@given(from_type(PosixPath))
+def test_str_aspect_posixpath(path):
+    assert ddtrace_aspects.str_aspect(str, 0, path) == str(path)
+
+
+@given(from_type(PosixPath))
+def test_str_aspect_posixpath_error(posixpath):
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.add_aspect(posixpath, posixpath)
+    assert str(exc_info.value) == "unsupported operand type(s) for +: 'PosixPath' and 'PosixPath'"
+
+
+def test_str_aspect_error():
+    text = "abc"
+    kwargs = {"encoding": "utf-8", "errors": "strict"}
+    with pytest.raises(TypeError) as exc_info:
+        str(text, **kwargs)
+    assert str(exc_info.value) == "decoding str is not supported"
+
+    with pytest.raises(TypeError) as exc_info:
+        ddtrace_aspects.str_aspect(str, 0, "text", **kwargs)
+    assert str(exc_info.value) == "decoding str is not supported"
 
 
 @pytest.mark.parametrize(
@@ -34,7 +76,7 @@ mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
         (["a", "b", "c", "d"], (), {}),
     ],
 )
-def test_str_aspect(obj, args, kwargs):
+def test_str_aspect_encodings(obj, args, kwargs):
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
     obj = taint_pyobject(
@@ -126,7 +168,7 @@ def test_str_utf(encoding):
 def test_repr_utf16():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
 
         obj = taint_pyobject(
@@ -146,7 +188,7 @@ def test_repr_utf16():
 def test_repr_utf16_2():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = (
             "\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85".encode(
                 "utf-16"
@@ -170,7 +212,7 @@ def test_repr_utf16_2():
 def test_repr_nonascii():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = "記者 鄭啟源 羅智堅"
 
         obj = taint_pyobject(
@@ -190,7 +232,7 @@ def test_repr_nonascii():
 def test_repr_bytearray():
     import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         obj = bytearray(
             b"\xe8\xa8\x98\xe8\x80\x85 \xe9\x84\xad\xe5\x95\x9f\xe6\xba\x90 \xe7\xbe\x85\xe6\x99\xba\xe5\xa0\x85"
         )
@@ -357,7 +399,7 @@ def test_str_aspect_tainting(obj, kwargs, should_be_tainted):
     ],
 )
 def test_repr_aspect_tainting(obj, expected_result, formatted_result):
-    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_taint_log_error") as _iast_error_metric:
+    with mock.patch("ddtrace.appsec._iast._taint_tracking.aspects.iast_propagation_error_log") as _iast_error_metric:
         assert repr(obj) == expected_result
 
         obj = taint_pyobject(

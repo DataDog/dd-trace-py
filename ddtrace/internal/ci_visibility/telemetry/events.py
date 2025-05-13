@@ -157,6 +157,8 @@ def record_event_finished_test(
     is_benchmark: bool = False,
     is_quarantined: bool = False,
     is_disabled: bool = False,
+    is_attempt_to_fix: bool = False,
+    has_failed_all_retries: bool = False,
     ci_provider_name: str = UNSUPPORTED_PROVIDER,
     is_auto_injected: bool = False,
 ):
@@ -170,6 +172,8 @@ def record_event_finished_test(
         ", is_benchmark=%s"
         ", is_quarantined=%s"
         ", is_disabled=%s"
+        ", is_attempt_to_fix=%s"
+        ", has_failed_all_retries=%s"
         ", provider_name=%s"
         ", is_auto_injected=%s",
         test_framework,
@@ -181,6 +185,8 @@ def record_event_finished_test(
         is_benchmark,
         is_quarantined,
         is_disabled,
+        is_attempt_to_fix,
+        has_failed_all_retries,
         ci_provider_name,
         is_auto_injected,
     )
@@ -205,6 +211,10 @@ def record_event_finished_test(
         tags.append(("is_quarantined", "true"))
     if is_disabled:
         tags.append(("is_disabled", "true"))
+    if is_attempt_to_fix:
+        tags.append(("is_attempt_to_fix", "true"))
+    if has_failed_all_retries:
+        tags.append(("has_failed_all_retries", "true"))
     if ci_provider_name:
         tags.append(("provider_name", ci_provider_name))
     if is_auto_injected:

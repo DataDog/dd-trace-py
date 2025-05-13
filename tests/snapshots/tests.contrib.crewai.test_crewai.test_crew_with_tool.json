@@ -1,0 +1,76 @@
+[[
+  {
+    "name": "CrewAI Crew",
+    "service": "tests.contrib.crewai",
+    "resource": "Crew Kickoff",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67d48c9700000000",
+      "language": "python",
+      "runtime-id": "0987b32bb1374a3eb66373e1d9469e3a"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 6022
+    },
+    "duration": 1679108000,
+    "start": 1741982871123297000
+  },
+     {
+       "name": "Calculate participants' average ages",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "0987b32bb1374a3eb66373e1d9469e3a"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 6022
+       },
+       "duration": 1673705000,
+       "start": 1741982871125219000
+     },
+        {
+          "name": "Python Data Analyst",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 1673227000,
+          "start": 1741982871125438000
+        },
+           {
+             "name": "Average Calculator",
+             "service": "tests.contrib.crewai",
+             "resource": "CrewAI Tool",
+             "trace_id": 0,
+             "span_id": 4,
+             "parent_id": 3,
+             "type": "",
+             "error": 0,
+             "metrics": {
+               "_dd.measured": 1
+             },
+             "duration": 134000,
+             "start": 1741982872203636000
+           }]]

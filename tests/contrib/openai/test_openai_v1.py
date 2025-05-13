@@ -183,6 +183,30 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
             )
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        client = openai.OpenAI()
+        client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+
+    assert len(mock_tracer.pop_traces()) == 0
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+async def test_acompletion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("completion_streamed.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
+
+    assert len(mock_tracer.pop_traces()) == 0
+
+
 @pytest.mark.parametrize("api_key_in_env", [True, False])
 def test_chat_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
@@ -284,6 +308,46 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 n=2,
                 user="ddtrace-test",
             )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        client = openai.OpenAI()
+        client.chat.completions.with_raw_response.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        )
+
+    assert len(mock_tracer.pop_traces()) == 0
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+)
+async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+    """Assert that no spans are created when streaming and with_raw_response is used."""
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        client = openai.AsyncOpenAI()
+        await client.chat.completions.with_raw_response.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": "Who won the world series in 2020?"},
+            ],
+            stream=True,
+            user="ddtrace-test",
+            n=None,
+        )
+
+    assert len(mock_tracer.pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -820,7 +884,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -861,7 +925,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -1232,7 +1296,7 @@ import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
 pin = ddtrace.trace.Pin.get_from(openai)
-pin.tracer._configure(trace_processors=[FilterOrg()])
+pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")
@@ -1282,3 +1346,121 @@ async def test_openai_asyncio_cancellation(openai):
         assert False, f"Unexpected exception: {e}"
 
     assert asyncio_timeout, "Expected asyncio.TimeoutError"
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response",
+)
+def test_response(openai, openai_vcr, snapshot_tracer):
+    """Ensure llmobs records are emitted for response endpoints when configured."""
+    with openai_vcr.use_cassette("response.yaml"):
+        model = "gpt-4.1"
+        input_messages = multi_message_input
+        client = openai.OpenAI()
+        client.responses.create(
+            model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+        )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_tools",
+)
+def test_response_tools(openai, openai_vcr, snapshot_tracer):
+    """Ensure tools are recorded for response endpoints when configured."""
+    with openai_vcr.use_cassette("response_tools.yaml"):
+        input_messages = multi_message_input
+        client = openai.OpenAI()
+        client.responses.create(model="gpt-4.1", input=input_messages, tools=[{"type": "web_search_preview"}])
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_error",
+)
+def test_response_error(openai, openai_vcr, snapshot_tracer):
+    """Assert errors when an invalid model is used."""
+    with openai_vcr.use_cassette("response_create_error.yaml"):
+        client = openai.OpenAI()
+        with pytest.raises(openai.BadRequestError):
+            client.responses.create(
+                model="invalid-model",  # Using an invalid model to trigger error
+                input="Hello world",
+                user="ddtrace-test",
+            )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response",
+)
+async def test_aresponse(openai, openai_vcr, snapshot_tracer):
+    """Assert spans are created with async client."""
+    with openai_vcr.use_cassette("response.yaml"):
+        client = openai.AsyncOpenAI()
+        input_messages = multi_message_input
+        await client.responses.create(
+            model="gpt-4.1",
+            input=input_messages,
+            top_p=0.9,
+            max_output_tokens=100,
+            user="ddtrace-test",
+        )
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_stream",
+)
+def test_response_stream(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        client = openai.OpenAI()
+        resp = client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        _ = [c for c in resp]
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_tools_stream",
+)
+def test_response_tools_stream(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("response_tools_stream.yaml"):
+        client = openai.OpenAI()
+        resp = client.responses.create(
+            model="gpt-4.1", input="Hello world", tools=[{"type": "web_search_preview"}], stream=True
+        )
+        _ = [c for c in resp]
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(
+    token="tests.contrib.openai.test_openai.test_response_stream",
+)
+async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        client = openai.AsyncOpenAI()
+        resp = await client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        _ = [c async for c in resp]
