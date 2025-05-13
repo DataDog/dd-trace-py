@@ -565,7 +565,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             if child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
                 log.debug("Item %s has unfinished children", self)
-                return SPECIAL_STATUS.UNFINISHED
+                continue  # It's possible that some children were executed in a different process
             children_status_counts[child_status.value] += 1
 
         log.debug("Children status counts for %s: %s", self, children_status_counts)
