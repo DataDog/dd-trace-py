@@ -271,6 +271,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
+                "pytest-benchmark": latest,
             },
             venvs=[
                 Venv(
@@ -1438,6 +1439,7 @@ venv = Venv(
             command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",

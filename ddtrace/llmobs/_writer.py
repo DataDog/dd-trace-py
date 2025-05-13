@@ -1,5 +1,4 @@
 import atexit
-import http.client as httplib
 from typing import Any
 from typing import Dict
 from typing import List
@@ -19,7 +18,8 @@ from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
-from ddtrace.internal.utils.http import verify_url
+from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -132,7 +132,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, httplib.HTTPResponse),
+            until=lambda result: isinstance(result, Response),
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
@@ -201,7 +201,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = self._get_connection()
+        conn = get_connection(self._intake)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -217,7 +217,7 @@ class BaseLLMObsWriter(PeriodicService):
                 telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
-            return resp
+            return Response.from_http_response(resp)
         except Exception:
             logger.error(
                 "failed to send %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._intake, exc_info=True
@@ -225,15 +225,6 @@ class BaseLLMObsWriter(PeriodicService):
             raise
         finally:
             conn.close()
-
-    def _get_connection(self):
-        """Return the connection to the LLM Observability endpoint."""
-        parsed = verify_url(self._intake)
-        if parsed.scheme == "https":
-            return httplib.HTTPSConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
-        elif parsed.scheme == "http":
-            return httplib.HTTPConnection(parsed.hostname or "", parsed.port, timeout=self._timeout)
-        raise ConnectionError("Unable to connect, invalid URL: %s", self._intake)
 
     @property
     def _url(self) -> str:
