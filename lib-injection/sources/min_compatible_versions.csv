@@ -18,6 +18,7 @@ anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
 asgiref,~=3.0
+astunparse,0
 async_generator,~=1.10
 asyncpg,~=0.23
 asynctest,==0.13.0
@@ -181,6 +182,7 @@ valkey,0
 vcrpy,==4.2.1
 vertexai,0
 vertica-python,>=0.6.0
+virtualenv-clone,0
 websockets,<11.0
 webtest,0
 werkzeug,<1.0
