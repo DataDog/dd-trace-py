@@ -41,9 +41,9 @@ _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def attempt_to_fix_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
+    is_quarantined: bool = False,
 ):
     retry_outcomes = _RETRY_OUTCOMES
     final_outcomes = _FINAL_OUTCOMES
@@ -57,12 +57,11 @@ def attempt_to_fix_handle_retries(
     )
 
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report := test_reports.get("call"):
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = outcomes.FAILED
+            call_report.outcome = outcomes.FAILED
         elif test_outcome.status == TestStatus.SKIP:
-            original_result.outcome = outcomes.SKIPPED
-        return
+            call_report.outcome = outcomes.SKIPPED
 
     retries_outcome = _do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")

@@ -50,11 +50,14 @@ _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def atr_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get("setup")
+    call_report = test_reports.get("call")
+    teardown_report = test_reports.get("teardown")
+
     if is_quarantined:
         retry_outcomes = _QUARANTINE_ATR_RETRY_OUTCOMES
         final_outcomes = _QUARANTINE_FINAL_OUTCOMES
@@ -70,11 +73,14 @@ def atr_handle_retries(
         XPASS=retry_outcomes.ATR_ATTEMPT_FAILED,
     )
 
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = outcomes.FAILED
-        return
+            call_report.outcome = outcomes.FAILED
+
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     atr_outcome = _atr_do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
@@ -90,6 +96,7 @@ def atr_handle_retries(
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 def get_user_property(report, key, default=None):
     for k, v in report.user_properties:

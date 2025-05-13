@@ -47,22 +47,27 @@ _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
 def efd_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
+    is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get("setup")
+    call_report = test_reports.get("call")
+    teardown_report = test_reports.get("teardown")
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
         elif test_outcome.status == TestStatus.PASS:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
         elif test_outcome.status == TestStatus.SKIP:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
-        return
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+
     if InternalTest.get_tag(test_id, "_dd.ci.efd_setup_failed"):
         log.debug("Test item %s failed during setup, will not be retried for Early Flake Detection")
         return
+
     if InternalTest.get_tag(test_id, "_dd.ci.efd_teardown_failed"):
         # NOTE: tests that passed their call but failed during teardown are not retried
         log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
@@ -70,20 +75,18 @@ def efd_handle_retries(
 
     # If the test skipped (can happen either in setup or call depending on mark vs calling .skip()), we set the original
     # status as skipped and then continue handling retries because we may not return
-    if test_outcome.status == TestStatus.SKIP and when in ["setup", "call"]:
-        original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
-        # We don't return for when == call when skip happens during setup, so we need to log it and make sure the status
-        # of the test is set
-        if when == "setup":
-            item.ihook.pytest_runtest_logreport(
-                nodeid=item.nodeid,
-                locationm=item.location,
-                keywords=item.keywords,
-                when="setup",
-                longrepr=None,
-                outcome=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
-            )
+    if test_outcome.status == TestStatus.SKIP:
+        if call_report:
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+        else:
+            # When skip happens during setup, we don't have a call report.
+            setup_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
             InternalTest.mark_skip(test_id)
+
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
+    if call_report:
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     efd_outcome = _efd_do_retries(item)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
@@ -97,6 +100,8 @@ def efd_handle_retries(
         outcome=_FINAL_OUTCOMES[efd_outcome],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
+
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:

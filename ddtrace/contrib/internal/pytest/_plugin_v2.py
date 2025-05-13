@@ -468,39 +468,29 @@ def pytest_runtest_protocol(item, nextitem) -> None:
             if report.failed or report.skipped:
                 InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
 
+    retry_handler = None
+
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-    elif not reports_dict.get("call"):
-        pass
     elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        attempt_to_fix_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome)
+        retry_handler = attempt_to_fix_handle_retries
     elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        efd_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome)
+        retry_handler = efd_handle_retries
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        atr_handle_retries(test_id, item, "call", reports_dict["call"], test_outcome, is_quarantined)
+        retry_handler = atr_handle_retries
 
-    if "setup" in reports_dict:
-        item.ihook.pytest_runtest_logreport(report=reports_dict["setup"])
-
-    if "call" in reports_dict:
-        item.ihook.pytest_runtest_logreport(report=reports_dict["call"])
+    if retry_handler:
+        # Retry handler is responsible for logging the test reports.
+        retry_handler(
+            test_id=test_id, item=item, test_reports=reports_dict, test_outcome=test_outcome, is_quarantined=is_quarantined
+        )
+    else:
+        # If no retry handler, we log the reports ourselves.
+        for report in reports:
+            item.ihook.pytest_runtest_logreport(report=report)
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-
-    if setup_or_teardown_failed:
-        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
-        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        attempt_to_fix_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome)
-    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        efd_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome)
-    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        atr_handle_retries(test_id, item, "teardown", reports_dict["teardown"], test_outcome, is_quarantined)
-
-    if "teardown" in reports_dict:
-        # Must be postponed to the very end because the junitxml plugin closes the <testcase> tag at teardown.
-        item.ihook.pytest_runtest_logreport(report=reports_dict["teardown"])
 
     return True
 
