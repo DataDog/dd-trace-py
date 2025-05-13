@@ -132,9 +132,13 @@ async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs)
         func.__name__,
         model=model,
         host=host,
-        submit_to_llmobs=False,
-    ):
-        return await func(*args, **kwargs)
+        submit_to_llmobs=True,
+    ) as span:
+        resp = await func(*args, **kwargs)
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=resp, operation="route_request"
+        )
+        return resp
 
 
 def patch():
