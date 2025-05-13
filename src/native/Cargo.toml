@@ -5,7 +5,7 @@ edition = "2021"
 
 [profile.release]
 lto = true
-strip = "debuginfo"
+strip = "symbols"
 codegen-units = 1
 opt-level = 3
 
