@@ -230,7 +230,9 @@ def test_ip_not_block(tracer, ip):
 
 def test_ip_update_rules_and_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
-        tracer._appsec_processor._update_rules(
+        processor = AppSecSpanProcessor._instance
+        assert processor is not None
+        processor._update_rules(
             [],
             [
                 (
@@ -262,7 +264,9 @@ def test_ip_update_rules_and_block(tracer):
 
 def test_ip_update_rules_expired_no_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
-        tracer._appsec_processor._update_rules(
+        processor = AppSecSpanProcessor._instance
+        assert processor is not None
+        processor._update_rules(
             [],
             [
                 (
