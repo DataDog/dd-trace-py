@@ -11,7 +11,7 @@ constexpr unsigned int g_default_max_nframes = 64;
 // their stacks may be silently truncated, which is unfortunate.
 constexpr unsigned int g_backend_max_nframes = 512;
 
-// Default value for the max number of samples to keep in the SynchronizedSamplePool
+// Default value for the max number of samples to keep in the StaticSamplePool
 constexpr size_t g_default_sample_pool_capacity = 4;
 
 // Default name of the runtime.  This will almost certainly get overridden by the caller, but we set it here

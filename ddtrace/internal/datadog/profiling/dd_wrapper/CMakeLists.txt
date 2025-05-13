@@ -48,7 +48,7 @@ if(WIN32)
         src/profile.cpp
         src/sample.cpp
         src/sample_manager.cpp
-        src/synchronized_sample_pool.cpp
+        src/static_sample_pool.cpp
         src/uploader.cpp
         src/uploader_builder.cpp)
 else()
@@ -68,7 +68,7 @@ else()
         src/profile.cpp
         src/sample.cpp
         src/sample_manager.cpp
-        src/synchronized_sample_pool.cpp
+        src/static_sample_pool.cpp
         src/uploader.cpp
         src/uploader_builder.cpp)
 endif()
