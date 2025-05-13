@@ -8,6 +8,7 @@ import gc
 import logging
 from os import getpid
 import threading
+import time
 from unittest.case import SkipTest
 
 import mock
@@ -292,6 +293,7 @@ class TracerTestCases(TracerTestCase):
             span.set_tag(tag_name, tag_value)
 
             for i in range(3):
+                time.sleep(0.01)
                 yield i
 
         result = list(f("a", "b"))
@@ -306,6 +308,10 @@ class TracerTestCases(TracerTestCase):
             span_type="t",
             meta=dict(a="b"),
         )
+
+        # tracer should finish _after_ the generator has been exhausted
+        assert span.duration is not None
+        assert span.duration > 0.03
 
     def test_tracer_disabled(self):
         self.tracer.enabled = True
