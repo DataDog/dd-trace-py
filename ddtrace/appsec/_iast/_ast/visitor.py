@@ -19,7 +19,6 @@ from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
 
-PY3 = sys.version_info[0] >= 3
 PY39_PLUS = sys.version_info >= (3, 9, 0)
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
@@ -230,7 +229,7 @@ class AstVisitor(ast.NodeTransformer):
 
     @staticmethod
     def _is_string_node(node: Any) -> bool:
-        if PY3 and (isinstance(node, ast.Constant) and isinstance(node.value, IAST.TEXT_TYPES)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, IAST.TEXT_TYPES):
             return True
 
         return False
