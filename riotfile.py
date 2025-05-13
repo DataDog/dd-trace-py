@@ -1103,7 +1103,7 @@ venv = Venv(
                 "PYDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
             },
-            command="bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh {cmdargs}",
+            command="bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh",
         ),
         Venv(
             name="pynamodb",
