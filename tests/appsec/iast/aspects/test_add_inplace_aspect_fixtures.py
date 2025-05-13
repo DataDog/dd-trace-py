@@ -41,6 +41,15 @@ class TestOperatorAddInplaceReplacement(object):
         dis.dis(mod.do_operator_add_inplace_params)
         assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect")
 
+    def test_operator_add_inplace_keys_dis(
+        self,
+    ) -> None:
+        import dis
+
+        bytecode = dis.Bytecode(mod.do_operator_add_inplace_dict_key)
+        dis.dis(mod.do_operator_add_inplace_dict_key)
+        assert bytecode.codeobj.co_names == ("_ddtrace_aspects", "add_inplace_aspect", "index_aspect")
+
     def test_string_operator_add_inplace_one_tainted(self) -> None:
         string_input = taint_pyobject(
             pyobject="foo",
@@ -65,6 +74,7 @@ class TestOperatorAddInplaceReplacement(object):
         result = mod.do_operator_add_inplace_dict_key(d, "key", "bar")
         assert len(get_tainted_ranges(result)) == 1
         assert get_tainted_ranges(result) == get_tainted_ranges(string_input)
+        assert d["key"] == "foobar"
 
     def test_string_operator_add_inplace_dict_element_tainted_rhs(self) -> None:
         string_input = taint_pyobject(
@@ -76,7 +86,143 @@ class TestOperatorAddInplaceReplacement(object):
         d = {"key": "foo"}
         assert get_tainted_ranges(string_input)
         result = mod.do_operator_add_inplace_dict_key(d, "key", string_input)
+        assert d["key"] == "foobar"
+        assert len(get_tainted_ranges(d["key"])) == 1
         assert len(get_tainted_ranges(result)) == 1
+        assert d["key"] == result
+
+    def test_string_operator_add_inplace_dict_element_both_tainted(self) -> None:
+        lhs = taint_pyobject(
+            pyobject="foo",
+            source_name="test_string_operator_add_inplace_dict_element_both_tainted_lhs",
+            source_value="foo",
+            source_origin=OriginType.PARAMETER,
+        )
+        rhs = taint_pyobject(
+            pyobject="bar",
+            source_name="test_string_operator_add_inplace_dict_element_both_tainted_rhs",
+            source_value="bar",
+            source_origin=OriginType.PARAMETER,
+        )
+        d = {"key": lhs}
+        assert get_tainted_ranges(lhs)
+        assert get_tainted_ranges(rhs)
+        result = mod.do_operator_add_inplace_dict_key(d, "key", rhs)
+        assert d["key"] == "foobar"
+        assert len(get_tainted_ranges(d["key"])) == 2
+        assert len(get_tainted_ranges(result)) == 2
+        assert d["key"] == result
+
+    def test_string_operator_add_inplace_dict_element_nonexistent_key(self) -> None:
+        string_input = taint_pyobject(
+            pyobject="bar",
+            source_name="test_string_operator_add_inplace_dict_element_nonexistent_key",
+            source_value="bar",
+            source_origin=OriginType.PARAMETER,
+        )
+        d = {}
+        with pytest.raises(KeyError):
+            mod.do_operator_add_inplace_dict_key(d, "nonexistent", string_input)
+
+    def test_string_operator_add_inplace_dict_element_multiple_operations(self) -> None:
+        """Test multiple += operations on the same dictionary key"""
+        d = {"key": "foo"}
+
+        # First operation
+        result1 = mod.do_operator_add_inplace_dict_key(d, "key", "bar")
+        assert d["key"] == "foobar"
+        assert result1 == "foobar"
+
+        # Second operation
+        result2 = mod.do_operator_add_inplace_dict_key(d, "key", "baz")
+        assert d["key"] == "foobarbaz"
+        assert result2 == "foobarbaz"
+
+        # Third operation with tainted input
+        tainted = taint_pyobject(
+            pyobject="qux",
+            source_name="test_multiple_ops",
+            source_value="qux",
+            source_origin=OriginType.PARAMETER,
+        )
+        result3 = mod.do_operator_add_inplace_dict_key(d, "key", tainted)
+        assert d["key"] == "foobarbazqux"
+        assert result3 == "foobarbazqux"
+        assert len(get_tainted_ranges(d["key"])) == 1
+        assert len(get_tainted_ranges(result3)) == 1
+
+    def test_string_operator_add_inplace_dict_nested_operations(self) -> None:
+        """Test += operations with nested dictionaries"""
+        d = {"outer": {"inner": "foo"}}
+
+        # Test with untainted string
+        result1 = mod.do_operator_add_inplace_dict_key(d["outer"], "inner", "bar")
+        assert d["outer"]["inner"] == "foobar"
+        assert result1 == "foobar"
+
+        # Test with tainted string
+        tainted = taint_pyobject(
+            pyobject="baz",
+            source_name="test_nested_ops",
+            source_value="baz",
+            source_origin=OriginType.PARAMETER,
+        )
+        result2 = mod.do_operator_add_inplace_dict_key(d["outer"], "inner", tainted)
+        assert d["outer"]["inner"] == "foobarbaz"
+        assert result2 == "foobarbaz"
+        assert len(get_tainted_ranges(d["outer"]["inner"])) == 1
+        assert len(get_tainted_ranges(result2)) == 1
+
+    def test_string_operator_add_inplace_dict_dynamic_keys(self) -> None:
+        """Test += operations with dynamic dictionary keys"""
+        d = {}
+        keys = ["key1", "key2", "key3"]
+
+        # Initialize dictionary
+        for key in keys:
+            d[key] = "foo"
+
+        # Test with untainted strings
+        for key in keys:
+            result = mod.do_operator_add_inplace_dict_key(d, key, "bar")
+            assert d[key] == "foobar"
+            assert result == "foobar"
+
+        # Test with tainted strings
+        tainted = taint_pyobject(
+            pyobject="baz",
+            source_name="test_dynamic_keys",
+            source_value="baz",
+            source_origin=OriginType.PARAMETER,
+        )
+        for key in keys:
+            result = mod.do_operator_add_inplace_dict_key(d, key, tainted)
+            assert d[key] == "foobarbaz"
+            assert result == "foobarbaz"
+            assert len(get_tainted_ranges(d[key])) == 1
+            assert len(get_tainted_ranges(result)) == 1
+
+    def test_string_operator_add_inplace_dict_non_string_values(self) -> None:
+        """Test += operations with non-string dictionary values"""
+        d = {"int": 1, "float": 1.0, "list": [1], "tuple": (1,)}
+
+        # Test numeric operations
+        result1 = mod.do_operator_add_inplace_dict_key(d, "int", 2)
+        assert d["int"] == 3
+        assert result1 == 3
+
+        result2 = mod.do_operator_add_inplace_dict_key(d, "float", 2.5)
+        assert d["float"] == 3.5
+        assert result2 == 3.5
+
+        # Test sequence operations
+        result3 = mod.do_operator_add_inplace_dict_key(d, "list", [2])
+        assert d["list"] == [1, 2]
+        assert result3 == [1, 2]
+
+        result4 = mod.do_operator_add_inplace_dict_key(d, "tuple", (2,))
+        assert d["tuple"] == (1, 2)
+        assert result4 == (1, 2)
 
     def test_string_operator_add_inplace_two(self) -> None:
         string_input = taint_pyobject(

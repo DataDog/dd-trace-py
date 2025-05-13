@@ -652,13 +652,8 @@ class AstVisitor(ast.NodeTransformer):
         """
         Replace an inplace add or multiply (+= / *=)
         """
-        if isinstance(augassign_node.target, ast.Subscript):
-            # Can't augassign to function call, ignore this node
-            augassign_node.target.avoid_convert = True  # type: ignore[attr-defined]
-            self.generic_visit(augassign_node)
-            return augassign_node
-
         self.generic_visit(augassign_node)
+
         if augassign_node.op.__class__ == ast.Add:
             # Optimization: ignore augassigns where the right side term is an integer since
             # they can't apply to strings
@@ -666,32 +661,30 @@ class AstVisitor(ast.NodeTransformer):
                 return augassign_node
 
             replacement_func = self._aspect_operators["INPLACE_ADD"]
-        else:
-            return augassign_node
 
-        # We must change the ctx of the target and value to Load() for using
-        # them as function arguments while keeping it as Store() for the
-        # Assign.targets, thus the manual copy
+            # Regular inplace add for non-subscript targets
+            func_arg1 = copy.deepcopy(augassign_node.target)
+            func_arg1.ctx = ast.Load()
+            func_arg2 = copy.deepcopy(augassign_node.value)
+            if hasattr(func_arg2, "ctx"):
+                func_arg2.ctx = ast.Load()
 
-        func_arg1 = copy.deepcopy(augassign_node.target)
-        func_arg1.ctx = ast.Load()
-        func_arg2 = copy.deepcopy(augassign_node.value)
-        func_arg2.ctx = ast.Load()  # type: ignore[attr-defined]
+            call_node = self._call_node(
+                augassign_node,
+                func=self._attr_node(augassign_node, replacement_func),
+                args=[func_arg1, func_arg2],
+            )
 
-        call_node = self._call_node(
-            augassign_node,
-            func=self._attr_node(augassign_node, replacement_func),
-            args=[func_arg1, func_arg2],
-        )
+            self.ast_modified = True
+            return self._node(
+                ast.Assign,
+                augassign_node,
+                targets=[augassign_node.target],
+                value=call_node,
+                type_comment=None,
+            )
 
-        self.ast_modified = True
-        return self._node(
-            ast.Assign,
-            augassign_node,
-            targets=[augassign_node.target],
-            value=call_node,
-            type_comment=None,
-        )
+        return augassign_node
 
     def visit_FormattedValue(self, fmt_value_node: ast.FormattedValue) -> Any:
         """
