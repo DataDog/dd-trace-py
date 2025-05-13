@@ -128,20 +128,14 @@ async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs)
         proxy_server_request = data.get("proxy_server_request", {})
         headers = proxy_server_request.get("headers", {})
         host = headers.get("host", None)
-    span = integration.trace(
+    with integration.trace(
         pin,
         func.__name__,
         model=model,
         host=host,
         submit_to_llmobs=False,
-    )
-    try:
+    ):
         return await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
 
 
 def patch():
