@@ -14,6 +14,11 @@ def http_get_ok(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 
+@app.route(route="httpgetokasync", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+async def http_get_ok_async(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
 @app.route(route="httpgeterror", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_error(req: func.HttpRequest) -> func.HttpResponse:
     raise Exception("Test Error")
@@ -47,4 +52,9 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
 
 @app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
 def timer(timer: func.TimerRequest) -> None:
+    pass
+
+
+@app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
+async def timer_async(timer: func.TimerRequest) -> None:
     pass

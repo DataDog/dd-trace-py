@@ -18,6 +18,8 @@ function(add_ddup_config target)
                     /w44265 # Warn on shadowed variables (equivalent to -Wshadow)
                     /w44287 # Warn on missing virtual destructors (equivalent to -Wnon-virtual-dtor)
                     /w44412 # Warn on old-style casts (equivalent to -Wold-style-cast)
+                    /wd4125
+                    /wd4389
                     /wd4201 # Don't treat the following as an error C4201: nonstandard extension used: nameless
                             # struct/union
                     /wd4267 # conversion from 'size_t' to 'unsigned short', possible loss of data

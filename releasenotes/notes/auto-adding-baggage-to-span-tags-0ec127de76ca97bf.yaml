@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    baggage: Adds support for automatically adding baggage key-value pairs to span tags. Baggage items from incoming HTTP headers are attached to spans as tags with a `baggage.` prefix
+    The `DD_TRACE_BAGGAGE_TAG_KEYS` configuration allows users to specify a comma-separated list of baggage keys for span tagging, by default the value is set to `user.id,account.id,session.id`.
+    When set to `*`, all baggage keys will be converted into span tags. Setting it to an empty value disables baggage tagging.

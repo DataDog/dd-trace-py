@@ -1,4 +1,5 @@
 import os
+import sysconfig
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -29,6 +30,9 @@ log = get_logger(__name__)
 CWD = os.path.abspath(os.getcwd())
 
 TEXT_TYPES = Union[str, bytes, bytearray]
+
+PURELIB_PATH = sysconfig.get_path("purelib")
+STDLIB_PATH = sysconfig.get_path("stdlib")
 
 
 class taint_sink_deduplication(deduplication):
@@ -84,8 +88,8 @@ class VulnerabilityBase(Operation):
         evidence: Evidence,
         file_name: Optional[str],
         line_number: int,
-        function_name: str = "",
-        class_name: str = "",
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> bool:
@@ -130,20 +134,33 @@ class VulnerabilityBase(Operation):
     @classmethod
     def _compute_file_line(cls) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
         file_name = line_number = function_name = class_name = None
-
-        frame_info = get_info_frame(CWD)
+        frame_info = get_info_frame()
         if not frame_info or frame_info[0] in ("", -1):
             return file_name, line_number, function_name, class_name
 
         file_name, line_number, function_name, class_name = frame_info
+        if not file_name:
+            return None, None, None, None
 
-        if file_name.startswith(CWD):
-            file_name = os.path.relpath(file_name, start=CWD)
+        file_name = cls._rel_path(file_name)
+        if not file_name:
+            log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
+            return None, None, None, None
 
         if not cls.is_not_reported(file_name, line_number):
             return None, None, None, None
 
         return file_name, line_number, function_name, class_name
+
+    @staticmethod
+    def _rel_path(file_name: str) -> str:
+        if file_name.startswith(PURELIB_PATH):
+            return os.path.relpath(file_name, start=PURELIB_PATH)
+        if file_name.startswith(STDLIB_PATH):
+            return os.path.relpath(file_name, start=STDLIB_PATH)
+        if file_name.startswith(CWD):
+            return os.path.relpath(file_name, start=CWD)
+        return ""
 
     @classmethod
     def _create_evidence_and_report(

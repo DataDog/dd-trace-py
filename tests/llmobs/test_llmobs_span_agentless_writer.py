@@ -87,7 +87,6 @@ def test_send_chat_completion_event(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
 
 
-@pytest.mark.vcr_logs
 def test_send_completion_bad_api_key(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
     llmobs_span_writer.enqueue(_completion_event())
@@ -149,15 +148,9 @@ def test_send_on_exit(run_python_code_in_subprocess):
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import atexit
-
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs.test_llmobs_span_agentless_writer import _completion_event
-from tests.llmobs._utils import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_span_agentless_writer.test_send_completion_event.yaml")
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
 llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 llmobs_span_writer.start()
 llmobs_span_writer.enqueue(_completion_event())
@@ -166,4 +159,5 @@ llmobs_span_writer.enqueue(_completion_event())
     )
     assert status == 0, err
     assert out == b""
-    assert err == b""
+    assert b"got response code 403" in err
+    assert b'status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n' in err

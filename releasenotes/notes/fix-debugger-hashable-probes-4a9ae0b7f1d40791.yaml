@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fix incompatibility between code origin and
+    dynamic instrumentation probe on exit span functions.

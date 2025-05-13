@@ -49,6 +49,7 @@ from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import CUSTOM_CONFIGURATIONS_PREFIX
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -258,7 +259,7 @@ class CIVisibility(Service):
                 self._service,
                 dd_env,
             )
-        elif self._agent_evp_proxy_is_available():
+        elif evp_proxy_base_url := self._agent_evp_proxy_base_url():
             # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
             # the correct decision:
             if dd_env is None:
@@ -273,6 +274,7 @@ class CIVisibility(Service):
                 self.tracer._agent_url,
                 self._service,
                 dd_env,
+                evp_proxy_base_url=evp_proxy_base_url,
             )
         else:
             requests_mode_str = "APM (some features will be disabled)"
@@ -392,6 +394,7 @@ class CIVisibility(Service):
                 headers=headers,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
+                use_gzip=True,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
@@ -400,22 +403,28 @@ class CIVisibility(Service):
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
+                use_gzip=self._is_gzip_supported_by_agent(),
             )
         if writer is not None:
             self.tracer._span_aggregator.writer = writer
             self.tracer._recreate()
 
-    def _agent_evp_proxy_is_available(self) -> bool:
+    def _agent_evp_proxy_base_url(self) -> Optional[str]:
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:
-            info = None
+            return None
 
         if info:
             endpoints = info.get("endpoints", [])
+            if endpoints and any(EVP_PROXY_AGENT_BASE_PATH_V4 in endpoint for endpoint in endpoints):
+                return EVP_PROXY_AGENT_BASE_PATH_V4
             if endpoints and any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints):
-                return True
-        return False
+                return EVP_PROXY_AGENT_BASE_PATH
+        return None
+
+    def _is_gzip_supported_by_agent(self) -> bool:
+        return self._agent_evp_proxy_base_url() == EVP_PROXY_AGENT_BASE_PATH_V4
 
     def _agent_get_default_env(self) -> Optional[str]:
         try:

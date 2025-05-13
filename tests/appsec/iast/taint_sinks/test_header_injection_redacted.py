@@ -41,7 +41,7 @@ def test_header_injection_redact_excluded(header_name, header_value, iast_contex
             {
                 "evidence": {"valueParts": [{"value": header_name + ": "}, {"source": 0, "value": header_value}]},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
                 "type": VULN_HEADER_INJECTION,
             }
         ],
@@ -85,7 +85,7 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
             {
                 "evidence": {"valueParts": value_part},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
                 "type": VULN_HEADER_INJECTION,
             }
         ],

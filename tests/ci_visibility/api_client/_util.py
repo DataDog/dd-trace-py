@@ -12,6 +12,7 @@ from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
@@ -208,6 +209,7 @@ class TestTestVisibilityAPIClientBase:
                 dd_service,
                 dd_env,
                 client_timeout,
+                evp_proxy_base_url=EVP_PROXY_AGENT_BASE_PATH_V4,
             )
 
     def _get_expected_do_request_setting_payload(

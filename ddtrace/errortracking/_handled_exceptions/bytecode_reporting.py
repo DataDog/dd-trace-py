@@ -4,7 +4,7 @@ import types
 from types import ModuleType
 
 from ddtrace.errortracking._handled_exceptions.bytecode_injector import _inject_handled_exception_reporting
-from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
+from ddtrace.errortracking._handled_exceptions.callbacks import _default_bytecode_exc_callback
 from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
@@ -29,13 +29,16 @@ class HandledExceptionReportingInjector:
 
     def __init__(self, configured_modules: list[str], callback: CallbackType | None = None):
         self._configured_modules = configured_modules
-        self._callback = callback or _default_errortracking_exc_callback
+        self._callback = callback or _default_bytecode_exc_callback
 
     @cached(maxsize=256)
     def _has_file(self, module) -> bool:
         return hasattr(module, "__file__") and module.__file__ is not None
 
     def instrument_module_conditionally(self, module_name: str):
+        if module_name not in sys.modules:
+            return
+
         module = sys.modules[module_name]
         # Do not instrument ddtrace code
         if self._has_file(module) is False or "ddtrace" in module_name:
@@ -103,7 +106,7 @@ _injector: HandledExceptionReportingInjector | None = None
 
 def instrument_main() -> None:
     """
-    __main__module is never imported, therefore we can instrument
+    __main__ module is never imported, therefore we can instrument
     its function only after the def code is executed. This is a helper
     function in case a client really need to instrument its main file.
     This is also the reason why _injector is a global object

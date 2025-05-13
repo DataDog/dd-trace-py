@@ -28,7 +28,7 @@ class LLMObsTelemetryMetrics:
     ANNOTATIONS = "annotations"
     EVALS_SUBMITTED = "evals_submitted"
     SPANS_EXPORTED = "spans_exported"
-    USER_FLUSHES = "user_flushes"
+    USER_FLUSHES = "user_flush"
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
 

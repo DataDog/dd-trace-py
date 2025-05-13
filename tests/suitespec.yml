@@ -185,6 +185,12 @@ suites:
     pattern: integration-snapshot*
     runner: riot
     snapshot: true
+  integration_registry:
+    parallelism: 1
+    paths:
+      - '@contrib'
+      - ddtrace/contrib/integration_registry/*
+    runner: riot
   internal:
     parallelism: 2
     paths:

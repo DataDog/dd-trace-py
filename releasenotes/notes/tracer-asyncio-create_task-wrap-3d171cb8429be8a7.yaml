@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracer: fixes ``RuntimeWarning`` from an unwaited coroutine during tab
+    completion in IPython REPL when ``asyncio`` integration is active. Tracer
+    now wraps an ``asyncio`` coroutine only when  there is an active trace
+    context.

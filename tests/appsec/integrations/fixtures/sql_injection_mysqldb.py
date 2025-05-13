@@ -1,13 +1,9 @@
-import os
-
 import MySQLdb
 from MySQLdb import OperationalError
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
-
-
-MYSQL_HOST = os.getenv("TEST_MYSQL_HOST", "127.0.0.1")
+from tests.appsec.integrations.packages_tests.db_utils import MYSQL_HOST
 
 
 def get_connection():

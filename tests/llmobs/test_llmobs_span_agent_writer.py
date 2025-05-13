@@ -16,12 +16,22 @@ from tests.llmobs._utils import _oversized_workflow_event
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
 AGENT_PROXY_URL = "{}{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
+UNIX_AGENT_INTAKE = "unix:///var/run/datadog/apm.sock"
+UNIX_AGENT_PROXY_URL = "{}{}{}".format(UNIX_AGENT_INTAKE, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
 
 
 def test_writer_start(mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.start()
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", AGENT_PROXY_URL)])
+    llmobs_span_writer.stop()
+
+
+def test_unix_socket_writer_start(mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False, _override_url=UNIX_AGENT_INTAKE)
+    llmobs_span_writer.start()
+    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", UNIX_AGENT_PROXY_URL)])
+    llmobs_span_writer.stop()
 
 
 def test_buffer_limit(mock_writer_logs):

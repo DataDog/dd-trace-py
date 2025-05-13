@@ -129,6 +129,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
+        "_parent_context",
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
@@ -211,6 +212,7 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
+        self._parent_context: Optional[Context] = context
         self._context = context.copy(self.trace_id, self.span_id) if context else None
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []

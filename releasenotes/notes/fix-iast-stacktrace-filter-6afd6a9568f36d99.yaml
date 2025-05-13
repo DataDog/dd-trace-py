@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Code Security: IAST: Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.

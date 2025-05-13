@@ -46,8 +46,8 @@ def _create_and_attach_iast_report_to_span(req_span: "Span", existing_data: Opti
         report_data._merge(previous_data)
 
     if report_data is not None:
-        report_data.build_and_scrub_value_parts()
-        req_span.set_tag_str(IAST.JSON, report_data._to_str())
+        data = report_data.build_and_scrub_value_parts()
+        req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
     _set_metric_iast_request_tainted()
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)

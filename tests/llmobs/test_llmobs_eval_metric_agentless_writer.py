@@ -63,7 +63,6 @@ def test_buffer_limit(mock_writer_logs):
     )
 
 
-@pytest.mark.vcr_logs
 def test_send_metric_bad_api_key(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
 
@@ -97,7 +96,7 @@ def test_send_categorical_metric(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
+        [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
     )
 
 
@@ -107,7 +106,7 @@ def test_send_score_metric(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
+        [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
     )
 
 
@@ -120,13 +119,13 @@ def test_send_timed_events(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     time.sleep(0.1)
     mock_writer_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
+        [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
     )
     mock_writer_logs.reset_mock()
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     time.sleep(0.1)
     mock_writer_logs.debug.assert_has_calls(
-        [mock.call("sent %d LLMObs %s events to %s", 1, "evaluation_metric", INTAKE_ENDPOINT)]
+        [mock.call("encoded %d LLMObs %s events to be sent", 1, "evaluation_metric")]
     )
     llmobs_eval_metric_writer.stop()
 
@@ -138,7 +137,9 @@ def test_send_multiple_events(mock_writer_logs):
     llmobs_eval_metric_writer.enqueue(_score_metric_event())
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
     llmobs_eval_metric_writer.periodic()
-    mock_writer_logs.debug.assert_called_with("sent %d LLMObs %s events to %s", 2, "evaluation_metric", INTAKE_ENDPOINT)
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("encoded %d LLMObs %s events to be sent", 2, "evaluation_metric")]
+    )
 
 
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
@@ -149,15 +150,9 @@ def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_ML_APP": "unnamed-ml-app"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import atexit
-
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _score_metric_event
-from tests.llmobs._utils import logs_vcr
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_eval_metric_agentless_writer.send_score_metric.yaml")
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
 llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
     0.01, 1, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>"
 )
@@ -168,4 +163,8 @@ llmobs_eval_metric_writer.enqueue(_score_metric_event())
     )
     assert status == 0, err
     assert out == b""
-    assert err == b""
+    assert b"got response code 403" in err
+    assert (
+        b'status: b\'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}\'\n'
+        in err
+    )

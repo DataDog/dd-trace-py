@@ -337,33 +337,27 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
-    bool success = false;
-    {
-        // There are a few things going on here.
-        //   * profile_borrow takes a reference in a way that locks the areas where the profile might
-        //     be modified.  It gets released and cleared after uploading.
-        //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-        //     we have for now.
-        auto uploader = Datadog::UploaderBuilder::build();
-        struct
-        {
-            void operator()(Datadog::Uploader& uploader)
-            {
-                uploader.upload(Datadog::Sample::profile_borrow());
-                Datadog::Sample::profile_release();
-                Datadog::Sample::profile_clear_state();
-            }
-            void operator()(const std::string& err)
-            {
-                if (!already_warned) {
-                    already_warned = true;
-                    std::cerr << "Failed to create uploader: " << err << std::endl;
-                }
-            }
-        } visitor;
-        std::visit(visitor, uploader);
+    auto uploader_or_err = Datadog::UploaderBuilder::build();
+
+    if (std::holds_alternative<std::string>(uploader_or_err)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+        }
+        return false;
     }
-    return success;
+
+    // Get the reference to the uploader
+    auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
+    // There are a few things going on here.
+    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
+    //  be modified.  It gets released and cleared after uploading.
+    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+    //   we have for now.
+    uploader.upload(Datadog::Sample::profile_borrow());
+    Datadog::Sample::profile_release();
+    Datadog::Sample::profile_clear_state();
+    return true;
 }
 
 void

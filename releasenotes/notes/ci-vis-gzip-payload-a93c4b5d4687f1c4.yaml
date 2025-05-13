@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: This introduces the ability to gzip the payload when using the agentless setup, incurring in less network bandwith consumption.

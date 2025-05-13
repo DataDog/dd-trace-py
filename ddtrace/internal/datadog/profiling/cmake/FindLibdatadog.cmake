@@ -17,22 +17,20 @@ include(FetchContent)
 # Set version if not already set
 if(NOT DEFINED TAG_LIBDATADOG)
     set(TAG_LIBDATADOG
-        "v16.0.3"
+        "v18.0.0"
         CACHE STRING "libdatadog github tag")
 endif()
 
 if(NOT DEFINED DD_CHECKSUMS)
     set(DD_CHECKSUMS
-        "dd08d3a4dbbd765392121d27b790d7818e80dd28500b554db16e9186b1025ba9 libdatadog-aarch64-alpine-linux-musl.tar.gz"
-        "2d7933e09dc39706e9c99c7edcff5c60f7567ea2777157596de828f62f39035b libdatadog-aarch64-apple-darwin.tar.gz"
-        "decc01a2e0f732cabcc56594429a3dbc13678070e07f24891555dcc02df2e516 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
-        "fdf4e188d0e92150ad2fbb22e65a645d86d8a4eb04bbd9754683ae1adaf48eb4 libdatadog-i686-alpine-linux-musl.tar.gz"
-        "63ace200493cd8e108be11cbf5ba19b5bd9a2e1cb730bdefd0a14ae217b716f5 libdatadog-i686-unknown-linux-gnu.tar.gz"
-        "8e09afd3cfb5ace85501f37b4bd6378299ebbf71189ccc2173169998b75b4b56 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-        "ced5db61e0ca8e974b9d59b0b6833c28e19445a3e4ec3c548fda965806c17560 libdatadog-x86_64-apple-darwin.tar.gz"
-        "caaec84fc9afbcb3ec4618791b3c3f1ead65196009e9f07fd382e863dc3bdc66 libdatadog-x86_64-unknown-linux-gnu.tar.gz"
-        "3ec847560bd1de86935c230f34cb58d2a0f3f17865349d094e18d3e8edf8518955ede05bf595dc3ca41f99a911760f891bcf58d92fc5c06ce6ad98cdc8f034e3 libdatadog-x64-windows.zip"
-        "2d884d76a35e4c37d05f6902c16b9e08ce1565976a6c9cf5fbd30273d8bd5385ad2523658eebadb02f90543191e217b028e86722ae7bcc08cbca2c342a5b5e79 libdatadog-x86-windows.zip"
+        "4b64b58162d215a4f16b6ced4d602667565ebe20015341219daa998e3cf4e0a8 libdatadog-aarch64-alpine-linux-musl.tar.gz"
+        "1b63df9650c2d087ec291198616a9bc2237b52ad532244eccbf5923a0662815b libdatadog-aarch64-apple-darwin.tar.gz"
+        "f544316a2b58476979a3b05f0236837790320c385a73f1e111f8736b95ca3a87 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
+        "8af91ff3f7d266a6acc55b3a12a927a3d1b6ab51845b3d54333965086453c1c6 libdatadog-x86_64-alpine-linux-musl.tar.gz"
+        "9402b83ecee3a73da8b4bccee1c57a3a8ac6e6d175d50fbee08d458eeda69c16 libdatadog-x86_64-apple-darwin.tar.gz"
+        "c7c7f0ce597d515ce6aa8bcf3edd12a009c2c02dd5e715ea318a3bcf3221a65d libdatadog-x86_64-unknown-linux-gnu.tar.gz"
+        "1d1be67b92327618bd8023abc36f51484a951c3ab069841b7cb09b5484e36f1f69c189895da5b8f16fe853c7b99cd1be5e24ff99bed195d0cfd57dd0f62b8a95 libdatadog-x64-windows.zip"
+        "9015e0a4747a91d5c7334955e2d5e2006207fb683a7534b9ea65a7accdb7d24e5869a9d58df3a918e2ffc739630fac3c6d293664b7f12b32f3977d7bd12b2c44 libdatadog-x86-windows.zip"
     )
 endif()
 
