@@ -603,6 +603,7 @@ else:
     else:
         debug_compile_args = []
 
+
 if not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -612,6 +613,7 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
             extra_compile_args=(
                 debug_compile_args
@@ -623,7 +625,7 @@ if not IS_PYSTON:
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
-                else ["/std:c11"]
+                else ["/std:c11", "/experimental:c11atomics"]
             ),
         ),
         Extension(
@@ -659,9 +661,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (
-        (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python()
-    ) or CURRENT_OS == "Windows":
+    if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) or CURRENT_OS == "Windows":
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -670,7 +670,7 @@ if not IS_PYSTON:
             )
         )
 
-    if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64")) and is_64_bit_python():
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",

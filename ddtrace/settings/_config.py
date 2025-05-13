@@ -14,6 +14,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
@@ -647,9 +648,9 @@ class Config(object):
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
 
-        self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
+        self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         self._lib_was_injected = False
-        self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
+        self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
@@ -778,10 +779,7 @@ class Config(object):
             item_names.append(key)
             item = self._config[key]
             item.set_value_source(value, origin)
-            if self._telemetry_enabled:
-                from ddtrace.internal.telemetry import telemetry_writer
-
-                telemetry_writer.add_configuration(item._name, item.value(), item.source())
+            telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):
