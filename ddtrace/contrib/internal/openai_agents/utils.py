@@ -7,6 +7,7 @@ from agents import WebSearchTool
 
 def create_agent_manifest(agent):
     manifest = {}
+    manifest["model_provider"] = "openai"
 
     if hasattr(agent, "name"):
         manifest["name"] = agent.name
@@ -107,10 +108,21 @@ def extract_handoffs_from_agent(agent):
 
     handoffs = []
     for handoff in agent.handoffs:
-        if isinstance(handoff, Agent) and hasattr(handoff, "name"):
-            handoffs.append(handoff.name)
-        elif isinstance(handoff, Handoff) and hasattr(handoff, "tool_name"):
-            handoffs.append(handoff.tool_name)
+        handoff_dict = {}
+        if isinstance(handoff, Agent):
+            if hasattr(handoff, "handoff_description"):
+                handoff_dict["handoff_description"] = handoff.handoff_description
+            if hasattr(handoff, "name"):
+                handoff_dict["agent_name"] = handoff.name
+        elif isinstance(handoff, Handoff):
+            if hasattr(handoff, "tool_name"):
+                handoff_dict["tool_name"] = handoff.tool_name
+            if hasattr(handoff, "tool_description"):
+                handoff_dict["handoff_description"] = handoff.tool_description
+            if hasattr(handoff, "agent_name"):
+                handoff_dict["agent_name"] = handoff.agent_name
+        if handoff_dict:
+            handoffs.append(handoff_dict)
 
     return handoffs
 
