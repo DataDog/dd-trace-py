@@ -1,7 +1,6 @@
 import sys
 
 import litellm
-from litellm.proxy.route_llm_request import route_request
 
 from ddtrace import config
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
@@ -139,6 +138,8 @@ async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs)
 
 
 def patch():
+    from litellm.proxy.route_llm_request import route_request
+
     if getattr(litellm, "_datadog_patch", False):
         return
 
