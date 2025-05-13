@@ -6,6 +6,7 @@ ML_APP = "_ml_obs.meta.ml_app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 TAGS = "_ml_obs.tags"
+AGENT_MANIFEST = "_ml_obs.meta.agent_manifest"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
 MODEL_PROVIDER = "_ml_obs.meta.model_provider"
