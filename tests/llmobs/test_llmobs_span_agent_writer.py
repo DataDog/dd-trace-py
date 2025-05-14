@@ -2,6 +2,8 @@ import time
 
 import mock
 
+from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.settings._agent import config as agent_config
 from tests.llmobs._utils import _chat_completion_event
@@ -13,44 +15,57 @@ from tests.llmobs._utils import _oversized_workflow_event
 
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
+AGENT_PROXY_URL = "{}{}{}".format(INTAKE_ENDPOINT, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
+UNIX_AGENT_INTAKE = "unix:///var/run/datadog/apm.sock"
+UNIX_AGENT_PROXY_URL = "{}{}{}".format(UNIX_AGENT_INTAKE, EVP_PROXY_AGENT_BASE_PATH, SPAN_ENDPOINT)
 
 
 def test_writer_start(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.start()
-    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", INTAKE_ENDPOINT)])
+    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", AGENT_PROXY_URL)])
+    llmobs_span_writer.stop()
 
 
-def test_buffer_limit(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+def test_unix_socket_writer_start(mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False, _override_url=UNIX_AGENT_INTAKE)
+    llmobs_span_writer.start()
+    mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsSpanWriter", UNIX_AGENT_PROXY_URL)])
+    llmobs_span_writer.stop()
+
+
+def test_buffer_limit(mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     for _ in range(1001):
         llmobs_span_writer.enqueue({})
     mock_writer_logs.warning.assert_called_with(
-        "%r event buffer full (limit is %d), dropping event", "LLMObsSpanEncoder", 1000
+        "%r event buffer full (limit is %d), dropping event", "LLMObsSpanWriter", 1000
     )
 
 
-def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(
-    mock_writer_logs, mock_http_writer_send_payload_response
-):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+@mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
+def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(mock_send_payload, mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
+    llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
         [
-            mock.call("flushing queue because queuing next event will exceed EVP payload limit"),
-            mock.call("encode %d LLMObs span events to be sent", 5),
+            mock.call("manually flushing buffer because queueing next event will exceed EVP payload limit"),
+            mock.call("encoded %d LLMObs %s events to be sent", 5, "span"),
+            mock.call("encoded %d LLMObs %s events to be sent", 1, "span"),
         ],
         any_order=True,
     )
 
 
-def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
+@mock.patch("ddtrace.llmobs._writer.LLMObsSpanWriter._send_payload")
+def test_truncating_oversized_events(mock_send_payload, mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.enqueue(_oversized_llm_event())
     llmobs_span_writer.enqueue(_oversized_retrieval_event())
     llmobs_span_writer.enqueue(_oversized_workflow_event())
@@ -63,31 +78,32 @@ def test_truncating_oversized_events(mock_writer_logs, mock_http_writer_send_pay
     )
 
 
-def test_send_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
-    llmobs_span_writer.start()
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_completion_event(mock_send_payload, mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
+    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
 
 
-def test_send_chat_completion_event(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=1000, timeout=1)
-    llmobs_span_writer.start()
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_chat_completion_event(mock_send_payload, mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
     llmobs_span_writer.enqueue(_chat_completion_event())
     llmobs_span_writer.periodic()
-    mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
+    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
 
 
-def test_send_timed_events(mock_writer_logs, mock_http_writer_send_payload_response):
-    llmobs_span_writer = LLMObsSpanWriter(is_agentless=False, interval=0.05, timeout=1)
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_timed_events(mock_send_payload, mock_writer_logs):
+    llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=False)
     llmobs_span_writer.start()
     mock_writer_logs.reset_mock()
 
     llmobs_span_writer.enqueue(_completion_event())
     time.sleep(0.1)
-    mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
+    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
     mock_writer_logs.reset_mock()
     llmobs_span_writer.enqueue(_chat_completion_event())
     time.sleep(0.1)
-    mock_writer_logs.debug.assert_has_calls([mock.call("encode %d LLMObs span events to be sent", 1)])
+    mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])

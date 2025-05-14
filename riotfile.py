@@ -128,6 +128,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_packages",
+            # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
+            pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
+            command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pkgs={
+                "requests": latest,
+                "astunparse": latest,
+                "flask": latest,
+                "virtualenv-clone": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -271,6 +288,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
+                "pytest-benchmark": latest,
             },
             venvs=[
                 Venv(
@@ -457,7 +475,7 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
-            name="test_logging",
+            name="logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
@@ -679,7 +697,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="django_hosts",
+            name="django:django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
                 "pytest-django[testing]": [
@@ -706,7 +724,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="djangorestframework",
+            name="django:djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
@@ -738,7 +756,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="django_celery",
+            name="django:celery",
             command="pytest {cmdargs} tests/contrib/django_celery",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
@@ -805,7 +823,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch-multi",
+            name="elasticsearch:multi",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
             venvs=[
                 Venv(
@@ -819,7 +837,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch-async",
+            name="elasticsearch:async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
             env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
@@ -835,7 +853,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="elasticsearch-opensearch",
+            name="elasticsearch:opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
             pys=select_pys(),
@@ -1022,7 +1040,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="psycopg2",
+            name="psycopg:psycopg2",
             command="pytest {cmdargs} tests/contrib/psycopg2",
             pkgs={
                 "pytest-randomly": latest,
@@ -1065,6 +1083,24 @@ venv = Venv(
                     ],
                 ),
             ],
+        ),
+        Venv(
+            name="appsec_iast_memcheck",
+            command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "pytest-memray": latest,
+                "psycopg2-binary": "~=2.9.9",
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="pymemcache",
@@ -1438,6 +1474,7 @@ venv = Venv(
             command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
@@ -1545,11 +1582,12 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pytest-bdd",
+            name="pytest_bdd",
             command="pytest --no-ddtrace {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
+                "pytest": "==7.4.4",
                 "pytest-randomly": latest,
                 "pytest-bdd": [
                     ">=4.0,<5.0",
@@ -1604,7 +1642,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pytest-benchmark",
+            name="pytest_benchmark",
             pys=select_pys(min_version="3.8", max_version="3.12"),
             command="pytest {cmdargs} --no-ddtrace --no-cov tests/contrib/pytest_benchmark/",
             pkgs={
@@ -1677,7 +1715,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="grpc_aio",
+            name="grpc:grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
                 "googleapis-common-protos": latest,
@@ -1713,7 +1751,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="graphene",
+            name="graphql:graphene",
             command="pytest {cmdargs} tests/contrib/graphene",
             pys=select_pys(min_version="3.8"),
             pkgs={
@@ -2567,11 +2605,12 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
             pkgs={
-                "litellm": latest,
+                "litellm": "==1.65.4",
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "botocore": latest,
                 "boto3": latest,
+                "openai": "==1.68.2",
             },
         ),
         Venv(
@@ -2743,6 +2782,19 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            name="integration_registry",
+            command="pytest {cmdargs} tests/contrib/integration_registry",
+            pkgs={
+                "riot": "==0.20.1",
+                "pytest-randomly": latest,
+                "pytest-asyncio": "==0.23.7",
+                "PyYAML": latest,
+                "jsonschema": latest,
+            },
+            # we only need to run this on one version of Python
+            pys=["3.13"],
+        ),
+        Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
@@ -2870,6 +2922,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                "jsonschema": latest,
                 "lz4": latest,
                 "pytest-cpp": latest,
                 #

@@ -8,6 +8,9 @@ stages:
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  DD_DISABLE_VPA: true
   # CI_DEBUG_SERVICES: "true"
 
 default:
@@ -49,6 +52,11 @@ tests-gen:
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
+ # Allow the child job to fail if explicitly asked
+ rules:
+   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+     allow_failure: true
+   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
@@ -58,6 +66,10 @@ run-tests-trigger:
 microbenchmarks:
   stage: benchmarks
   needs: [ "download_ddtrace_artifacts" ]
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   trigger:
     include: .gitlab/benchmarks/microbenchmarks.yml
     strategy: depend
@@ -158,7 +170,7 @@ publish-lib-init-pinned-tags:
 configure_system_tests:
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,docker-ssi,lib-injection"
-    
+
 deploy_to_reliability_env:
   needs: []
 

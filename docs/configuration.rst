@@ -914,6 +914,20 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACE_BAGGAGE_TAG_KEYS:
+      type: String
+      default: "user.id,account.id,session.id"
+
+      description: |
+         A comma-separated list of baggage keys to be automatically attached as tags on spans.
+         For each key specified, if a corresponding baggage key is present and has a non-empty value,
+         the key-value pair will be added to the span's metadata using the key name formatted as ``baggage.<key>``.
+         If you want to turn off this feature, set the configuration value to an empty string.
+         When set to `*`, **all** baggage keys will be converted into span tags. Use with caution: this may unintentionally expose sensitive or internal data if not used intentionally.
+
+      version_added: 
+         v3.6.0:
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 .. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
@@ -948,3 +962,24 @@ Live Debugging
 --------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
+
+Error Tracking
+--------------
+.. ddtrace-configuration-options::
+  DD_ERROR_TRACKING_HANDLED_ERRORS:
+      type: String
+      default: ""
+
+      description: |
+          Report automatically handled errors to Error Tracking.
+          Handled errors are also attached to spans through span events.
+
+          Possible values are: ``user|third_party|all``. Report handled exceptions
+          of user code, third party packages or both.
+
+  DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE:
+      type: String
+      default: ""
+
+      description: |
+          Comma-separated list of Python modules for which we report handled errors.

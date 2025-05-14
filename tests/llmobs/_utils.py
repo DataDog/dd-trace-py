@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
@@ -100,8 +101,24 @@ def _expected_llmobs_llm_span_event(
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
+            input_messages = (
+                [
+                    input_message if input_message.get("role") is not None else {**input_message, "role": ""}
+                    for input_message in input_messages
+                ]
+                if isinstance(input_messages, list)
+                else input_messages
+            )
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
+            output_messages = (
+                [
+                    output_message if output_message.get("role") is not None else {**output_message, "role": ""}
+                    for output_message in output_messages
+                ]
+                if isinstance(output_messages, list)
+                else output_messages
+            )
             meta_dict["output"].update({"messages": output_messages})
         if prompt is not None:
             meta_dict["input"].update({"prompt": prompt})
@@ -812,6 +829,16 @@ def _expected_span_link(span_event, link_from, link_to):
         "span_id": span_event["span_id"],
         "attributes": {"from": link_from, "to": link_to},
     }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+        super().enqueue(event)
 
 
 def _assert_span_link(from_span_event, to_span_event, from_io, to_io):

@@ -43,6 +43,21 @@ def path_traversal_sanitizer(wrapped: Callable, instance: Any, args: Sequence, k
     return create_sanitizer(VulnerabilityType.PATH_TRAVERSAL, wrapped, instance, args, kwargs)
 
 
+def xss_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    """Sanitizer for HTML escaping functions that mark output as safe from XSS.
+
+    Args:
+        wrapped: The original quote function
+        instance: The instance (None for module functions)
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        The sanitized string
+    """
+    return create_sanitizer(VulnerabilityType.XSS, wrapped, instance, args, kwargs)
+
+
 def sqli_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
     """Sanitizer for SQL quoting functions that mark output as safe from SQL injection.
 
@@ -71,3 +86,7 @@ def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         The quoted shell command
     """
     return create_sanitizer(VulnerabilityType.COMMAND_INJECTION, wrapped, instance, args, kwargs)
+
+
+def header_injection_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    return create_sanitizer(VulnerabilityType.HEADER_INJECTION, wrapped, instance, args, kwargs)

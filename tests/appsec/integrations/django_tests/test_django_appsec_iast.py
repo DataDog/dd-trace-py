@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 import json
 from urllib.parse import urlencode
 
 import pytest
 
-from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -18,14 +16,6 @@ from tests.utils import override_global_config
 
 
 TEST_FILE = "tests/appsec/integrations/django_tests/django_app/views.py"
-
-
-@pytest.fixture(autouse=True)
-def iast_context():
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        yield
 
 
 def _aux_appsec_get_root_span(
@@ -89,6 +79,12 @@ def test_django_weak_hash(client, test_spans, tracer):
     assert str_json is not None, "no JSON tag in root span"
     vulnerability = json.loads(str_json)["vulnerabilities"][0]
     assert vulnerability["location"]["path"].endswith(TEST_FILE)
+    assert type(vulnerability["location"]["spanId"]) is int
+    assert vulnerability["location"]["spanId"] > 0
+    assert vulnerability["location"]["stackId"] == "1"
+    assert vulnerability["location"]["line"] > 0
+    assert vulnerability["location"]["method"] == "weak_hash_view"
+    assert "class" not in vulnerability["location"]
     assert vulnerability["evidence"]["value"] == "md5"
 
 
@@ -276,8 +272,13 @@ def test_django_sqli_http_request_parameter(client, test_spans, tracer):
             {"value": "'"},
         ]
     }
+    print(loaded["vulnerabilities"][0]["location"])
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -326,6 +327,10 @@ def test_django_sqli_http_request_parameter_name_get(client, test_spans, tracer)
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter_name_get"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -375,6 +380,10 @@ def test_django_sqli_http_request_parameter_name_post(client, test_spans, tracer
     }
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "sqli_http_request_parameter_name_post"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
 
 
@@ -620,7 +629,7 @@ def test_django_sqli_http_cookies_name(client, test_spans, tracer):
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == "sqli_http_request_cookie_name"
-    assert vulnerability["location"]["class_name"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value
 
 
@@ -679,7 +688,7 @@ def test_django_sqli_http_cookies_value(client, test_spans, tracer):
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["path"] == TEST_FILE
     assert vulnerability["location"]["method"] == "sqli_http_request_cookie_value"
-    assert vulnerability["location"]["class_name"] == ""
+    assert "class" not in vulnerability["location"]
     assert vulnerability["hash"] == hash_value
 
 
@@ -822,7 +831,6 @@ def test_django_querydict(client, test_spans, tracer):
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection(client, test_spans, tracer):
-    patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
         client,
         test_spans,
@@ -846,11 +854,41 @@ def test_django_command_injection(client, test_spans, tracer):
     }
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+    assert loaded["vulnerabilities"][0]["location"]["spanId"] > 0
+    assert loaded["vulnerabilities"][0]["location"]["stackId"] == "1"
+    assert loaded["vulnerabilities"][0]["location"]["method"] == "command_injection"
+    assert "class" not in loaded["vulnerabilities"][0]["location"]
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_command_injection_subprocess(client, test_spans, tracer):
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/command-injection-subprocess/",
+        payload=urlencode({"cmd": "ls"}),
+        content_type="application/x-www-form-urlencoded",
+    )
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("iast_command_injection_subprocess", VULN_CMDI, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {"name": "cmd", "origin": "http.request.body", "value": "ls"}
+    ], f'Assertion error: {loaded["sources"]}'
+    assert loaded["vulnerabilities"][0]["type"] == VULN_CMDI
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "ls", "source": 0}, {"value": " "}, {"redacted": True}]
+    }, f'Assertion error: {loaded["vulnerabilities"][0]["evidence"]}'
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection_span_metrics(client, test_spans, tracer):
-    patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
         client,
         test_spans,
@@ -870,7 +908,6 @@ def test_django_command_injection_span_metrics(client, test_spans, tracer):
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
-    patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
         client,
         iast_spans_with_zero_sampling,
@@ -890,13 +927,27 @@ def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_command_injection_secure_mark(client, test_spans, tracer):
-    patch_common_modules()
     root_span, _ = _aux_appsec_get_root_span(
         client,
         test_spans,
         tracer,
         url="/appsec/command-injection/secure-mark/",
         payload="master",
+        content_type="application/json",
+    )
+
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_xss_secure_mark(client, test_spans, tracer):
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/xss/secure-mark/",
+        payload='<script>alert("XSS")</script>',
         content_type="application/json",
     )
 

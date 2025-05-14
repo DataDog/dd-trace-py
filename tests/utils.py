@@ -524,10 +524,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
         ddtrace.tracer = tracer
+        core.tracer = tracer
         try:
             yield
         finally:
             ddtrace.tracer = original
+            core.tracer = original
 
 
 class DummyWriterMixin:
@@ -1005,8 +1007,10 @@ def override_global_tracer(tracer):
     """
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer
+    core.tracer = tracer
     yield
     ddtrace.tracer = original_tracer
+    core.tracer = original_tracer
 
 
 class SnapshotFailed(Exception):
