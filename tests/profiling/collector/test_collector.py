@@ -3,6 +3,10 @@ import pytest
 from ddtrace.profiling import collector
 
 
+def _test_repr(collector_class, s):
+    assert repr(collector_class()) == s
+
+
 def test_capture_sampler():
     cs = collector.CaptureSampler(15)
     assert cs.capture() is False  # 15

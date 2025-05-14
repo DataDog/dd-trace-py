@@ -325,8 +325,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if nframes:
             handle = ddup.SampleHandle()
             handle.push_monotonic_ns(now_ns)
-            handle.push_cputime( cpu_time, 1)
-            handle.push_walltime( wall_time, 1)
+            handle.push_cputime(cpu_time, 1)
+            handle.push_walltime(wall_time, 1)
             handle.push_threadinfo(thread_id, thread_native_id, thread_name)
             handle.push_class_name(frames[0].class_name)
             for frame in frames:

@@ -2820,6 +2820,7 @@ venv = Venv(
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
+                "DD_PROFILING_ENABLED": "true",
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
                 "CPUCOUNT": "12",
@@ -2915,6 +2916,7 @@ venv = Venv(
             # NB riot commands that use this Venv must include --pass-env to work properly
             command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
             env={
+                "DD_PROFILING_ENABLED": "true",
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
             },

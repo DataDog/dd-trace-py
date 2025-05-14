@@ -108,7 +108,7 @@ def test_failed_start_collector(caplog, monkeypatch):
             return []
 
     p = TestProfiler()
-    err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
+    err_collector = mock.MagicMock(wraps=ErrCollect())
     p._collectors = [err_collector]
     p.start()
 
