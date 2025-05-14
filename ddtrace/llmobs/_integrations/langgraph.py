@@ -81,7 +81,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             return
 
         finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
-        seen_pregel_tasks = set()
+        seen_pregel_tasks: set[int] = set()  # set of pregel send object ids
         for task_id, task in next_tasks.items():
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
