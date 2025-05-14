@@ -1,4 +1,5 @@
 import os
+import sysconfig
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -24,6 +25,9 @@ from ..reporter import Vulnerability
 log = get_logger(__name__)
 
 CWD = os.path.abspath(os.getcwd())
+
+PURELIB_PATH = sysconfig.get_path("purelib")
+STDLIB_PATH = sysconfig.get_path("stdlib")
 
 
 class taint_sink_deduplication(deduplication):
@@ -120,15 +124,18 @@ class VulnerabilityBase(Operation):
 
             skip_location = getattr(cls, "skip_location", False)
             if not skip_location:
-                frame_info = get_info_frame(CWD)
+                frame_info = get_info_frame()
                 if not frame_info or frame_info[0] == "" or frame_info[0] == -1:
                     return None
 
                 file_name, line_number = frame_info
+                if not file_name:
+                    return
 
-                # Remove CWD prefix
-                if file_name.startswith(CWD):
-                    file_name = os.path.relpath(file_name, start=CWD)
+                file_name = cls._rel_path(file_name)
+                if not file_name:
+                    log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
+                    return
 
                 if not cls.is_not_reported(file_name, line_number):
                     return
@@ -144,3 +151,13 @@ class VulnerabilityBase(Operation):
             # we need to restore the quota
             if not result:
                 cls.increment_quota()
+
+    @staticmethod
+    def _rel_path(file_name: str) -> str:
+        if file_name.startswith(PURELIB_PATH):
+            return os.path.relpath(file_name, start=PURELIB_PATH)
+        if file_name.startswith(STDLIB_PATH):
+            return os.path.relpath(file_name, start=STDLIB_PATH)
+        if file_name.startswith(CWD):
+            return os.path.relpath(file_name, start=CWD)
+        return ""

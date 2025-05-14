@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: improve performance of the memory profiler for large heaps.
+    The memory profiler previously did a linear search of tracked allocations
+    for every free, which scaled very poorly with large heaps. Switch to a
+    fast hash map.
