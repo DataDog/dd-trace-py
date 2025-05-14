@@ -604,6 +604,9 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
     outcome: pytest_TestReport
     outcome = yield
+
+    # DEV: Make excinfo available for later use, when we don't have the `call` object anymore.
+    # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
     excinfo_by_report[outcome.get_result()] = call.excinfo
 
     if not is_test_visibility_enabled():
