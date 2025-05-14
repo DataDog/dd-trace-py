@@ -129,10 +129,6 @@ def init(
         else:
             trace_enabled = asbool(trace_enabled_env)
 
-        # Explicitly disable the core tracer if APM tracing is not enabled.
-        # This prevents the default agent exporter from activating.
-        if not trace_enabled:
-            ddtrace.tracer.enabled = False
 
         LLMObs.enable(
             ml_app=ml_app,
