@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -21,6 +22,7 @@ from ddtrace.trace import Span
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
+    _litellm_module = None
     _integration_name = "litellm"
     # maps requested model name to parsed model name and provider
     _model_map: Dict[str, Tuple[str, str]] = {}
@@ -49,12 +51,27 @@ class LiteLLMIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_completion(span, kwargs, response)
         else:
             openai_set_meta_tags_from_chat(span, kwargs, response)
+        
+        # custom logic for updating metadata on litellm spans
+        self._update_litellm_metadata(span, kwargs)
 
         metrics = self._extract_llmobs_metrics(response)
         base_url = kwargs.get("api_base", None)
         span._set_ctx_items(
             {SPAN_KIND: "llm" if not base_url else "workflow", MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
+    
+    def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any]):
+        metadata = span._get_ctx_item(METADATA)
+        base_url = kwargs.get("api_base", None)
+        if base_url:
+            if "model" in kwargs:
+                metadata["model"] = kwargs["model"]
+        else:
+            routing_info = {}
+            routing_info["routing_strategy"] = self._litellm_module.proxy.proxy_server.llm_router.routing_strategy
+            metadata["router_settings"] = routing_info
+        span._set_ctx_items({METADATA: metadata})
 
     @staticmethod
     def _extract_llmobs_metrics(resp: Any) -> Dict[str, Any]:

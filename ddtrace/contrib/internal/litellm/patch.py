@@ -126,6 +126,8 @@ def patch():
     Pin().onto(litellm)
     integration = LiteLLMIntegration(integration_config=config.litellm)
     litellm._datadog_integration = integration
+    # attach litellm module to integration
+    integration._litellm_module = litellm
 
     wrap("litellm", "completion", traced_completion(litellm))
     wrap("litellm", "acompletion", traced_acompletion(litellm))
