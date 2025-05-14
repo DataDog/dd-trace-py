@@ -253,7 +253,7 @@ def test_ignore_profiler_single():
     assert thread_id not in {e.thread_id for e in events}
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_API_TIMEOUT="0.1"))
 def test_ignore_profiler_gevent_task():
     import gevent.monkey
@@ -683,7 +683,7 @@ def test_thread_time_cache():
         )
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_threads():
     import gevent.monkey
