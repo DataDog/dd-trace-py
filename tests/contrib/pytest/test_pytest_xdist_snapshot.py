@@ -10,6 +10,7 @@ from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
+
 ######
 # Skip these tests if they are not running under riot
 riot_env_value = os.getenv("RIOT", None)
