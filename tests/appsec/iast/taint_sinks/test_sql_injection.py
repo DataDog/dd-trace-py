@@ -9,7 +9,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks.sql_injection import check_and_report_sqli
 
 
-def test_checked_tainted_args(iast_context_defaults):
+def test_checked_tainted_args(iast_context_deduplication_enabled):
     cursor = mock.Mock()
     cursor.execute.__name__ = "execute"
     cursor.executemany.__name__ = "executemany"

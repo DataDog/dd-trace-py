@@ -1821,6 +1821,69 @@ Lorem Ipsum Foobar
             }
             assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_insecure.html"
 
+    def test_flask_iast_sampling(self):
+        @self.app.route("/appsec/iast_sampling/", methods=["GET"])
+        def test_sqli():
+            import sqlite3
+
+            from flask import request
+
+            from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+
+            param_tainted = request.args.get("param", "")
+            con = sqlite3.connect(":memory:")
+            cursor = con.cursor()
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '1'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '2'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '3'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '4'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '5'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '6'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '7'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '8'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '9'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '10'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '11'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '12'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '13'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '14'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '15'  FROM sqlite_master"))
+            cursor.execute(add_aspect(add_aspect("SELECT '", param_tainted), "', '16'  FROM sqlite_master"))
+
+            return f"OK:{param_tainted}", 200
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_max_vulnerabilities_per_requests=2,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            list_vulnerabilities = []
+            for i in range(10):
+                resp = self.client.get(f"/appsec/iast_sampling/?param=value{i}")
+                assert resp.status_code == 200
+
+                root_span = self.pop_spans()[0]
+                assert str(resp.data, encoding="utf-8") == f"OK:value{i}", resp.data
+                iast_data = root_span.get_tag(IAST.JSON)
+                if i < 8:
+                    assert iast_data, f"No data({i}): {iast_data}"
+                    loaded = json.loads(iast_data)
+                    assert len(loaded["vulnerabilities"]) == 2
+                    assert loaded["sources"] == [
+                        {"origin": "http.request.parameter", "name": "param", "redacted": True, "pattern": "abcdef"}
+                    ]
+                    for vuln in loaded["vulnerabilities"]:
+                        assert vuln["type"] == VULN_SQL_INJECTION
+                        list_vulnerabilities.append(vuln["location"]["line"])
+                else:
+                    assert iast_data is None
+            assert (
+                len(list_vulnerabilities) == 16
+            ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+
 
 class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
     @pytest.fixture(autouse=True)
