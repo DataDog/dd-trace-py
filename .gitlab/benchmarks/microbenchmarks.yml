@@ -18,6 +18,8 @@ variables:
   interruptible: true
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends parallel
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
 
