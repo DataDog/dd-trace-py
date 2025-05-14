@@ -291,6 +291,49 @@ def test_string_operator_add_inplace_dict_dynamic_keys(function) -> None:
         "do_operator_add_inplace_dict_key_from_class",
     ),
 )
+def test_string_operator_add_inplace_dict_string_values(function) -> None:
+    """Test += operations with non-string dictionary values"""
+    d = {
+        "list": [
+            taint_pyobject(
+                pyobject="list_element",
+                source_name="test",
+                source_value="list_element",
+                source_origin=OriginType.PARAMETER,
+            )
+        ],
+        "tuple": (
+            taint_pyobject(
+                pyobject="tuple_element",
+                source_name="test",
+                source_value="tuple_element",
+                source_origin=OriginType.PARAMETER,
+            ),
+        ),
+    }
+
+    # Test sequence operations
+    result3 = getattr(mod, function)(d, "list", ["list_element2"])
+    assert d["list"] == ["list_element", "list_element2"]
+    assert result3 == ["list_element", "list_element2"]
+    assert len(get_tainted_ranges(d["list"][0])) == 1
+    assert len(get_tainted_ranges(result3[0])) == 1
+
+    result4 = getattr(mod, function)(d, "tuple", ("tuple_element2",))
+    assert d["tuple"] == ("tuple_element", "tuple_element2")
+    assert result4 == ("tuple_element", "tuple_element2")
+    assert len(get_tainted_ranges(d["tuple"][0])) == 1
+    assert len(get_tainted_ranges(result4[0])) == 1
+
+
+@pytest.mark.parametrize(
+    "function",
+    (
+        "do_operator_add_inplace_dict_key",
+        "do_operator_add_inplace_dict_key_from_function",
+        "do_operator_add_inplace_dict_key_from_class",
+    ),
+)
 def test_string_operator_add_inplace_dict_non_string_values(function) -> None:
     """Test += operations with non-string dictionary values"""
     d = {"int": 1, "float": 1.0, "list": [1], "tuple": (1,)}
