@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_stri
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
@@ -45,9 +46,9 @@ def attempt_to_fix_handle_retries(
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
-    setup_report = test_reports.get("setup")
-    call_report = test_reports.get("call")
-    teardown_report = test_reports.get("teardown")
+    setup_report = test_reports.get(TestPhase.SETUP)
+    call_report = test_reports.get(TestPhase.CALL)
+    teardown_report = test_reports.get(TestPhase.TEARDOWN)
 
     retry_outcomes = _RETRY_OUTCOMES
     final_outcomes = _FINAL_OUTCOMES
@@ -78,7 +79,7 @@ def attempt_to_fix_handle_retries(
         nodeid=item.nodeid,
         location=item.location,
         keywords={k: 1 for k in item.keywords},
-        when="call",
+        when=TestPhase.CALL,
         longrepr=longrepr,
         outcome=final_outcomes[retries_outcome],
         user_properties=item.user_properties,

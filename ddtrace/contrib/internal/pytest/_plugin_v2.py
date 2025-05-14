@@ -22,6 +22,7 @@ from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_names_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_session_command
@@ -457,10 +458,10 @@ def pytest_runtest_protocol(item, nextitem) -> None:
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
-        if report.failed and report.when in ("setup", "teardown"):
+        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
 
-        if report.when == "call" or "failed" in report.outcome:
+        if report.when == TestPhase.CALL or "failed" in report.outcome:
             if is_quarantined or is_disabled:
                 # Ensure test doesn't count as failed for pytest's exit status logic
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
@@ -530,7 +531,7 @@ def _process_result(item, result) -> _TestOutcome:
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-    if result.when != "teardown" and not (has_exception or result.failed):
+    if result.when != TestPhase.TEARDOWN and not (has_exception or result.failed):
         return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
@@ -571,9 +572,9 @@ def _process_result(item, result) -> _TestOutcome:
         return _TestOutcome(TestStatus.FAIL)
 
     # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
-    if result.when == "setup" and result.failed:
+    if result.when == TestPhase.SETUP and result.failed:
         InternalTest.stash_set(test_id, "setup_failed", True)
-    elif result.when == "teardown" and result.failed:
+    elif result.when == TestPhase.TEARDOWN and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
     exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb) if report_excinfo else None
@@ -591,7 +592,7 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
 
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test
-    if test_outcome.status is None and call.when != "teardown":
+    if test_outcome.status is None and call.when != TestPhase.TEARDOWN:
         return
 
     # Support for pytest-benchmark plugin
@@ -760,7 +761,7 @@ def pytest_report_teststatus(
     user_properties = getattr(report, "user_properties", [])
     is_quarantined = USER_PROPERTY_QUARANTINED in user_properties
     if is_quarantined:
-        if report.when == "teardown":
+        if report.when == TestPhase.TEARDOWN:
             return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
         else:
             # Don't show anything for setup and call of quarantined tests, regardless of

@@ -45,6 +45,12 @@ class _PYTEST_STATUS:
 PYTEST_STATUS = _PYTEST_STATUS()
 
 
+class TestPhase:
+    SETUP = "setup"
+    CALL = "call"
+    TEARDOWN = "teardown"
+
+
 @dataclass
 class TestNames:
     module: str

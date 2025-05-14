@@ -6,6 +6,7 @@ from _pytest.runner import runtestprotocol
 import pytest
 
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.ext.test_visibility.api import TestExcInfo
@@ -78,7 +79,7 @@ def _get_outcome_from_retry(
         else:
             report.outcome = outcomes.PASSED
 
-        if report.when == "call" or "passed" not in report.outcome:
+        if report.when == TestPhase.CALL or "passed" not in report.outcome:
             item.ihook.pytest_runtest_logreport(report=report)
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
