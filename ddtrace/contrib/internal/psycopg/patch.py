@@ -116,6 +116,7 @@ def _patch(psycopg_module):
     psycopg_module._datadog_patch = True
 
     from ddtrace.trace import Pin
+
     Pin(_config=config.psycopg).onto(psycopg_module)
 
     if psycopg_module.__name__ == "psycopg2":
@@ -163,6 +164,7 @@ def _unpatch(psycopg_module):
             psycopg_module.AsyncConnection.connect = _original_async_connect
 
         from ddtrace.trace import Pin
+
         pin = Pin.get_from(psycopg_module)
         if pin:
             pin.remove_from(psycopg_module)
@@ -182,6 +184,7 @@ def init_cursor_from_connection_factory(psycopg_module):
                 return wrapped_cursor_cls(*args, **kwargs)
 
         from ddtrace.trace import Pin
+
         pin = Pin.get_from(connection).clone()
         cfg = config.psycopg
 
