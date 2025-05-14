@@ -93,13 +93,6 @@ class VulnerabilityBase(Operation):
         *args,
         **kwargs,
     ) -> bool:
-        if not asm_config.is_iast_request_enabled:
-            if _is_iast_debug_enabled():
-                log.debug(
-                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
-                    "No request quota or this vulnerability is outside the context"
-                )
-            return False
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 
