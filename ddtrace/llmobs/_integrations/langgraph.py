@@ -20,6 +20,10 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Span
 
 
+PREGEL_PUSH = "__pregel_push"
+PREGEL_TASKS = "__pregel_tasks"
+
+
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_by_task_id: Dict[str, Any] = {}  # maps task_id to dictionary of name, span, and span_links
@@ -75,11 +79,16 @@ class LangGraphIntegration(BaseLLMIntegration):
         if not more_tasks:
             self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
             return
-        finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
-        for task_id, task in next_tasks.items():
-            self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
 
-    def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph_node):
+        finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
+        seen_pregel_tasks = set()
+        for task_id, task in next_tasks.items():
+            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
+            queued_node["name"] = getattr(task, "name", "")
+
+            self._link_task_to_parent(task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks)
+
+    def _handle_finished_graph(self, graph_span: Span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
         Generate the output-to-output span links for the last nodes in a pregel graph.
         If the graph isn't a subgraph, add a span link from the graph span to the calling LLMObs parent span.
@@ -105,23 +114,17 @@ class LangGraphIntegration(BaseLLMIntegration):
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
         return
 
-    def _link_task_to_parent(self, task_id, task, finished_task_names_to_ids):
+    def _link_task_to_parent(self, task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks):
         """Create the span links for a queued task from its triggering parent tasks."""
-        task_config = getattr(task, "config", {})
-        task_triggers = _normalize_triggers(
-            triggers=task_config.get("metadata", {}).get("langgraph_triggers", []),
-            finished_tasks=finished_task_names_to_ids,
-            next_task=task,
+        trigger_node_ids = _get_task_trigger_ids_from_finished_tasks(
+            task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks
         )
 
-        trigger_node_names = [_extract_parent(trigger) for trigger in task_triggers]
-        trigger_node_ids: List[str] = [
-            finished_task_names_to_ids.get(trigger_node_name, "") for trigger_node_name in trigger_node_names
-        ]
-
         for node_id in trigger_node_ids:
-            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
-            queued_node["name"] = getattr(task, "name", "")
+            if node_id is None:
+                continue
+
+            queued_node: dict = self._graph_nodes_by_task_id.setdefault(task_id, {})
 
             trigger_node_span = self._graph_nodes_by_task_id.get(node_id, {}).get("span")
             if not trigger_node_span:
@@ -133,25 +136,71 @@ class LangGraphIntegration(BaseLLMIntegration):
                 "trace_id": trigger_node_span.get("trace_id", ""),
                 "attributes": {"from": "output", "to": "input"},
             }
-            span_links = queued_node.setdefault("span_links", [])
+            span_links: list[dict] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
 
-def _normalize_triggers(triggers, finished_tasks, next_task) -> List[str]:
-    """
-    Return the default triggers for a LangGraph node.
+def _get_task_trigger_ids_from_finished_tasks(
+    task, finished_tasks: dict[str, Any], finished_task_names_to_ids: dict[str, str], seen_pregel_tasks: set[str]
+):
+    task_config = getattr(task, "config", {})
+    task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
 
-    For nodes queued up with `langgraph.types.Send`, the triggers are an unhelpful ['__pregel_push'].
-    In this case (and in any case with 1 finished task and 1 trigger), we can infer the trigger from
-    the one finished task.
-    """
-    if len(finished_tasks) != 1 or len(triggers) != 1:
-        return triggers
+    # legacy handling for langgraph task triggers
+    # will be of the form: ["a", "b", etc.]
+    # early langgraph versions do not have concept of
+    # pregel sends/pushes
+    trigger_ids = [
+        task_id
+        for trigger in task_triggers
+        if isinstance(trigger, str)
+        if (task_id := finished_task_names_to_ids.get(_extract_parent(trigger))) is not None
+    ]
 
-    finished_task_name = list(finished_tasks.keys())[0]
-    next_task_name = getattr(next_task, "name", "")
+    if trigger_ids:
+        return trigger_ids
 
-    return [f"{finished_task_name}:{next_task_name}"]
+    # try and find triggers from new formatting in writes/triggers
+    trigger_branch = _find_trigger(task_triggers)
+    if trigger_branch is None:
+        return []
+    elif trigger_branch == PREGEL_PUSH:
+        for finished_task_id, finished_task in finished_tasks.items():
+            if _has_pregel_push_for_task(task, finished_task, seen_pregel_tasks):
+                return [finished_task_id]
+        return []
+    else:
+        return [
+            finished_task_id
+            for finished_task_id, finished_task in finished_tasks.items()
+            if _has_branch_to(finished_task, trigger_branch)
+        ]
+
+
+def _find_trigger(triggers: tuple[str]):
+    has_pregel_push = False
+    for trigger in triggers:
+        if trigger.startswith("branch:to"):
+            return trigger
+        has_pregel_push = trigger == PREGEL_PUSH
+    if has_pregel_push:
+        return PREGEL_PUSH
+    return None
+
+
+def _has_branch_to(task, branch_to):
+    for write in task.writes:
+        if branch_to in write:
+            return True
+    return False
+
+
+def _has_pregel_push_for_task(task, finished_task, seen_pregel_tasks: set):
+    for branch, arg in finished_task.writes:
+        if branch == PREGEL_TASKS and id(arg) not in seen_pregel_tasks:
+            seen_pregel_tasks.add(id(arg))
+            return arg.node == task.name  # TODO(sabrenner) check if this is correct
+    return False
 
 
 def _extract_parent(trigger: str) -> str:
