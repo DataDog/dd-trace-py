@@ -51,8 +51,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_chat(span, kwargs, response)
 
         metrics = self._extract_llmobs_metrics(response)
+        base_url = kwargs.get("api_base", None)
         span._set_ctx_items(
-            {SPAN_KIND: "llm", MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: "llm" if not base_url else "workflow", MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
 
     @staticmethod
@@ -76,13 +77,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         Span should be NOT submitted to LLMObs if:
-            - base_url is not None: is a proxy request and we will capture the LLM request downstream
             - non-streamed request and model provider is OpenAI/AzureOpenAI and the OpenAI integration
                 is enabled: this request will be captured in the OpenAI integration instead
         """
-        base_url = kwargs.get("api_base", None)
-        if base_url is not None:
-            return False
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
         # model provider is unknown until request completes; therefore, this is a best effort attempt to check
