@@ -2597,8 +2597,29 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "langgraph": "~=0.2.60",
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "langgraph": "==0.2.23",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "langgraph": "==0.3.21",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "langgraph": "==0.3.22",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "langgraph": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="litellm",
