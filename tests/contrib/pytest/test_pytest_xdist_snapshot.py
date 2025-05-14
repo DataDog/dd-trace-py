@@ -18,7 +18,6 @@ if not riot_env_value:
 ######
 
 
-
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
 SNAPSHOT_IGNORES = [
