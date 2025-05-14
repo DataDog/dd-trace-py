@@ -143,3 +143,6 @@ class TestLangGraphLLMObs:
         _assert_span_link(b_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")
         _assert_span_link(a_span, b_span, "output", "input")
+
+        assert a_span["meta"]["output"]["value"] is not None
+        assert b_span["meta"]["output"]["value"] is not None

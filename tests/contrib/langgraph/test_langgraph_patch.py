@@ -28,6 +28,9 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_wrapped(Pregel.astream)
         self.assert_wrapped(PregelLoop.tick)
 
+        if get_version() >= "0.3.29":
+            self.assert_wrapped(langgraph.utils.runnable._consume_aiter)
+
     def assert_not_module_patched(self, langgraph):
         from langgraph.pregel import Pregel
         from langgraph.pregel.loop import PregelLoop
@@ -39,6 +42,8 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_wrapped(Pregel.stream)
         self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
+        if get_version() >= "0.3.29":
+            self.assert_not_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def assert_not_module_double_patched(self, langgraph):
         from langgraph.pregel import Pregel
@@ -51,6 +56,8 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(Pregel.stream)
         self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
+        if get_version() >= "0.3.29":
+            self.assert_not_double_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def test_ddtrace_run_patch_on_import(self):
         # Overriding the base test case due to langgraph's code structure not allowing

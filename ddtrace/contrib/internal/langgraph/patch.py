@@ -124,7 +124,11 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
         submit_to_llmobs=True,
     )
+
+    span._set_ctx_item("langgraph.from_astream", True)
+
     result = None
+    
     try:
         result = func(*args, **kwargs)
     except Exception:
@@ -135,12 +139,13 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
 
     async def _astream():
         item = None
+        response = None
         while True:
             try:
                 item = await result.__anext__()
+                response = item if response is None else response + item
                 yield item
             except StopAsyncIteration:
-                response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
                 span.finish()
                 break
@@ -151,6 +156,27 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
                 raise
 
     return _astream()
+
+
+@with_traced_module
+async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance, args, kwargs):
+    """
+    Traces the execution of the async iterator consumed by RunnableSeq.astream(), as that iterator
+    does not yield the final output. Instead, the final output is aggregated and returned as a single
+    value by _consume_aiter().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    output = await func(*args, **kwargs)
+
+    if integration.llmobs_enabled:
+        span = pin.tracer.current_span()
+
+        # safeguard against other functions that we don't trace using this function
+        from_astream = span._get_ctx_item("langgraph.from_astream") or False
+        if span and from_astream:
+            span._set_ctx_item("langgraph.astream.output", output)
+
+    return output
 
 
 @with_traced_module
@@ -282,6 +308,9 @@ def patch():
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
+    if get_version() >= "0.3.29":
+        wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
+
 
 def unpatch():
     if not getattr(langgraph, "_datadog_patch", False):
@@ -299,5 +328,8 @@ def unpatch():
     unwrap(Pregel, "stream")
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
+
+    if get_version() >= "0.3.29":
+        unwrap(langgraph.utils.runnable, "_consume_aiter")
 
     delattr(langgraph, "_datadog_integration")
