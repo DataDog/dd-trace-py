@@ -209,6 +209,14 @@ def view_cmdi_secure():
     return Response("OK")
 
 
+@app.route("/iast-header-injection-vulnerability", methods=["GET"])
+def iast_header_injection_vulnerability():
+    header = request.args.get("header")
+    resp = Response("OK")
+    resp.headers["Header-Injection"] = header
+    return resp
+
+
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
     tracer._span_aggregator.writer.flush_queue()

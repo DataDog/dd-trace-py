@@ -88,8 +88,8 @@ class VulnerabilityBase(Operation):
         evidence: Evidence,
         file_name: Optional[str],
         line_number: int,
-        function_name: str = "",
-        class_name: str = "",
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         *args,
         **kwargs,
     ) -> bool:
@@ -139,6 +139,8 @@ class VulnerabilityBase(Operation):
             return file_name, line_number, function_name, class_name
 
         file_name, line_number, function_name, class_name = frame_info
+        if not file_name:
+            return None, None, None, None
 
         file_name = cls._rel_path(file_name)
         if not file_name:
