@@ -343,4 +343,563 @@ interactions:
     status:
       code: 202
       message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "10697357113552329311", "trace_id": "681bad6700000000bcb05224a463bdf4",
+      "metric_type": "categorical", "timestamp_ms": 1746644327590, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "4468695807064388086",
+      "trace_id": "681bad67000000008a61731b01d46c94", "metric_type": "categorical",
+      "timestamp_ms": 1746644327591, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:f15975ef-702f-4a30-8446-97a84cdae839"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/f15975ef-702f-4a30-8446-97a84cdae839/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:58:54 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "474602166348604083", "trace_id": "681bb041000000008f1597747ebb1445",
+      "metric_type": "categorical", "timestamp_ms": 1746645057120, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "14734134830609446102",
+      "trace_id": "681bb04100000000b29e5f4fd902a9b0", "metric_type": "categorical",
+      "timestamp_ms": 1746645057121, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:afadea0b-27aa-4e8f-80f6-8b67a633cb7e"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '643'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/afadea0b-27aa-4e8f-80f6-8b67a633cb7e/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:11:03 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7271793915752498864", "trace_id": "681bb44b00000000f00bb17c0cf7fe2f",
+      "metric_type": "categorical", "timestamp_ms": 1746646091253, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "4837086213810212161",
+      "trace_id": "681bb44b000000003ed7758bdb2053f1", "metric_type": "categorical",
+      "timestamp_ms": 1746646091255, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:882b3786-8bc3-4fb4-b812-ebcc7ffdfb68"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '643'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/882b3786-8bc3-4fb4-b812-ebcc7ffdfb68/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:28:18 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "8704990885348355711", "trace_id": "681ce8b10000000024fa360913f1b5cf",
+      "metric_type": "categorical", "timestamp_ms": 1746725041264, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "2276426674255929829",
+      "trace_id": "681ce8b1000000008ec7a754c89b2f8e", "metric_type": "categorical",
+      "timestamp_ms": 1746725041266, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:62010cf1-b14c-4425-b86b-fd480b3230b7"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '643'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/62010cf1-b14c-4425-b86b-fd480b3230b7/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 17:24:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "5824956447499359777", "trace_id": "681cf5bf00000000c5bd7bf748da0373",
+      "metric_type": "categorical", "timestamp_ms": 1746728383887, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "16996851156005825085",
+      "trace_id": "681cf5bf000000000f7d7f3249cadeba", "metric_type": "categorical",
+      "timestamp_ms": 1746728383888, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:438a067b-34c4-4b81-88e3-74dd3a213a37"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/438a067b-34c4-4b81-88e3-74dd3a213a37/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:19:50 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7622248704565488630", "trace_id": "681cfbbc000000001810c44b53d6d665",
+      "metric_type": "categorical", "timestamp_ms": 1746729916657, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "14731404596431682328",
+      "trace_id": "681cfbbc00000000d1630dd44e65826b", "metric_type": "categorical",
+      "timestamp_ms": 1746729916658, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:1393670d-0127-4980-ba3e-00bf345c33f3"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/1393670d-0127-4980-ba3e-00bf345c33f3/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:45:23 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "3634431197283828298", "trace_id": "681d043000000000b5cdeb6fcb260d1e",
+      "metric_type": "categorical", "timestamp_ms": 1746732080734, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "4915781073659235784",
+      "trace_id": "681d043000000000704c5631de0f0322", "metric_type": "categorical",
+      "timestamp_ms": 1746732080736, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:0fd18dc0-1cb6-4c65-b6e9-82f1392418a8"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '643'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/0fd18dc0-1cb6-4c65-b6e9-82f1392418a8/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:21:27 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "5972764737842054831", "trace_id": "6822057100000000a85f547fd3a8b9f4",
+      "metric_type": "categorical", "timestamp_ms": 1747060081375, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "12092283107323867717",
+      "trace_id": "6822057100000000333cbb0b1b71e914", "metric_type": "categorical",
+      "timestamp_ms": 1747060081376, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:4db1f7a6-63b8-4a3e-a1e6-af688054225b"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/4db1f7a6-63b8-4a3e-a1e6-af688054225b/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "17083490359291827691", "trace_id": "68220ab00000000020d6890c613df8cd",
+      "metric_type": "categorical", "timestamp_ms": 1747061424184, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "8940089595839888261",
+      "trace_id": "68220ab000000000d5fcd75dc2ee9f04", "metric_type": "categorical",
+      "timestamp_ms": 1747061424186, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:bf3b3e9a-b061-40c4-8518-a4208d86237a"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/bf3b3e9a-b061-40c4-8518-a4208d86237a/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:50:31 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "16210804271373021925", "trace_id": "68220f7900000000504375996e20a244",
+      "metric_type": "categorical", "timestamp_ms": 1747062649536, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "16072796243270922246",
+      "trace_id": "68220f79000000001802bf7cbc834772", "metric_type": "categorical",
+      "timestamp_ms": 1747062649537, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:7c59f6f5-5ceb-415f-adc4-308c6d2612c2"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '645'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/7c59f6f5-5ceb-415f-adc4-308c6d2612c2/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:10:56 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "1494457794855513549", "trace_id": "6822102800000000b60fe0ac5a3cb5c9",
+      "metric_type": "categorical", "timestamp_ms": 1747062824151, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "10874132777802044470",
+      "trace_id": "68221028000000006ba2e43ca6dae6bd", "metric_type": "categorical",
+      "timestamp_ms": 1747062824153, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:bec66865-519b-4d2b-9c1f-f7cef29527cc"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/bec66865-519b-4d2b-9c1f-f7cef29527cc/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:13:51 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "7406349341534386195", "trace_id": "6822107400000000fe317481984607a7",
+      "metric_type": "categorical", "timestamp_ms": 1747062900690, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "14122726702898864398",
+      "trace_id": "682210740000000075473522f21e906b", "metric_type": "categorical",
+      "timestamp_ms": 1747062900692, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:665a054a-503b-4359-a21c-b85a7967aa1b"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/665a054a-503b-4359-a21c-b85a7967aa1b/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:15:07 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"span_id": "5983509878303136083", "trace_id": "6822136f000000007afee31e746cf43c",
+      "metric_type": "categorical", "timestamp_ms": 1747063663573, "label": "simple_match_evaluator",
+      "categorical_value": "false", "error": null}, {"span_id": "10238707845227253355",
+      "trace_id": "6822136f000000007b27a0516c0fe099", "metric_type": "categorical",
+      "timestamp_ms": 1747063663574, "label": "simple_match_evaluator", "categorical_value":
+      "false", "error": null}], "tags": ["ddtrace.version:3.4.0.dev284+gabe7934be",
+      "experiment_id:54848c10-d83a-4fc6-b3b1-12b74dc86da4"]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '644'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments/54848c10-d83a-4fc6-b3b1-12b74dc86da4/events
+  response:
+    body:
+      string: ''
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:27:50 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
 version: 1

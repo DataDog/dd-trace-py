@@ -747,4 +747,306 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      date:
+      - Wed, 07 May 2025 18:37:56 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:05 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:47:25 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:49:58 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:36 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:39 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:42 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=existing-but-empty
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:15 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
 version: 1

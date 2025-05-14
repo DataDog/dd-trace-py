@@ -9,7 +9,7 @@ from ddtrace.internal.utils.formats import asbool
 # Default configuration values
 MAX_DATASET_ROWS = 50000
 MAX_PROGRESS_BAR_WIDTH = 40
-DEFAULT_CHUNK_SIZE = 300
+DEFAULT_CHUNK_SIZE = 100
 DEFAULT_CONCURRENT_JOBS = 10
 FLUSH_EVERY = 10
 API_PROCESSING_TIME_SLEEP = 6 # Based on events processor median processing time

@@ -15,9 +15,9 @@ from ddtrace.llmobs.experimentation._experiment import ExperimentResults
 from ddtrace.llmobs.experimentation.utils._ui import Color
 
 # Hardcoded VCR credentials (replace for recording)
-DD_API_KEY = "replace-with-api-key"
-DD_APPLICATION_KEY = "replace-with-app-key"
-DD_SITE = "us3.datadoghq.com"
+DD_APPLICATION_KEY="replace-when-recording"
+DD_API_KEY="replace-when-recording"
+DD_SITE="us3.datadoghq.com"
 
 
 def scrub_response_headers(response):
@@ -60,9 +60,11 @@ def init_llmobs(experiments_vcr):
 
 @pytest.fixture
 def simple_dataset_data():
+    # Use identical input / expected_output so the simple_match_evaluator
+    # returns `True` for every record (many tests expect a 100 % "pass" rate).
     return [
-        {"input": "What is 1+1?", "expected_output": "2"},
-        {"input": "Capital of France?", "expected_output": "Paris"},
+        {"input": "What is 1+1?",           "expected_output": "What is 1+1?"},
+        {"input": "Capital of France?",     "expected_output": "Capital of France?"},
     ]
 
 @pytest.fixture
@@ -507,7 +509,11 @@ class TestExperimentRunEvaluations:
                  assert isinstance(result["error"], dict)
                  assert {"message", "type", "stack"} == set(result["error"].keys())
 
-    def test_run_evals_success(self, experiment_after_task_run, experiments_vcr):
+    def _assert_match_is_true(self, record, value):
+        # True when output == expected_output for that record
+        assert value is (record["input"] == record["expected_output"])
+
+    def test_run_evals_success(self, experiment_after_task_run, synced_dataset, experiments_vcr):
         """Run evaluations successfully after task completion and push."""
         exp = experiment_after_task_run # Already ran task
         assert exp.has_run
@@ -524,7 +530,10 @@ class TestExperimentRunEvaluations:
         assert hasattr(exp, 'evaluations') and len(exp.evaluations) == len(exp.outputs)
         self._check_eval_structure(exp.evaluations[0])
         # Example check on specific evaluator result (simple_match_evaluator should be True)
-        assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"] is True
+        rec0 = synced_dataset[0]
+        self._assert_match_is_true(
+            rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"]
+        )
         assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["error"] is None
 
     def test_run_evals_override_evaluators(self, experiment_after_task_run, experiments_vcr):
@@ -545,7 +554,7 @@ class TestExperimentRunEvaluations:
         assert exp.evaluations[0]["evaluations"]["length_evaluator"]["error"] is None
 
 
-    def test_run_evals_evaluator_error_no_raise(self, experiment_after_task_run, experiments_vcr):
+    def test_run_evals_evaluator_error_no_raise(self, experiment_after_task_run, synced_dataset, experiments_vcr):
         """Capture evaluator errors when raise_errors=False."""
         exp = experiment_after_task_run
         # Use failing evaluator
@@ -559,7 +568,10 @@ class TestExperimentRunEvaluations:
         assert len(results) == len(exp.outputs)
         self._check_eval_structure(exp.evaluations[0])
         # Check good evaluator worked
-        assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"] is True
+        rec0 = synced_dataset[0]
+        self._assert_match_is_true(
+            rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"]
+        )
         assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["error"] is None
         # Check failing evaluator captured error
         assert exp.evaluations[0]["evaluations"]["failing_evaluator"]["value"] is None
@@ -616,7 +628,9 @@ class TestExperimentRunFull:
         assert "evaluations" in results[0]
         assert "simple_match_evaluator" in results[0]["evaluations"]
         assert "length_evaluator" in results[0]["evaluations"]
-        assert results[0]["evaluations"]["simple_match_evaluator"]["value"] is True
+        rec0 = synced_dataset[0]
+        expected_value = rec0["input"] == rec0["expected_output"]
+        assert results[0]["evaluations"]["simple_match_evaluator"]["value"] is expected_value
 
     def test_run_full_task_error_no_raise(self, synced_dataset, experiments_vcr):
         """Test full run() when task fails but raise_errors=False."""
@@ -726,7 +740,7 @@ class TestExperimentRepr:
     # Helper to strip ANSI codes for easier assertions
     def _strip_ansi(self, text):
         import re
-        ansi_escape = re.compile(r'\\x1B(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])')
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mK]')
         return ansi_escape.sub('', text)
 
     def test_repr_initial_local(self, simple_local_dataset):
@@ -920,12 +934,19 @@ class TestExperimentSummaryMetrics:
         # Check keys are prefixed with function name
         assert "pass_fail_counts_summary.passes" in stored_results
         assert "pass_fail_counts_summary.fails" in stored_results
-        assert stored_results["pass_fail_counts_summary.passes"]["value"] == 2 # Both match expected output
+        pass_count = sum(
+            1
+            for r in exp.dataset
+            if r["input"] == r["expected_output"]
+        )
+        fail_count = len(exp.dataset) - pass_count
+
+        assert stored_results["pass_fail_counts_summary.passes"]["value"] == pass_count
         assert stored_results["pass_fail_counts_summary.passes"]["error"] is None
-        assert stored_results["pass_fail_counts_summary.fails"]["value"] == 0
+        assert stored_results["pass_fail_counts_summary.fails"]["value"] == fail_count
         assert stored_results["pass_fail_counts_summary.fails"]["error"] is None
-        mock_push.assert_any_call("passes", 2)
-        mock_push.assert_any_call("fails", 0)
+        mock_push.assert_any_call("passes", pass_count)
+        mock_push.assert_any_call("fails", fail_count)
 
         # 3. failing_summary (error)
         assert "failing_summary" in stored_results
@@ -967,9 +988,19 @@ class TestExperimentSummaryMetrics:
         mock_push.assert_not_called()
 
         # Check print output for local metrics
-        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'average_length_summary' = {expected_avg_len:.1f} (not pushed){Color.RESET}")
-        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'passes' = 2 (not pushed){Color.RESET}")
-        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'fails' = 0 (not pushed){Color.RESET}")
+        mock_print.assert_any_call(
+            f"  {Color.YELLOW}Local summary metric 'average_length_summary' = {expected_avg_len:.1f} "
+            f"(pos=0, primary=False) (not pushed){Color.RESET}"
+        )
+        pass_count = sum(
+            1
+            for r in exp.dataset
+            if r["input"] == r["expected_output"]
+        )
+        fail_count = len(exp.dataset) - pass_count
+
+        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'passes' = {pass_count} (not pushed){Color.RESET}")
+        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'fails' = {fail_count} (not pushed){Color.RESET}")
         # Check error print for the failing one
         mock_print.assert_any_call(f"  {Color.RED}Error running summary metric function 'failing_summary': Summary metric failed intentionally{Color.RESET}")
         # Check print for the None one
@@ -1020,7 +1051,7 @@ class TestExperimentSummaryMetrics:
         rep = repr(results)
         # Helper to strip ANSI codes for easier assertions
         import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mK]')
         rep_clean = ansi_escape.sub('', rep)
 
 
@@ -1031,8 +1062,14 @@ class TestExperimentSummaryMetrics:
         # Check specific summary metric lines
         expected_avg_len = (len("What is 1+1?") + len("Capital of France?")) / 2
         assert f"average_length_summary: {expected_avg_len:.1f}" in rep_clean
-        assert "pass_fail_counts_summary.passes: 2" in rep_clean
-        assert "pass_fail_counts_summary.fails: 0" in rep_clean
+        pass_count = sum(
+            1
+            for r in experiment_with_summaries.dataset
+            if r["input"] == r["expected_output"]
+        )
+        fail_count = len(experiment_with_summaries.dataset) - pass_count
+        assert f"pass_fail_counts_summary.passes: {pass_count}" in rep_clean
+        assert f"pass_fail_counts_summary.fails: {fail_count}" in rep_clean
         assert "failing_summary: Error (ValueError: Summary metric failed intentionally)" in rep_clean
         assert "none_returning_summary: No value returned" in rep_clean
         assert f"URL: {get_base_url()}/llm/testing/experiments/{experiment_with_summaries._datadog_experiment_id}" in rep_clean

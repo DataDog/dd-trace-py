@@ -2993,4 +2993,2188 @@ interactions:
     status:
       code: 202
       message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:17 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:17 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-error-no-raise-29810f",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '310'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"45d3ff09-34b8-4a52-88d5-2aa309ac3a4a","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-07T18:54:18.280662463Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-error-no-raise-29810f","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-07T18:54:18.280662513Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:18 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bac5a00000000b110fb6b8ce42348",
+      "span_id": "2686384312586886731", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746644058301854000, "duration": 6076000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "2686384312586886731",
+      "trace_id": "681bac5a00000000b110fb6b8ce42348"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:45d3ff09-34b8-4a52-88d5-2aa309ac3a4a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681bac5a00000000b5553af151e6d5f7", "span_id":
+      "294823923433220969", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746644058308324000, "duration": 1289000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "294823923433220969",
+      "trace_id": "681bac5a00000000b5553af151e6d5f7"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:45d3ff09-34b8-4a52-88d5-2aa309ac3a4a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Wed, 07 May 2025 18:54:18 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:57:58 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:57:58 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-a13e82",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"14106857-f17c-46a3-9391-44cefa733d17","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-07T18:57:59.284279852Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-a13e82","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-07T18:57:59.284279912Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:57:59 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bad37000000007123bdaab80c9675",
+      "span_id": "17796696016427254824", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746644279305009000, "duration": 2108000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "17796696016427254824",
+      "trace_id": "681bad37000000007123bdaab80c9675"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:14106857-f17c-46a3-9391-44cefa733d17",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681bad37000000002dfd5dbc0ff0b8ee", "span_id":
+      "1461389234665596938", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746644279307547000, "duration": 989000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "1461389234665596938",
+      "trace_id": "681bad37000000002dfd5dbc0ff0b8ee"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:14106857-f17c-46a3-9391-44cefa733d17",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Wed, 07 May 2025 18:57:59 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:10:07 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:10:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-ad7fa5",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"01fc87e9-64dd-47a4-b0cd-6a319aed9fb3","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-07T19:10:08.486640014Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-ad7fa5","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-07T19:10:08.486640063Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:10:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bb01000000000734c084ecad684ba",
+      "span_id": "3826327974858246271", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746645008521497000, "duration": 1038000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "3826327974858246271",
+      "trace_id": "681bb01000000000734c084ecad684ba"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:01fc87e9-64dd-47a4-b0cd-6a319aed9fb3",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681bb010000000006d4c5bceb6dbc590", "span_id":
+      "2425754532346209350", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746645008522760000, "duration": 769000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "2425754532346209350",
+      "trace_id": "681bb010000000006d4c5bceb6dbc590"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:01fc87e9-64dd-47a4-b0cd-6a319aed9fb3",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Wed, 07 May 2025 19:10:08 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:27:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:27:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-c1f4af",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"4285af38-bcd4-4b52-b5c8-877d856ac604","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-07T19:27:37.833909675Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-c1f4af","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-07T19:27:37.833909735Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 19:27:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bb429000000002fff81b0292dd1cf",
+      "span_id": "17933649247642731930", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746646057865623000, "duration": 1464000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 113, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "17933649247642731930",
+      "trace_id": "681bb429000000002fff81b0292dd1cf"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:4285af38-bcd4-4b52-b5c8-877d856ac604",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681bb42900000000d55bd3d74a0e049d", "span_id":
+      "14931059490170785534", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746646057867500000, "duration": 1176000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 113, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "14931059490170785534",
+      "trace_id": "681bb42900000000d55bd3d74a0e049d"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:4285af38-bcd4-4b52-b5c8-877d856ac604",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Wed, 07 May 2025 19:27:38 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 17:23:27 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 17:23:28 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-104e34",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"70333844-506b-4c36-91ce-29cb475aaf8f","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-08T17:23:28.323434541Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-104e34","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T17:23:28.323434601Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 17:23:28 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681ce890000000000ec9efbd1ec9c4f7",
+      "span_id": "7987364546673499321", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746725008347056000, "duration": 2376000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "7987364546673499321",
+      "trace_id": "681ce890000000000ec9efbd1ec9c4f7"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:70333844-506b-4c36-91ce-29cb475aaf8f",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681ce8900000000018a1b81e8035ab48", "span_id":
+      "10917633345705699616", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746725008349926000, "duration": 1198000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "10917633345705699616",
+      "trace_id": "681ce8900000000018a1b81e8035ab48"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:70333844-506b-4c36-91ce-29cb475aaf8f",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 17:23:28 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:19:10 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:19:10 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-9788e3",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"e6cdfe6e-4c66-47fb-ac4f-d473bb233df3","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-08T18:19:11.207080723Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-9788e3","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T18:19:11.207080783Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:19:11 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681cf59f00000000046470ef182e7777",
+      "span_id": "1941488057637990371", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746728351198749000, "duration": 2323000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "1941488057637990371",
+      "trace_id": "681cf59f00000000046470ef182e7777"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:e6cdfe6e-4c66-47fb-ac4f-d473bb233df3",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681cf59f0000000063e409c6eef9a578", "span_id":
+      "3567344235060769804", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746728351201553000, "duration": 1021000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "3567344235060769804",
+      "trace_id": "681cf59f0000000063e409c6eef9a578"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:e6cdfe6e-4c66-47fb-ac4f-d473bb233df3",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 18:19:11 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:44:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:44:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-7588c5",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"598f09d0-30bd-4071-b09d-6bcb859e7448","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-08T18:44:43.874298318Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-7588c5","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T18:44:43.874298368Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 18:44:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681cfb9b000000002395302c2444786c",
+      "span_id": "869062856538846274", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746729883860218000, "duration": 3591000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "869062856538846274",
+      "trace_id": "681cfb9b000000002395302c2444786c"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:598f09d0-30bd-4071-b09d-6bcb859e7448",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681cfb9b0000000068e15e6ab510fa3a", "span_id":
+      "9055471522876619460", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746729883864190000, "duration": 940000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "9055471522876619460",
+      "trace_id": "681cfb9b0000000068e15e6ab510fa3a"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:598f09d0-30bd-4071-b09d-6bcb859e7448",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 18:44:43 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-error-no-raise-7221df",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '310'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"0fed2222-1f8c-4f95-9b5f-752971ba779a","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-08T19:16:48.681422532Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-error-no-raise-7221df","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T19:16:48.681422592Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:48 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681d03200000000086f858a29124d75a",
+      "span_id": "12689543083299351464", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746731808746765000, "duration": 2182000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "12689543083299351464",
+      "trace_id": "681d03200000000086f858a29124d75a"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:0fed2222-1f8c-4f95-9b5f-752971ba779a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681d03200000000031497e3dd1d88fe7", "span_id":
+      "3544370356536280918", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746731808749185000, "duration": 884000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "3544370356536280918",
+      "trace_id": "681d03200000000031497e3dd1d88fe7"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:0fed2222-1f8c-4f95-9b5f-752971ba779a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 19:16:48 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:20:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:20:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-505e4f",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"9924830f-6da4-40f5-8670-b909484d9b76","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-08T19:20:30.877272941Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-505e4f","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T19:20:30.877273002Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:20:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681d03fe00000000ff9306984cb7120c",
+      "span_id": "12193702302481030653", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1746732030939573000, "duration": 2163000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "12193702302481030653",
+      "trace_id": "681d03fe00000000ff9306984cb7120c"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:9924830f-6da4-40f5-8670-b909484d9b76",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "681d03fe00000000d9554f7eb38a2b6a", "span_id":
+      "16978303658008954368", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1746732030942213000, "duration": 1070000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "16978303658008954368",
+      "trace_id": "681d03fe00000000d9554f7eb38a2b6a"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:9924830f-6da4-40f5-8670-b909484d9b76",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 19:20:31 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-error-no-raise-288f4e",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '310'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"8f4456cd-f7ce-4bcb-8a81-34d8c279c15a","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-12T14:23:31.235681363Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-error-no-raise-288f4e","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-12T14:23:31.235681423Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:31 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "682204630000000079cc38da39ffb9fe",
+      "span_id": "1445933872958809968", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1747059811274534000, "duration": 4190000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "1445933872958809968",
+      "trace_id": "682204630000000079cc38da39ffb9fe"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:8f4456cd-f7ce-4bcb-8a81-34d8c279c15a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "68220463000000005778db7a2a3f4c16", "span_id":
+      "7992007400321272998", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1747059811279122000, "duration": 1256000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "7992007400321272998",
+      "trace_id": "68220463000000005778db7a2a3f4c16"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:8f4456cd-f7ce-4bcb-8a81-34d8c279c15a",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Mon, 12 May 2025 14:23:31 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:27:11 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:27:11 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-9fe40b",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"f870e110-b64a-402e-8811-30300f75b251","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-12T14:27:11.857897815Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-9fe40b","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-12T14:27:11.857897875Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:27:11 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "6822053f0000000037807156e4376bef",
+      "span_id": "7886117749296728220", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1747060031885418000, "duration": 2301000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "7886117749296728220",
+      "trace_id": "6822053f0000000037807156e4376bef"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:f870e110-b64a-402e-8811-30300f75b251",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "6822053f0000000058b8de31247b3fb7", "span_id":
+      "1611041400407086385", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1747060031888252000, "duration": 1211000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "1611041400407086385",
+      "trace_id": "6822053f0000000058b8de31247b3fb7"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:f870e110-b64a-402e-8811-30300f75b251",
+      "error_type:builtins.ValueError", "dataset_id:033c3a68-c51d-4064-b941-78825cf83066",
+      "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Mon, 12 May 2025 14:27:11 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:49:49 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:49:49 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-b8944f",
+      "description": "", "dataset_id": "b1dbeef8-632b-40e1-8990-3e8b367a5be5", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"e88ed7d0-536e-4be4-9de3-cb69ad33c8c1","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-12T14:49:49.929196858Z","dataset_id":"b1dbeef8-632b-40e1-8990-3e8b367a5be5","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-b8944f","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-12T14:49:49.929196918Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:49:49 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "68220a8d00000000e64489c9ace22fcf",
+      "span_id": "5664754729695808450", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1747061389979365000, "duration": 1530000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "5664754729695808450",
+      "trace_id": "68220a8d00000000e64489c9ace22fcf"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:e88ed7d0-536e-4be4-9de3-cb69ad33c8c1",
+      "error_type:builtins.ValueError", "dataset_id:b1dbeef8-632b-40e1-8990-3e8b367a5be5",
+      "dataset_record_id:508e4ac2-b4f3-4c99-8e89-90e844062804"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "68220a8d000000008c5e67c31e161a06", "span_id":
+      "4078466626250063896", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1747061389981294000, "duration": 595000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 111, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "4078466626250063896",
+      "trace_id": "68220a8d000000008c5e67c31e161a06"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:e88ed7d0-536e-4be4-9de3-cb69ad33c8c1",
+      "error_type:builtins.ValueError", "dataset_id:b1dbeef8-632b-40e1-8990-3e8b367a5be5",
+      "dataset_record_id:7e83fde1-ebbe-4268-a555-c8fc576e4fef"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Mon, 12 May 2025 14:49:49 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:10:15 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:10:15 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "repr-task-errors-51b120",
+      "description": "", "dataset_id": "b1dbeef8-632b-40e1-8990-3e8b367a5be5", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": null,
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '298'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"7f20b89b-6ae5-4504-9e50-9295ab9b2478","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":null,"created_at":"2025-05-12T15:10:15.654976856Z","dataset_id":"b1dbeef8-632b-40e1-8990-3e8b367a5be5","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"repr-task-errors-51b120","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-12T15:10:15.654976916Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:10:15 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "68220f57000000000c69a12b88cd78d7",
+      "span_id": "12543465148558897725", "parent_id": "undefined", "name": "failing_task",
+      "start_ns": 1747062615662843000, "duration": 1179000, "status": "error", "meta":
+      {"span.kind": "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 113, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "Paris", "input": "Capital of France?"}, "metrics": {}, "_dd": {"span_id": "12543465148558897725",
+      "trace_id": "68220f57000000000c69a12b88cd78d7"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:7f20b89b-6ae5-4504-9e50-9295ab9b2478",
+      "error_type:builtins.ValueError", "dataset_id:b1dbeef8-632b-40e1-8990-3e8b367a5be5",
+      "dataset_record_id:508e4ac2-b4f3-4c99-8e89-90e844062804"]}], "_dd.scope": "experiments"},
+      {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be", "event_type":
+      "span", "spans": [{"trace_id": "68220f57000000002001e44397119a74", "span_id":
+      "10819913488466141235", "parent_id": "undefined", "name": "failing_task", "start_ns":
+      1747062615664361000, "duration": 865000, "status": "error", "meta": {"span.kind":
+      "experiment", "metadata": {}, "error.message": "Task failed intentionally",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_experiment.py\",
+      line 389, in process_row\n    output = self.task(input_data)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/experimentation/_decorators.py\",
+      line 15, in wrapper\n    return func(input)\n           ^^^^^^^^^^^\n  File
+      \"/Users/jonathan.chavez/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_experimentation_experiment.py\",
+      line 113, in failing_task\n    raise ValueError(\"Task failed intentionally\")\nValueError:
+      Task failed intentionally\n", "error.type": "builtins.ValueError", "expected_output":
+      "2", "input": "What is 1+1?"}, "metrics": {}, "_dd": {"span_id": "10819913488466141235",
+      "trace_id": "68220f57000000002001e44397119a74"}, "tags": ["version:", "env:",
+      "service:tests.llmobs", "source:integration", "ml_app:test-exp-app", "ddtrace.version:3.4.0.dev284+gabe7934be",
+      "language:python", "error:1", "experiment_id:7f20b89b-6ae5-4504-9e50-9295ab9b2478",
+      "error_type:builtins.ValueError", "dataset_id:b1dbeef8-632b-40e1-8990-3e8b367a5be5",
+      "dataset_record_id:7e83fde1-ebbe-4268-a555-c8fc576e4fef"]}], "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Mon, 12 May 2025 15:10:15 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
 version: 1

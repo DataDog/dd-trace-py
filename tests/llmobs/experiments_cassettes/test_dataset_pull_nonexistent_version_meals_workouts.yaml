@@ -621,4 +621,209 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":6,"name":"test-meals-workouts","updated_at":"2025-05-05T18:45:16.539872Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:05 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/versions
+  response:
+    body:
+      string: '{"data":[{"id":"97fc7cd1-71c7-4b5d-9a90-c77e6d6a5129","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:00.275822Z","version_number":1}},{"id":"42eae509-f3a0-4317-9f02-311a632a60cf","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:00.273164Z","version_number":4}},{"id":"90eead1a-5893-41ba-af70-7018beff9dbd","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:25.202451Z","version_number":5}},{"id":"e18b1ac5-eb97-4466-99f4-60dc97abb40a","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:44:44.285021Z","version_number":2}},{"id":"f591713e-8043-4b99-8557-459dc6f8e8f0","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:44:44.285021Z","version_number":3}},{"id":"bf4eab0b-25d5-41c6-aad6-3e77e3167e41","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:25.202451Z","version_number":6}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:05 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":15,"name":"test-meals-workouts","updated_at":"2025-05-07T18:51:46.704137Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:39 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/versions
+  response:
+    body:
+      string: '{"data":[{"id":"c6836ec6-3aea-463c-a236-69c1f3e350d3","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:44:44.285021Z","version_number":2}},{"id":"0f125f87-e4e5-48da-b3c4-3c53b692116a","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:39:24.125583Z","version_number":8}},{"id":"60c4f60b-e251-40af-aa21-337477124916","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:39:40.297514Z","version_number":9}},{"id":"3273ef64-b19b-448d-9534-6751f4e9389e","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:51:54.584208Z","version_number":13}},{"id":"1e2a7a59-c732-4396-b590-3a582170e5d8","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:51:54.584208Z","version_number":15}},{"id":"f73aa29e-4542-4551-a671-e1211a64874a","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:00.273164Z","version_number":4}},{"id":"d2e659eb-d48c-4bb4-8052-78aeb20cdb47","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:39:24.125583Z","version_number":7}},{"id":"b1551617-b39b-4c38-8189-ec29a975178f","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:50:17.969419Z","version_number":12}},{"id":"ceb518a0-af96-41d8-81f9-f457c5717336","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:00.275822Z","version_number":1}},{"id":"6a5f9642-08d8-4156-9470-214ed4b822fa","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:44:44.285021Z","version_number":3}},{"id":"d9e7d89a-337a-4731-92b6-a23681f93226","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-05T18:45:25.202451Z","version_number":5}},{"id":"74ac491a-5b8e-4475-9f9e-1b91b1b3bbd3","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:39:40.300327Z","version_number":6}},{"id":"55c675f6-b54d-409e-83a3-e6dfd47cba60","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:40:04.802461Z","version_number":10}},{"id":"b53d9185-f870-4f43-8675-50470f5d441f","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:50:17.969419Z","version_number":11}},{"id":"0eb018da-0c79-4136-8dab-b8fcf9378e80","type":"dataset_version","attributes":{"dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","last_used":"2025-05-07T18:51:54.584208Z","version_number":14}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:39 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646Z","current_version":1,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T14:28:30.587149Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:42 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/versions
+  response:
+    body:
+      string: '{"data":[{"id":"f95c07de-2783-4067-b65f-8ed94c017516","type":"dataset_version","attributes":{"dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","last_used":null,"version_number":1}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
 version: 1

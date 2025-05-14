@@ -1516,4 +1516,877 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      date:
+      - Wed, 07 May 2025 18:37:54 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 403
+      message: Forbidden
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":6,"name":"test-meals-workouts","updated_at":"2025-05-05T18:45:16.539872Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:01 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"c7628aca-1bf0-4cf8-b412-ac28a28a0bc6","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:45:25.196476Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-05T18:45:25.196476Z"}},{"id":"3c13db9f-aacb-41e4-ba96-77fa3e02e898","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:45:25.196467Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-05T18:45:25.196467Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:01 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":11,"name":"test-meals-workouts","updated_at":"2025-05-07T18:39:57.183077Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:47:24 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/versions/11/records
+  response:
+    body:
+      string: '{"errors":[{"status":"404","title":"Not Found"}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:47:25 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 404
+      message: Not Found
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":11,"name":"test-meals-workouts","updated_at":"2025-05-07T18:39:57.183077Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:49:53 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"81f1f82a-f705-4ddf-9e3e-76eac9d8a620","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:40:04.79364Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:40:04.79364Z"}},{"id":"fea3f466-3c8f-448d-9753-021a1133ce88","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:40:04.793631Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:40:04.793631Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:49:54 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":13,"name":"test-meals-workouts","updated_at":"2025-05-07T18:50:10.110159Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:33 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"8ff6ce86-8b30-4bee-844d-4036a56c1123","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:17.952852Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:50:17.952852Z"}},{"id":"ea345afc-e306-48fe-8270-d3fb61e7afd8","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:17.952865Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:50:17.952865Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:34 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":15,"name":"test-meals-workouts","updated_at":"2025-05-07T18:51:46.704137Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:35 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"5da9703e-5ca8-4dbf-b9be-c9c7adb3f394","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:54.567923Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:51:54.567923Z"}},{"id":"eda31758-4d4f-4c7a-b019-c1e1b2a4d13f","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:54.567913Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:51:54.567913Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:35 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":20,"name":"test-meals-workouts","updated_at":"2025-05-08T19:59:31.107216Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:41 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"9768b670-b650-4fbc-ab6c-f22da81b1adb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:59:39.537719Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-08T19:59:39.537719Z"}},{"id":"e754993e-0bde-46f0-bc6c-1596029964fe","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:59:39.5377Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-08T19:59:39.5377Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:41 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:29 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-meals-workouts",
+      "description": "Dataset for testing meals and workouts parsing (created by tests)"}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '161'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets
+  response:
+    body:
+      string: '{"data":{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646948Z","current_version":0,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T14:28:30.300646948Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:30 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"records": [{"input": {"prompt":
+      "1 medium size pizza"}, "expected_output": {"response": [{"type": "meal", "description":
+      "1 medium size pizza", "calories": 2300, "protein": 20, "carbs": 20, "fat":
+      20}]}, "metadata": {"metadata": {"category": "nutrition"}}}, {"input": {"prompt":
+      "30 minutes of yoga"}, "expected_output": {"response": [{"type": "workout",
+      "description": "30 minutes of yoga", "exercise": "yoga", "duration_seconds":
+      1800}]}, "metadata": {"metadata": {"category": "exercise"}}}, {"input": {"prompt":
+      "1 hour of yoga"}, "expected_output": {"response": [{"type": "workout", "description":
+      "1 hour of yoga", "exercise": "yoga", "duration_seconds": 3600}]}, "metadata":
+      {"metadata": {"category": "exercise"}}}, {"input": {"prompt": "3x10 bench press
+      225lbs"}, "expected_output": {"response": [{"type": "workout", "description":
+      "3x10 bench press 225lbs", "exercise": "bench press", "series": 3, "reps": 10,
+      "weight_kg": 102}]}, "metadata": {"metadata": {"category": "exercise", "intensity":
+      "high"}}}, {"input": {"prompt": "1000 calories"}, "expected_output": {"response":
+      [{"type": "meal", "description": "1000 calories", "calories": 1000, "protein":
+      0, "carbs": 0, "fat": 0}]}, "metadata": {"metadata": {"category": "nutrition"}}},
+      {"input": {"prompt": "Feeling hungry"}, "expected_output": {"response": {"type":
+      "error"}}, "metadata": {"metadata": {"category": "unknown"}}}, {"input": {"prompt":
+      "5 tacos and a coke"}, "expected_output": {"response": [{"type": "meal", "description":
+      "5 tacos", "calories": 1000, "protein": 100, "carbs": 100, "fat": 100}, {"type":
+      "meal", "description": "a coke", "calories": 100, "protein": 0, "carbs": 0,
+      "fat": 0}]}, "metadata": {"metadata": {"category": "nutrition"}}}, {"input":
+      {"prompt": "I ran 5km and then ate 3 hard boiled eggs"}, "expected_output":
+      {"response": [{"type": "workout", "description": "I ran 5km", "exercise": "running",
+      "distance_km": 5}, {"type": "meal", "description": "3 hard boiled eggs", "calories":
+      200, "protein": 20, "carbs": 2, "fat": 14}]}, "metadata": {"metadata": {"category":
+      "mixed"}}}, {"input": {"prompt": "During the morning I had a bacon-egg-and-cheese,
+      in the afternoon I don''t remember, and now I''m having a small dish of lasagna."},
+      "expected_output": {"response": [{"type": "meal", "description": "bacon-egg-and-cheese",
+      "calories": 1000, "protein": 100, "carbs": 100, "fat": 100}, {"type": "meal",
+      "description": "a small dish of lasagna", "calories": 1000, "protein": 100,
+      "carbs": 100, "fat": 100}]}, "metadata": {"metadata": {"category": "nutrition"}}},
+      {"input": {"prompt": "I had a salad for lunch"}, "expected_output": {"response":
+      [{"type": "meal", "description": "a salad", "calories": 100, "protein": 10,
+      "carbs": 10, "fat": 10}]}, "metadata": {"metadata": {"category": "nutrition"}}},
+      {"input": {"prompt": "Hey, how are you doing?"}, "expected_output": {"response":
+      {"type": "error"}}, "metadata": {"metadata": {"category": "unknown"}}}, {"input":
+      {"prompt": "Started my day with overnight oats with berries, had a protein shake
+      after my workout, and finished with grilled salmon and quinoa for dinner"},
+      "expected_output": {"response": [{"type": "meal", "description": "overnight
+      oats with berries", "calories": 350, "protein": 12, "carbs": 56, "fat": 8},
+      {"type": "meal", "description": "protein shake", "calories": 160, "protein":
+      30, "carbs": 3, "fat": 2}, {"type": "meal", "description": "grilled salmon and
+      quinoa", "calories": 650, "protein": 45, "carbs": 45, "fat": 28}]}, "metadata":
+      {"metadata": {"category": "nutrition"}}}, {"input": {"prompt": "Had authentic
+      pad thai from the street vendor and 2 mango sticky rice for dessert"}, "expected_output":
+      {"response": [{"type": "meal", "description": "pad thai", "calories": 600, "protein":
+      22, "carbs": 80, "fat": 25}, {"type": "meal", "description": "2 mango sticky
+      rice", "calories": 700, "protein": 8, "carbs": 140, "fat": 16}]}, "metadata":
+      {"metadata": {"category": "nutrition"}}}, {"input": {"prompt": "45min HIIT session
+      followed by 2 protein bars and a banana"}, "expected_output": {"response": [{"type":
+      "workout", "description": "45min HIIT session", "exercise": "HIIT", "duration_seconds":
+      2700}, {"type": "meal", "description": "2 protein bars", "calories": 440, "protein":
+      40, "carbs": 44, "fat": 16}, {"type": "meal", "description": "banana", "calories":
+      105, "protein": 1, "carbs": 27, "fat": 0}]}, "metadata": {"metadata": {"category":
+      "mixed"}}}, {"input": {"prompt": "I think I might grab something later"}, "expected_output":
+      {"response": {"type": "error"}}, "metadata": {"metadata": {"category": "unknown"}}},
+      {"input": {"prompt": "Morning routine: 5k run, then 4x12 squats at 185lbs, finished
+      with 10 minutes of stretching"}, "expected_output": {"response": [{"type": "workout",
+      "description": "5k run", "exercise": "running", "distance_km": 5}, {"type":
+      "workout", "description": "4x12 squats at 185lbs", "exercise": "squats", "series":
+      4, "reps": 12, "weight_kg": 84}, {"type": "workout", "description": "10 minutes
+      of stretching", "exercise": "stretching", "duration_seconds": 600}]}, "metadata":
+      {"metadata": {"category": "exercise"}}}], "overwrite": false}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '5193'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/push
+  response:
+    body:
+      string: '{"data":[{"id":"c9539a72-6af3-49ee-97b4-65f8b179109f","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563909499Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":2300,"carbs":20,"description":"1
+        medium size pizza","fat":20,"protein":20,"type":"meal"}]},"input":{"prompt":"1
+        medium size pizza"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563909499Z","version":1}},{"id":"921ef42a-a0fb-4a4c-b24c-2785d746569e","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563919558Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"30
+        minutes of yoga","duration_seconds":1800,"exercise":"yoga","type":"workout"}]},"input":{"prompt":"30
+        minutes of yoga"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563919558Z","version":1}},{"id":"6f4963e5-2e04-447c-bd7f-c7464dc30553","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563921792Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"1
+        hour of yoga","duration_seconds":3600,"exercise":"yoga","type":"workout"}]},"input":{"prompt":"1
+        hour of yoga"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563921792Z","version":1}},{"id":"19700bca-0af2-47ae-815b-6577b44d9d81","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563923796Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"3x10
+        bench press 225lbs","exercise":"bench press","reps":10,"series":3,"type":"workout","weight_kg":102}]},"input":{"prompt":"3x10
+        bench press 225lbs"},"metadata":{"metadata":{"category":"exercise","intensity":"high"}},"updated_at":"2025-05-12T14:28:30.563923796Z","version":1}},{"id":"777090d3-cc96-4bf6-8ea2-6cc6eeb13b45","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563925449Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":0,"description":"1000
+        calories","fat":0,"protein":0,"type":"meal"}]},"input":{"prompt":"1000 calories"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563925449Z","version":1}},{"id":"5b1194ed-95be-4384-8855-296018ddbbf2","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563927042Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"Feeling
+        hungry"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.563927042Z","version":1}},{"id":"f0b1f68a-09a6-4b85-be0b-44f4dc884d04","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563929696Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":100,"description":"5
+        tacos","fat":100,"protein":100,"type":"meal"},{"calories":100,"carbs":0,"description":"a
+        coke","fat":0,"protein":0,"type":"meal"}]},"input":{"prompt":"5 tacos and
+        a coke"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563929696Z","version":1}},{"id":"fab83822-5e3b-40e7-b26d-ef76c48a38d2","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.56393129Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"I
+        ran 5km","distance_km":5,"exercise":"running","type":"workout"},{"calories":200,"carbs":2,"description":"3
+        hard boiled eggs","fat":14,"protein":20,"type":"meal"}]},"input":{"prompt":"I
+        ran 5km and then ate 3 hard boiled eggs"},"metadata":{"metadata":{"category":"mixed"}},"updated_at":"2025-05-12T14:28:30.56393129Z","version":1}},{"id":"80f22957-8d2e-49c3-aa9f-3d6d92981371","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563932873Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":100,"description":"bacon-egg-and-cheese","fat":100,"protein":100,"type":"meal"},{"calories":1000,"carbs":100,"description":"a
+        small dish of lasagna","fat":100,"protein":100,"type":"meal"}]},"input":{"prompt":"During
+        the morning I had a bacon-egg-and-cheese, in the afternoon I don''t remember,
+        and now I''m having a small dish of lasagna."},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563932873Z","version":1}},{"id":"e888d176-8b52-46db-be9f-d95eca1f38eb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563934516Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":100,"carbs":10,"description":"a
+        salad","fat":10,"protein":10,"type":"meal"}]},"input":{"prompt":"I had a salad
+        for lunch"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563934516Z","version":1}},{"id":"ce46d0b9-13ac-4e94-a20d-db8397d2c889","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563936018Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"Hey,
+        how are you doing?"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.563936018Z","version":1}},{"id":"b0d82af9-9c63-43a1-8956-7464cc9292a4","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563937691Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":350,"carbs":56,"description":"overnight
+        oats with berries","fat":8,"protein":12,"type":"meal"},{"calories":160,"carbs":3,"description":"protein
+        shake","fat":2,"protein":30,"type":"meal"},{"calories":650,"carbs":45,"description":"grilled
+        salmon and quinoa","fat":28,"protein":45,"type":"meal"}]},"input":{"prompt":"Started
+        my day with overnight oats with berries, had a protein shake after my workout,
+        and finished with grilled salmon and quinoa for dinner"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563937691Z","version":1}},{"id":"0d008795-3f76-4d89-a997-3daacedc17cb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563939214Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":600,"carbs":80,"description":"pad
+        thai","fat":25,"protein":22,"type":"meal"},{"calories":700,"carbs":140,"description":"2
+        mango sticky rice","fat":16,"protein":8,"type":"meal"}]},"input":{"prompt":"Had
+        authentic pad thai from the street vendor and 2 mango sticky rice for dessert"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563939214Z","version":1}},{"id":"9ec2cfa4-6c97-4a40-a010-8169dd0cab5d","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563940747Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"45min
+        HIIT session","duration_seconds":2700,"exercise":"HIIT","type":"workout"},{"calories":440,"carbs":44,"description":"2
+        protein bars","fat":16,"protein":40,"type":"meal"},{"calories":105,"carbs":27,"description":"banana","fat":0,"protein":1,"type":"meal"}]},"input":{"prompt":"45min
+        HIIT session followed by 2 protein bars and a banana"},"metadata":{"metadata":{"category":"mixed"}},"updated_at":"2025-05-12T14:28:30.563940747Z","version":1}},{"id":"9780c51b-484c-4d28-8623-303b29d0d3f6","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.5639423Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"I
+        think I might grab something later"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.5639423Z","version":1}},{"id":"4d23b9e0-0577-4f6b-8343-45a647374839","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563943833Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"5k
+        run","distance_km":5,"exercise":"running","type":"workout"},{"description":"4x12
+        squats at 185lbs","exercise":"squats","reps":12,"series":4,"type":"workout","weight_kg":84},{"description":"10
+        minutes of stretching","duration_seconds":600,"exercise":"stretching","type":"workout"}]},"input":{"prompt":"Morning
+        routine: 5k run, then 4x12 squats at 185lbs, finished with 10 minutes of stretching"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563943833Z","version":1}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:30 GMT
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646Z","current_version":1,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T14:28:30.587149Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:37 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/records
+  response:
+    body:
+      string: '{"data":[{"id":"f0b1f68a-09a6-4b85-be0b-44f4dc884d04","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563929Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":100,"description":"5
+        tacos","fat":100,"protein":100,"type":"meal"},{"calories":100,"carbs":0,"description":"a
+        coke","fat":0,"protein":0,"type":"meal"}]},"input":{"prompt":"5 tacos and
+        a coke"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563929Z"}},{"id":"b0d82af9-9c63-43a1-8956-7464cc9292a4","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563937Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":350,"carbs":56,"description":"overnight
+        oats with berries","fat":8,"protein":12,"type":"meal"},{"calories":160,"carbs":3,"description":"protein
+        shake","fat":2,"protein":30,"type":"meal"},{"calories":650,"carbs":45,"description":"grilled
+        salmon and quinoa","fat":28,"protein":45,"type":"meal"}]},"input":{"prompt":"Started
+        my day with overnight oats with berries, had a protein shake after my workout,
+        and finished with grilled salmon and quinoa for dinner"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563937Z"}},{"id":"777090d3-cc96-4bf6-8ea2-6cc6eeb13b45","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563925Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":0,"description":"1000
+        calories","fat":0,"protein":0,"type":"meal"}]},"input":{"prompt":"1000 calories"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563925Z"}},{"id":"0d008795-3f76-4d89-a997-3daacedc17cb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563939Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":600,"carbs":80,"description":"pad
+        thai","fat":25,"protein":22,"type":"meal"},{"calories":700,"carbs":140,"description":"2
+        mango sticky rice","fat":16,"protein":8,"type":"meal"}]},"input":{"prompt":"Had
+        authentic pad thai from the street vendor and 2 mango sticky rice for dessert"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563939Z"}},{"id":"6f4963e5-2e04-447c-bd7f-c7464dc30553","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563921Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"1
+        hour of yoga","duration_seconds":3600,"exercise":"yoga","type":"workout"}]},"input":{"prompt":"1
+        hour of yoga"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563921Z"}},{"id":"9780c51b-484c-4d28-8623-303b29d0d3f6","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563942Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"I
+        think I might grab something later"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.563942Z"}},{"id":"fab83822-5e3b-40e7-b26d-ef76c48a38d2","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563931Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"I
+        ran 5km","distance_km":5,"exercise":"running","type":"workout"},{"calories":200,"carbs":2,"description":"3
+        hard boiled eggs","fat":14,"protein":20,"type":"meal"}]},"input":{"prompt":"I
+        ran 5km and then ate 3 hard boiled eggs"},"metadata":{"metadata":{"category":"mixed"}},"updated_at":"2025-05-12T14:28:30.563931Z"}},{"id":"5b1194ed-95be-4384-8855-296018ddbbf2","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563927Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"Feeling
+        hungry"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.563927Z"}},{"id":"4d23b9e0-0577-4f6b-8343-45a647374839","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563943Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"5k
+        run","distance_km":5,"exercise":"running","type":"workout"},{"description":"4x12
+        squats at 185lbs","exercise":"squats","reps":12,"series":4,"type":"workout","weight_kg":84},{"description":"10
+        minutes of stretching","duration_seconds":600,"exercise":"stretching","type":"workout"}]},"input":{"prompt":"Morning
+        routine: 5k run, then 4x12 squats at 185lbs, finished with 10 minutes of stretching"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563943Z"}},{"id":"c9539a72-6af3-49ee-97b4-65f8b179109f","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563909Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":2300,"carbs":20,"description":"1
+        medium size pizza","fat":20,"protein":20,"type":"meal"}]},"input":{"prompt":"1
+        medium size pizza"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563909Z"}},{"id":"19700bca-0af2-47ae-815b-6577b44d9d81","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563923Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"3x10
+        bench press 225lbs","exercise":"bench press","reps":10,"series":3,"type":"workout","weight_kg":102}]},"input":{"prompt":"3x10
+        bench press 225lbs"},"metadata":{"metadata":{"category":"exercise","intensity":"high"}},"updated_at":"2025-05-12T14:28:30.563923Z"}},{"id":"ce46d0b9-13ac-4e94-a20d-db8397d2c889","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563936Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":{"type":"error"}},"input":{"prompt":"Hey,
+        how are you doing?"},"metadata":{"metadata":{"category":"unknown"}},"updated_at":"2025-05-12T14:28:30.563936Z"}},{"id":"9ec2cfa4-6c97-4a40-a010-8169dd0cab5d","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.56394Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"45min
+        HIIT session","duration_seconds":2700,"exercise":"HIIT","type":"workout"},{"calories":440,"carbs":44,"description":"2
+        protein bars","fat":16,"protein":40,"type":"meal"},{"calories":105,"carbs":27,"description":"banana","fat":0,"protein":1,"type":"meal"}]},"input":{"prompt":"45min
+        HIIT session followed by 2 protein bars and a banana"},"metadata":{"metadata":{"category":"mixed"}},"updated_at":"2025-05-12T14:28:30.56394Z"}},{"id":"e888d176-8b52-46db-be9f-d95eca1f38eb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563934Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":100,"carbs":10,"description":"a
+        salad","fat":10,"protein":10,"type":"meal"}]},"input":{"prompt":"I had a salad
+        for lunch"},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563934Z"}},{"id":"80f22957-8d2e-49c3-aa9f-3d6d92981371","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563932Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"calories":1000,"carbs":100,"description":"bacon-egg-and-cheese","fat":100,"protein":100,"type":"meal"},{"calories":1000,"carbs":100,"description":"a
+        small dish of lasagna","fat":100,"protein":100,"type":"meal"}]},"input":{"prompt":"During
+        the morning I had a bacon-egg-and-cheese, in the afternoon I don''t remember,
+        and now I''m having a small dish of lasagna."},"metadata":{"metadata":{"category":"nutrition"}},"updated_at":"2025-05-12T14:28:30.563932Z"}},{"id":"921ef42a-a0fb-4a4c-b24c-2785d746569e","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.563919Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":[{"description":"30
+        minutes of yoga","duration_seconds":1800,"exercise":"yoga","type":"workout"}]},"input":{"prompt":"30
+        minutes of yoga"},"metadata":{"metadata":{"category":"exercise"}},"updated_at":"2025-05-12T14:28:30.563919Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:28:38 GMT
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646Z","current_version":2,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T14:28:54.486865Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:16 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/records
+  response:
+    body:
+      string: '{"data":[{"id":"fa7dbed3-da04-46db-ac67-78c9c70a9c89","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:29:12.576628Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-12T14:29:12.576628Z"}},{"id":"37fec521-c4ac-4f73-983c-611cc381c1cf","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:29:12.576616Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-12T14:29:12.576616Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:16 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
 version: 1

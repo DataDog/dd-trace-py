@@ -1111,4 +1111,466 @@ interactions:
     status:
       code: 202
       message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:09 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:09 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-362d86",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"50e3b0c3-6339-4541-8e6a-a88d70da0e81","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":{"models":[{"name":"test-model","provider":"test-provider","temperature":0.7}]},"created_at":"2025-05-07T18:54:09.800741852Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-config-362d86","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-07T18:54:09.800741912Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:54:09 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bac510000000037e4bd980dbc77df",
+      "span_id": "1276401481105501700", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1746644049822189000, "duration": 733000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "Paris", "input":
+      "Capital of France?", "output": "Capital of France? processed by test-model"},
+      "metrics": {}, "_dd": {"span_id": "1276401481105501700", "trace_id": "681bac510000000037e4bd980dbc77df"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:50e3b0c3-6339-4541-8e6a-a88d70da0e81",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}],
+      "_dd.scope": "experiments"}, {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681bac5100000000dfa0957c68a6c5c2",
+      "span_id": "2990983742900273273", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1746644049823435000, "duration": 226000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "2", "input":
+      "What is 1+1?", "output": "What is 1+1? processed by test-model"}, "metrics":
+      {}, "_dd": {"span_id": "2990983742900273273", "trace_id": "681bac5100000000dfa0957c68a6c5c2"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:50e3b0c3-6339-4541-8e6a-a88d70da0e81",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}],
+      "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Wed, 07 May 2025 18:54:09 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:39 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:39 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-347b6e",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"32f86c36-2f76-41e0-83ff-5c893ebbb393","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":{"models":[{"name":"test-model","provider":"test-provider","temperature":0.7}]},"created_at":"2025-05-08T19:16:40.149682335Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-config-347b6e","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-08T19:16:40.149682395Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:16:40 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681d031800000000e62d245f1a252555",
+      "span_id": "3268227243227963764", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1746731800217178000, "duration": 784000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "Paris", "input":
+      "Capital of France?", "output": "Capital of France? processed by test-model"},
+      "metrics": {}, "_dd": {"span_id": "3268227243227963764", "trace_id": "681d031800000000e62d245f1a252555"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:32f86c36-2f76-41e0-83ff-5c893ebbb393",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}],
+      "_dd.scope": "experiments"}, {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "681d0318000000004f13654f23ab647f",
+      "span_id": "17027972647120825837", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1746731800218564000, "duration": 230000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "2", "input":
+      "What is 1+1?", "output": "What is 1+1? processed by test-model"}, "metrics":
+      {}, "_dd": {"span_id": "17027972647120825837", "trace_id": "681d0318000000004f13654f23ab647f"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:32f86c36-2f76-41e0-83ff-5c893ebbb393",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}],
+      "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Thu, 08 May 2025 19:16:40 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/projects?filter[name]=Test-Project-Experiment
+  response:
+    body:
+      string: '{"data":[{"id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","type":"projects","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:48:04.835499Z","name":"Test-Project-Experiment","updated_at":"2025-05-05T18:48:04.835499Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test-run-task-config-c00cb9",
+      "description": "", "dataset_id": "033c3a68-c51d-4064-b941-78825cf83066", "project_id":
+      "acaddd81-db16-4ace-b534-ff8d71c24e1d", "dataset_version": 1, "config": {"models":
+      [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '383'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"1d58d3a8-d774-4802-92db-372bd91bfd94","type":"experiments","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"config":{"models":[{"name":"test-model","provider":"test-provider","temperature":0.7}]},"created_at":"2025-05-12T14:23:22.823148073Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","dataset_version":1,"description":"","metadata":{"tags":[]},"name":"test-run-task-config-c00cb9","project_id":"acaddd81-db16-4ace-b534-ff8d71c24e1d","updated_at":"2025-05-12T14:23:22.823148133Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:23:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '[{"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "6822045a000000008c60c518294e466a",
+      "span_id": "16309844344131102895", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1747059802862315000, "duration": 541000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "Paris", "input":
+      "Capital of France?", "output": "Capital of France? processed by test-model"},
+      "metrics": {}, "_dd": {"span_id": "16309844344131102895", "trace_id": "6822045a000000008c60c518294e466a"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:1d58d3a8-d774-4802-92db-372bd91bfd94",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:49919f09-a3f9-4339-bdbe-85df9f5ec553"]}],
+      "_dd.scope": "experiments"}, {"_dd.stage": "raw", "_dd.tracer_version": "3.4.0.dev284+gabe7934be",
+      "event_type": "span", "spans": [{"trace_id": "6822045a0000000042d5d6077d981c6e",
+      "span_id": "7745970295494325229", "parent_id": "undefined", "name": "task_with_config",
+      "start_ns": 1747059802863418000, "duration": 260000, "status": "ok", "meta":
+      {"span.kind": "experiment", "metadata": {}, "expected_output": "2", "input":
+      "What is 1+1?", "output": "What is 1+1? processed by test-model"}, "metrics":
+      {}, "_dd": {"span_id": "7745970295494325229", "trace_id": "6822045a0000000042d5d6077d981c6e"},
+      "tags": ["version:", "env:", "service:tests.llmobs", "source:integration", "ml_app:test-exp-app",
+      "ddtrace.version:3.4.0.dev284+gabe7934be", "language:python", "error:0", "experiment_id:1d58d3a8-d774-4802-92db-372bd91bfd94",
+      "dataset_id:033c3a68-c51d-4064-b941-78825cf83066", "dataset_record_id:784bcd1a-6b0f-48c1-8063-7431455b659d"]}],
+      "_dd.scope": "experiments"}]'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://llmobs-intake.us3.datadoghq.com/api/v2/llmobs
+  response:
+    body:
+      string: '{}'
+    headers:
+      accept-encoding:
+      - identity,gzip,x-gzip,deflate,x-deflate,zstd
+      content-length:
+      - '100'
+      content-type:
+      - application/json
+      cross-origin-resource-policy:
+      - cross-origin
+      date:
+      - Mon, 12 May 2025 14:23:23 GMT
+      x-content-type-options:
+      - nosniff
+    status:
+      code: 202
+      message: Accepted
 version: 1

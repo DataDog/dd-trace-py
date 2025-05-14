@@ -1465,4 +1465,864 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":6,"name":"test-meals-workouts","updated_at":"2025-05-05T18:45:16.539872Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:15 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"a5ac5e36-6b03-4da6-93a2-2b2fbfd497d4","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:39:16.084523785Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:39:16.084523785Z","version":7}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:16 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":7,"name":"test-meals-workouts","updated_at":"2025-05-07T18:39:16.096974Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"a5ac5e36-6b03-4da6-93a2-2b2fbfd497d4","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:39:16.084523Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:39:16.084523Z"}},{"id":"c7628aca-1bf0-4cf8-b412-ac28a28a0bc6","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:45:25.196476Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-05T18:45:25.196476Z"}},{"id":"3c13db9f-aacb-41e4-ba96-77fa3e02e898","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:45:25.196467Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-05T18:45:25.196467Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:39:22 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":11,"name":"test-meals-workouts","updated_at":"2025-05-07T18:39:57.183077Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:50:01 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"e48c4c72-0859-47e4-a522-6cbb81d41d79","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:01.823692989Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:50:01.823692989Z","version":12}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:50:01 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":12,"name":"test-meals-workouts","updated_at":"2025-05-07T18:50:01.836409Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:50:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"e48c4c72-0859-47e4-a522-6cbb81d41d79","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:01.823692Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:50:01.823692Z"}},{"id":"81f1f82a-f705-4ddf-9e3e-76eac9d8a620","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:40:04.79364Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:40:04.79364Z"}},{"id":"fea3f466-3c8f-448d-9753-021a1133ce88","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:40:04.793631Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:40:04.793631Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:50:08 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":13,"name":"test-meals-workouts","updated_at":"2025-05-07T18:50:10.110159Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:38 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"faf9e8f9-d51e-491d-b752-0dfe6b804056","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:38.448192355Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:51:38.448192355Z","version":14}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:38 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":14,"name":"test-meals-workouts","updated_at":"2025-05-07T18:51:38.467686Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:44 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"faf9e8f9-d51e-491d-b752-0dfe6b804056","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:38.448192Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-07T18:51:38.448192Z"}},{"id":"8ff6ce86-8b30-4bee-844d-4036a56c1123","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:17.952852Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:50:17.952852Z"}},{"id":"ea345afc-e306-48fe-8270-d3fb61e7afd8","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:50:17.952865Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:50:17.952865Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 07 May 2025 18:51:45 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":15,"name":"test-meals-workouts","updated_at":"2025-05-07T18:51:46.704137Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:49 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"3fd51b4e-92a2-44ff-8539-1a6b4ffce7fc","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:58:50.201017811Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-08T19:58:50.201017811Z","version":16}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:50 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":16,"name":"test-meals-workouts","updated_at":"2025-05-08T19:58:50.22085Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:56 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"3fd51b4e-92a2-44ff-8539-1a6b4ffce7fc","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:58:50.201017Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-08T19:58:50.201017Z"}},{"id":"5da9703e-5ca8-4dbf-b9be-c9c7adb3f394","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:54.567923Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-07T18:51:54.567923Z"}},{"id":"eda31758-4d4f-4c7a-b019-c1e1b2a4d13f","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-07T18:51:54.567913Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-07T18:51:54.567913Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 08 May 2025 19:58:56 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":20,"name":"test-meals-workouts","updated_at":"2025-05-08T19:59:31.107216Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:43 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"c7a4c32d-2afb-47f2-9d34-f7edf572f188","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:20:44.254664246Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-12T14:20:44.254664246Z","version":21}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:44 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:44:01.18416Z","current_version":21,"name":"test-meals-workouts","updated_at":"2025-05-12T14:20:44.317528Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:50 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/48edcd0f-3572-40ac-a8cd-44b99ae3475a/records
+  response:
+    body:
+      string: '{"data":[{"id":"c7a4c32d-2afb-47f2-9d34-f7edf572f188","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:20:44.254664Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-12T14:20:44.254664Z"}},{"id":"9768b670-b650-4fbc-ab6c-f22da81b1adb","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:59:39.537719Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-08T19:59:39.537719Z"}},{"id":"e754993e-0bde-46f0-bc6c-1596029964fe","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-08T19:59:39.5377Z","dataset_id":"48edcd0f-3572-40ac-a8cd-44b99ae3475a","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-08T19:59:39.5377Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 14:20:50 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646Z","current_version":2,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T14:28:54.486865Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:17 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "new workout?"}, "expected_output": {"response": "pushups"}}]}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '149'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"706d9d1b-dd31-41ae-ba05-30da00212815","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T15:28:17.880529074Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-12T15:28:17.880529074Z","version":3}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:17 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=test-meals-workouts
+  response:
+    body:
+      string: '{"data":[{"id":"8b040361-e30a-47d9-a5d9-b42616978f34","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:28:30.300646Z","current_version":3,"description":"Dataset
+        for testing meals and workouts parsing (created by tests)","name":"test-meals-workouts","updated_at":"2025-05-12T15:28:17.897386Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:24 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/8b040361-e30a-47d9-a5d9-b42616978f34/records
+  response:
+    body:
+      string: '{"data":[{"id":"706d9d1b-dd31-41ae-ba05-30da00212815","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T15:28:17.880529Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":{"response":"pushups"},"input":{"prompt":"new
+        workout?"},"updated_at":"2025-05-12T15:28:17.880529Z"}},{"id":"fa7dbed3-da04-46db-ac67-78c9c70a9c89","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:29:12.576628Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":"London","input":"Capital
+        of UK?","updated_at":"2025-05-12T14:29:12.576628Z"}},{"id":"37fec521-c4ac-4f73-983c-611cc381c1cf","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-12T14:29:12.576616Z","dataset_id":"8b040361-e30a-47d9-a5d9-b42616978f34","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-12T14:29:12.576616Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 12 May 2025 15:28:24 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
 version: 1

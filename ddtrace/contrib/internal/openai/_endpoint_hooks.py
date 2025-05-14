@@ -75,6 +75,7 @@ class _EndpointHook:
                 span.set_tag_str("openai.request.%s" % kw_attr, str(kwargs[kw_attr]))
 
     def handle_request(self, pin, integration, instance, span, args, kwargs):
+        print("handle_request"*100)
         self._record_request(pin, integration, instance, span, args, kwargs)
         resp, error = yield
         if hasattr(resp, "parse"):

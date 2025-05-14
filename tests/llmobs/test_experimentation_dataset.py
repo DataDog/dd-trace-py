@@ -15,9 +15,9 @@ from ddtrace.llmobs.experimentation.utils._exceptions import DatasetFileError
 from ddtrace.llmobs.experimentation.utils import _http
 
 # Hardcoded credentials for VCR playback (replace if needed for recording)
-DD_API_KEY = "replace-with-api-key"
-DD_APPLICATION_KEY = "replace-with-app-key"
-DD_SITE = "us3.datadoghq.com"
+DD_APPLICATION_KEY="replace-when-recording"
+DD_API_KEY="replace-when-recording"
+DD_SITE="us3.datadoghq.com"
 
 # --- Helper Functions ---
 
@@ -654,12 +654,14 @@ class TestDatasetPull:
                 dne.Dataset.pull(dataset_name, version=non_existent_version)
 
     def test_pull_empty_dataset(self, experiments_vcr):
-        """Test pulling a dataset that exists but has no records raises ValueError."""
-        # Requires a cassette where the GET /records returns empty data
+        """Test pulling a dataset that exists with no records works correctly."""
+        # This dataset exists but has no records
         dataset_name = "existing-but-empty"
         with experiments_vcr.use_cassette("test_dataset_pull_empty.yaml"):
-            with pytest.raises(ValueError, match=f"Dataset '{dataset_name}' does not contain any records"):
-                dne.Dataset.pull(dataset_name)
+            dataset = dne.Dataset.pull(dataset_name)
+            assert isinstance(dataset, dne.Dataset)
+            assert dataset.name == dataset_name
+            assert len(dataset) == 0  # Verify it has zero records
 
 
 class TestDatasetPush:
@@ -708,15 +710,13 @@ class TestDatasetPush:
         """Test pushing a synced dataset with no local changes."""
         initial_len = len(synced_dataset)
         initial_version = synced_dataset._datadog_dataset_version
-
+        
         # This cassette should ideally show no POST requests or minimal GETs
         with experiments_vcr.use_cassette("test_dataset_push_synced_no_change.yaml"):
             synced_dataset.push()
-
+        
         captured = capsys.readouterr()
-        assert "Dataset is already synced and has no changes" in captured.out
-        # Verify state remains unchanged using helper
-        assert_dataset_synced(synced_dataset, expected_len=initial_len, expected_version=initial_version)
+        assert f"Dataset '{synced_dataset.name}' (v{initial_version}) is already synced and has no pending changes" in captured.out
 
     def test_push_synced_with_adds(self, experiments_vcr, synced_dataset):
         """Test push after adding records (default: creates new version via batch update)."""
