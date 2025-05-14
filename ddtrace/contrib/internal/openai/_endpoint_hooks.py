@@ -747,19 +747,11 @@ class _ResponseHook(_BaseCompletionHook):
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createResponse"
 
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-
-        input_data = kwargs.get("input", [])
-        if input_data:
-            if isinstance(input_data, str):
-                input_data = [input_data]
-            span._set_ctx_item("llmobs.response.input", input_data)
-
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
         if not resp:
             return resp
         integration.record_usage(span, resp.usage)

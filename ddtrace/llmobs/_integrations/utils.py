@@ -396,6 +396,79 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
+def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+    """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
+    
+    input_data = kwargs.get("input", [])
+    input_messages = []
+    if isinstance(input_data, str):
+        input_messages.append({"content": input_data, "role": "user"})
+    elif isinstance(input_data, list):
+        for m in input_data:
+            role = m.get("role", "user") if isinstance(m, dict) else "user"
+            content = m.get("content", "") if isinstance(m, dict) else str(m)
+        input_messages.append({"content": content, "role": role})
+
+    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
+    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+    if span.error or not messages:
+        span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+        return
+    
+    output_data = _get_attr(messages, "output", [])
+    output_messages = []
+    
+    for idx, output in enumerate(output_data):
+        if output.type == "message":
+            role = _get_attr(output, "role", "")
+            content = _get_attr(output, "content", "")
+            for c in content:
+                text = _get_attr(c, "text", "")
+                output_messages.append({"content": text, "role": role})
+        if output.type == "function_call":
+            # function_call_info = []
+            # Use output.id as the tool_id
+            tool_id = _get_attr(output, "id", "")
+            tool_name = _get_attr(output, "name", "")
+            arguments = _get_attr(output, "arguments", "")
+            function_call_dict = {
+                "name": tool_name,
+                "arguments": arguments,
+                "tool_id": tool_id,
+                "type": "function_call",
+            }
+            # function_call_info.append(function_call_dict)
+            # output_messages.append({"tool_calls": [function_call_dict]})
+            # output_messages["tool_calls"] = function_call_info
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    arguments,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
+            # if tool_calls_info:
+            #     output_messages.append({"content": "hello", "role": "assistant", "tool_calls": tool_calls_info})
+            #     core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
+            output_messages.append({
+                "content": "hello",
+                "role": "assistant",
+                "tool_calls": [function_call_dict]
+            })
+                                
+    print("Setting output messages: ", output_messages)
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+    
+    
+    print("Span meta tags after setting:", span._get_ctx_item("_ml_obs.meta.output.messages"))
+    breakpoint()
+
 
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
