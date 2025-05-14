@@ -518,8 +518,6 @@ class Dataset:
             self._datadog_dataset_id = None
             self._datadog_dataset_version = 0 # Reset version for new creation
 
-        # Create the dataset remotely since it doesn't exist
-        print(f"Creating new dataset '{self.name}' on Datadog.")
         # overwrite=False is implicit for creation, but explicit for clarity
         self._push_entire_dataset(overwrite=False)
 
@@ -539,7 +537,9 @@ class Dataset:
         elif self._datadog_dataset_id and not overwrite:
              print(f"Pushing entire local dataset as a new version for '{self.name}'...")
         else: # Creation case
-             print(f"Creating dataset '{self.name}' with local data...")
+             pass
+        
+
 
         # Create dataset metadata entry if it doesn't exist locally
         if not self._datadog_dataset_id:
@@ -579,17 +579,22 @@ class Dataset:
             _print_progress_bar(0, len(chunks), prefix="Pushing records:", suffix="Complete")
 
         for i, chunk in enumerate(chunks):
+            attributes = {"records": chunk}
+            
+            attributes["overwrite"] = overwrite
+
             push_payload = {
                 "data": {
                     "type": "datasets",
-                    "attributes": {
-                        "records": chunk,
-                        # Only set overwrite=True on the first chunk if specified
-                        "overwrite": overwrite if i == 0 else False,
-                    },
+                    "attributes": attributes,
                 }
             }
-            url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/push"
+            # Use the /records endpoint instead of /push
+            url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/records"
+            # Safely access keys in the print statement using .get()
+            print(f"Pushing records to {url}",
+                  "overwriting: ", attributes.get("overwrite", False), # Default overwrite is False
+                  "append: ", attributes.get("append", True)) # Default append is True
             exp_http_request("POST", url, body=json.dumps(push_payload).encode("utf-8"))
 
             if show_progress:
