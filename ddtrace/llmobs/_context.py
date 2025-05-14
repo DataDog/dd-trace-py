@@ -22,6 +22,7 @@ class LLMObsContextProvider(DefaultContextProvider):
     It is suitable for synchronous programming and for asynchronous executors
     that support contextvars.
     """
+    _LAST_PROPAGATED_LLMOBS_CONTEXT: Optional[Context] = None
 
     def __init__(self) -> None:
         super(DefaultContextProvider, self).__init__()
@@ -44,6 +45,8 @@ class LLMObsContextProvider(DefaultContextProvider):
                 self.activate(new_active)
                 return new_active
             new_active = new_active._parent
+        if self._LAST_PROPAGATED_LLMOBS_CONTEXT:
+            return self._LAST_PROPAGATED_LLMOBS_CONTEXT
         self.activate(None)
         return None
 
