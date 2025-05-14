@@ -407,7 +407,16 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
         for m in input_data:
             role = m.get("role", "user") if isinstance(m, dict) else "user"
             content = m.get("content", "") if isinstance(m, dict) else str(m)
-        input_messages.append({"content": content, "role": role})
+            content_text = ""
+            if isinstance(content, list):
+                for content_item in content:
+                    if isinstance(content_item, dict):
+                        content_text += content_item.get("text", "")
+                    else:
+                        content_text += str(content_item)
+            else:
+                content_text = str(content)
+            input_messages.append({"content": content_text, "role": role})
 
     parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -415,59 +424,92 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
-    
+    if isinstance(messages, list):  # streamed response
+        pass
+    # Non-streaming response
     output_data = _get_attr(messages, "output", [])
     output_messages = []
     
     for idx, output in enumerate(output_data):
-        if output.type == "message":
+        # Message or reasoning
+        if output.type == "message" or output.type == "reasoning":
             role = _get_attr(output, "role", "")
             content = _get_attr(output, "content", "")
-            for c in content:
-                text = _get_attr(c, "text", "")
-                output_messages.append({"content": text, "role": role})
-        if output.type == "function_call":
-            # function_call_info = []
+            summary = _get_attr(output, "summary", "")
+            encrypted_content = _get_attr(output, "encrypted_content", "")
+            if content: 
+                for c in content:
+                    text = _get_attr(c, "text", "")
+                    output_messages.append({"content": text, "role": role})
+            if summary:
+                for s in summary:
+                    text = _get_attr(s, "text", "")
+                    output_messages.append({"content": text, "role": "reasoning", "summary": s})
+            if encrypted_content:
+                pass
+
+        if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+            tool_call_info = []
+            output_type = output.type
+            # file_search_call
+            file_queries = _get_attr(output, "queries", [])
+            file_results = _get_attr(output, "results", [])
+            # web_search_call   
+
+
+            # computer_call
+            action_raw = _get_attr(output, "action", "") # need to use as a json loaded
+            print("action_raw type: ", type(action_raw))
+            # action = {}
+            if action_raw:
+                if isinstance(action_raw, str):
+                    try:
+                        action = json.loads(action_raw)
+                    except json.JSONDecodeError:
+                        action = {"action": action_raw}
+                else:              
+                    action_json_str = action_raw.json()
+                    # convert to valid json string
+                    action = json.loads(f'{{"action": {action_json_str}}}')
+                    # breakpoint()
+                    print("converted to string")
+
+            print("action type: ", type(action))
+            print("action: ", action)
+            # funcition call
             # Use output.id as the tool_id
             tool_id = _get_attr(output, "id", "")
             tool_name = _get_attr(output, "name", "")
             arguments = _get_attr(output, "arguments", "")
-            function_call_dict = {
+            if arguments:
+                arguments = json.loads(arguments)
+            elif action:
+                arguments = action
+            tool_call_dict = {
                 "name": tool_name,
                 "arguments": arguments,
                 "tool_id": tool_id,
-                "type": "function_call",
+                "type": output_type,
             }
-            # function_call_info.append(function_call_dict)
-            # output_messages.append({"tool_calls": [function_call_dict]})
-            # output_messages["tool_calls"] = function_call_info
+            tool_call_info.append(tool_call_dict)
             core.dispatch(
                 DISPATCH_ON_LLM_TOOL_CHOICE,
                 (
                     tool_id,
                     tool_name,
                     arguments,
+                    # action,
                     {
                         "trace_id": format_trace_id(span.trace_id),
                         "span_id": str(span.span_id),
                     },
                 ),
             )
-            # if tool_calls_info:
-            #     output_messages.append({"content": "hello", "role": "assistant", "tool_calls": tool_calls_info})
-            #     core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
-            output_messages.append({
-                "content": "hello",
-                "role": "assistant",
-                "tool_calls": [function_call_dict]
-            })
-                                
-    print("Setting output messages: ", output_messages)
-    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    
-    
-    print("Span meta tags after setting:", span._get_ctx_item("_ml_obs.meta.output.messages"))
+            if tool_call_info:
+                output_messages.append({"tool_calls": tool_call_info})
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
     breakpoint()
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
