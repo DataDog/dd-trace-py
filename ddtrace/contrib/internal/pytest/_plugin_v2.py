@@ -497,7 +497,7 @@ def pytest_runtest_protocol(item, nextitem) -> None:
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
-    return True
+    return True  # Do not run pytest's internal `pytest_runtest_protocol`.
 
 
 def _process_reports(item, reports) -> _TestOutcome:

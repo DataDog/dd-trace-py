@@ -4,6 +4,8 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -93,7 +95,7 @@ def atr_handle_retries(
         when="call",
         longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
-        user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")],
+        user_properties=item.user_properties + [(UserProperty.RETRY_REASON, RetryReason.AUTO_TEST_RETRY)],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -129,12 +131,12 @@ def _atr_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
-    retry_reason: str = "auto_test_retry",
+    retry_reason: str = RetryReason.AUTO_TEST_RETRY,
 ):
     reports = [
         report
         for report in terminalreporter.getreports(report_outcome)
-        if get_user_property(report, "dd_retry_reason") == retry_reason
+        if get_user_property(report, UserProperty.RETRY_REASON) == retry_reason
     ]
     markup_kwargs = {color: True}
     if reports:

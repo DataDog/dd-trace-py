@@ -4,6 +4,8 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
@@ -99,8 +101,8 @@ def efd_handle_retries(
         outcome=_FINAL_OUTCOMES[efd_outcome],
         user_properties=item.user_properties
         + [
-            ("dd_retry_reason", "early_flake_detection"),
-            ("dd_efd_final_outcome", efd_outcome.value),
+            (UserProperty.RETRY_REASON, RetryReason.EARLY_FLAKE_DETECTION),
+            (UserProperty.RETRY_FINAL_OUTCOME, efd_outcome.value),
         ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
@@ -335,8 +337,8 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
 
-    if get_user_property(report, "dd_retry_reason") == "early_flake_detection":
-        efd_outcome = get_user_property(report, "dd_efd_final_outcome")
+    if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.EARLY_FLAKE_DETECTION:
+        efd_outcome = get_user_property(report, UserProperty.RETRY_FINAL_OUTCOME)
         if efd_outcome == "passed":
             return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
         if efd_outcome == "failed":

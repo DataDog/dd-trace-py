@@ -13,6 +13,17 @@ from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
 
 
+class UserProperty:
+    RETRY_REASON = "dd_retry_reason"
+    RETRY_FINAL_OUTCOME = "dd_retry_final_outcome"
+
+
+class RetryReason:
+    EARLY_FLAKE_DETECTION = "early_flake_detection"
+    AUTO_TEST_RETRY = "auto_test_retry"
+    ATTEMPT_TO_FIX = "attempt_to_fix"
+
+
 @dataclass(frozen=True)
 class RetryOutcomes:
     PASSED: str
