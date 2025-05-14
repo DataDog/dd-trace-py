@@ -1,7 +1,6 @@
 import os
 import sysconfig
 from typing import Optional
-from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -59,7 +58,6 @@ def _check_positions_contained(needle, container):
 class VulnerabilityBase:
     vulnerability_type = ""
     secure_mark = 0
-    _reported_vulnerabilities: Set[Tuple[str, int]] = set()
 
     @staticmethod
     def has_quota():

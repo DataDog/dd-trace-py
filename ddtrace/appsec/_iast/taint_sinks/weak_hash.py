@@ -3,7 +3,6 @@ import sys
 from typing import Any
 from typing import Callable
 from typing import Set
-from typing import Text
 
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.settings.asm import config as asm_config
@@ -58,7 +57,7 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -152,7 +151,7 @@ def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
     return wrapped(*args, **kwargs)
 
 
-def wrapped_function(wrapped: Callable, evidence: Text, instance: Any, args: Any, kwargs: Any) -> Any:
+def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any, kwargs: Any) -> Any:
     if asm_config.is_iast_request_enabled:
         if WeakHash.has_quota():
             WeakHash.report(
