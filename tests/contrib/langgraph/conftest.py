@@ -2,6 +2,7 @@ import operator
 from typing import Annotated
 from typing import TypedDict
 
+from langgraph.constants import Send
 from langgraph.graph import END
 from langgraph.graph import START
 from langgraph.graph import StateGraph
@@ -143,6 +144,59 @@ def fanning_graph(langgraph):
     graph_builder.add_edge("b", "d")
     graph_builder.add_edge("c", "d")
     graph_builder.add_edge("d", END)
+    graph = graph_builder.compile()
+
+    yield graph
+
+
+@pytest.fixture
+def graph_with_send(langgraph):
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", _do_op("a"))
+    graph_builder.add_node("b", _do_op("b"))
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_conditional_edges("a", lambda state: [Send("b", state) for _ in range(3)])
+    graph_builder.add_edge("b", END)
+    graph = graph_builder.compile()
+
+    yield graph
+
+
+@pytest.fixture
+def graph_with_send_complex(langgraph):
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", _do_op("a"))
+    graph_builder.add_node("b", _do_op("b"))
+    graph_builder.add_node("c", _do_op("c"))
+    graph_builder.add_node("d", _do_op("d"))
+    graph_builder.add_node("e", _do_op("e"))
+    graph_builder.add_node("f", _do_op("f"))
+    graph_builder.add_node("g", _do_op("g"))
+    graph_builder.add_node("h", _do_op("h"))
+    graph_builder.add_node("i", _do_op("i"))
+    graph_builder.add_node("j", _do_op("j"))
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", "b")
+    graph_builder.add_edge("a", "c")
+
+    graph_builder.add_edge("b", "d")
+    graph_builder.add_edge("b", "e")
+
+    graph_builder.add_conditional_edges("c", lambda state: [Send("e", state)])
+    graph_builder.add_edge("c", "e")
+    graph_builder.add_edge("c", "f")
+    graph_builder.add_edge("c", "g")
+
+    graph_builder.add_edge("d", "h")
+    graph_builder.add_edge("e", "h")
+
+    graph_builder.add_edge("f", "i")
+    graph_builder.add_edge("g", "i")
+
+    graph_builder.add_edge("h", "j")
+    graph_builder.add_edge("i", "j")
+
+    graph_builder.add_edge("j", END)
     graph = graph_builder.compile()
 
     yield graph

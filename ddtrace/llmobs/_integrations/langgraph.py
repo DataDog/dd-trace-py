@@ -80,7 +80,11 @@ class LangGraphIntegration(BaseLLMIntegration):
             self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
             return
 
-        finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
+        finished_task_names_to_ids: dict[str, list[str]] = {}
+        for task_id, task in finished_tasks.items():
+            finished_task_name_ids = finished_task_names_to_ids.setdefault(task.name, [])
+            finished_task_name_ids.append(task_id)
+
         seen_pregel_tasks: set[int] = set()  # set of pregel send object ids
         for task_id, task in next_tasks.items():
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
@@ -141,21 +145,27 @@ class LangGraphIntegration(BaseLLMIntegration):
 
 
 def _get_task_trigger_ids_from_finished_tasks(
-    task, finished_tasks: dict[str, Any], finished_task_names_to_ids: dict[str, str], seen_pregel_tasks: set[str]
+    task, finished_tasks: dict[str, Any], finished_task_names_to_ids: dict[str, list[str]], seen_pregel_tasks: set[str]
 ):
     task_config = getattr(task, "config", {})
     task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
+
+    # breakpoint()
 
     # legacy handling for langgraph task triggers
     # will be of the form: ["a", "b", etc.]
     # early langgraph versions do not have concept of
     # pregel sends/pushes
-    trigger_ids = [
-        task_id
-        for trigger in task_triggers
-        if isinstance(trigger, str)
-        if (task_id := finished_task_names_to_ids.get(_extract_parent(trigger))) is not None
-    ]
+    trigger_ids = []
+    for trigger in task_triggers:
+        if isinstance(trigger, str) and (task_ids := finished_task_names_to_ids.get(_extract_parent(trigger))):
+            trigger_ids.extend(task_ids)
+    # trigger_ids = [
+    #     task_id
+    #     for trigger in task_triggers
+    #     if isinstance(trigger, str)
+    #     if (task_id := finished_task_names_to_ids.get(_extract_parent(trigger))) is not None
+    # ]
 
     if trigger_ids:
         return trigger_ids
