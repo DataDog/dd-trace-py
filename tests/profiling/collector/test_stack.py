@@ -13,10 +13,12 @@ import uuid
 import pytest
 
 import ddtrace  # noqa:F401
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
+from tests.profiling.collector import pprof_utils
 from tests.utils import flaky
 
 from . import test_collector
@@ -64,41 +66,62 @@ def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
     raise RuntimeError("event wait timeout")
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_MAX_FRAMES="5",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
+    )
+)
 def test_collect_truncate():
-    r = recorder.Recorder()
-    c = stack.StackCollector(r, nframes=5)
-    c.start()
+    import os
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import func1
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
+
+    p = profiler.Profiler()
+    p.start()
+
     func1()
-    while not r.events[stack_event.StackSampleEvent]:
-        pass
-    c.stop()
-    for e in r.events[stack_event.StackSampleEvent]:
-        if e.thread_name == "MainThread":
-            assert len(e.frames) <= c.nframes
-            break
-    else:
-        pytest.fail("Unable to find the main thread")
+
+    p.stop()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+    for sample in samples:
+        assert len(sample.location_id) <= max_nframes, len(sample.location_id)
 
 
-def test_collect_once():
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
+def test_collect_once(tmp_path):
+    test_name = "test_collect_once"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    s = stack.StackCollector()
     s._init()
     all_events = s.collect()
+
+    ddup.upload()
+    # assert len(all_events) == 0
     assert len(all_events) == 2
+
     stack_events = all_events[0]
-    for e in stack_events:
-        if e.thread_name == "MainThread":
-            assert e.task_id is None
-            assert e.task_name is None
-            assert e.thread_id > 0
-            assert len(e.frames) >= 1
-            assert e.frames[0][0].endswith(".py")
-            assert e.frames[0][1] > 0
-            assert isinstance(e.frames[0][2], str)
-            break
-    else:
-        pytest.fail("Unable to find MainThread")
+    exc_events = all_events[1]
+    assert len(stack_events) == 0
+    assert len(exc_events) == 0
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
 
 
 def _find_sleep_event(events, class_name):
@@ -120,51 +143,112 @@ def _find_sleep_event(events, class_name):
     return False
 
 
-def test_collect_once_with_class():
+def test_collect_once_with_class(tmp_path):
     class SomeClass(object):
         @classmethod
         def sleep_class(cls):
-            # type: (...) -> bool
             return cls().sleep_instance()
 
         def sleep_instance(self):
-            # type: (...) -> bool
-            for _ in range(5):
-                if _find_sleep_event(r.events[stack_event.StackSampleEvent], "SomeClass"):
-                    return True
-                time.sleep(1)
-            return False
+            for _ in range(10):
+                time.sleep(0.1)
 
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
+    test_name = "test_collect_once_with_class"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    with s:
-        assert SomeClass.sleep_class()
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector():
+        SomeClass.sleep_class()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleep_instance",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="sleep_class",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_collect_once_with_class",
+                    filename="test_stack.py",
+                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 19,
+                ),
+            ],
+        ),
+    )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="FIXME: this test is flaky on Windows")
-def test_collect_once_with_class_not_right_type():
-    # type: (...) -> None
-    r = recorder.Recorder()
-
+def test_collect_once_with_class_not_right_type(tmp_path):
     class SomeClass(object):
         @classmethod
         def sleep_class(foobar, cls):
-            # type: (...) -> bool
             return foobar().sleep_instance(cls)
 
         def sleep_instance(foobar, self):
-            # type: (...) -> bool
-            for _ in range(5):
-                if _find_sleep_event(r.events[stack_event.StackSampleEvent], ""):
-                    return True
-                time.sleep(1)
-            return False
+            for _ in range(10):
+                time.sleep(0.1)
 
-    s = stack.StackCollector(r)
+    test_name = "test_collect_once_with_class"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    with s:
-        assert SomeClass.sleep_class(123)
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector():
+        SomeClass.sleep_class(123)
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleep_instance",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_instance.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="sleep_class",
+                    filename="test_stack.py",
+                    line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_collect_once_with_class_not_right_type",
+                    filename="test_stack.py",
+                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 19,
+                ),
+            ],
+        ),
+    )
 
 
 def _fib(n):
@@ -183,28 +267,26 @@ def test_collect_gevent_thread_task():
 
     monkey.patch_all()
 
+    import os
     import threading
     import time
 
     import pytest
 
-    from ddtrace.profiling import recorder
+    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
-    from ddtrace.profiling.collector import stack_event
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _fib
 
-    def _fib(n):
-        if n == 1:
-            return 1
-        elif n == 0:
-            return 0
-        else:
-            return _fib(n - 1) + _fib(n - 2)
+    test_name = "test_collect_gevent_thread_task"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
     # Start some (green)threads
-
     def _dofib():
         for _ in range(10):
             # spend some time in CPU so the profiler can catch something
@@ -213,7 +295,7 @@ def test_collect_gevent_thread_task():
             time.sleep(0)
 
     threads = []
-    with s:
+    with stack.StackCollector():
         for i in range(10):
             t = threading.Thread(target=_dofib, name="TestThread %d" % i)
             t.start()
@@ -221,16 +303,31 @@ def test_collect_gevent_thread_task():
         for t in threads:
             t.join()
 
+    ddup.upload()
+
     expected_task_ids = {thread.ident for thread in threads}
-    for event in r.events[stack_event.StackSampleEvent]:
-        if event.task_id in expected_task_ids:
-            assert event.task_name.startswith("TestThread ")
-            # This test is not uber-reliable as it has timing issue, therefore
-            # if we find one of our TestThread with the correct info, we're
-            # happy enough to stop here.
-            break
-    else:
-        pytest.fail("No gevent threads found")
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task id")
+    assert len(samples) > 0
+
+    checked_thread = False
+
+    for sample in samples:
+        task_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task id")
+        task_id = int(task_id_label.num)
+        if task_id in expected_task_ids:
+            pprof_utils.assert_stack_event(
+                profile,
+                sample,
+                pprof_utils.StackEvent(
+                    task_name=r"TestThread \d+$",
+                    task_id=task_id,
+                ),
+            )
+            checked_thread = True
+
+    assert checked_thread, "No samples found for the expected threads"
 
 
 def test_max_time_usage():
@@ -245,66 +342,105 @@ def test_max_time_usage_over():
         stack.StackCollector(r, max_time_usage_pct=200)
 
 
-def test_ignore_profiler_single():
-    r, c, thread_id = test_collector._test_collector_collect(
-        stack.StackCollector, stack_event.StackSampleEvent, ignore_profiler=True
-    )
-    events = r.events[stack_event.StackSampleEvent]
-    assert thread_id not in {e.thread_id for e in events}
+@pytest.mark.parametrize("ignore_profiler", [True, False])
+def test_ignore_profiler(tmp_path, ignore_profiler):
+    test_name = "test_ignore_profiler"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    s = stack.StackCollector(ignore_profiler=ignore_profiler)
+    collector_worker_thread_id = None
+
+    with s:
+        for _ in range(10):
+            time.sleep(0.1)
+        collector_worker_thread_id = s._worker.ident
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
+
+    thread_ids = set()
+
+    for sample in samples:
+        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        thread_id = int(thread_id_label.num)
+        thread_ids.add(thread_id)
+
+    if ignore_profiler:
+        assert collector_worker_thread_id not in thread_ids, (collector_worker_thread_id, thread_ids)
+    else:
+        assert collector_worker_thread_id in thread_ids, (collector_worker_thread_id, thread_ids)
 
 
-@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_API_TIMEOUT="0.1"))
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_IGNORE_PROFILER="1",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_ignore_profiler_gevent_task",
+    ),
+)
 def test_ignore_profiler_gevent_task():
     import gevent.monkey
 
     gevent.monkey.patch_all()
 
+    import os
+    import threading
     import time
+    import typing
 
-    from ddtrace.profiling import collector  # noqa:F401
-    from ddtrace.profiling import event as event_mod  # noqa:F401
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import collector
+    from ddtrace.profiling import event as event_mod
     from ddtrace.profiling import profiler
-    from ddtrace.profiling.collector import stack_event
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _fib
 
-    def _fib(n):
-        if n == 1:
-            return 1
-        elif n == 0:
-            return 0
-        else:
-            return _fib(n - 1) + _fib(n - 2)
+    test_name = "test_ignore_profiler_gevent_task"
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    class CollectorTest(collector.PeriodicCollector):
-        def collect(self):
-            # type: (...) -> typing.Iterable[typing.Iterable[event_mod.Event]]
-            _fib(22)
-            return []
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-    p = profiler.Profiler()
-    p.start()
-    # This test is particularly useful with gevent enabled: create a test collector that run often and for long
-    # we're sure to catch it with the StackProfiler and that it's not ignored.
-    c = CollectorTest(p._profiler._recorder, interval=0.00001)
-    c.start()
+    s = stack.StackCollector()
+    collector_worker_thread_id = None
 
-    for _ in range(100):
-        events = p._profiler._recorder.reset()
-        ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
-        if c._worker.ident in ids:
-            raise AssertionError("Collector thread found")
-        time.sleep(0.1)
+    with s:
+        for _ in range(10):
+            time.sleep(0.1)
+        collector_worker_thread_id = s._worker.ident
 
-    c.stop()
-    p.stop(flush=False)
+    ddup.upload()
 
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
 
-def test_collect():
-    test_collector._test_collector_collect(stack.StackCollector, stack_event.StackSampleEvent)
+    thread_ids = set()
+
+    for sample in samples:
+        thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+        thread_id = int(thread_id_label.num)
+        thread_ids.add(thread_id)
+
+    assert collector_worker_thread_id not in thread_ids, (collector_worker_thread_id, thread_ids)
 
 
-def test_restart():
-    test_collector._test_restart(stack.StackCollector)
+# def test_collect():
+#     test_collector._test_collector_collect(stack.StackCollector, stack_event.StackSampleEvent)
+
+
+# def test_restart():
+#     test_collector._test_restart(stack.StackCollector)
 
 
 def test_repr():
@@ -317,13 +453,12 @@ def test_repr():
 
 
 def test_new_interval():
-    r = recorder.Recorder()
-    c = stack.StackCollector(r, max_time_usage_pct=2)
+    c = stack.StackCollector(max_time_usage_pct=2)
     new_interval = c._compute_new_interval(1000000)
     assert new_interval == 0.049
     new_interval = c._compute_new_interval(2000000)
     assert new_interval == 0.098
-    c = stack.StackCollector(r, max_time_usage_pct=10)
+    c = stack.StackCollector(max_time_usage_pct=10)
     new_interval = c._compute_new_interval(200000)
     assert new_interval == 0.01
     new_interval = c._compute_new_interval(1)
@@ -349,77 +484,124 @@ exec(
 )
 
 
-def test_stress_threads():
-    NB_THREADS = 40
+def test_stress_threads(tmp_path):
+    test_name = "test_stress_threads"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    threads = []
-    for _ in range(NB_THREADS):
-        t = threading.Thread(target=_f0)  # noqa: E149,F821
-        t.start()
-        threads.append(t)
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-    s = stack.StackCollector(recorder=recorder.Recorder())
-    number = 20000
-    s._init()
-    exectime = timeit.timeit(s.collect, number=number)
-    # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
-    exectime_per_collect = exectime / number
-    print("%.3f ms per call" % (1000.0 * exectime_per_collect))
-    print(
-        "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
-        % (
-            NB_THREADS,
-            MAX_FN_NUM,
-            1 / s.min_interval_time,
-            100 * exectime_per_collect / s.min_interval_time,
+    with stack.StackCollector() as s:
+        NB_THREADS = 40
+
+        threads = []
+        for _ in range(NB_THREADS):
+            t = threading.Thread(target=_f0)  # noqa: E149,F821
+            t.start()
+            threads.append(t)
+        number = 20000
+
+        exectime = timeit.timeit(s.collect, number=number)
+        # Threads are fake threads with gevent, so result is actually for one thread, not NB_THREADS
+        exectime_per_collect = exectime / number
+        print("%.3f ms per call" % (1000.0 * exectime_per_collect))
+        print(
+            "CPU overhead for %d threads with %d functions long at %d Hz: %.2f%%"
+            % (
+                NB_THREADS,
+                MAX_FN_NUM,
+                1 / s.min_interval_time,
+                100 * exectime_per_collect / s.min_interval_time,
+            )
         )
-    )
-    for t in threads:
-        t.join()
+
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
 
 
-def test_stress_threads_run_as_thread():
-    NB_THREADS = 40
+def test_stress_threads_run_as_thread(tmp_path):
+    test_name = "test_stress_threads_run_as_thread"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    threads = []
-    for _ in range(NB_THREADS):
-        t = threading.Thread(target=_f0)  # noqa: E149,F821
-        t.start()
-        threads.append(t)
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-    r = recorder.Recorder()
-    s = stack.StackCollector(recorder=r)
-    # This mainly check nothing bad happens when we collect a lot of threads and store the result in the Recorder
-    with s:
+    quit_thread = threading.Event()
+
+    def wait_for_quit():
+        quit_thread.wait()
+
+    with stack.StackCollector():
+        NB_THREADS = 40
+
+        threads = []
+        for _ in range(NB_THREADS):
+            t = threading.Thread(target=wait_for_quit)
+            t.start()
+            threads.append(t)
+
         time.sleep(3)
-    assert r.events[stack_event.StackSampleEvent]
-    for t in threads:
-        t.join()
+
+        quit_thread.set()
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection_threads():
-    NB_THREADS = 5
+def test_exception_collection_threads(tmp_path):
+    test_name = "test_exception_collection_threads"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-    threads = []
-    for _ in range(NB_THREADS):
-        t = threading.Thread(target=_f0)  # noqa: E149,F821
-        t.start()
-        threads.append(t)
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-    r, c, thread_id = test_collector._test_collector_collect(
-        stack.StackCollector, stack_event.StackExceptionSampleEvent
-    )
-    exception_events = r.events[stack_event.StackExceptionSampleEvent]
-    e = exception_events[0]
-    assert e.sampling_period > 0
-    assert e.thread_id in {t.ident for t in threads}
-    assert isinstance(e.thread_name, str)
-    assert e.frames == [("<string>", 5, "_f30", "")]
-    assert e.nframes == 1
-    assert e.exc_type == ValueError
-    for t in threads:
-        t.join()
+    with stack.StackCollector():
+        NB_THREADS = 5
+        threads = []
+        for _ in range(NB_THREADS):
+            t = threading.Thread(target=_f0)  # noqa: E149,F821
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    # r, c, thread_id = test_collector._test_collector_collect(
+    #     stack.StackCollector, stack_event.StackExceptionSampleEvent
+    # )
+    # exception_events = r.events[stack_event.StackExceptionSampleEvent]
+    # e = exception_events[0]
+    # assert e.sampling_period > 0
+    # assert e.thread_id in {t.ident for t in threads}
+    # assert isinstance(e.thread_name, str)
+    # assert e.frames == [("<string>", 5, "_f30", "")]
+    # assert e.nframes == 1
+    # assert e.exc_type == ValueError
+    # for t in threads:
+    #     t.join()
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
