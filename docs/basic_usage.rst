@@ -151,7 +151,7 @@ Automatic Instrumentation
 
 .. important::
 
-  This feature is available on Python3.10+ and ddtrace 3.8.0+
+  This feature is available on Python3.10+ and ddtrace 3.8.0+.
 
 To enable automatic reporting of handled errors, you can set one of the two environment variables:
 
@@ -178,7 +178,7 @@ Manual Instrumentation
 
 .. important::
 
-  This feature is available in ddtrace 3.1.1+
+  This feature is available in ddtrace 3.1.1+.
 
 You can report handled errors manually using ``span.record_exception(e)``::
 
