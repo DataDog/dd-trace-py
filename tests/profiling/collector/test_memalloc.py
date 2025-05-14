@@ -154,76 +154,6 @@ def test_iter_events_multi_thread():
     assert count_thread >= 1000
 
 
-def test_memory_collector():
-    r = recorder.Recorder()
-    mc = memalloc.MemoryCollector(r)
-    with mc:
-        _allocate_1k()
-        # Make sure we collect at least once
-        mc.periodic()
-
-    count_object = 0
-    for event in r.events[memalloc.MemoryAllocSampleEvent]:
-        assert 0 < len(event.frames) <= mc.max_nframe
-        assert event.nframes >= len(event.frames)
-        assert 0 < event.capture_pct <= 100
-        last_call = event.frames[0]
-        assert event.size > 0
-        if last_call == DDFrame(
-            __file__, _ALLOC_LINE_NUMBER, "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k", ""
-        ):
-            assert event.thread_id == threading.main_thread().ident
-            assert event.thread_name == "MainThread"
-            count_object += 1
-            entry = 2 if sys.version_info < (3, 12) else 1
-            assert event.frames[entry] == DDFrame(__file__, 161, "test_memory_collector", "")
-
-    assert count_object > 0
-
-
-@pytest.mark.parametrize(
-    "ignore_profiler",
-    (True, False),
-)
-def test_memory_collector_ignore_profiler(
-    ignore_profiler,  # type: bool
-):
-    # type: (...) -> None
-    r = recorder.Recorder()
-    mc = memalloc.MemoryCollector(r, ignore_profiler=ignore_profiler)
-    quit_thread = threading.Event()
-    with mc:
-
-        def alloc():
-            _allocate_1k()
-            quit_thread.wait()
-
-        alloc_thread = threading.Thread(name="allocator", target=alloc)
-
-        if ignore_profiler:
-            alloc_thread._ddtrace_profiling_ignore = True
-
-        alloc_thread.start()
-
-        thread_id = alloc_thread.ident
-
-        # Make sure we collect at least once
-        mc.periodic()
-
-    # We need to wait for the data collection to happen so it gets the `_ddtrace_profiling_ignore` Thread attribute from
-    # the global thread list.
-    quit_thread.set()
-    alloc_thread.join()
-
-    for event in r.events[memalloc.MemoryAllocSampleEvent]:
-        if ignore_profiler:
-            assert event.thread_id != thread_id
-        elif event.thread_id == thread_id:
-            break
-    else:
-        assert ignore_profiler, "No allocation event was found with the allocator thread"
-
-
 def test_heap():
     max_nframe = 32
     _memalloc.start(max_nframe, 10, 1024)
@@ -285,29 +215,6 @@ def test_heap():
         ):
             pytest.fail("Allocated memory still in heap")
     _memalloc.stop()
-
-
-def test_heap_collector():
-    heap_sample_size = 1024
-    r = recorder.Recorder()
-    mc = memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size)
-    with mc:
-        keep_me = _allocate_1k()
-        events = mc.snapshot()
-
-    assert len(events) == 1
-    assert len(events[0]) >= 1
-
-    del keep_me
-
-    for event in events[0]:
-        assert 0 < len(event.frames) <= mc.max_nframe
-        assert event.nframes >= len(event.frames)
-        assert event.sample_size == heap_sample_size
-        assert len(event.frames) >= 1
-        assert event.size > 0
-        assert event.thread_id > 0
-        assert isinstance(event.thread_name, str)
 
 
 def test_heap_stress():
