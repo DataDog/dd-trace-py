@@ -4,7 +4,7 @@ stages:
   - report
 
 variables:
-  BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  BENCHMARKING_IMAGE_REGISTRY: registry.ddbuild.io
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
