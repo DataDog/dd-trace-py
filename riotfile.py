@@ -2827,6 +2827,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -2852,6 +2853,7 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={
+                                "cython": latest,
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
                             },
