@@ -46,7 +46,7 @@ SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["meta.http.useragent"]
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
 
-class PytestSnapshotTestCase(TracerTestCase):
+class PytestXdistSnapshotTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
         self.testdir = testdir
@@ -54,7 +54,7 @@ class PytestSnapshotTestCase(TracerTestCase):
         self.git_repo = git_repo
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
-    def test_pytest_will_include_lines_pct(self):
+    def test_pytest_xdist_will_include_lines_pct(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
                     output_list = []
@@ -99,7 +99,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES)
-    def test_pytest_wont_include_lines_pct_if_report_empty(self):
+    def test_pytest_xdist_wont_include_lines_pct_if_report_empty(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
                     output_list = []
@@ -144,7 +144,7 @@ class PytestSnapshotTestCase(TracerTestCase):
             )
 
     @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
-    def test_pytest_with_ddtrace_patch_all(self):
+    def test_pytest_xdist_with_ddtrace_patch_all(self):
         call_httpx = """
                 import httpx
 
