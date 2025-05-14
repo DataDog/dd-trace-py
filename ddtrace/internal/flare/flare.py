@@ -22,7 +22,7 @@ TRACER_FLARE_ZIP = pathlib.Path("tracer_flare.zip")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
 TRACER_FLARE_LOCK = pathlib.Path("tracer_flare.lock")
-DEFAULT_TIMEOUT_SECONDS = 5
+DEFAULT_TIMEOUT_SECONDS = 10
 
 log = get_logger(__name__)
 
@@ -61,33 +61,47 @@ class Flare:
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
+        log.debug(
+            "[TRACER_FLARE] Preparing flare: log_level=%s, flare_dir=%s, pid=%d", log_level, self.flare_dir, os.getpid()
+        )
+
         try:
             self.flare_dir.mkdir(exist_ok=True)
+            log.debug("[TRACER_FLARE] Flare directory created successfully")
         except Exception as e:
-            log.error("Failed to create %s directory: %s", self.flare_dir, e)
+            log.error("[TRACER_FLARE] Failed to create directory %s: %s", self.flare_dir, e)
             return
 
         flare_log_level_int = logging.getLevelName(log_level)
         if type(flare_log_level_int) != int:
-            raise TypeError("Invalid log level provided: %s", log_level)
+            log.error("[TRACER_FLARE] Invalid log level provided: %s", log_level)
+            raise TypeError(f"Invalid log level provided: {log_level}")
 
         ddlogger = get_logger("ddtrace")
         pid = os.getpid()
         flare_file_path = self.flare_dir / f"tracer_python_{pid}.log"
         self.original_log_level = ddlogger.level
 
+        log.debug(
+            "[TRACER_FLARE] Logger configuration: original_level=%s, flare_level=%s",
+            self.original_log_level,
+            flare_log_level_int,
+        )
+
         # Set the logger level to the more verbose between original and flare
-        # We do this valid_original_level check because if the log level is NOTSET, the value is 0
-        # which is the minimum value. In this case, we just want to use the flare level, but still
-        # retain the original state as NOTSET/0
         valid_original_level = (
             logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
         )
         logger_level = min(valid_original_level, flare_log_level_int)
         ddlogger.setLevel(logger_level)
+
+        log.debug("[TRACER_FLARE] Setting logger level: %s", logger_level)
+
         self.file_handler = _add_file_handler(
             ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
         )
+
+        log.debug("[TRACER_FLARE] Added file handler: path=%s, level=%s", flare_file_path, flare_log_level_int)
 
         # Create and add config file
         self._generate_config_file(pid)
@@ -105,7 +119,7 @@ class Flare:
             try:
                 open(lock_path, "w").close()
             except Exception as e:
-                log.error("Failed to create %s file", lock_path)
+                log.error("[TRACER_FLARE] Failed to create %s file", lock_path)
                 raise e
             try:
                 client = get_connection(self.url, timeout=self.timeout)
@@ -113,7 +127,7 @@ class Flare:
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
-                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                    log.info("[TRACER_FLARE] Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
                 else:
                     msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
                         response.status,
@@ -122,12 +136,16 @@ class Flare:
                     )
                     raise TracerFlareSendError(msg)
             except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                log.error(
+                    "[TRACER_FLARE] Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e
+                )
                 raise e
             finally:
                 client.close()
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
+        else:
+            log.info("[TRACER_FLARE] Flare already sent. Skipping sending again. Flare lock file %s exists", lock_path)
 
     def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
@@ -148,7 +166,7 @@ class Flare:
                     indent=4,
                 )
         except Exception as e:
-            log.warning("Failed to generate %s: %s", config_file, e)
+            log.warning("[TRACER_FLARE] Failed to generate %s: %s", config_file, e)
             if os.path.exists(config_file):
                 os.remove(config_file)
 
@@ -156,9 +174,12 @@ class Flare:
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
-            log.debug("ddtrace logs will not be routed to the %s file handler anymore", TRACER_FLARE_FILE_HANDLER_NAME)
+            log.debug(
+                "[TRACER_FALRE] ddtrace logs will not be routed to the %s file handler anymore",
+                TRACER_FLARE_FILE_HANDLER_NAME,
+            )
         else:
-            log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
+            log.debug("[TRACER_FLARE] Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.original_log_level)
 
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
@@ -200,4 +221,4 @@ class Flare:
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
-            log.warning("Failed to clean up tracer flare files: %s", e)
+            log.warning("[TRACER_FLARE] Failed to clean up tracer flare files: %s", e)
