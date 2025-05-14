@@ -1,11 +1,16 @@
 import _thread
 import asyncio
+import glob
+import os
 import uuid
 
 import pytest
 
-from ddtrace.profiling import recorder
+from ddtrace import ext
+from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import asyncio as collector_asyncio
+from tests.profiling.collector import pprof_utils
+from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
 
@@ -13,91 +18,151 @@ from tests.profiling.collector.lock_utils import init_linenos
 init_linenos(__file__)
 
 
-@pytest.mark.asyncio
-async def test_lock_acquire_events():
-    r = recorder.Recorder()
-    with collector_asyncio.AsyncioLockCollector(r, capture_pct=100):
-        lock = asyncio.Lock()  # !CREATE! test_lock_acquire_events_asyncio
-        await lock.acquire()  # !ACQUIRE! test_lock_acquire_events_asyncio
-        assert lock.locked()
-    assert len(r.events[collector_asyncio.AsyncioLockAcquireEvent]) == 1
-    assert len(r.events[collector_asyncio.AsyncioLockReleaseEvent]) == 0
-    event = r.events[collector_asyncio.AsyncioLockAcquireEvent][0]
-    linenos = get_lock_linenos("test_lock_acquire_events_asyncio")
-    assert event.lock_name == "test_asyncio.py:{}:lock".format(linenos.create)
-    assert event.thread_id == _thread.get_ident()
-    assert event.wait_time_ns >= 0
-    # It's called through pytest so I'm sure it's gonna be that long, right?
-    assert len(event.frames) > 3
-    assert event.nframes > 3
-    assert event.frames[0] == (__file__, linenos.acquire, "test_lock_acquire_events", "")
-    assert event.sampling_pct == 100
+def test_repr():
+    test_collector._test_repr(
+        collector_asyncio.AsyncioLockCollector,
+        "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
+        "recorder=Recorder(default_max_events=16384, max_events={}), capture_pct=1.0, nframes=64, "
+        "endpoint_collection_enabled=True, export_libdd_enabled=True, tracer=None)",
+    )
 
 
 @pytest.mark.asyncio
-async def test_asyncio_lock_release_events():
-    r = recorder.Recorder()
-    with collector_asyncio.AsyncioLockCollector(r, capture_pct=100):
-        lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_release_events
-        assert await lock.acquire()  # !ACQUIRE! test_asyncio_lock_release_events
-        assert lock.locked()
-        lock.release()  # !RELEASE! test_asyncio_lock_release_events
-    assert len(r.events[collector_asyncio.AsyncioLockAcquireEvent]) == 1
-    assert len(r.events[collector_asyncio.AsyncioLockReleaseEvent]) == 1
-    event = r.events[collector_asyncio.AsyncioLockReleaseEvent][0]
-    linenos = get_lock_linenos("test_asyncio_lock_release_events")
-    assert event.lock_name == "test_asyncio.py:{}:lock".format(linenos.create)
-    assert event.thread_id == _thread.get_ident()
-    assert event.locked_for_ns >= 0
-    # It's called through pytest so I'm sure it's gonna be that long, right?
-    assert len(event.frames) > 3
-    assert event.nframes > 3
-    assert event.frames[0] == (__file__, linenos.release, "test_asyncio_lock_release_events", "")
-    assert event.sampling_pct == 100
+class TestAsyncioLockCollector:
+    def setup_method(self, method):
+        self.test_name = method.__name__
+        self.output_prefix = "/tmp" + os.sep + self.test_name
+        self.output_filename = self.output_prefix + "." + str(os.getpid())
 
+        assert ddup.is_available, "ddup is not available"
+        ddup.config(
+            env="test",
+            service="test_asyncio",
+            version="my_version",
+            output_filename=self.output_prefix,
+        )
+        ddup.start()
 
-@pytest.mark.asyncio
-async def test_lock_events_tracer(tracer):
-    resource = str(uuid.uuid4())
-    span_type = str(uuid.uuid4())
-    r = recorder.Recorder()
-    with collector_asyncio.AsyncioLockCollector(r, tracer=tracer, capture_pct=100):
-        lock = asyncio.Lock()  # !CREATE! test_lock_events_tracer_1
-        await lock.acquire()  # !ACQUIRE! test_lock_events_tracer_1
-        with tracer.trace("test", resource=resource, span_type=span_type) as t:
-            lock2 = asyncio.Lock()  # !CREATE! test_lock_events_tracer_2
-            await lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
-            lock.release()  # !RELEASE! test_lock_events_tracer_1
-            span_id = t.span_id
-        lock2.release()  # !RELEASE! test_lock_events_tracer_2
+    def teardown_method(self):
+        for f in glob.glob(self.output_prefix + "*"):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print("Error while deleting file: ", e)
 
-        lock_ctx = asyncio.Lock()  # !CREATE! test_lock_events_tracer_3
-        async with lock_ctx:  # !ACQUIRE! !RELEASE! test_lock_events_tracer_3
-            pass
-    events = r.reset()
-    # The tracer might use locks, so we need to look into every event to assert we got ours
-    linenos_1 = get_lock_linenos("test_lock_events_tracer_1")
-    linenos_2 = get_lock_linenos("test_lock_events_tracer_2")
-    linenos_3 = get_lock_linenos("test_lock_events_tracer_3", with_stmt=True)
-    lock1_name = "test_asyncio.py:{}:lock".format(linenos_1.create)
-    lock2_name = "test_asyncio.py:{}:lock2".format(linenos_2.create)
-    lock3_name = "test_asyncio.py:{}:lock_ctx".format(linenos_3.create)
-    lines_with_trace = [linenos_1.acquire, linenos_2.release, linenos_3.acquire, linenos_3.release]
-    lines_without_trace = [linenos_2.acquire, linenos_1.release]
-    for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):
-        assert {lock1_name, lock2_name, lock3_name}.issubset({e.lock_name for e in events[event_type]})
-        for event in events[event_type]:
-            if event.name in [lock1_name, lock2_name, lock3_name]:
-                file_name, lineno, function_name, class_name = event.frames[0]
-                assert file_name == __file__.replace(".pyc", ".py")
-                assert lineno in lines_with_trace + lines_without_trace
-                assert function_name == "test_lock_events_tracer"
-                assert class_name == ""
-                if lineno in lines_without_trace:
-                    assert event.span_id is None
-                    assert event.trace_resource_container is None
-                    assert event.trace_type is None
-                elif lineno in lines_with_trace:
-                    assert event.span_id == span_id
-                    assert event.trace_resource_container[0] == resource
-                    assert event.trace_type == span_type
+    async def test_asyncio_lock_events(self):
+        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+            lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events
+            await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events
+            assert lock.locked()
+            lock.release()  # !RELEASE! test_asyncio_lock_events
+
+        ddup.upload()
+
+        linenos = get_lock_linenos("test_asyncio_lock_events")
+        profile = pprof_utils.parse_profile(self.output_filename)
+        expected_thread_id = _thread.get_ident()
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                    thread_id=expected_thread_id,
+                )
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                    lock_name="lock",
+                    thread_id=expected_thread_id,
+                )
+            ],
+        )
+
+    async def test_asyncio_lock_events_tracer(self, tracer):
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+
+        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True, tracer=tracer):
+            lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_1
+            await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events_tracer_1
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_2
+                await lock2.acquire()  # !ACQUIRE! test_asyncio_lock_events_tracer_2
+                lock.release()  # !RELEASE! test_asyncio_lock_events_tracer_1
+                span_id = t.span_id
+            lock2.release()  # !RELEASE! test_asyncio_lock_events_tracer_2
+
+            lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
+            async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
+                pass
+        ddup.upload(tracer=tracer)
+
+        linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
+        linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
+        linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3", with_stmt=True)
+
+        profile = pprof_utils.parse_profile(self.output_filename)
+        expected_thread_id = _thread.get_ident()
+
+        pprof_utils.assert_lock_events(
+            profile,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_1,
+                    lock_name="lock",
+                    thread_id=expected_thread_id,
+                ),
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_2,
+                    lock_name="lock2",
+                    span_id=span_id,
+                    trace_endpoint=resource,
+                    trace_type=span_type,
+                    thread_id=expected_thread_id,
+                ),
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_3,
+                    lock_name="lock_ctx",
+                    thread_id=expected_thread_id,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_1,
+                    lock_name="lock",
+                    span_id=span_id,
+                    trace_endpoint=resource,
+                    trace_type=span_type,
+                    thread_id=expected_thread_id,
+                ),
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_2,
+                    lock_name="lock2",
+                    thread_id=expected_thread_id,
+                ),
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_asyncio_lock_events_tracer",
+                    filename=os.path.basename(__file__),
+                    linenos=linenos_3,
+                    lock_name="lock_ctx",
+                    thread_id=expected_thread_id,
+                ),
+            ],
+        )
