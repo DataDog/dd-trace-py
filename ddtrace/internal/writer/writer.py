@@ -664,7 +664,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
             default_api_version = "v0.4"
 
-        self._api_version = api_version or config._trace_api or default_api_version
+        self._api_version = "v0.4"
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
