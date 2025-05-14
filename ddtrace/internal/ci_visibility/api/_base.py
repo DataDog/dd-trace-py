@@ -90,6 +90,7 @@ class TestVisibilitySessionSettings:
 
 class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
+    NONSTARTED = 2
 
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
@@ -415,6 +416,8 @@ class TestVisibilityItemBase(abc.ABC):
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.is_finished():
             return self._status
+        if not self.is_started():
+            return SPECIAL_STATUS.NONSTARTED
         return SPECIAL_STATUS.UNFINISHED
 
     def get_raw_status(self) -> TestStatus:
@@ -562,10 +565,13 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         for child in self._children.values():
             child_status = child.get_status()
-            if child_status == SPECIAL_STATUS.UNFINISHED:
+            if child_status == SPECIAL_STATUS.NONSTARTED:
+                # This means that the child was never started, so we don't count it
+                continue
+            elif child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
                 log.debug("Item %s has unfinished children", self)
-                continue  # It's possible that some children were executed in a different process
+                return SPECIAL_STATUS.UNFINISHED
             children_status_counts[child_status.value] += 1
 
         log.debug("Children status counts for %s: %s", self, children_status_counts)
