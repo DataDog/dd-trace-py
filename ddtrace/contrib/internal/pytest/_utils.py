@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import re
 import typing as t
+import weakref
 
 import pytest
 
@@ -42,6 +43,12 @@ class _PYTEST_STATUS:
 
 
 PYTEST_STATUS = _PYTEST_STATUS()
+
+
+class TestPhase:
+    SETUP = "setup"
+    CALL = "call"
+    TEARDOWN = "teardown"
 
 
 @dataclass
@@ -230,3 +237,13 @@ class _TestOutcome(t.NamedTuple):
     status: t.Optional[TestStatus] = None
     skip_reason: t.Optional[str] = None
     exc_info: t.Optional[TestExcInfo] = None
+
+
+def get_user_property(report, key, default=None):
+    for k, v in report.user_properties:
+        if k == key:
+            return v
+    return default
+
+
+excinfo_by_report = weakref.WeakKeyDictionary()
