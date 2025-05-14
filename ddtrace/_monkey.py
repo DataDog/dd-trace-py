@@ -279,7 +279,6 @@ def patch(raise_errors=True, **patch_modules):
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
-    print("patching"*100)
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
