@@ -845,3 +845,40 @@ class TestLLMObsBedrock:
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {"role": "user", "content": [{"toolResult": {"toolUseId": "foo", "content": [{"text": "bar"}]}}]}
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "bar", "role": "tool result"}]
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"toolResult": {"toolUseId": "foo", "content": [{"json": {"result": "bar"}}]}}],
+                    }
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+            {"content": '{"result": "bar"}', "role": "tool result"}
+        ]
