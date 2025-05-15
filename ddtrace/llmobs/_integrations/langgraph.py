@@ -92,7 +92,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            self._link_task_to_parent(
+            self._link_task_to_parents(
                 task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
             )
 
@@ -122,7 +122,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
         return
 
-    def _link_task_to_parent(
+    def _link_task_to_parents(
         self,
         task_id: str,
         task,
@@ -252,10 +252,11 @@ def _has_pregel_push_for_task(task, finished_task, seen_pregel_tasks_writes: set
     of the nodes added in the finished_tasks dictionary (so that the first task whose trigger is a PREGEL_PUSH
     is from the first finished task that has a PREGEL_TASK write).
     """
-    for branch, arg in finished_task.writes:
+    task_writes: list[tuple[str, ...]] = getattr(finished_task, "writes", [])
+    for branch, arg in task_writes:
         if branch == PREGEL_TASKS and id(arg) not in seen_pregel_tasks_writes:
             seen_pregel_tasks_writes.add(id(arg))
-            return arg.node == task.name
+            return getattr(arg, "node", "") == getattr(task, "name", "")
     return False
 
 
