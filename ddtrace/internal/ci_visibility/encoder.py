@@ -121,9 +121,16 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         """
         Remove trace/span/parent IDs if non-test event, move session/module/suite IDs from meta to outer content layer.
         """
+        real_parent_id = 0
         if sp["meta"].get(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE]:
+            span_id = sp["span_id"]
             del sp["trace_id"]
             del sp["span_id"]
+            parent_id = sp["parent_id"]
+            if sp["meta"].get(EVENT_TYPE) == SESSION_TYPE:
+                log.debug("Session event detected, parent_id: %s", parent_id)
+                if parent_id is not None and int(parent_id) != 0 and parent_id != span_id:
+                    real_parent_id = int(parent_id)
             del sp["parent_id"]
         else:
             sp["trace_id"] = int(sp.get("trace_id") or "1")
@@ -131,7 +138,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             sp["span_id"] = int(sp.get("span_id") or "1")
         if sp["meta"].get(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
             test_session_id = sp["meta"].get(SESSION_ID)
-            if test_session_id:
+            if sp["meta"].get(EVENT_TYPE) == SESSION_TYPE and real_parent_id:
+                sp[SESSION_ID] = real_parent_id
+                del sp["meta"][SESSION_ID]
+            elif test_session_id:
                 sp[SESSION_ID] = int(test_session_id)
                 del sp["meta"][SESSION_ID]
         if sp["meta"].get(EVENT_TYPE) in [MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
