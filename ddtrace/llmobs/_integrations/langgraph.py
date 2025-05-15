@@ -176,10 +176,10 @@ def _get_task_trigger_ids_from_finished_tasks(
     Since only one node (aside from PREGEL_PUSH via Send) can be triggered per tick, it is safe to assume all finished
     nodes that have a given branch trigger in their writes are responsible for triggering the queued task.
 
-    In the case of a pregel push, we assume that all pushed tasks are queued in order of the nodes added in the finished_tasks
-    dictionary. We look for the first PREGEL_TASK write in the finished_tasks that has not already been marked
-    as seen in the `seen_pregel_tasks` set (representing that a node queued via send has already been recorded) with
-    span linkage.
+    In the case of a pregel push, we assume that all pushed tasks are queued in order of the nodes added in the
+    finished_tasks dictionary. We look for the first PREGEL_TASK write in the finished_tasks that has not already
+    been marked as seen in the `seen_pregel_tasks` set (representing that a node queued via send has
+    already been recorded) with span linkage.
     """
     task_config = getattr(task, "config", {})
     task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
