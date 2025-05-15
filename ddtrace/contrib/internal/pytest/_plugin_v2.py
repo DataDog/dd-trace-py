@@ -296,7 +296,46 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         InternalTestSession.set_library_capabilities(library_capabilities)
 
-        InternalTestSession.start()
+        extracted_context = None
+        if hasattr(session.config, "workerinput"):
+            from ddtrace._trace.context import Context
+            from ddtrace.constants import USER_KEEP
+
+            received_root_trace = session.config.workerinput.get("root_trace", "MISSING_TRACE")
+            received_root_span = session.config.workerinput.get("root_span", "MISSING_SPAN")
+            log.debug(
+                "pytest_sessionstart (worker): Received from main - root_trace: %s, root_span: %s",
+                received_root_trace,
+                received_root_span
+            )
+
+            if isinstance(received_root_trace, str) or isinstance(received_root_span, str) or received_root_span == 0 or received_root_span is None:
+                log.error(
+                    "pytest_sessionstart (worker): root_trace (%s) or root_span (%s) is missing/invalid type from workerinput. Cannot establish parent-child link.",
+                    received_root_trace,
+                    received_root_span
+                )
+                # Not creating extracted_context, so InternalTestSession.start() will get None
+            else:
+                root_trace = int(received_root_trace)
+                root_span = int(received_root_span) # This is the parent_id for the worker session
+                
+                log.debug(
+                    "pytest_sessionstart (worker): Creating context with trace_id=%s, parent_span_id=%s",
+                    root_trace,
+                    root_span
+                )
+                extracted_context = Context(
+                    trace_id=root_trace,
+                    span_id=root_span, # This span_id here becomes context.span_id for the parent context
+                    sampling_priority=USER_KEEP,
+                )
+            # tracer = InternalTestSession.get_tracer()
+            # tracer.context_provider.activate(extracted_context)
+            # InternalTestSession.get_span()._context = extracted_context.copy(root_trace, root_span)
+
+        InternalTestSession.start(extracted_context)
+
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 

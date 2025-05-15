@@ -89,6 +89,7 @@ from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from ddtrace._trace.context import Context
 
 
 log = get_logger(__name__)
@@ -1087,10 +1088,10 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_session() -> None:
+def _on_start_session(context: Optional[Context] = None) -> None:
     log.debug("Handling start session")
     session = CIVisibility.get_session()
-    session.start()
+    session.start(context)
 
 
 @_requires_civisibility_enabled
