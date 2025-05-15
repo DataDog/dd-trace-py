@@ -167,6 +167,11 @@ class LLMObs(Service):
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
+
+        input_messages = span._get_ctx_item(INPUT_MESSAGES)
+        if span_kind == "llm" and input_messages is not None:
+            meta["input"]["messages"] = enforce_message_role(input_messages)
+
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
 
