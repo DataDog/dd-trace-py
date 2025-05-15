@@ -3,6 +3,8 @@
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
 
+import pytest
+
 from ddtrace.contrib.internal.psycopg.patch import get_version
 from ddtrace.contrib.internal.psycopg.patch import get_versions
 from ddtrace.contrib.internal.psycopg.patch import patch
@@ -40,3 +42,17 @@ class TestPsycopgPatch(PatchTestCase.Base):
         assert versions.get("psycopg2")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg2"], "psycopg2")
         unpatch()
+
+
+def test_psycopg_circular_import():
+    import importlib
+    import sys
+
+    patch_module_name = "ddtrace.contrib.internal.psycopg.patch"
+    if patch_module_name in sys.modules:
+        del sys.modules[patch_module_name]
+
+    try:
+        importlib.import_module(patch_module_name)
+    except Exception as e:
+        pytest.fail(f"Failed to import psycopg patch module: {str(e)}")
