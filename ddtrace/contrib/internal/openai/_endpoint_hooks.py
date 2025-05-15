@@ -747,7 +747,7 @@ class _ResponseHook(_BaseCompletionHook):
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createResponse"
-    
+
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:

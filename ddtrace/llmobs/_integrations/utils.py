@@ -839,7 +839,7 @@ class OaiSpanAdapter:
             - A list of tool call IDs for span linking purposes
         """
         messages = self.input
-        processed: List[Dict[str, Union[str, List[Dict[str, str]]]]] = []
+        processed: List[Dict[str, Any]] = []
         tool_call_ids: List[str] = []
 
         if not messages:
