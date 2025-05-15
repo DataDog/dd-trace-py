@@ -43,23 +43,26 @@ class TestVisibilityModule(
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
         # Module path is set for module and below
-        module_path: str
+        tags = {}
+        module_path_str: str
         if self._module_path:
             if self._module_path == self._session_settings.workspace_path:
                 # '.' is not the desired relative path when the workspace and module path are the same
-                module_path = ""
+                module_path_str = ""
             elif self._module_path.is_relative_to(self._session_settings.workspace_path):
-                module_path = str(self._module_path.relative_to(self._session_settings.workspace_path))
+                module_path_str = str(self._module_path.relative_to(self._session_settings.workspace_path))
             else:
-                module_path = str(self._module_path)
+                module_path_str = str(self._module_path)
         else:
-            module_path = ""
+            module_path_str = ""
+        
+        tags[test.MODULE_PATH] = module_path_str
+        tags[test.MODULE] = self.name
 
-        return {
-            MODULE_ID: str(self.get_span_id()),
-            test.MODULE_PATH: module_path,
-            test.MODULE: self.name,
-        }
+        span_id = self.get_span_id()
+        if span_id is not None:
+            tags[MODULE_ID] = str(span_id)
+        return tags
 
     def _set_itr_tags(self, itr_enabled: bool):
         """Set module-level tags based in ITR enablement status"""

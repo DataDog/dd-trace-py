@@ -73,10 +73,12 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         self.finish()
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
-        return {
-            SUITE_ID: str(self.get_span_id()),
-            test.SUITE: self.name,
-        }
+        tags = {}
+        tags[test.SUITE] = self.name
+        span_id = self.get_span_id()
+        if span_id is not None:
+            tags[SUITE_ID] = str(span_id)
+        return tags
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set suite-level tags based on ITR enablement status"""

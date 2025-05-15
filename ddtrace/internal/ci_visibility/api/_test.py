@@ -114,9 +114,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         )
 
     def _get_hierarchy_tags(self) -> Dict[str, str]:
-        return {
-            test.NAME: self.name,
-        }
+        tags = {}
+        tags[test.NAME] = self.name
+        # TEST_SUITE_ID is implicitly handled by the parent suite's SUITE_ID
+        # during _collect_hierarchy_tags. No change needed here for that.
+        return tags
 
     def _set_item_tags(self) -> None:
         """Overrides parent tags for cases where they need to be modified"""
