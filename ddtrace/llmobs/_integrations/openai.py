@@ -104,11 +104,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             if not num_tokens:
                 continue
             span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-        for token_type in ("input", "output", "total"):
-            num_tokens = getattr(usage, token_type + "_tokens", None)
-            if not num_tokens:
-                continue
-            span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
 
     def _llmobs_set_tags(
         self,

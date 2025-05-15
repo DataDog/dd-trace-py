@@ -752,7 +752,6 @@ class _ResponseHook(_BaseCompletionHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False, is_response=True)
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="responses")
         if not resp:
             return resp
         integration.record_usage(span, resp.usage)

@@ -1,13 +1,16 @@
 import inspect
 import sys
 
+from ddtrace.internal import core
+
 
 class BaseTracedLangChainStreamResponse:
-    def __init__(self, generator, integration, span, on_span_finish):
+    def __init__(self, generator, integration, span, on_span_finish, chunk_callback):
         self._generator = generator
         self._dd_integration = integration
         self._dd_span = span
         self._on_span_finish = on_span_finish
+        self._chunk_callback = chunk_callback
         self._chunks = []
 
 
@@ -26,6 +29,7 @@ class TracedLangchainStreamResponse(BaseTracedLangChainStreamResponse):
         try:
             chunk = self._generator.__next__()
             self._chunks.append(chunk)
+            self._chunk_callback(chunk)
             return chunk
         except StopIteration:
             self._on_span_finish(self._dd_span, self._chunks)
@@ -52,6 +56,7 @@ class TracedLangchainAsyncStreamResponse(BaseTracedLangChainStreamResponse):
         try:
             chunk = await self._generator.__anext__()
             self._chunks.append(chunk)
+            self._chunk_callback(chunk)
             return chunk
         except StopAsyncIteration:
             self._on_span_finish(self._dd_span, self._chunks)
@@ -94,8 +99,8 @@ def shared_stream(
     try:
         resp = func(*args, **kwargs)
         cls = TracedLangchainAsyncStreamResponse if inspect.isasyncgen(resp) else TracedLangchainStreamResponse
-
-        return cls(resp, integration, span, on_span_finished)
+        chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
+        return cls(resp, integration, span, on_span_finished, chunk_callback)
     except Exception:
         # error with the method call itself
         span.set_exc_info(*sys.exc_info())
@@ -127,3 +132,28 @@ def tag_general_message_input(span, inputs, integration, langchain_core):
             span.set_tag_str("langchain.request.messages.%d.message_type" % (input_idx), str(role))
         else:
             span.set_tag_str("langchain.request.messages.%d.content" % (input_idx), integration.trunc(str(inp)))
+
+
+def _get_chunk_callback(interface_type, args, kwargs):
+    results = core.dispatch_with_results("langchain.stream.chunk.callback", (interface_type, args, kwargs))
+    callbacks = []
+    for result in results.values():
+        if result and result.value:
+            callbacks.append(result.value)
+    return _build_chunk_callback(callbacks)
+
+
+def _build_chunk_callback(callbacks):
+    if not callbacks:
+        return _no_op_callback
+
+    def _chunk_callback(chunk):
+        for callback in callbacks:
+            callback(chunk)
+        return chunk
+
+    return _chunk_callback
+
+
+def _no_op_callback(chunk):
+    pass
