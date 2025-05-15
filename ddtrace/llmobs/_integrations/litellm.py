@@ -69,10 +69,33 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 metadata["model"] = kwargs["model"]
         # add proxy information to metadata if it's a span originating from the proxy
         else:
+            if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
+                del metadata["metadata"]["user_api_key"]
+            
+            if not self._litellm_module:
+                span._set_ctx_items({METADATA: metadata})
+                return
+
             routing_info = {}
-            routing_info["routing_strategy"] = self._litellm_module.proxy.proxy_server.llm_router.routing_strategy
+            proxy = getattr(self._litellm_module, "proxy", None)
+            proxy_server = getattr(proxy, "proxy_server", None)
+            llm_router = getattr(proxy_server, "llm_router", None)
+            routing_info["router_general_settings"] = getattr(llm_router, "router_general_settings", None)
+            routing_info["routing_strategy"] = getattr(llm_router, "routing_strategy", None)
+            routing_info["routing_strategy_args"] = getattr(llm_router, "routing_strategy_args", None)
+            routing_info["provider_budget_config"] = getattr(llm_router, "provider_budget_config", None)
+            routing_info["retry_policy"] = getattr(llm_router, "retry_policy", None)
+            model_list = llm_router.get_model_list() if hasattr(llm_router, "get_model_list") else []
+            routing_info["model_list"] = self._scrub_litellm_model_list(model_list)
             metadata["router_settings"] = routing_info
+
         span._set_ctx_items({METADATA: metadata})
+    
+    def _scrub_litellm_model_list(self, model_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for model in model_list:
+            if "litellm_params" in model and "api_key" in model["litellm_params"]:
+                del model["litellm_params"]["api_key"]
+        return model_list
 
     @staticmethod
     def _extract_llmobs_metrics(resp: Any) -> Dict[str, Any]:
