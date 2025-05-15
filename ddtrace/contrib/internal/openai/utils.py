@@ -8,6 +8,7 @@ import wrapt
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_response_from_streamed_chunks
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -25,7 +26,7 @@ _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+    def __init__(self, wrapped, integration, span, kwargs, is_completion=False, is_response=False):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         prompts = kwargs.get("prompt", "")
@@ -36,6 +37,7 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
         self._dd_integration = integration
         self._is_completion = is_completion
         self._kwargs = kwargs
+        self._is_response = is_response
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
@@ -51,12 +53,14 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
+        print("entering _TracedOpenAIStream __iter__")
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
                 self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            breakpoint()
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             exception_raised = True
@@ -64,19 +68,21 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion, self._is_response
                 )
             self._dd_span.finish()
 
     def __next__(self):
         try:
+            print("entering _TracedOpenAIStream __next__")
             chunk = self.__wrapped__.__next__()
             self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
+            breakpoint()
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion, self._is_response
             )
             self._dd_span.finish()
             raise
@@ -275,22 +281,35 @@ def _loop_handler(span, chunk, streamed_chunks):
         streamed_chunks[0].insert(0, chunk)
 
 
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False, is_response=False):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
+    print("entering _process_finished_stream")
+    print("streamed chunks is: ", streamed_chunks)
     try:
-        if is_completion:
+        if is_response:
+            print("using response constructor")
+            formatted_completions = [
+                openai_construct_response_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
+            operation = "responses"
+        elif is_completion:
+            print("using completion constructor")
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
+            operation = "completion"
         else:
+            print("using message constructor")
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
+            operation = "chat"
+
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
-        operation = "completion" if is_completion else "chat"
+        operation = "completion" if is_completion else "chat" # TODO: need to add responses
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)

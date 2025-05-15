@@ -396,9 +396,9 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
+
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
-    
     input_data = kwargs.get("input", [])
     input_messages = []
     if isinstance(input_data, str):
@@ -417,15 +417,28 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             else:
                 content_text = str(content)
             input_messages.append({"content": content_text, "role": role})
-
     parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
+
     if isinstance(messages, list):  # streamed response
-        pass
+        role = ""
+        output_messages = []
+        for streamed_message in messages:
+            # if streamed_message.get("type") == "response.completed":
+            streamed_output = streamed_message.get("output", [])
+            role = streamed_output.get("role", "")
+            streamed_content = streamed_output.get("content", [])
+            if streamed_content:
+                message = {"content": streamed_content.get("text", ""), "role": role}
+                output_messages.append(message)
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        breakpoint()
+        return
+
     # Non-streaming response
     output_data = _get_attr(messages, "output", [])
     output_messages = []
@@ -438,9 +451,11 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             summary = _get_attr(output, "summary", "")
             encrypted_content = _get_attr(output, "encrypted_content", "")
             if content: 
+                message = {"content": "", "role": role}
                 for c in content:
                     text = _get_attr(c, "text", "")
-                    output_messages.append({"content": text, "role": role})
+                    message["content"] += text
+                output_messages.append(message)
             if summary:
                 for s in summary:
                     text = _get_attr(s, "text", "")
@@ -452,30 +467,19 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             tool_call_info = []
             output_type = output.type
             # file_search_call
-            file_queries = _get_attr(output, "queries", [])
-            file_results = _get_attr(output, "results", [])
-            # web_search_call   
+            file_queries_raw = _get_attr(output, "queries", None)
+            # file_queries is an array of strings
+            if file_queries_raw:
+                file_queries = {"queries": file_queries_raw}
 
-
-            # computer_call
-            action_raw = _get_attr(output, "action", "") # need to use as a json loaded
-            print("action_raw type: ", type(action_raw))
-            # action = {}
+            # computer_call action
+            action_raw = _get_attr(output, "action", "")
             if action_raw:
-                if isinstance(action_raw, str):
-                    try:
-                        action = json.loads(action_raw)
-                    except json.JSONDecodeError:
-                        action = {"action": action_raw}
-                else:              
+                if isinstance(action_raw, str):             
                     action_json_str = action_raw.json()
                     # convert to valid json string
                     action = json.loads(f'{{"action": {action_json_str}}}')
-                    # breakpoint()
-                    print("converted to string")
 
-            print("action type: ", type(action))
-            print("action: ", action)
             # funcition call
             # Use output.id as the tool_id
             tool_id = _get_attr(output, "id", "")
@@ -483,14 +487,20 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             arguments = _get_attr(output, "arguments", "")
             if arguments:
                 arguments = json.loads(arguments)
-            elif action:
+            # Set reasoning action as the parameter
+            elif action_raw:
                 arguments = action
+            # Set file search queries as the parameter
+            elif file_queries:
+                arguments = file_queries
+            
             tool_call_dict = {
                 "name": tool_name,
-                "arguments": arguments,
                 "tool_id": tool_id,
                 "type": output_type,
             }
+            if arguments:
+                tool_call_dict["arguments"] = arguments
             tool_call_info.append(tool_call_dict)
             core.dispatch(
                 DISPATCH_ON_LLM_TOOL_CHOICE,
@@ -498,7 +508,6 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                     tool_id,
                     tool_name,
                     arguments,
-                    # action,
                     {
                         "trace_id": format_trace_id(span.trace_id),
                         "span_id": str(span.span_id),
@@ -508,8 +517,31 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             if tool_call_info:
                 output_messages.append({"tool_calls": tool_call_info})
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
-    breakpoint()
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
+    """Constructs a response dictionary from streamed chunks.
+    The resulting response dictionary is of form:
+    {"output": [{"role": "...", "content": [{"text": "..."}]}]}
+    """
+    print("entering openai_construct_response_from_streamed_chunks")
+    message: Dict[str, Any] = {"content": "", "tool_calls": []}
+
+    for chunk in streamed_chunks:
+        if getattr(chunk, "response", None):
+            chunk_response = chunk.response
+            chunk_output = chunk_response.get("output", [])
+            if chunk_output:
+                if getattr(chunk_output, "usage", None):
+                    message["usage"] = chunk_output.usage
+                if getattr(chunk_output, "role", None):
+                    message["role"] = chunk_output.role
+                if getattr(chunk_output, "content", None):
+                    message["content"] = chunk_output.content
+
+    message["content"] = message["content"].strip()
+    print("message is: ", message)
+    return message
 
 
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
@@ -564,14 +596,22 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
             continue
         if getattr(chunk, "index", None) and not message.get("index"):
             message["index"] = chunk.index
+        if getattr(chunk, "output", None):
+            chunk_output = chunk.output
+            print("chunk_output is: ", chunk_output)
         if getattr(chunk.delta, "role") and not message.get("role"):
             message["role"] = chunk.delta.role
         if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        chunk_content = getattr(chunk.delta, "content", "")
-        if chunk_content:
-            message["content"] += chunk_content
-            continue
+        # Response
+        if chunk_output:
+            pass
+
+        if chunk.delta:
+            chunk_content = getattr(chunk.delta, "content", "")
+            if chunk_content:
+                message["content"] += chunk_content
+                continue
         function_call = getattr(chunk.delta, "function_call", None)
         if function_call:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
@@ -799,7 +839,7 @@ class OaiSpanAdapter:
             - A list of tool call IDs for span linking purposes
         """
         messages = self.input
-        processed: List[Dict[str, Any]] = []
+        processed: List[Dict[str, Union[str, List[Dict[str, str]]]]] = []
         tool_call_ids: List[str] = []
 
         if not messages:

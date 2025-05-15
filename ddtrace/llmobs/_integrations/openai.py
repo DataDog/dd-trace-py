@@ -127,7 +127,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
-
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
@@ -135,6 +134,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "responses":
+            # if kwargs.get("stream"):
+            #     handle_response_streamed_responses(span, kwargs, response)
+            # else:
             openai_set_meta_tags_from_response(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
