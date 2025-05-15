@@ -121,14 +121,45 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         """
         Remove trace/span/parent IDs if non-test event, move session/module/suite IDs from meta to outer content layer.
         """
-        if sp["meta"].get(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE]:
-            del sp["trace_id"]
-            del sp["span_id"]
-            del sp["parent_id"]
+        event_type_for_log = sp.get("meta", {}).get(EVENT_TYPE)
+        trace_id_for_log = sp.get("trace_id")
+        parent_id_for_log = sp.get("parent_id")
+        log.debug(
+            "_filter_ids input: event_type=%s, trace_id=%s, parent_id=%s, meta_keys=%s",
+            event_type_for_log,
+            trace_id_for_log,
+            parent_id_for_log,
+            list(sp.get("meta", {}).keys()), # Log all meta keys to see if SESSION_ID etc. are present
+        )
+        event_type = sp["meta"].get(EVENT_TYPE)
+        # A session event is an xdist worker session if it's SESSION_TYPE and already has a non-zero parent_id.
+        # The parent_id comes from the original span object via JSONEncoderV2._span_to_dict.
+        is_worker_session = event_type == SESSION_TYPE and sp.get("parent_id") and int(sp.get("parent_id", 0)) != 0
+
+        if event_type in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE] and not is_worker_session:
+            # For main session, module, or suite events (that are not xdist worker sessions),
+            # remove trace/parent/span ids as they are hierarchy markers, not typical trace spans.
+            if "trace_id" in sp:
+                del sp["trace_id"]
+            if "span_id" in sp:
+                del sp["span_id"]
+            if "parent_id" in sp:
+                del sp["parent_id"]
         else:
-            sp["trace_id"] = int(sp.get("trace_id") or "1")
-            sp["parent_id"] = int(sp.get("parent_id") or "1")
-            sp["span_id"] = int(sp.get("span_id") or "1")
+            # For "test" spans, generic "span" events, or an xdist worker session event.
+            sp["trace_id"] = int(sp.get("trace_id") or 1)  # Default to 1 if missing (should be rare)
+            
+            current_parent_id = sp.get("parent_id")
+            if current_parent_id is not None:
+                # If parent_id exists (could be 0 for a root span not yet fully processed, or a valid ID)
+                sp["parent_id"] = int(current_parent_id)
+            else:
+                # If "parent_id" key was missing entirely or its value was None from the source dict,
+                # this signifies it's a root span in its context.
+                sp["parent_id"] = 0
+            
+            sp["span_id"] = int(sp.get("span_id") or 1) # Default to 1 if missing
+
         if sp["meta"].get(EVENT_TYPE) in [SESSION_TYPE, MODULE_TYPE, SUITE_TYPE, SpanTypes.TEST]:
             test_session_id = sp["meta"].get(SESSION_ID)
             if test_session_id:
