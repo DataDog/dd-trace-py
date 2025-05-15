@@ -115,30 +115,47 @@ class LiteLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
 
-    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> str:
+    def _skip_llm_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
-        Workflow span should be submitted to LLMObs if:
-            - base_url is set (indicates a request to the proxy) OR
-            - base_url is not set AND an LLM span will be submitted from the OpenAI integration (see below)
-        LLM spans should be submitted to LLMObs if:
-            - base_url is not set AND an LLM span will not be submitted from the OpenAI integration (see below)
-
-        An LLM span will be submitted from the OpenAI integration if all of the following are true:
+        Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
+        
+        Currently, this only applies to the OpenAI integration when the following conditions are met:
             - request is not streamed
             - model provider is OpenAI/AzureOpenAI
             - the OpenAI integration is enabled
         """
-        base_url = kwargs.get("api_base", None)
-        if base_url:
-            return "workflow"
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
         # model provider is unknown until request completes; therefore, this is a best effort attempt to check
         # if model provider is Open AI or Azure
-        if (
+        return (
             any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
             and not stream
             and LLMObs._integration_is_enabled("openai")
-        ):
+        )
+    
+    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> str:
+        """
+        Workflow span should be submitted to LLMObs if:
+            - base_url is set (indicates a request to the proxy) OR
+            - base_url is not set AND an LLM span will be submitted elsewhere
+        LLM spans should be submitted to LLMObs if:
+            - base_url is not set AND an LLM span will not be submitted elsewhere
+        """
+        base_url = kwargs.get("api_base", None)
+        if base_url or self._skip_llm_span(kwargs, model):
             return "workflow"
         return "llm"
+    
+    def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
+        """
+        LiteLLM spans will be submitted to LLMObs unless the following are true:
+            - base_url is not set (indicates no proxy being used)
+            - there is no proxy_server_request (indicates no proxy being used)
+            - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
+        """
+        base_url = kwargs.get("api_base", None)
+        proxy_server_request = kwargs.get("proxy_server_request", None)
+        if not base_url and not proxy_server_request and self._skip_llm_span(kwargs, model):
+            return False
+        return True
