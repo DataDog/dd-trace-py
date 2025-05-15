@@ -55,6 +55,36 @@ def do_operator_add_inplace_params(a, b):
     return a
 
 
+def do_operator_add_inplace_dict_key(a, key, b):
+    a[key] += b
+    return a[key]
+
+
+def _get_dictionary(dictionary):
+    return dictionary
+
+
+def do_operator_add_inplace_dict_key_from_function(a, key, b):
+    _get_dictionary(a)[key] += b
+    return a[key]
+
+
+class MyClassWithDict(object):
+    data = {}
+
+    def __init__(self, my_cool_dict):
+        self.data = my_cool_dict
+
+    def get_data(self):
+        return self.data
+
+
+def do_operator_add_inplace_dict_key_from_class(a, key, b):
+    my_cool_data = MyClassWithDict(a)
+    my_cool_data.get_data()[key] += b
+    return a[key]
+
+
 def do_operator_add_inplace_3_params(a, b, c):
     a += b
     a += c
