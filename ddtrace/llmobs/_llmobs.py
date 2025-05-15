@@ -69,6 +69,7 @@ from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
+from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
@@ -176,12 +177,18 @@ class LLMObs(Service):
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
-        if span_kind == "llm" and span._get_ctx_item(INPUT_MESSAGES) is not None:
-            meta["input"]["messages"] = span._get_ctx_item(INPUT_MESSAGES)
+
+        input_messages = span._get_ctx_item(INPUT_MESSAGES)
+        if span_kind == "llm" and input_messages is not None:
+            meta["input"]["messages"] = enforce_message_role(input_messages)
+
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
-        if span_kind == "llm" and span._get_ctx_item(OUTPUT_MESSAGES) is not None:
-            meta["output"]["messages"] = span._get_ctx_item(OUTPUT_MESSAGES)
+
+        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+        if span_kind == "llm" and output_messages is not None:
+            meta["output"]["messages"] = enforce_message_role(output_messages)
+
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span._get_ctx_item(OUTPUT_VALUE) is not None:

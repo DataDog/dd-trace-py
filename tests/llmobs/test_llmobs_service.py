@@ -521,6 +521,22 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs, m
         mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
 
 
+def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input"}])
+
+        # force the span event to be created - this is where we normalize the role
+        span_event = llmobs._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
+
+
+def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": None}])
+        span_event = llmobs._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
+
+
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
