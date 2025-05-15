@@ -7,7 +7,9 @@ from tests.contrib.litellm.utils import consume_stream
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
+from tests.contrib.litellm.utils import get_litellm_metadata
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 
 
@@ -44,7 +46,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
+            metadata=get_litellm_metadata(stream, n),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -72,7 +74,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": False}},
+            metadata=get_litellm_metadata(stream, n, False),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -106,12 +108,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
-            metadata={
-                "stream": stream,
-                "n": n,
-                "stream_options": {"include_usage": True},
-                "tool_choice": "auto",
-            },
+            metadata=get_litellm_metadata(stream, n, True, tool_choice="auto"),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -139,7 +136,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
+            metadata=get_litellm_metadata(stream, n),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -167,7 +164,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=[{"content": prompt}],
             output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
+            metadata=get_litellm_metadata(stream, n),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -195,7 +192,7 @@ class TestLLMObsLiteLLM:
             model_provider="openai",
             input_messages=[{"content": prompt}],
             output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
+            metadata=get_litellm_metadata(stream, n),
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -236,7 +233,17 @@ class TestLLMObsLiteLLM:
                 api_base="http://0.0.0.0:4000",
             )
             if stream:
-                consume_stream(resp, n)
+                _, token_metrics = consume_stream(resp, n)
+            else:
+                _, token_metrics = parse_response(resp)
 
-        # client side requests made to the proxy are not submitted to LLMObs
-        assert len(llmobs_events) == 0
+        # client side requests made to the proxy are workflow spans
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="workflow",
+            metadata=get_litellm_metadata(stream, n, True, api_base="http://0.0.0.0:4000", model="gpt-3.5-turbo", include_router_settings=False),
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )

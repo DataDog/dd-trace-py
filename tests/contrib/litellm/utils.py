@@ -137,6 +137,30 @@ def parse_response(resp, is_completion=False):
     }
     return output_messages, token_metrics
 
+def get_litellm_metadata(stream, n, include_usage=True, tool_choice=None, include_router_settings=True, api_base=None, model=None):
+    metadata = {
+        "stream": stream,
+        "n": n,
+        "stream_options": {
+            "include_usage": include_usage,
+        },
+    }
+    if include_router_settings:
+        metadata["router_settings"] = {
+            "router_general_settings": None,
+            "routing_strategy": None,
+            "routing_strategy_args": None,
+            "provider_budget_config": None,
+            "retry_policy": None,
+            "model_list": [],
+        }
+    if tool_choice:
+        metadata["tool_choice"] = tool_choice
+    if api_base:
+        metadata["api_base"] = api_base
+    if model:
+        metadata["model"] = model
+    return metadata
 
 tools = [
     {
