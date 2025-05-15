@@ -10,7 +10,6 @@ from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_stri
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
@@ -42,14 +41,10 @@ _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def attempt_to_fix_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    test_reports: t.Dict[str, pytest_TestReport],
+    when: str,
+    original_result: pytest_TestReport,
     test_outcome: _TestOutcome,
-    is_quarantined: bool = False,
 ):
-    setup_report = test_reports.get(TestPhase.SETUP)
-    call_report = test_reports.get(TestPhase.CALL)
-    teardown_report = test_reports.get(TestPhase.TEARDOWN)
-
     retry_outcomes = _RETRY_OUTCOMES
     final_outcomes = _FINAL_OUTCOMES
 
@@ -61,16 +56,13 @@ def attempt_to_fix_handle_retries(
         XPASS=retry_outcomes.ATTEMPT_FAILED,
     )
 
-    item.ihook.pytest_runtest_logreport(report=setup_report)
-
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if call_report:
+    if when == "call":
         if test_outcome.status == TestStatus.FAIL:
-            call_report.outcome = outcomes.FAILED
+            original_result.outcome = outcomes.FAILED
         elif test_outcome.status == TestStatus.SKIP:
-            call_report.outcome = outcomes.SKIPPED
-
-        item.ihook.pytest_runtest_logreport(report=call_report)
+            original_result.outcome = outcomes.SKIPPED
+        return
 
     retries_outcome = _do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
@@ -78,15 +70,13 @@ def attempt_to_fix_handle_retries(
     final_report = RetryTestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords={k: 1 for k in item.keywords},
-        when=TestPhase.CALL,
+        keywords=item.keywords,
+        when="call",
         longrepr=longrepr,
         outcome=final_outcomes[retries_outcome],
         user_properties=item.user_properties,
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
-
-    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
