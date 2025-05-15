@@ -173,8 +173,8 @@ def _get_task_trigger_ids_from_finished_tasks(
     for task `a`, its one and only trigger might be `("branch:to:a",)`.
     In this case, we need to look for all the finished tasks whose writes include that channel name.
 
-    Since only one instance of each node (aside from PREGEL_PUSH via Send) can be triggered per tick, 
-    it is safe to assume all finished nodes that have a given branch trigger in their writes are responsible 
+    Since only one instance of each node (aside from PREGEL_PUSH via Send) can be triggered per tick,
+    it is safe to assume all finished nodes that have a given branch trigger in their writes are responsible
     for triggering the queued task.
 
     In the case of a pregel push, we assume that all pushed tasks are queued in order of the nodes added in the
