@@ -56,17 +56,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self._update_litellm_metadata(span, kwargs)
 
         metrics = self._extract_llmobs_metrics(response)
-        base_url = kwargs.get("api_base", None)
         span._set_ctx_items(
-            {SPAN_KIND: "llm" if not base_url else "workflow", MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: self._get_span_kind(kwargs, model_name), MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
     
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any]):
         metadata = span._get_ctx_item(METADATA)
         base_url = kwargs.get("api_base", None)
+        # only add model to metadata if it's a litellm client request
         if base_url:
             if "model" in kwargs:
                 metadata["model"] = kwargs["model"]
+        # add proxy information to metadata if it's a span originating from the proxy
         else:
             routing_info = {}
             routing_info["routing_strategy"] = self._litellm_module.proxy.proxy_server.llm_router.routing_strategy
@@ -91,12 +92,22 @@ class LiteLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
 
-    def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
+    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> str:
         """
-        Span should be NOT submitted to LLMObs if:
-            - non-streamed request and model provider is OpenAI/AzureOpenAI and the OpenAI integration
-                is enabled: this request will be captured in the OpenAI integration instead
+        Workflow span should be submitted to LLMObs if:
+            - base_url is set (indicates a request to the proxy) OR
+            - base_url is not set AND an LLM span will be submitted from the OpenAI integration (see below)
+        LLM spans should be submitted to LLMObs if:
+            - base_url is not set AND an LLM span will not be submitted from the OpenAI integration (see below)
+
+        An LLM span will be submitted from the OpenAI integration if all of the following are true:
+            - request is not streamed
+            - model provider is OpenAI/AzureOpenAI
+            - the OpenAI integration is enabled
         """
+        base_url = kwargs.get("api_base", None)
+        if base_url:
+            return "workflow"
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
         # model provider is unknown until request completes; therefore, this is a best effort attempt to check
@@ -106,5 +117,5 @@ class LiteLLMIntegration(BaseLLMIntegration):
             and not stream
             and LLMObs._integration_is_enabled("openai")
         ):
-            return False
-        return True
+            return "workflow"
+        return "llm"
