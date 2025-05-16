@@ -316,7 +316,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                 or received_root_span is None
             ):
                 log.error(
-                    "pytest_sessionstart (worker): root_trace (%s) or root_span (%s) is missing/invalid type from workerinput. Cannot establish parent-child link.",
+                    "pytest_sessionstart (worker): root_trace (%s) or root_span (%s)"
+                    " is missing/invalid from workerinput",
                     received_root_trace,
                     received_root_span,
                 )
