@@ -4,6 +4,7 @@ from tests.llmobs._utils import _assert_span_link
 
 
 def _find_span_by_name(llmobs_events, name):
+    """Find a single span by name."""
     for event in llmobs_events:
         if event["name"] == name:
             return event
@@ -11,6 +12,7 @@ def _find_span_by_name(llmobs_events, name):
 
 
 def _find_spans_by_name(llmobs_events, names):
+    """Find multiple spans by name, sorting by start_ns."""
     spans = []
     for event in llmobs_events:
         if event["name"] in names:
@@ -231,3 +233,41 @@ class TestLangGraphLLMObs:
         _assert_span_link(g_span, i_span, "output", "input")
         _assert_span_link(h_span, j_span, "output", "input")
         _assert_span_link(i_span, j_span, "output", "input")
+
+    def test_graph_with_uneven_sides(self, llmobs_events, graph_with_uneven_sides):
+        graph_with_uneven_sides.invoke({"a_list": []})
+        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
+        a_span = _find_span_by_name(llmobs_events, "a")
+        b_span = _find_span_by_name(llmobs_events, "b")
+        c_span = _find_span_by_name(llmobs_events, "c")
+        d_span = _find_span_by_name(llmobs_events, "d")
+        e_first_finish, e_second_finish = _find_spans_by_name(llmobs_events, ["e", "e"])
+
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, e_first_finish, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
+        _assert_span_link(d_span, e_second_finish, "output", "input")
+        _assert_span_link(e_first_finish, graph_span, "output", "output")
+        _assert_span_link(e_second_finish, graph_span, "output", "output")
+
+    async def test_graph_with_uneven_sides_async(self, llmobs_events, graph_with_uneven_sides):
+        await graph_with_uneven_sides.ainvoke({"a_list": []})
+        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
+        a_span = _find_span_by_name(llmobs_events, "a")
+        b_span = _find_span_by_name(llmobs_events, "b")
+        c_span = _find_span_by_name(llmobs_events, "c")
+        d_span = _find_span_by_name(llmobs_events, "d")
+        e_first_finish, e_second_finish = _find_spans_by_name(llmobs_events, ["e", "e"])
+
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, e_first_finish, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
+        _assert_span_link(d_span, e_second_finish, "output", "input")
+        _assert_span_link(e_first_finish, graph_span, "output", "output")
+        _assert_span_link(e_second_finish, graph_span, "output", "output")

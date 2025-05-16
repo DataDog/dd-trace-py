@@ -200,3 +200,23 @@ def graph_with_send_complex(langgraph):
     graph = graph_builder.compile()
 
     yield graph
+
+
+@pytest.fixture
+def graph_with_uneven_sides(langgraph):
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", _do_op("a"))
+    graph_builder.add_node("b", _do_op("b"))
+    graph_builder.add_node("c", _do_op("c"))
+    graph_builder.add_node("d", _do_op("d"))
+    graph_builder.add_node("e", _do_op("e"))
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", "b")
+    graph_builder.add_edge("a", "c")
+    graph_builder.add_edge("b", "e")
+    graph_builder.add_edge("c", "d")
+    graph_builder.add_edge("d", "e")
+    graph_builder.add_edge("e", END)
+    graph = graph_builder.compile()
+
+    yield graph

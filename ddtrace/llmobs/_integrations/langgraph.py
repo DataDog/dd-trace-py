@@ -69,7 +69,12 @@ class LangGraphIntegration(BaseLLMIntegration):
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
     ):
-        """Compute incoming and outgoing span links between finished tasks and queued tasks in the graph."""
+        """
+        Compute incoming and outgoing span links between finished tasks and queued tasks in the graph.
+
+        In the case of finished and queued tasks, any finished tasks that aren't used as links to
+        queued tasks should be linked to the encompassing graph span's output.
+        """
         if not self.llmobs_enabled:
             return
         graph_span = (
@@ -88,13 +93,35 @@ class LangGraphIntegration(BaseLLMIntegration):
             finished_task_name_ids.append(task_id)
 
         seen_pregel_tasks_writes: set[int] = set()  # set of pregel send object ids
+        used_finished_task_ids: set[str] = set()
         for task_id, task in next_tasks.items():
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            self._link_task_to_parents(
+            triggered_node_ids = self._link_task_to_parents(
                 task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
             )
+            used_finished_task_ids.update(triggered_node_ids)
+
+        unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_task_ids
+        graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+        for finished_task_id in unused_finished_task_ids:
+            node = self._graph_nodes_by_task_id.get(finished_task_id)
+            if node is None:
+                continue
+
+            span = node.get("span")
+            if span is None:
+                continue
+
+            graph_span_links.append(
+                {
+                    "span_id": span.get("span_id", ""),
+                    "trace_id": span.get("trace_id", ""),
+                    "attributes": {"from": "output", "to": "output"},
+                }
+            )
+        graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
 
     def _handle_finished_graph(self, graph_span: Span, finished_tasks: dict[str, Any], is_subgraph_node: bool):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
@@ -129,7 +156,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         finished_tasks: dict[str, Any],
         finished_task_names_to_ids: dict[str, list[str]],
         seen_pregel_tasks_writes: set[int],
-    ):
+    ) -> List[str]:
         """Create the span links for a queued task from its triggering parent tasks."""
         trigger_node_ids = _get_task_trigger_ids_from_finished_tasks(
             task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
@@ -154,13 +181,15 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links: list[dict] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
+        return trigger_node_ids
+
 
 def _get_task_trigger_ids_from_finished_tasks(
     task,
     finished_tasks: dict[str, Any],
     finished_task_names_to_ids: dict[str, list[str]],
     seen_pregel_tasks_writes: set[int],
-):
+) -> List[str]:
     """
     Get the set of task ids that are responsible for triggering the queued task.
 
