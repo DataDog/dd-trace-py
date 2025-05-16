@@ -9,11 +9,14 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ### Bug Fixes
 
-  - Code Security: IAST: Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
-  - IAST: Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.
-  - code origin for spans: fixes a performance issue with exit spans.
-  - profiling: improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
-  - Fix a potential circular import with the psycopg2 contrib.
+  - Code Security:
+    - Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
+    - Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.  
+  - Profiling:
+    - Improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
+  - Other:
+    - Fix a potential circular import with the psycopg2 contrib.
+    - Code origin for spans: fixes a performance issue with exit spans.
 
 
 ---
