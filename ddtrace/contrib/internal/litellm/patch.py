@@ -122,10 +122,9 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            breakpoint()
             kwargs["router_instance"] = instance
             integration.llmobs_set_tags(
-                span, args=args, kwargs=kwargs, response=resp
+                span, args=args, kwargs=kwargs, response=resp, operation="router_acompletion"
             )
 
 

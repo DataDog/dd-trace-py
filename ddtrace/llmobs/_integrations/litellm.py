@@ -46,9 +46,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
         # use Open AI helpers since response format will match Open AI
-        if operation == "completion":
+        if operation in ("completion", "router_acompletion"):
             openai_set_meta_tags_from_completion(span, kwargs, response)
-        else:
+        elif operation == "chat":
             openai_set_meta_tags_from_chat(span, kwargs, response)
         
         # custom logic for updating metadata on litellm spans
@@ -56,7 +56,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         metrics = self._extract_llmobs_metrics(response)
         span._set_ctx_items(
-            {SPAN_KIND: self._get_span_kind(kwargs, model_name), MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: self._get_span_kind(kwargs, model_name, operation), MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
     
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any]):
@@ -113,16 +113,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
             and LLMObs._integration_is_enabled("openai")
         )
 
-    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> str:
+    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None) -> str:
         """
         Workflow span should be submitted to LLMObs if:
+            - operation is router_acompletion or router_atext_completion
             - base_url is set (indicates a request to the proxy) OR
             - base_url is not set AND an LLM span will be submitted elsewhere
         LLM spans should be submitted to LLMObs if:
             - base_url is not set AND an LLM span will not be submitted elsewhere
         """
+        router_operation = operation in ("router_acompletion", "router_atext_completion")
         base_url = kwargs.get("api_base", None)
-        if base_url or self._skip_llm_span(kwargs, model):
+        if router_operation or base_url or self._skip_llm_span(kwargs, model):
             return "workflow"
         return "llm"
 
@@ -151,6 +153,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
         """
         base_url = kwargs.get("api_base", None)
-        if not base_url and not self._skip_llm_span(kwargs, model):
+        if not base_url and self._skip_llm_span(kwargs, model):
             return False
         return True
