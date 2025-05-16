@@ -27,6 +27,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
+LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 CREWAI_APM_SPAN_NAME = "crewai.request"
