@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixed an issue in the ``SynchronizedSamplePool`` where pool
+    could be null when calling into ``ddog_ArrayQueue_`` functions, leading to
+    segfaults in the uWSGI shutdown
