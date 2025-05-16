@@ -306,7 +306,7 @@ class CIVisibility(Service):
         log.info("Detected configurations: %s", str(self._configurations))
 
         try:
-            self._codeowners = Codeowners()
+            self._codeowners = Codeowners(cwd=self._tags.get(ci.WORKSPACE_PATH))
         except ValueError:
             log.warning("CODEOWNERS file is not available")
         except Exception:
