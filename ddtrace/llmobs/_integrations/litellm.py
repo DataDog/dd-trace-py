@@ -52,22 +52,22 @@ class LiteLLMIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_chat(span, kwargs, response)
         
         # custom logic for updating metadata on litellm spans
-        self._update_litellm_metadata(span, kwargs)
+        self._update_litellm_metadata(span, kwargs, operation)
 
         metrics = self._extract_llmobs_metrics(response)
         span._set_ctx_items(
             {SPAN_KIND: self._get_span_kind(kwargs, model_name, operation), MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
     
-    def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any]):
+    def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA)
         base_url = kwargs.get("api_base", None)
         # only add model to metadata if it's a litellm client request
         if base_url:
             if "model" in kwargs:
                 metadata["model"] = kwargs["model"]
-        # add proxy information to metadata if it's a span originating from the proxy
-        else:
+        # add router information to metadata if it's a span from the router
+        elif "router" in operation:
             if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
                 del metadata["metadata"]["user_api_key"]
 
