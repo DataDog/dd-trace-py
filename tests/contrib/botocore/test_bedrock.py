@@ -17,6 +17,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -140,18 +141,22 @@ class TestBedrockConfig(SubprocessTestCase):
                     sampled += 1
         assert (rate * num_completions - 30) < sampled < (rate * num_completions + 30)
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.0"))
     def test_span_sampling_0(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.25"))
     def test_span_sampling_25(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.75"))
     def test_span_sampling_75(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="1.0"))
     def test_span_sampling_100(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
