@@ -306,28 +306,33 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             log.debug(
                 "pytest_sessionstart (worker): Received from main - root_trace: %s, root_span: %s",
                 received_root_trace,
-                received_root_span
+                received_root_span,
             )
 
-            if isinstance(received_root_trace, str) or isinstance(received_root_span, str) or received_root_span == 0 or received_root_span is None:
+            if (
+                isinstance(received_root_trace, str)
+                or isinstance(received_root_span, str)
+                or received_root_span == 0
+                or received_root_span is None
+            ):
                 log.error(
                     "pytest_sessionstart (worker): root_trace (%s) or root_span (%s) is missing/invalid type from workerinput. Cannot establish parent-child link.",
                     received_root_trace,
-                    received_root_span
+                    received_root_span,
                 )
                 # Not creating extracted_context, so InternalTestSession.start() will get None
             else:
                 root_trace = int(received_root_trace)
-                root_span = int(received_root_span) # This is the parent_id for the worker session
-                
+                root_span = int(received_root_span)  # This is the parent_id for the worker session
+
                 log.debug(
                     "pytest_sessionstart (worker): Creating context with trace_id=%s, parent_span_id=%s",
                     root_trace,
-                    root_span
+                    root_span,
                 )
                 extracted_context = Context(
                     trace_id=root_trace,
-                    span_id=root_span, # This span_id here becomes context.span_id for the parent context
+                    span_id=root_span,  # This span_id here becomes context.span_id for the parent context
                     sampling_priority=USER_KEEP,
                 )
             # tracer = InternalTestSession.get_tracer()
