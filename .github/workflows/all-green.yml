@@ -18,11 +18,12 @@ jobs:
         with:
           initial-delay-seconds: 10  # wait for this delay before starting
           polling-interval-seconds: 1 # after a failure, how long do it wait before checking again
-          max-retries: 60  # how many retries before stopping 
+          max-retries: 60  # how many retries before stopping
           ignored-name-patterns: |
             Bootstrap import analysis
             require-checklist
             Validate changelog
+            devflow/*
 
 # Why some checks are excluded?
 #
