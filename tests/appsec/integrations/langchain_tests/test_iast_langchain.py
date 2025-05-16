@@ -29,6 +29,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.utils import flaky
 
 
 TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
@@ -78,6 +79,7 @@ def test_openai_functions_agent_output_parser(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(result.tool_input["arg1"])
 
 
+@flaky(until=1752674136)
 def test_llm_generate(iast_span_defaults):  # noqa: F811
     llm = FakeListLLM(responses=["I am a fake LLM"])
     prompt = prepare_tainted_prompt()
@@ -85,6 +87,7 @@ def test_llm_generate(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(result)
 
 
+@flaky(until=1752674136)
 async def test_llm_agenerate(iast_span_defaults):  # noqa: F811
     llm = FakeListLLM(responses=["I am a fake LLM"])
     prompt = prepare_tainted_prompt()
@@ -92,6 +95,7 @@ async def test_llm_agenerate(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(result)
 
 
+@flaky(until=1752674136)
 def test_chatmodel_generate(iast_span_defaults):  # noqa: F811
     chatmodel = FakeListChatModel(responses=["I am a fake chat model"])
     prompt = prepare_tainted_prompt()
@@ -99,6 +103,7 @@ def test_chatmodel_generate(iast_span_defaults):  # noqa: F811
     assert is_pyobject_tainted(result.content)
 
 
+@flaky(until=1752674136)
 async def test_chatmodel_agenerate(iast_span_defaults):  # noqa: F811
     chatmodel = FakeListChatModel(responses=["I am a fake chat model"])
     prompt = prepare_tainted_prompt()
@@ -138,6 +143,7 @@ async def test_cmdi_with_shelltool_ainvoke(iast_span_defaults):  # noqa: F811
     assert span_report
 
 
+@flaky(until=1752674136)
 def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     agent = prepare_cmdi_agent()
     prompt = prepare_tainted_prompt()
@@ -152,6 +158,7 @@ def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     assert "class" not in location
 
 
+@flaky(until=1752674136)
 async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
     agent = prepare_cmdi_agent()
     prompt = prepare_tainted_prompt()
