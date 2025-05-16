@@ -215,7 +215,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         base_url=base_url,
     )
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
-    err = None
+    resp, err = None, None
     if openai_api_key:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
@@ -225,6 +225,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
         hook.send(None)
 
         resp, err = yield
+        breakpoint()
 
         # Record any error information
         if err is not None:
@@ -239,7 +240,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None:
+        if not kwargs.get("stream") or err is not None or not resp:
             span.finish()
 
 
@@ -261,7 +262,7 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-            return resp
+            resp = None
         except Exception as e:
             err = e
             raise
@@ -295,18 +296,18 @@ def _patched_endpoint_async(openai, patch_hook):
         resp, err = None, None
         try:
             resp = await func(*args, **kwargs)
+            resp = None
             return resp
         except Exception as e:
             err = e
             raise
         finally:
             try:
-                if resp is not None:
-                    # openai responses cannot be None
-                    # if resp is None, it is likely because the context
-                    # of the request was cancelled, so we want that to propagate up properly
-                    # see: https://github.com/DataDog/dd-trace-py/issues/10191
-                    g.send((resp, err))
+                # openai responses cannot be None
+                # if resp is None, it is likely because the context
+                # of the request was cancelled, so we want that to propagate up properly
+                # see: https://github.com/DataDog/dd-trace-py/issues/10191
+                g.send((resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`
