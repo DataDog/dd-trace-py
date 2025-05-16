@@ -56,6 +56,9 @@ def test_registry_location_error():
     # Check that the probe is not pending
     assert not registry.get_pending(__file__)
 
+    # Check that unregistering the probe does not cause an exception
+    registry.unregister(probe)
+
     # Check that we emitted the correct diagnostic error message
     for e in status_logger.queue:
         del e["timestamp"]
