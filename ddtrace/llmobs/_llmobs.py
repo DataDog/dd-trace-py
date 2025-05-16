@@ -104,14 +104,32 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 
 @dataclass
 class LLMObsSpan:
+    """LLMObs span object.
+
+    Passed to the `span_processor` function in the `enable` or `register_processor` methods.
+
+    Example::
+        def span_processor(span: LLMObsSpan) -> LLMObsSpan:
+            if span.get_tag("no_input") == "1":
+                span.input = []
+            return span
+    """
+
     class Message(TypedDict):
         content: str
+        role: str
 
-    input_messages: List[Message] = field(default_factory=list)
-    output_messages: List[Message] = field(default_factory=list)
+    input: List[Message] = field(default_factory=list)
+    output: List[Message] = field(default_factory=list)
     _tags: Dict[str, str] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
+        """Get a tag from the span.
+
+        :param str key: The key of the tag to get.
+        :return: The value of the tag or None if the tag does not exist.
+        :rtype: Optional[str]
+        """
         return self._tags.get(key)
 
 
@@ -195,14 +213,14 @@ class LLMObs(Service):
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
-            llmobs_span.input_messages = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
+            llmobs_span.input = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
 
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
-            llmobs_span.output_messages = cast(List[LLMObsSpan.Message], enforce_message_role(output_messages))
+            llmobs_span.output = cast(List[LLMObsSpan.Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
@@ -241,10 +259,10 @@ class LLMObs(Service):
             finally:
                 telemetry.record_llmobs_user_processor_called(error)
 
-        if llmobs_span.input_messages is not None:
-            meta["input"]["messages"] = llmobs_span.input_messages
-        if llmobs_span.output_messages is not None:
-            meta["output"]["messages"] = llmobs_span.output_messages
+        if llmobs_span.input is not None:
+            meta["input"]["messages"] = llmobs_span.input
+        if llmobs_span.output is not None:
+            meta["output"]["messages"] = llmobs_span.output
 
         if not meta["input"]:
             meta.pop("input")
@@ -391,6 +409,8 @@ class LLMObs(Service):
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
         :param str service: Your service name.
+        :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
+            LLMObsSpan.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)

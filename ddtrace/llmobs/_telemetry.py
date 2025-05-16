@@ -157,7 +157,7 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     )
 
 
-def record_llmobs_user_processor_called(error: bool):
+def record_llmobs_user_processor_called(error: bool) -> None:
     tags = [("error", "1" if error else "0")]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,

@@ -105,12 +105,12 @@ class TestSessionId:
 class TestLLMIOProcessing:
     """Test the input and output processing features of LLMObs."""
 
-    def _remove_input_output_messages(span: LLMObsSpan):
-        for message in span.input_messages + span.output_messages:
+    def _remove_input_output(span: LLMObsSpan):
+        for message in span.input + span.output:
             message["content"] = ""
         return span
 
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output_messages)])
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output)])
     def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts, llmobs_events):
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
@@ -118,7 +118,7 @@ class TestLLMIOProcessing:
         assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "", "role": ""}]}
 
     def _mutate_input_output_messages(span: LLMObsSpan):
-        for message in span.input_messages + span.output_messages:
+        for message in span.input + span.output:
             message["content"] += " processed"
         return span
 
@@ -133,7 +133,7 @@ class TestLLMIOProcessing:
 
     def _conditional_input_output_processor(span: LLMObsSpan):
         if span.get_tag("scrub_values") == "1":
-            for message in span.input_messages + span.output_messages:
+            for message in span.input + span.output:
                 message["content"] = "redacted"
         return span
 
@@ -149,7 +149,7 @@ class TestLLMIOProcessing:
         return "not a span"
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_bad_return_type_processor)])
-    def test_processor_bad_return_type(self, llmobs, llmobs_events):
+    def test_processor_bad_return_type(self, llmobs, llmobs_enable_opts, llmobs_events):
         """Test that a processor that returns a non-LLMObsSpan type is ignored."""
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
@@ -172,8 +172,8 @@ class TestLLMIOProcessing:
 
             def span_processor(s):
                 if s.get_tag("scrub_values") == "1":
-                    s.input_messages = [{"content": "scrubbed"}]
-                    s.output_messages = [{"content": "scrubbed"}]
+                    s.input = [{"content": "scrubbed"}]
+                    s.output = [{"content": "scrubbed"}]
                 return s
 
             LLMObs.register_processor(span_processor)
@@ -201,7 +201,7 @@ class TestLLMIOProcessing:
 
     def test_register_unregister_processor(self, llmobs, llmobs_events):
         def _sp(s):
-            s.input_messages = [{"content": "scrubbed"}]
+            s.input = [{"content": "scrubbed"}]
             return s
 
         # register
