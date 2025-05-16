@@ -53,10 +53,16 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
-PATCHING_FUNCTIONS = {
-    "kinesis": patched_kinesis_api_call,
-    "sqs": patched_sqs_api_call,
-    "states": patched_stepfunction_api_call,
+PATCHING_FN_KEY = "PATCHING_FN"
+SUPPORTED_OPS_KEY = "SUPPORTED_OPERATIONS"
+ENDPOINTS_TO_PATCH_FUNCTIONS = {
+    "bedrock-runtime": {
+        PATCHING_FN_KEY: patched_bedrock_api_call,
+        SUPPORTED_OPS_KEY: ["Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"],
+    },
+    "kinesis": {PATCHING_FN_KEY: patched_kinesis_api_call, SUPPORTED_OPS_KEY: None},
+    "sqs": {PATCHING_FN_KEY: patched_sqs_api_call, SUPPORTED_OPS_KEY: None},
+    "states": {PATCHING_FN_KEY: patched_stepfunction_api_call, SUPPORTED_OPS_KEY: None},
 }
 
 log = get_logger(__name__)
@@ -195,13 +201,12 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    is_bedrock_converse = endpoint_name == "bedrock-runtime" and operation in ("Converse", "ConverseStream")
-    is_bedrock_invoke = endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel")
-
-    if is_bedrock_converse or is_bedrock_invoke:
-        patching_fn = patched_bedrock_api_call
-    else:
-        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
+    patching_fn = patched_api_call_fallback
+    patched_endpoint = ENDPOINTS_TO_PATCH_FUNCTIONS.get(endpoint_name)
+    if patched_endpoint:
+        supported_operations = patched_endpoint.get(SUPPORTED_OPS_KEY)
+        if supported_operations is None or operation in supported_operations:
+            patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
     return patching_fn(
         original_func=original_func,
