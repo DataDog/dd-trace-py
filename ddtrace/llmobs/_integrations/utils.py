@@ -326,6 +326,9 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         for k, v in kwargs.items()
         if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash")
     }
+    # add model to metadata if it's a litellm client request
+    if span.name == "litellm.request" and "model" in kwargs:
+        parameters["model"] = kwargs["model"]
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
