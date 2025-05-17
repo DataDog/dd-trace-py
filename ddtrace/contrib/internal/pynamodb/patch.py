@@ -6,7 +6,6 @@ import pynamodb.connection.base
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -95,12 +94,6 @@ def patched_api_call(original_func, instance, args, kwargs):
             "region": region_name,
         }
         span.set_tags(meta)
-
-        # set analytics sample rate
-        sample_rate = config.pynamodb.get_analytics_sample_rate(use_global_config=True)
-
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         result = original_func(*args, **kwargs)
 
