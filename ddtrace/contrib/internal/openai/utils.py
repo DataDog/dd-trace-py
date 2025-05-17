@@ -53,14 +53,12 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     def __iter__(self):
-        print("entering _TracedOpenAIStream __iter__")
         exception_raised = False
         try:
             for chunk in self.__wrapped__:
                 self._extract_token_chunk(chunk)
                 yield chunk
                 _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            breakpoint()
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             exception_raised = True
@@ -74,11 +72,9 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
     def __next__(self):
         try:
-            print("entering _TracedOpenAIStream __next__")
             chunk = self.__wrapped__.__next__()
             self._extract_token_chunk(chunk)
             _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            breakpoint()
             return chunk
         except StopIteration:
             _process_finished_stream(
@@ -266,7 +262,6 @@ def _loop_handler(span, chunk, streamed_chunks):
     When handling a streamed chat/completion/responses,
     this function is called for each chunk in the streamed response.
     """
-
     if span.get_tag("openai.response.model") is None:
         if hasattr(chunk, "type") and chunk.type.startswith("response."):
             response = getattr(chunk, "response", None)
@@ -274,7 +269,10 @@ def _loop_handler(span, chunk, streamed_chunks):
         else:
             model = getattr(chunk, "model", "")
         span.set_tag_str("openai.response.model", model)
-    # Only run if the chunk is a completion/chat completion
+    # For Responses
+    for response in getattr(chunk, "response", ""):
+        streamed_chunks[0].append(response)
+    # For completion/chat completion
     for choice in getattr(chunk, "choices", []):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
@@ -284,23 +282,18 @@ def _loop_handler(span, chunk, streamed_chunks):
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False, is_response=False):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
-    print("entering _process_finished_stream")
-    print("streamed chunks is: ", streamed_chunks)
     try:
         if is_response:
-            print("using response constructor")
             formatted_completions = [
                 openai_construct_response_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-            operation = "responses"
+            operation = "response"
         elif is_completion:
-            print("using completion constructor")
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
             operation = "completion"
         else:
-            print("using message constructor")
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
@@ -309,7 +302,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
-        operation = "completion" if is_completion else "chat" # TODO: need to add responses
+        operation = "response" if is_response else "completion" if is_completion else "chat"
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)

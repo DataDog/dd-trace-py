@@ -418,6 +418,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                 content_text = str(content)
             input_messages.append({"content": content_text, "role": role})
     parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
+    print("input_messages is: ", input_messages)
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -425,18 +426,14 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
         return
 
     if isinstance(messages, list):  # streamed response
-        role = ""
         output_messages = []
         for streamed_message in messages:
-            # if streamed_message.get("type") == "response.completed":
-            streamed_output = streamed_message.get("output", [])
-            role = streamed_output.get("role", "")
-            streamed_content = streamed_output.get("content", [])
-            if streamed_content:
-                message = {"content": streamed_content.get("text", ""), "role": role}
-                output_messages.append(message)
+            if isinstance(streamed_message, dict):
+                content = streamed_message.get("content", "")
+                role = streamed_message.get("role", "assistant")
+                if content:
+                    output_messages.append({"content": content, "role": role})
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-        breakpoint()
         return
 
     # Non-streaming response
@@ -519,28 +516,30 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
+
 def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
     """Constructs a response dictionary from streamed chunks.
     The resulting response dictionary is of form:
     {"output": [{"role": "...", "content": [{"text": "..."}]}]}
     """
-    print("entering openai_construct_response_from_streamed_chunks")
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
 
     for chunk in streamed_chunks:
-        if getattr(chunk, "response", None):
-            chunk_response = chunk.response
-            chunk_output = chunk_response.get("output", [])
-            if chunk_output:
-                if getattr(chunk_output, "usage", None):
-                    message["usage"] = chunk_output.usage
-                if getattr(chunk_output, "role", None):
-                    message["role"] = chunk_output.role
-                if getattr(chunk_output, "content", None):
-                    message["content"] = chunk_output.content
+        if not isinstance(chunk, tuple) or len(chunk) != 2:
+            continue
+            
+        chunk_type, chunk_value = chunk
+        if chunk_type == "output" and isinstance(chunk_value, list):
+            for output in chunk_value:
+                if hasattr(output, "content") and hasattr(output, "role"):
+                    # content is a list of ResponseOutputText objects
+                    for content in output.content:
+                        if hasattr(content, "text"):
+                            message["content"] += content.text
+                    message["role"] = output.role
 
     message["content"] = message["content"].strip()
-    print("message is: ", message)
+    print("messages is: ", message)
     return message
 
 
@@ -596,22 +595,14 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
             continue
         if getattr(chunk, "index", None) and not message.get("index"):
             message["index"] = chunk.index
-        if getattr(chunk, "output", None):
-            chunk_output = chunk.output
-            print("chunk_output is: ", chunk_output)
         if getattr(chunk.delta, "role") and not message.get("role"):
             message["role"] = chunk.delta.role
         if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        # Response
-        if chunk_output:
-            pass
-
-        if chunk.delta:
-            chunk_content = getattr(chunk.delta, "content", "")
-            if chunk_content:
-                message["content"] += chunk_content
-                continue
+        chunk_content = getattr(chunk.delta, "content", "")
+        if chunk_content:
+            message["content"] += chunk_content
+            continue
         function_call = getattr(chunk.delta, "function_call", None)
         if function_call:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
