@@ -1,22 +1,10 @@
 from sys import version_info
 from typing import Any  # noqa:F401
 
-from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.logger import get_logger
-
-from ._types import StringType
 
 
 LOG = get_logger(__name__)
-
-
-def ensure_binary_or_empty(s: StringType) -> bytes:
-    try:
-        return ensure_binary(s)
-    except Exception:
-        # We don't alert on this situation, we just take it in stride
-        return b""
-    return b""
 
 
 # 3.11 and above
