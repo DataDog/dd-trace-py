@@ -1405,6 +1405,7 @@ class LLMObs(Service):
             log.warning("Failed to parse LLMObs parent ID from request headers.")
             return "invalid_parent_id"
         llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
+        cls._instance._llmobs_context_provider._LAST_PROPAGATED_LLMOBS_CONTEXT = llmobs_context
         cls._instance._llmobs_context_provider.activate(llmobs_context)
         return None
 
