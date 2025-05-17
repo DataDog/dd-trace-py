@@ -21,6 +21,7 @@ from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -55,7 +56,7 @@ class OpenAIIntegration(BaseLLMIntegration):
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         base_url = kwargs.get("base_url", None)
         submit_to_llmobs = self.is_default_base_url(str(base_url) if base_url else None) and (
-            operation_id.endswith("Completion") or operation_id == "createEmbedding"
+            operation_id in ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
         )
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -121,13 +122,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
-
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
             openai_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
+        elif operation == "response":
+            openai_set_meta_tags_from_response(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
@@ -165,12 +167,19 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None:
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
+
+            input_tokens_value = prompt_tokens if prompt_tokens != 0 else input_tokens
+            output_tokens_value = completion_tokens if completion_tokens != 0 else output_tokens
+            
             return {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+                INPUT_TOKENS_METRIC_KEY: input_tokens_value,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens_value,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens_value + output_tokens_value,
             }
         return get_llmobs_metrics_tags("openai", span)
 
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         return is_openai_default_base_url(base_url)
+

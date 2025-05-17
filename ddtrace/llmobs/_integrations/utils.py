@@ -397,6 +397,152 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
+def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+    """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
+    input_data = kwargs.get("input", [])
+    input_messages = []
+    if isinstance(input_data, str):
+        input_messages.append({"content": input_data, "role": "user"})
+    elif isinstance(input_data, list):
+        for m in input_data:
+            role = m.get("role", "user") if isinstance(m, dict) else "user"
+            content = m.get("content", "") if isinstance(m, dict) else str(m)
+            content_text = ""
+            if isinstance(content, list):
+                for content_item in content:
+                    if isinstance(content_item, dict):
+                        content_text += content_item.get("text", "")
+                    else:
+                        content_text += str(content_item)
+            else:
+                content_text = str(content)
+            input_messages.append({"content": content_text, "role": role})
+    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
+    print("input_messages is: ", input_messages)
+    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+    if span.error or not messages:
+        span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+        return
+
+    if isinstance(messages, list):  # streamed response
+        output_messages = []
+        for streamed_message in messages:
+            if isinstance(streamed_message, dict):
+                content = streamed_message.get("content", "")
+                role = streamed_message.get("role", "assistant")
+                if content:
+                    output_messages.append({"content": content, "role": role})
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        return
+
+    # Non-streaming response
+    output_data = _get_attr(messages, "output", [])
+    output_messages = []
+    
+    for idx, output in enumerate(output_data):
+        # Message or reasoning
+        if output.type == "message" or output.type == "reasoning":
+            role = _get_attr(output, "role", "")
+            content = _get_attr(output, "content", "")
+            summary = _get_attr(output, "summary", "")
+            encrypted_content = _get_attr(output, "encrypted_content", "")
+            if content: 
+                message = {"content": "", "role": role}
+                for c in content:
+                    text = _get_attr(c, "text", "")
+                    message["content"] += text
+                output_messages.append(message)
+            if summary:
+                for s in summary:
+                    text = _get_attr(s, "text", "")
+                    output_messages.append({"content": text, "role": "reasoning", "summary": s})
+            if encrypted_content:
+                pass
+
+        if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+            tool_call_info = []
+            output_type = output.type
+            # file_search_call
+            file_queries_raw = _get_attr(output, "queries", None)
+            # file_queries is an array of strings
+            if file_queries_raw:
+                file_queries = {"queries": file_queries_raw}
+
+            # computer_call action
+            action_raw = _get_attr(output, "action", "")
+            if action_raw:
+                if isinstance(action_raw, str):             
+                    action_json_str = action_raw.json()
+                    # convert to valid json string
+                    action = json.loads(f'{{"action": {action_json_str}}}')
+
+            # funcition call
+            # Use output.id as the tool_id
+            tool_id = _get_attr(output, "id", "")
+            tool_name = _get_attr(output, "name", "")
+            arguments = _get_attr(output, "arguments", "")
+            if arguments:
+                arguments = json.loads(arguments)
+            # Set reasoning action as the parameter
+            elif action_raw:
+                arguments = action
+            # Set file search queries as the parameter
+            elif file_queries:
+                arguments = file_queries
+            
+            tool_call_dict = {
+                "name": tool_name,
+                "tool_id": tool_id,
+                "type": output_type,
+            }
+            if arguments:
+                tool_call_dict["arguments"] = arguments
+            tool_call_info.append(tool_call_dict)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    arguments,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
+            if tool_call_info:
+                output_messages.append({"tool_calls": tool_call_info})
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
+def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
+    """Constructs a response dictionary from streamed chunks.
+    The resulting response dictionary is of form:
+    {"output": [{"role": "...", "content": [{"text": "..."}]}]}
+    """
+    message: Dict[str, Any] = {"content": "", "tool_calls": []}
+
+    for chunk in streamed_chunks:
+        if not isinstance(chunk, tuple) or len(chunk) != 2:
+            continue
+            
+        chunk_type, chunk_value = chunk
+        if chunk_type == "output" and isinstance(chunk_value, list):
+            for output in chunk_value:
+                if hasattr(output, "content") and hasattr(output, "role"):
+                    # content is a list of ResponseOutputText objects
+                    for content in output.content:
+                        if hasattr(content, "text"):
+                            message["content"] += content.text
+                    message["role"] = output.role
+
+    message["content"] = message["content"].strip()
+    print("messages is: ", message)
+    return message
+
+
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
     if not streamed_chunks:
