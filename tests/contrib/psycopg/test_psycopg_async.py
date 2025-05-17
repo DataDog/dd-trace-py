@@ -84,7 +84,7 @@ class PsycopgCore(AsyncioTestCase):
         rows = await res.fetchall()
         end = time.time()
 
-        self.assertEquals(rows, [("foobarblah",)])
+        self.assertEqual(rows, [("foobarblah",)])
 
         self.assert_structure(
             dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
@@ -140,7 +140,7 @@ class PsycopgCore(AsyncioTestCase):
             await cursor.execute(query)
             rows = await cursor.fetchall()
 
-        self.assertEquals(rows, [("tracing",)])
+        self.assertEqual(rows, [("tracing",)])
 
         self.assert_structure(
             dict(name="db.access", service="psycopg-svc"),
@@ -158,7 +158,7 @@ class PsycopgCore(AsyncioTestCase):
                 await cursor.execute(query)
                 rows = await cursor.fetchall()
 
-            self.assertEquals(rows, [("tracing",)])
+            self.assertEqual(rows, [("tracing",)])
 
             self.assert_structure(
                 dict(name="db.access", service="psycopg-svc"),
