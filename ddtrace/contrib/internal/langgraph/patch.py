@@ -99,6 +99,87 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
 
 
 @with_traced_module
+def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
+    """
+    Typically, RunnableSeq.ainvoke() is called when being run as a task for its parent Pregel (CompiledGraph).
+    However, when using Pregel.astream_events() (inherited from langchain's Runnable), it calls RunnableSeq.astream()
+    instead.
+
+    This function returns a generator wrapper that yields the results of RunnableSeq.astream(),
+    ending the span after the stream is consumed, otherwise following the logic of traced_runnable_seq_ainvoke().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+
+    node_name = _get_node_name(instance)
+
+    if node_name in ("_write", "_route"):
+        return func(*args, **kwargs)
+    if node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["_dd.subgraph"] = True
+        return func(*args, **kwargs)
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
+    )
+
+    span._set_ctx_item("langgraph.from_astream", True)
+
+    result = None
+    
+    try:
+        result = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+        span.finish()
+        raise
+
+    async def _astream():
+        item = None
+        response = None
+        while True:
+            try:
+                item = await result.__anext__()
+                response = item if response is None else response + item
+                yield item
+            except StopAsyncIteration:
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
+                span.finish()
+                break
+            except Exception:
+                span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+                span.finish()
+                raise
+
+    return _astream()
+
+
+@with_traced_module
+async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance, args, kwargs):
+    """
+    Traces the execution of the async iterator consumed by RunnableSeq.astream(), as that iterator
+    does not yield the final output. Instead, the final output is aggregated and returned as a single
+    value by _consume_aiter().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    output = await func(*args, **kwargs)
+
+    if integration.llmobs_enabled:
+        span = pin.tracer.current_span()
+
+        # safeguard against other functions that we don't trace using this function
+        from_astream = span._get_ctx_item("langgraph.from_astream") or False
+        if span and from_astream:
+            span._set_ctx_item("langgraph.astream.output", output)
+
+    return output
+
+
+@with_traced_module
 def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
     """
     Trace the streaming of a Pregel (CompiledGraph) instance.
@@ -222,9 +303,13 @@ def patch():
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
+    wrap(RunnableSeq, "astream", traced_runnable_seq_astream(langgraph))
     wrap(Pregel, "stream", traced_pregel_stream(langgraph))
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
+
+    if get_version() >= "0.3.29":
+        wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
 
 
 def unpatch():
@@ -239,8 +324,12 @@ def unpatch():
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
+    unwrap(RunnableSeq, "astream")
     unwrap(Pregel, "stream")
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
+
+    if get_version() >= "0.3.29":
+        unwrap(langgraph.utils.runnable, "_consume_aiter")
 
     delattr(langgraph, "_datadog_integration")
