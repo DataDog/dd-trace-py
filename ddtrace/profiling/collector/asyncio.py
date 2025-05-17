@@ -4,21 +4,8 @@ from .. import collector
 from . import _lock
 
 
-class AsyncioLockAcquireEvent(_lock.LockAcquireEvent):
-    """An asyncio.Lock has been acquired."""
-
-    __slots__ = ()
-
-
-class AsyncioLockReleaseEvent(_lock.LockReleaseEvent):
-    """An asyncio.Lock has been released."""
-
-    __slots__ = ()
-
-
 class _ProfiledAsyncioLock(_lock._ProfiledLock):
-    ACQUIRE_EVENT_CLASS = AsyncioLockAcquireEvent
-    RELEASE_EVENT_CLASS = AsyncioLockReleaseEvent
+    pass
 
 
 class AsyncioLockCollector(_lock.LockCollector):

@@ -1,12 +1,7 @@
 # -*- encoding: utf-8 -*-
-import typing  # noqa:F401
-
 from ddtrace.internal import periodic
 from ddtrace.internal import service
 from ddtrace.settings.profiling import config
-
-from .. import event  # noqa:F401
-from ..recorder import Recorder
 
 
 class CollectorError(Exception):
@@ -20,15 +15,14 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    def __init__(self, recorder: Recorder, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.recorder = recorder
 
     @staticmethod
     def snapshot():
         """Take a snapshot of collected data.
 
-        :return: A list of sample list to push in the recorder.
+        :return: A list of sample list to push in the recorder, now deprecated.
         """
 
 
@@ -40,16 +34,10 @@ class PeriodicCollector(Collector, periodic.PeriodicService):
     def periodic(self):
         # type: (...) -> None
         """Collect events and push them into the recorder."""
-        for events in self.collect():
-            if self.recorder:
-                self.recorder.push_events(events)
+        self.collect()
 
     def collect(self):
-        # type: (...) -> typing.Iterable[typing.Iterable[event.Event]]
-        """Collect the actual data.
-
-        :return: A list of event list to push in the recorder.
-        """
+        """Export the data."""
         raise NotImplementedError
 
 
@@ -77,7 +65,7 @@ class CaptureSampler(object):
 
 
 class CaptureSamplerCollector(Collector):
-    def __init__(self, recorder, capture_pct=config.capture_pct, *args, **kwargs):
-        super().__init__(recorder, *args, **kwargs)
+    def __init__(self, capture_pct=config.capture_pct, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.capture_pct = capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)

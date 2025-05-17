@@ -767,11 +767,6 @@ setup(
                     sources=["ddtrace/profiling/collector/_task.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.exporter.pprof",
-                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                    language="c",
-                ),
             ]
         ),
         compile_time_env={
