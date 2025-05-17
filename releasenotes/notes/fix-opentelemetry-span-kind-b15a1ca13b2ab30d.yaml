@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes the `Span.kind` property to return a `SpanKind` enum instead of a string value.
+    This resolves an issue where the operation name couldn't be set properly when using the OpenTelemetry integration.
