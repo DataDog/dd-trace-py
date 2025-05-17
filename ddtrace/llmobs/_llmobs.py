@@ -1,11 +1,16 @@
+from dataclasses import dataclass
+from dataclasses import field
 import json
 import os
 import time
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import TypedDict
 from typing import Union
+from typing import cast
 
 import ddtrace
 from ddtrace import config
@@ -97,14 +102,50 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 }
 
 
+@dataclass
+class LLMObsSpan:
+    """LLMObs span object.
+
+    Passed to the `span_processor` function in the `enable` or `register_processor` methods.
+
+    Example::
+        def span_processor(span: LLMObsSpan) -> LLMObsSpan:
+            if span.get_tag("no_input") == "1":
+                span.input = []
+            return span
+    """
+
+    class Message(TypedDict):
+        content: str
+        role: str
+
+    input: List[Message] = field(default_factory=list)
+    output: List[Message] = field(default_factory=list)
+    _tags: Dict[str, str] = field(default_factory=dict)
+
+    def get_tag(self, key: str) -> Optional[str]:
+        """Get a tag from the span.
+
+        :param str key: The key of the tag to get.
+        :return: The value of the tag or None if the tag does not exist.
+        :rtype: Optional[str]
+        """
+        return self._tags.get(key)
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
 
-    def __init__(self, tracer=None):
+    def __init__(
+        self,
+        tracer: Tracer = None,
+        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
+    ):
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
+        self._user_span_processor = span_processor
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -156,12 +197,14 @@ class LLMObs(Service):
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    @classmethod
-    def _llmobs_span_event(cls, span: Span) -> Dict[str, Any]:
+    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
+
+        llmobs_span = LLMObsSpan()
+
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
@@ -170,14 +213,14 @@ class LLMObs(Service):
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
-            meta["input"]["messages"] = enforce_message_role(input_messages)
+            llmobs_span.input = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
 
         if span._get_ctx_item(INPUT_VALUE) is not None:
             meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
-            meta["output"]["messages"] = enforce_message_role(output_messages)
+            llmobs_span.output = cast(List[LLMObsSpan.Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
@@ -201,6 +244,26 @@ class LLMObs(Service):
                     ERROR_TYPE: span.get_tag(ERROR_TYPE),
                 }
             )
+
+        if self._user_span_processor:
+            error = False
+            try:
+                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
+                user_llmobs_span = self._user_span_processor(llmobs_span)
+                if not isinstance(user_llmobs_span, LLMObsSpan):
+                    raise TypeError("User span processor must return an LLMObsSpan, got %r" % type(user_llmobs_span))
+                llmobs_span = user_llmobs_span
+            except Exception as e:
+                log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
+                error = True
+            finally:
+                telemetry.record_llmobs_user_processor_called(error)
+
+        if llmobs_span.input is not None:
+            meta["input"]["messages"] = llmobs_span.input
+        if llmobs_span.output is not None:
+            meta["output"]["messages"] = llmobs_span.output
+
         if not meta["input"]:
             meta.pop("input")
         if not meta["output"]:
@@ -228,7 +291,7 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = cls._llmobs_tags(span, ml_app, session_id)
+        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
 
         span_links = span._get_ctx_item(SPAN_LINKS)
         if isinstance(span_links, list) and span_links:
@@ -332,6 +395,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
+        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -345,6 +409,8 @@ class LLMObs(Service):
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
         :param str service: Your service name.
+        :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
+            LLMObsSpan.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -372,9 +438,9 @@ class LLMObs(Service):
                 )
 
             config._llmobs_agentless_enabled = should_use_agentless(
-                user_defined_agentless_enabled=agentless_enabled
-                if agentless_enabled is not None
-                else config._llmobs_agentless_enabled
+                user_defined_agentless_enabled=(
+                    agentless_enabled if agentless_enabled is not None else config._llmobs_agentless_enabled
+                )
             )
 
             if config._llmobs_agentless_enabled:
@@ -404,7 +470,7 @@ class LLMObs(Service):
                 cls._patch_integrations()
 
             # override the default _instance with a new tracer
-            cls._instance = cls(tracer=_tracer)
+            cls._instance = cls(tracer=_tracer, span_processor=span_processor)
             cls.enabled = True
             cls._instance.start()
 
@@ -426,6 +492,18 @@ class LLMObs(Service):
             log.debug("%s enabled", cls.__name__)
         finally:
             telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
+
+    @classmethod
+    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
+        """Register a processor to be called on each LLMObs span.
+
+        This can be used to modify the span before it is sent to LLMObs. For example, you can modify the input/output.
+
+        To deregister the processor, call `register_processor(None)`.
+
+        :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan.
+        """
+        cls._instance._user_span_processor = processor
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
