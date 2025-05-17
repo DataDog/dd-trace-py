@@ -286,13 +286,13 @@ Sampler::start()
     // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+    pthread_id_ = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    if (pthread_id_ == 0) {
         return false;
     }
 #else
     try {
-        std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
-        t.detach();
+        sampling_thread_ = std::thread(&Sampler::sampling_thread, this, ++thread_seq_num);
     } catch (const std::exception& e) {
         return false;
     }
@@ -306,6 +306,18 @@ Sampler::stop()
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
     // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
     ++thread_seq_num;
+
+    // Join the sampling thread
+#ifdef __linux__
+    if (pthread_id_ != 0) {
+        pthread_join(pthread_id_, nullptr);
+        pthread_id_ = 0;
+    }
+#else
+    if (sampling_thread_.joinable()) {
+        sampling_thread_.join();
+    }
+#endif
 }
 
 void
