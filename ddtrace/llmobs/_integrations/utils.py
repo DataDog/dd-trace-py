@@ -279,6 +279,14 @@ def get_messages_from_converse_content(role: str, content: list):
                     "tool_id": str(toolUse.get("toolUseId", "")),
                 }
             )
+        elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
+            user_tool_result = content_block.get("toolResult", {})
+            user_tool_result_content = user_tool_result.get("content", [{}])
+
+            text = user_tool_result_content[0].get("text", "")
+            json = safe_json(user_tool_result_content[0].get("json", ""))
+            content_blocks.append(text or json)
+            role = "tool result"  # override for clarity in llm observability
         else:
             content_type = ",".join(content_block.keys())
             messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
