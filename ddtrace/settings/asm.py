@@ -64,7 +64,7 @@ class ASMConfig(DDConfig):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
-    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
+    _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))  # type: ignore[has-type]
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
