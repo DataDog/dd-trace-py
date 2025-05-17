@@ -1,0 +1,183 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:47:56 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"name": "synced-exp-test-dataset",
+      "description": ""}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '100'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets
+  response:
+    body:
+      string: '{"data":{"id":"033c3a68-c51d-4064-b941-78825cf83066","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:56.881247296Z","current_version":0,"name":"synced-exp-test-dataset","updated_at":"2025-05-05T18:47:56.881247296Z"}}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:47:56 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"records": [{"input": "What
+      is 1+1?", "expected_output": "2"}, {"input": "Capital of France?", "expected_output":
+      "Paris"}], "overwrite": false}}}'
+    headers:
+      Connection:
+      - close
+      Content-Length:
+      - '191'
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: POST
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/033c3a68-c51d-4064-b941-78825cf83066/push
+  response:
+    body:
+      string: '{"data":[{"id":"784bcd1a-6b0f-48c1-8063-7431455b659d","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:57.281416537Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-05T18:47:57.281416537Z","version":1}},{"id":"49919f09-a3f9-4339-bdbe-85df9f5ec553","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:57.281426165Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-05-05T18:47:57.281426165Z","version":1}}]}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:47:57 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter[name]=synced-exp-test-dataset
+  response:
+    body:
+      string: '{"data":[{"id":"033c3a68-c51d-4064-b941-78825cf83066","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:56.881247Z","current_version":1,"name":"synced-exp-test-dataset","updated_at":"2025-05-05T18:47:57.289559Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:48:03 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Content-Type:
+      - application/json
+      Host:
+      - api.us3.datadoghq.com
+      User-Agent:
+      - Python-urllib/3.12
+    method: GET
+    uri: https://api.us3.datadoghq.com/api/unstable/llm-obs/v1/datasets/033c3a68-c51d-4064-b941-78825cf83066/records
+  response:
+    body:
+      string: '{"data":[{"id":"784bcd1a-6b0f-48c1-8063-7431455b659d","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:57.281416Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","expected_output":"2","input":"What
+        is 1+1?","updated_at":"2025-05-05T18:47:57.281416Z"}},{"id":"49919f09-a3f9-4339-bdbe-85df9f5ec553","type":"datasets","attributes":{"author":{"id":"4834b5f9-a5ad-11ee-9dad-26da8082033c"},"created_at":"2025-05-05T18:47:57.281426Z","dataset_id":"033c3a68-c51d-4064-b941-78825cf83066","expected_output":"Paris","input":"Capital
+        of France?","updated_at":"2025-05-05T18:47:57.281426Z"}}],"meta":{"after":""}}'
+    headers:
+      connection:
+      - close
+      content-length:
+      - '100'
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 05 May 2025 18:48:04 GMT
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
