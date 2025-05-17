@@ -87,7 +87,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
     # the agent)
     filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
     assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 2
+    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 10
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 

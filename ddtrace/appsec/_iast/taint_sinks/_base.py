@@ -1,7 +1,5 @@
 import os
 import sysconfig
-from typing import Any
-from typing import Callable
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -18,7 +16,6 @@ from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
-from .._utils import _is_iast_debug_enabled
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -61,26 +58,6 @@ class VulnerabilityBase(Operation):
     secure_mark = 0
 
     @classmethod
-    def wrap(cls, func: Callable) -> Callable:
-        def wrapper(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-            """Get the current root Span and attach it to the wrapped function. We need the span to report the
-            vulnerability and update the context with the report information.
-            """
-            if not asm_config.is_iast_request_enabled:
-                if _is_iast_debug_enabled():
-                    log.debug(
-                        "iast::propagation::context::VulnerabilityBase.wrapper. No request quota or this vulnerability "
-                        "is outside the context"
-                    )
-                return wrapped(*args, **kwargs)
-            elif cls.has_quota():
-                return func(wrapped, instance, args, kwargs)
-            else:
-                return wrapped(*args, **kwargs)
-
-        return wrapper
-
-    @classmethod
     @taint_sink_deduplication
     def _prepare_report(
         cls,
@@ -93,13 +70,6 @@ class VulnerabilityBase(Operation):
         *args,
         **kwargs,
     ) -> bool:
-        if not asm_config.is_iast_request_enabled:
-            if _is_iast_debug_enabled():
-                log.debug(
-                    "iast::propagation::context::VulnerabilityBase._prepare_report. "
-                    "No request quota or this vulnerability is outside the context"
-                )
-            return False
         if line_number is not None and (line_number == 0 or line_number < -1):
             line_number = -1
 

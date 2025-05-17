@@ -150,7 +150,7 @@ def _iast_response_cookies(wrapped, instance, args, kwargs):
             cookie_value = kwargs.get("value")
 
         if cookie_value and cookie_key:
-            if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+            if asm_config.is_iast_request_enabled and CookiesVulnerability.has_quota():
                 report_samesite = False
                 samesite = kwargs.get("samesite", "")
                 if samesite:

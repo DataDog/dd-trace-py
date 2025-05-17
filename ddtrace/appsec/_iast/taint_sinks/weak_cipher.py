@@ -130,12 +130,12 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
     return result
 
 
-@WeakCipher.wrap
 def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if asm_config.is_iast_request_enabled:
-        WeakCipher.report(
-            evidence_value="RC4",
-        )
+        if WeakCipher.has_quota():
+            WeakCipher.report(
+                evidence_value="RC4",
+            )
         # Reports Span Metrics
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
         # Report Telemetry Metrics
@@ -146,12 +146,12 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
     return wrapped(*args, **kwargs)
 
 
-@WeakCipher.wrap
 def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if asm_config.is_iast_request_enabled:
         if hasattr(instance, "_dd_weakcipher_algorithm"):
-            evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
-            WeakCipher.report(evidence_value=evidence)
+            if WeakCipher.has_quota():
+                evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
+                WeakCipher.report(evidence_value=evidence)
 
             # Reports Span Metrics
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
@@ -163,14 +163,14 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
     return wrapped(*args, **kwargs)
 
 
-@WeakCipher.wrap
 def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     if asm_config.is_iast_request_enabled:
         algorithm_name = instance.algorithm.name.lower()
         if algorithm_name in get_weak_cipher_algorithms():
-            WeakCipher.report(
-                evidence_value=algorithm_name,
-            )
+            if WeakCipher.has_quota():
+                WeakCipher.report(
+                    evidence_value=algorithm_name,
+                )
 
             # Reports Span Metrics
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakCipher.vulnerability_type)
