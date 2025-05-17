@@ -70,21 +70,36 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[
             col_dependency = next(
                 (h for h in header if "dependency" in h.lower() and h.lower() != col_integration.lower()), None
             )
-            col_min = next((h for h in header if "minimum" in h.lower()), None)
-            col_max = next((h for h in header if "max" in h.lower()), None)
+            col_tested_min = next((h for h in header if "minimum_tracer_tested" in h.lower()), None)
+            col_tested_max = next((h for h in header if "maximum_tracer_tested" in h.lower()), None)
+            col_supported_min = next((h for h in header if "minimum_tracer_supported" in h.lower()), None)
+            col_supported_max = next((h for h in header if "maximum_tracer_supported" in h.lower()), None)
 
             for row_num, row in enumerate(reader, 2):
                 integration_name_raw = row.get(col_integration, "").strip()
                 dependency_name_raw = row.get(col_dependency, "").strip()
-                min_version = row.get(col_min, "").strip()
-                max_version = row.get(col_max, "").strip()
+                tested_min_version = row.get(col_tested_min, "").strip()
+                tested_max_version = row.get(col_tested_max, "").strip()
+                supported_min_version = row.get(col_supported_min, "").strip()
+                supported_max_version = row.get(col_supported_max, "").strip()
                 integration_name = integration_name_raw.split("*")[0].strip().lower()
                 dependency_name = dependency_name_raw
 
-                normalized_min = _normalize_version_string(min_version) if min_version else "N/A"
-                normalized_max = _normalize_version_string(max_version) if max_version else "N/A"
+                normalized_tested_min = _normalize_version_string(tested_min_version) if tested_min_version else "N/A"
+                normalized_tested_max = _normalize_version_string(tested_max_version) if tested_max_version else "N/A"
+                normalized_supported_min = (
+                    _normalize_version_string(supported_min_version) if supported_min_version else "N/A"
+                )
+                normalized_supported_max = (
+                    _normalize_version_string(supported_max_version) if supported_max_version else "N/A"
+                )
 
-                supported_data[integration_name][dependency_name] = {"min": normalized_min, "max": normalized_max}
+                supported_data[integration_name][dependency_name] = {
+                    "tested_min": normalized_tested_min,
+                    "tested_max": normalized_tested_max,
+                    "supported_min": normalized_supported_min,
+                    "supported_max": normalized_supported_max,
+                }
 
     except Exception as e:
         print(f"Error reading supported versions file {filepath.relative_to(PROJECT_ROOT)}: {e}", file=sys.stderr)
