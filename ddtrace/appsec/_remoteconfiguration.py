@@ -9,6 +9,7 @@ from typing import Sequence
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import PRODUCTS
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
@@ -112,8 +113,9 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
         else:
             for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
     _process_asm_features(for_the_tracer, local_tracer)
-    if local_tracer._appsec_processor is not None:
-        local_tracer._appsec_processor._update_rules(for_the_waf_removals, for_the_waf_updates)
+
+    if (processor := AppSecSpanProcessor._instance) is not None:
+        processor._update_rules(for_the_waf_removals, for_the_waf_updates)
 
 
 def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
