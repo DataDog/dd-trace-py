@@ -32,3 +32,9 @@ import_ddtrace_auto_django:
   <<: *defaults
   import_ddtrace_auto: true
   import_django: true
+import_ddtrace_auto_start_telemetry:
+  <<: *defaults
+  # By default telemetry collection is enabled after 10 seconds we need to force it to start immediately
+  # to detect the overhead.
+  env: {"_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true"}
+  import_ddtrace_auto: true

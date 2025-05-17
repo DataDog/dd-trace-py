@@ -20,6 +20,11 @@ class DDtraceRun(bm.Scenario):
         env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtimemetrics)
         env["DD_APPSEC_ENABLED"] = str(self.appsec)
 
+        if self.telemetry:
+            # Force app started event, this is needed for telemetry to be enabled
+            # immediately after the process starts to avoid the 10 second delay.
+            env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
         # initialize subprocess args
         subp_cmd = []
         code = "import ddtrace; ddtrace._monkey._patch_all()\n"
@@ -29,7 +34,7 @@ class DDtraceRun(bm.Scenario):
 
         if self.http:
             # mock requests to the trace agent before starting services
-            env["DD_TRACE_API_VERSION"] = "v0.4"
+            env["DD_TRACE_API_VERSION"] = "v0.5"
             code += """
 import httpretty
 from ddtrace.trace import tracer
@@ -41,10 +46,6 @@ httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, teleme
 # profiler will collect snapshot during shutdown
 httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, 'profiling/v1/input'))
 """
-
-        if self.telemetry:
-            code += "telemetry_writer.enable()\n"
-
         if self.tracing:
             code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
 
