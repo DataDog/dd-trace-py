@@ -13,6 +13,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -367,17 +368,53 @@ class TestVisibilityItemBase(abc.ABC):
         # Telemetry for events created has specific tags for item types
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def start(self) -> None:
-        log.debug("Test Visibility: starting %s", self)
-
+    def start(self, context: Optional[Context] = None) -> None:
         if self.is_started():
-            if self._session_settings.reject_duplicates:
-                error_msg = f"Item {self} has already been started"
-                log.warning(error_msg)
-                raise CIVisibilityDataError(error_msg)
+            log.debug("Item %s already started, not starting again", self)
             return
+
         self._telemetry_record_event_created()
-        self._start_span()
+
+        if context:
+            # This is the xdist worker session case.
+            # The 'context' object here is the one from the main node,
+            # containing the correct trace_id and its span_id (which should be our parent_id).
+
+            self._span = self._tracer.start_span(
+                name=self._operation_name,
+                child_of=context,  # Explicitly pass the parent context here
+                service=self._service,
+                resource=self._resource if self._resource else self._operation_name,
+                span_type=SpanTypes.TEST,
+                activate=True,  # Activate the *newly created* span's context
+            )
+
+            if self._span:
+                # Verify if parenting worked as expected
+                if self._span.parent_id != context.span_id:
+                    log.warning(
+                        f"Parent ID mismatch for span {self._span.span_id}! "
+                        f"Expected {context.span_id}, got {self._span.parent_id}. "
+                        f"Trace ID: {self._span.trace_id}, Expected Trace ID: {context.trace_id}"
+                    )
+                else:
+                    log.debug(
+                        f"Span {self._span.span_id} (trace_id: {self._span.trace_id}) "
+                        f"correctly parented to {context.span_id}."
+                    )
+
+                self._span.set_tag_str(EVENT_TYPE, self._event_type)
+                self._span.set_tag_str(SPAN_KIND, "test")
+            else:
+                log.warning("Failed to create span for item %s with explicit parent context", self)
+
+            log.debug("Started span for item %s using explicit child_of with parent context", self)
+
+        else:
+            # Original behavior
+            self._start_span()
+
+        log.debug("Started item %s", self)
 
     def is_started(self) -> bool:
         return self._span is not None
