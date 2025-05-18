@@ -418,7 +418,6 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                 content_text = str(content)
             input_messages.append({"content": content_text, "role": role})
     parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input", "tools", "api_key", "user_api_key", "user_api_key_hash")}
-    print("input_messages is: ", input_messages)
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -427,13 +426,56 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
 
     if isinstance(messages, list):  # streamed response
         output_messages = []
+        stored_tool_calls = []
+        print("Processing streamed messages, count:", len(messages))
         for streamed_message in messages:
+            print("Processing message:", type(streamed_message))
             if isinstance(streamed_message, dict):
+
                 content = streamed_message.get("content", "")
                 role = streamed_message.get("role", "assistant")
+                tools = streamed_message.get("tool_calls", [])
+                # Handle tools from the message
+                if tools:
+                    for tool in tools:
+                        tool_call_info = {
+                            "name": tool.get("name", ""),
+                            "type": tool.get("type", "function"),
+                        }
+                        if "arguments" in tool:
+                            tool_call_info["arguments"] = tool["arguments"]
+                        stored_tool_calls.append(tool_call_info)
+                        output_messages.append(({"tool_calls": stored_tool_calls}))
+                        breakpoint()
+
+                
                 if content:
                     output_messages.append({"content": content, "role": role})
+            elif hasattr(streamed_message, "type"):
+                print("Found message with type:", streamed_message.type)
+                if streamed_message.type == "response.completed":
+                    print("Processing completed response")
+                    # Handle tools from the completed response
+                    if hasattr(streamed_message, "response") and hasattr(streamed_message.response, "tools"):
+                        print("Found tools in response:", streamed_message.response.tools)
+                        for tool in streamed_message.response.tools:
+                            tool_call_info = {
+                                "name": getattr(tool, "name", ""),
+                                "type": getattr(tool, "type", "function"),
+                            }
+                            if hasattr(tool, "parameters"):
+                                tool_call_info["arguments"] = getattr(tool, "parameters", {})
+                            stored_tool_calls.append(tool_call_info)
+                        print("stored_tool_calls is: ", stored_tool_calls)
+                elif streamed_message.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+                    print("Processing tool call chunk")
+                    openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=streamed_message)
+                    print("elif statement, stored_tool_calls is: ", stored_tool_calls)
+                if stored_tool_calls:
+                    output_messages.append({"tool_calls": stored_tool_calls})
+                    stored_tool_calls = []  # Reset for next tool call
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        print("Final output_messages is: ", output_messages)
         return
 
     # Non-streaming response
@@ -523,23 +565,63 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
     {"output": [{"role": "...", "content": [{"text": "..."}]}]}
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
+    print("Processing chunks:", streamed_chunks)
 
     for chunk in streamed_chunks:
         if not isinstance(chunk, tuple) or len(chunk) != 2:
             continue
             
         chunk_type, chunk_value = chunk
+        print(f"Processing chunk type: {chunk_type}, value: {chunk_value}")
+        if chunk_type == "usage":
+            message["usage"] = chunk_value
+        
         if chunk_type == "output" and isinstance(chunk_value, list):
             for output in chunk_value:
+                print(f"Processing output: {output}")
                 if hasattr(output, "content") and hasattr(output, "role"):
                     # content is a list of ResponseOutputText objects
                     for content in output.content:
                         if hasattr(content, "text"):
                             message["content"] += content.text
                     message["role"] = output.role
+                elif hasattr(output, "type"):
+                    print(f"Found output with type: {output.type}")
+                    if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+                        tool_name = output.name if hasattr(output, "name") else ""
+                        tool_type = output.type if hasattr(output, "type") else ""
+                        tool_parameters = output.parameters if hasattr(output, "parameters") else {}
+                        # file search
+                        tool_queries_raw = output.queries if hasattr(output, "queries") else []                        
+                        # tool_queries = []
+                        if tool_queries_raw:
+                            # for query in tool_queries_raw:
+                            tool_query = json.dumps({"queries": tool_queries_raw})
+                            # tool_queries.append(tool_query)
+                        
+                        # computer use
+                        action_raw = output.action if hasattr(output, "action") else ""
+                        if action_raw:
+                            action_json_str = action_raw.json()
+                            tool_action = json.loads(f'{{"action": {action_json_str}}}')
+
+                        tool_call = {
+                            "name": tool_name,
+                            "type": tool_type,
+                        }
+                        if tool_parameters:
+                            tool_call["arguments"] = json.loads(tool_parameters)
+                        elif tool_queries_raw:
+                            tool_call["arguments"] = json.loads(tool_query)
+                        elif tool_action:
+                            tool_call["arguments"] = tool_action
+                        message["tool_calls"].append(tool_call)
+                        print(f"Added file search tool call: {tool_call}")
+                        breakpoint()
+
 
     message["content"] = message["content"].strip()
-    print("messages is: ", message)
+    print("Final message is: ", message)
     return message
 
 
@@ -564,6 +646,47 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         return
     if not tool_call_chunk:
         return
+
+    # Handle response tool calls
+    if hasattr(tool_call_chunk, "type") and tool_call_chunk.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+
+        tool_call_info = {
+            "name": getattr(tool_call_chunk, "name", ""),
+            "tool_id": getattr(tool_call_chunk, "id", ""),
+            "type": getattr(tool_call_chunk, "type", ""),
+        }
+
+        # Handle file search queries
+        file_queries_raw = getattr(tool_call_chunk, "queries", None)
+        if file_queries_raw:
+            tool_call_info["arguments"] = {"queries": file_queries_raw}
+            stored_tool_calls.append(tool_call_info)
+            return
+
+        # Handle computer call action
+        action_raw = getattr(tool_call_chunk, "action", "")
+        if action_raw:
+            if isinstance(action_raw, str):
+                action_json_str = action_raw.json()
+                tool_call_info["arguments"] = json.loads(f'{{"action": {action_json_str}}}')
+            stored_tool_calls.append(tool_call_info)
+            return
+
+        # Handle function call arguments
+        arguments = getattr(tool_call_chunk, "arguments", "")
+        if arguments:
+            try:
+                tool_call_info["arguments"] = json.loads(arguments)
+            except json.JSONDecodeError:
+                tool_call_info["arguments"] = arguments
+            stored_tool_calls.append(tool_call_info)
+            return
+
+        # If no arguments were found, add the tool call without arguments
+        stored_tool_calls.append(tool_call_info)
+        return
+
+    # Handle chat completion tool calls (original implementation)
     tool_call_idx = getattr(tool_call_chunk, "index", None)
     tool_id = getattr(tool_call_chunk, "id", None)
     tool_type = getattr(tool_call_chunk, "type", None)
