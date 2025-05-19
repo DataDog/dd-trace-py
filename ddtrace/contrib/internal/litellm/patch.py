@@ -5,6 +5,7 @@ import litellm
 from ddtrace import config
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMStream
+from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -44,9 +45,7 @@ async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
 def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
         func.__name__,
@@ -77,9 +76,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
 async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_completion):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
         func.__name__,
@@ -125,9 +122,7 @@ async def traced_router_atext_completion(litellm, pin, func, instance, args, kwa
 def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     with integration.trace(
         pin,
         operation,
@@ -151,9 +146,7 @@ def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operat
 async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     with integration.trace(
         pin,
         operation,

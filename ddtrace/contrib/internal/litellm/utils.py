@@ -9,6 +9,11 @@ from ddtrace.llmobs._integrations.utils import openai_construct_message_from_str
 
 log = get_logger(__name__)
 
+def extract_host_tag(kwargs):
+    if "host" in kwargs.get("metadata", {}).get("headers", {}):
+        return kwargs["metadata"]["headers"]["host"]
+    return None
+
 
 class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
