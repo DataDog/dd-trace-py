@@ -447,7 +447,7 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
         return True    # Do not run pytest's internal `pytest_runtest_protocol`.
 
     except Exception:  # noqa: E722
-        log.warning("encountered error while running test, disabling Datadog CI Visibility", exc_info=True)
+        log.warning("Encountered internal error while running test, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
         return None
 
