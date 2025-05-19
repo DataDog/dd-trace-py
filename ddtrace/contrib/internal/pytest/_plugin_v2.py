@@ -280,7 +280,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="2" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -679,7 +679,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     InternalTestSession.finish(force_finish_children=True)
 
 
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    yield
+
     if not is_test_visibility_enabled():
         return
 

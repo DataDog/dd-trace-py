@@ -556,3 +556,14 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     return taint_pyobject(
         result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
     )
+
+
+def _iast_instrument_starlette_scope(scope, route):
+    if scope.get("path_params"):
+        try:
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+        except Exception:
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
