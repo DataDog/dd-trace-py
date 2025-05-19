@@ -9,7 +9,7 @@ from ddtrace.internal.utils.formats import asbool
 # Default configuration values
 MAX_DATASET_ROWS = 50000
 MAX_PROGRESS_BAR_WIDTH = 40
-DEFAULT_CHUNK_SIZE = 100
+DEFAULT_CHUNK_SIZE = 150
 DEFAULT_CONCURRENT_JOBS = 10
 FLUSH_EVERY = 10
 API_PROCESSING_TIME_SLEEP = 6 # Based on events processor median processing time
@@ -126,13 +126,10 @@ def init(
         trace_enabled_env = os.getenv("DD_TRACE_ENABLED")
         if trace_enabled_env is None:
             os.environ["DD_TRACE_ENABLED"] = "false"
-            trace_enabled = False
             print(
                 f"{Color.YELLOW}Warning: APM tracing is disabled by default for LLM Experiments. Only LLM Observability tracing is enabled. "
                 f"To enable APM tracing, set the DD_TRACE_ENABLED=true environment variable.{Color.RESET}"
             )
-        else:
-            trace_enabled = asbool(trace_enabled_env)
 
 
         LLMObs.enable(
