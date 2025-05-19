@@ -66,7 +66,12 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion, self._is_response
+                    self._dd_integration,
+                    self._dd_span,
+                    self._kwargs,
+                    self._streamed_chunks,
+                    self._is_completion,
+                    self._is_response,
                 )
             self._dd_span.finish()
 
@@ -78,7 +83,12 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion, self._is_response
+                self._dd_integration,
+                self._dd_span,
+                self._kwargs,
+                self._streamed_chunks,
+                self._is_completion,
+                self._is_response,
             )
             self._dd_span.finish()
             raise

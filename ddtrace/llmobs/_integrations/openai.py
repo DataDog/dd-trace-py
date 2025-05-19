@@ -172,7 +172,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
             input_tokens_value = prompt_tokens if prompt_tokens != 0 else input_tokens
             output_tokens_value = completion_tokens if completion_tokens != 0 else output_tokens
-            
+
             return {
                 INPUT_TOKENS_METRIC_KEY: input_tokens_value,
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens_value,
@@ -182,4 +182,3 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
         return is_openai_default_base_url(base_url)
-

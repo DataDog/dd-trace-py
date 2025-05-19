@@ -95,7 +95,7 @@ class _BaseCompletionHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
     def _handle_streamed_response(self, integration, span, kwargs, resp, is_completion=False, is_response=False):
-        """Handle streamed response objects returned from completions/chat endpoint calls.
+        """Handle streamed response objects returned from completions/chat/response endpoint calls.
 
         This method returns a wrapped version of the OpenAIStream/OpenAIAsyncStream objects
         to trace the response while it is read by the user.
@@ -109,7 +109,9 @@ class _BaseCompletionHook(_EndpointHook):
         def shared_gen():
             try:
                 streamed_chunks = yield
-                _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion, is_response=is_response)
+                _process_finished_stream(
+                    integration, span, kwargs, streamed_chunks, is_completion=is_completion, is_response=is_response
+                )
             finally:
                 span.finish()
 
@@ -751,8 +753,11 @@ class _ResponseHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False, is_response=True)
+            return self._handle_streamed_response(
+                integration, span, kwargs, resp, is_completion=False, is_response=True
+            )
         if not resp:
             return resp
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
         integration.record_usage(span, resp.usage)
         return resp
