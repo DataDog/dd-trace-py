@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    litellm: Adds APM and LLM Observability tracing support for LiteLLM's router methods.
