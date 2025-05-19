@@ -10,6 +10,8 @@ from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import tool_call_expected_output
+from tests.contrib.openai.utils import response_tool_function
+from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -715,6 +717,95 @@ class TestLLMObsOpenaiV1:
         assert span_event["meta"]["model_provider"] == "deepseek"
         assert span_event["meta"]["model_name"] == "deepseek-chat"
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response(self, openai, mock_llmobs_writer, mock_tracer):
+        """Ensure llmobs records are emitted for response endpoints when configured.
+
+        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
+            model = "gpt-4.1"
+            input_messages = multi_message_input
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
+                metadata={"top_p": 0.9, "max_output_tokens": 100, "user": "ddtrace-test"},
+                token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_stream_tokens(self, openai, mock_llmobs_writer, mock_tracer):
+        """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
+            model = "gpt-4.1"
+            resp_model = model
+            input_messages = "Hello world"
+            expected_completion = "Hello! 🌍 How can I assist you today?"
+            client = openai.OpenAI()
+            resp = client.responses.create(model=model, input=input_messages, stream=True)
+            for chunk in resp:
+                resp_response = getattr(chunk, "response", {})
+                resp_model = getattr(resp_response, "model", "")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"content": expected_completion, "role": "assistant"}],
+                metadata={"stream": True},
+                token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+        """Test that function call response calls are recorded as LLMObs events correctly."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
+            model = "gpt-4.1"
+            client = openai.OpenAI()
+            input_messages = "What is the weather like in Boston today?"
+            resp = client.responses.create(
+                tools=response_tool_function,
+                model=model,
+                input=input_messages,
+                tool_choice="auto"
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages = [{'content': input_messages, 'role': 'user'}],
+                output_messages=response_tool_function_expected_output,
+                metadata={'tools': [{'type': 'function', 'name': 'get_current_weather', 'description': 'Get the current weather in a given location', 'parameters': {'type': 'object', 'properties': {'location': {'type': 'string', 'description': 'The city and state, e.g. San Francisco, CA'}, 'unit': {'type': 'string', 'enum': ['celsius', 'fahrenheit']}}, 'required': ['location', 'unit']}}], 'tool_choice': 'auto'}, 
+                token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -736,3 +827,4 @@ def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config
             user="ddtrace-test",
         )
     assert mock_llmobs_writer.enqueue.call_count == 1
+

@@ -268,6 +268,9 @@ class ToolCallTracker:
             llm_span_context=llm_span_context,
         )
         self._tool_calls[tool_id] = tool_call
+        # Convert arguments to string if it's a dict to make it hashable
+        if isinstance(arguments, dict):
+            arguments = json.dumps(arguments, sort_keys=True)
         self._lookup_tool_id[(tool_name, arguments)] = tool_id
 
     def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span) -> None:
