@@ -156,7 +156,7 @@ class LLMObs(Service):
         try:
             span_event = self._llmobs_span_event(span)
             self._llmobs_span_writer.enqueue(span_event)
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
@@ -1370,7 +1370,14 @@ class LLMObs(Service):
         active_context = active_span.context if isinstance(active_span, Span) else active_span
 
         parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
-        ml_app = active_span._get_ctx_item(ML_APP) if isinstance(active_span, Span) else config._llmobs_ml_app
+
+        ml_app = None
+        if isinstance(active_span, Span):
+            ml_app = active_span._get_ctx_item(ML_APP)
+        elif active_context is not None:
+            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
+        else:
+            ml_app = config._llmobs_ml_app
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
 

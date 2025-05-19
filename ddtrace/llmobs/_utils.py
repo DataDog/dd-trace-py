@@ -176,7 +176,7 @@ def _get_ml_app(span: Span) -> Optional[str]:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or config._llmobs_ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY)
+    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
 
 
 def _get_session_id(span: Span) -> Optional[str]:

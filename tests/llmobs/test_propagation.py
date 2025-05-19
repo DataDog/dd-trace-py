@@ -254,7 +254,7 @@ print(json.dumps(headers))
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
             assert span._get_ctx_item(PARENT_ID_KEY) is None
             assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
-            assert llm_span._get_ctx_item(ML_APP) == "unnamed-ml-app"  # should be the one set by `llmobs` fixture
+            assert llm_span._get_ctx_item(ML_APP) == "test-app"  # should be the one set by `llmobs` fixture
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
@@ -287,7 +287,7 @@ print(json.dumps(headers))
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
+        assert span._get_ctx_item(ML_APP) == "test-app"
 
 
 def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
