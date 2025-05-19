@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: Resolves a bug where pickling ``ddtrace.trace.Context`` broke distributed tracing in coroutines. This bug was introduced in v3.7.0.
+    tracing: Fixes a bug in distributed tracing where pickling `ddtrace.trace.Context` fails in coroutines. This regression was introduced in v3.7.0.
