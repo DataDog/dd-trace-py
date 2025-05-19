@@ -1,3 +1,4 @@
+from ddtrace.llmobs._utils import safe_json
 import pytest
 
 from ddtrace._monkey import patch
@@ -8,6 +9,7 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
 
 
@@ -236,7 +238,18 @@ class TestLLMObsLiteLLM:
                 api_base="http://0.0.0.0:4000",
             )
             if stream:
-                consume_stream(resp, n)
+                output_messages, token_metrics = consume_stream(resp, n)
+            else:
+                output_messages, token_metrics = parse_response(resp)
 
-        # client side requests made to the proxy are not submitted to LLMObs
-        assert len(llmobs_events) == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="workflow",
+            input_value=safe_json(messages, ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False),
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "api_base": "http://0.0.0.0:4000", "model": "gpt-3.5-turbo"},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )

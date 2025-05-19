@@ -124,9 +124,15 @@ async def traced_router_atext_completion(litellm, pin, func, instance, args, kwa
 
 def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = None
+    if "host" in kwargs.get("metadata", {}).get("headers", {}):
+        host = kwargs["metadata"]["headers"]["host"]
     with integration.trace(
         pin,
         operation,
+        model=model,
+        host=host,
         submit_to_llmobs=True,
     ) as span:
         resp = None
@@ -144,9 +150,15 @@ def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operat
 
 async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = None
+    if "host" in kwargs.get("metadata", {}).get("headers", {}):
+        host = kwargs["metadata"]["headers"]["host"]
     with integration.trace(
         pin,
         operation,
+        model=model,
+        host=host,
         submit_to_llmobs=True,
     ) as span:
         resp = None

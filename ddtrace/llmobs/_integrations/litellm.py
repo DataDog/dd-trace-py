@@ -173,7 +173,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         LiteLLM spans will be submitted to LLMObs unless the following are true:
-            - base_url is not set
+            - base_url is not set AND
             - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
         """
         base_url = kwargs.get("api_base", None)
