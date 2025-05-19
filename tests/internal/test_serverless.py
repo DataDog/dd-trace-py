@@ -85,6 +85,7 @@ standard_blocklist = [
     "ddtrace.internal.telemetry.writer",
     "email.mime.application",
     "email.mime.multipart",
+    "http.client",
     "logging.handlers",
     "multiprocessing",
     "importlib_metadata",

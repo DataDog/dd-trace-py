@@ -53,6 +53,7 @@ def _start_iast_context_and_oce(span=None):
     if oce.acquire_request(span):
         start_iast_context()
         request_iast_enabled = True
+
     set_iast_request_enabled(request_iast_enabled)
 
 
@@ -63,13 +64,6 @@ def _end_iast_context_and_oce(span=None):
 
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
-    try:
-        from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
-        from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
-    except Exception:
-        langchain_patch = lambda: True  # noqa: E731
-        langchain_unpatch = lambda: True  # noqa: E731
-
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
@@ -91,7 +85,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         cmdi_patch()
         header_injection_patch()
         code_injection_patch()
-        langchain_patch()
         patch_common_modules()
         yield
         unpatch_common_modules()
@@ -101,7 +94,6 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         cmdi_unpatch()
         header_injection_unpatch()
         code_injection_unpatch()
-        langchain_unpatch()
         _end_iast_context_and_oce(span)
 
 

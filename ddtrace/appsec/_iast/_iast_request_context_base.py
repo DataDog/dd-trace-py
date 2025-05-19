@@ -29,7 +29,7 @@ def _set_span_tag_iast_request_tainted(span):
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
-def start_iast_context(span=None):
+def start_iast_context(span: Optional["Span"] = None):
     if asm_config._iast_enabled:
         create_propagation_context()
         core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))

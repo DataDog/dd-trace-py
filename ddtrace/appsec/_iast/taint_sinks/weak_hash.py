@@ -117,6 +117,7 @@ def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs:
             WeakHash.report(
                 evidence_value=instance.name,
             )
+
         # Reports Span Metrics
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
         # Report Telemetry Metrics
