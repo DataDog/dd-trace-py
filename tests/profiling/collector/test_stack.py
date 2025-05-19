@@ -271,8 +271,6 @@ def test_collect_gevent_thread_task():
     import threading
     import time
 
-    import pytest
-
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
@@ -392,17 +390,11 @@ def test_ignore_profiler_gevent_task():
     gevent.monkey.patch_all()
 
     import os
-    import threading
     import time
-    import typing
 
     from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling import collector
-    from ddtrace.profiling import event as event_mod
-    from ddtrace.profiling import profiler
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.collector.test_stack import _fib
 
     test_name = "test_ignore_profiler_gevent_task"
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
@@ -524,6 +516,7 @@ def test_stress_threads(tmp_path):
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
 
 def test_stress_threads_run_as_thread(tmp_path):
@@ -572,6 +565,7 @@ def test_exception_collection_threads(tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
+    tids = []
     with stack.StackCollector():
         NB_THREADS = 5
         threads = []
@@ -579,6 +573,7 @@ def test_exception_collection_threads(tmp_path):
             t = threading.Thread(target=_f0)  # noqa: E149,F821
             t.start()
             threads.append(t)
+            tids.append(t.ident)
 
         for t in threads:
             t.join()
@@ -587,21 +582,16 @@ def test_exception_collection_threads(tmp_path):
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
-    assert len(samples) > 0
-
-    # r, c, thread_id = test_collector._test_collector_collect(
-    #     stack.StackCollector, stack_event.StackExceptionSampleEvent
-    # )
-    # exception_events = r.events[stack_event.StackExceptionSampleEvent]
-    # e = exception_events[0]
-    # assert e.sampling_period > 0
-    # assert e.thread_id in {t.ident for t in threads}
-    # assert isinstance(e.thread_name, str)
-    # assert e.frames == [("<string>", 5, "_f30", "")]
-    # assert e.nframes == 1
-    # assert e.exc_type == ValueError
-    # for t in threads:
-    #     t.join()
+    for tid in tids:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                exception_type="builtins.ValueError",
+                thread_id=tid,
+                locations=[pprof_utils.StackLocation(filename="<string>", function_name="_f30", line_no=5)],
+            ),
+        )
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
