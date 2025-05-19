@@ -5,7 +5,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
@@ -22,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
@@ -33,6 +33,7 @@ from tests.utils import override_env
 
 def _disable_ci_visibility(f):
     """Decorator to disable CI Visibility after a test finishes."""
+
     # DEV: The tests here enable CI Visibility to test the `unittest` plugin, but this causes CI Visibility to be
     # enabled _also_ for the pytest session that is running the tests. Disabling it in a fixture is not enough because
     # the fixture only gets to run at teardown, by which time pytest has already tried to run some hooks (such as
