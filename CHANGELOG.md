@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.7.1
+
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where pytest-xdist would not exit with the proper status code if ATR was enabled.
+- CI Visibility: This fix resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
+
+
+---
+
 ## 2.21.8
 
 
