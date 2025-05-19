@@ -103,3 +103,20 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
                 stream=False,
                 n=1,
             )
+
+
+def test_litellm_router_completion(litellm, snapshot_context, request_vcr, router):
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion"):
+        stream = False
+        n = 1
+        with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = router.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+            )
+            if stream:
+                for _ in resp:
+                    pass

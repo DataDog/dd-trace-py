@@ -1,0 +1,45 @@
+[[
+  {
+    "name": "litellm.request",
+    "service": "tests.contrib.litellm",
+    "resource": "router.completion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "682b8a3e00000000",
+      "language": "python",
+      "litellm.request.model": "gpt-3.5-turbo",
+      "runtime-id": "643154b05dab45689c13197c7e7cd12f"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 28655
+    },
+    "duration": 61710000,
+    "start": 1747683902177985000
+  },
+     {
+       "name": "litellm.request",
+       "service": "tests.contrib.litellm",
+       "resource": "completion",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "litellm.request.model": "gpt-3.5-turbo"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 107252000,
+       "start": 1747683902179501000
+     }]]

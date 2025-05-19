@@ -3,7 +3,6 @@ import os
 
 import vcr
 
-
 CASETTE_EXTENSION = ".yaml"
 
 
@@ -137,6 +136,21 @@ def parse_response(resp, is_completion=False):
     }
     return output_messages, token_metrics
 
+model_list = [
+    {
+        "model_name": "gpt-3.5-turbo", 
+        "litellm_params": {
+            "model": "gpt-3.5-turbo", 
+            "api_key": os.getenv("<not-a-real-key>"),
+        }
+    }, {
+        "model_name": "gpt-4", 
+        "litellm_params": {
+            "model": "gpt-4", 
+            "api_key": os.getenv("<not-a-real-key>"),
+        }
+    },
+]
 
 tools = [
     {
