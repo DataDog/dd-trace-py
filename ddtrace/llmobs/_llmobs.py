@@ -226,6 +226,16 @@ class LLMObs(Service):
                     )
                     span._set_ctx_item(TAGS, tags)
 
+        if "transfer_to" in _get_span_name(span):
+            """
+            We created a dummy handoff tool span which we trace to have empty i/o,
+            so pop them here
+            """
+            if "input" in meta:
+                meta["input"].pop("value", None)
+            if "output" in meta:
+                meta["output"].pop("value", None)
+
         llmobs_span_event = {
             "trace_id": format_trace_id(span.trace_id),
             "span_id": str(span.span_id),
