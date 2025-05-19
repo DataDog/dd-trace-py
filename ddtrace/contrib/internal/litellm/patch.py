@@ -103,21 +103,26 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
                 )
             span.finish()
 
+
 @with_traced_module
 def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.completion")
+
 
 @with_traced_module
 async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.acompletion")
 
+
 @with_traced_module
 def traced_router_text_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.text_completion")
 
+
 @with_traced_module
 async def traced_router_atext_completion(litellm, pin, func, instance, args, kwargs):
     return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.atext_completion")
+
 
 def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
@@ -139,9 +144,8 @@ def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operat
             raise
         finally:
             kwargs["router_instance"] = instance
-            integration.llmobs_set_tags(
-                span, args=args, kwargs=kwargs, response=resp, operation=operation
-            )
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+
 
 async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
@@ -163,9 +167,7 @@ async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs,
             raise
         finally:
             kwargs["router_instance"] = instance
-            integration.llmobs_set_tags(
-                span, args=args, kwargs=kwargs, response=resp, operation=operation
-            )
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
 
 
 @with_traced_module

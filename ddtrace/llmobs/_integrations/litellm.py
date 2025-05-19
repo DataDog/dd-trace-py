@@ -28,7 +28,6 @@ CHAT_COMPLETION_OPERATIONS = ("chat", "router.completion", "router.acompletion")
 TEXT_COMPLETION_OPERATIONS = ("completion", "router.text_completion", "router.atext_completion")
 
 
-
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
     # maps requested model name to parsed model name and provider
@@ -58,7 +57,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation in CHAT_COMPLETION_OPERATIONS:
             openai_set_meta_tags_from_chat(span, kwargs, response)
-        
+
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
@@ -70,7 +69,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
-    
+
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA)
         base_url = kwargs.get("api_base", None)
@@ -107,7 +106,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 del model["litellm_params"]["api_key"]
         return model_list
 
-    def _update_input_output_value(self, span: Span, kwargs: Dict[str, Any], response: Optional[Any] = None, span_kind: str = ""):
+    def _update_input_output_value(
+        self, span: Span, kwargs: Dict[str, Any], response: Optional[Any] = None, span_kind: str = ""
+    ):
         if span_kind == "llm":
             return
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
@@ -116,12 +117,11 @@ class LiteLLMIntegration(BaseLLMIntegration):
             span._set_ctx_item(INPUT_VALUE, input_messages)
         if output_messages:
             span._set_ctx_item(OUTPUT_VALUE, output_messages)
-        
-    
+
     def _skip_llm_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
-        
+
         Currently, this only applies to the OpenAI integration when the following conditions are met:
             - request is not streamed
             - model provider is OpenAI/AzureOpenAI
@@ -137,7 +137,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
             and LLMObs._integration_is_enabled("openai")
         )
 
-    def _get_span_kind(self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None) -> str:
+    def _get_span_kind(
+        self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+    ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
             - operation is router.acompletion or router.atext_completion

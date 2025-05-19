@@ -249,7 +249,13 @@ class TestLLMObsLiteLLM:
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "api_base": "http://0.0.0.0:4000", "model": "gpt-3.5-turbo"},
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "api_base": "http://0.0.0.0:4000",
+                "model": "gpt-3.5-turbo",
+            },
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
