@@ -30,6 +30,7 @@ _ContextState = Tuple[
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
+    bool, # _reactivate
 ]
 
 
@@ -104,11 +105,21 @@ class Context(object):
             self._span_links,
             self._baggage,
             self._is_remote,
+            self._reactivate,
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state: _ContextState) -> None:
-        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage, self._is_remote = state
+        (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            self._span_links,
+            self._baggage,
+            self._is_remote,
+            self._reactivate,
+        ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
