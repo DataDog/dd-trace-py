@@ -265,11 +265,12 @@ def get_messages_from_converse_content(role: str, content: list):
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
     messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
-    content_blocks = []
+    text_content_blocks = []
     tool_calls_info = []
+    tool_result_content_blocks: Dict[str, List[str]] = {}
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
-            content_blocks.append(content_block.get("text", ""))
+            text_content_blocks.append(content_block.get("text", ""))
         elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
             toolUse = content_block.get("toolUse", {})
             tool_calls_info.append(
@@ -281,20 +282,27 @@ def get_messages_from_converse_content(role: str, content: list):
             )
         elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
             user_tool_result = content_block.get("toolResult", {})
-            user_tool_result_content = user_tool_result.get("content", [{}])
+            user_tool_result_content: List[Dict[str, Any]] = user_tool_result.get("content", [{}])
+            input_tool_call_id = user_tool_result.get("toolUseId", "")
 
             text = user_tool_result_content[0].get("text", "")
             json = safe_json(user_tool_result_content[0].get("json", ""))
-            content_blocks.append(text or json)
-            role = "tool result"  # override for clarity in llm observability
+
+            tool_result_content_blocks_content: List[str] = tool_result_content_blocks.setdefault(
+                input_tool_call_id, []
+            )
+            tool_result_content_blocks_content.append(text or json or "")
         else:
             content_type = ",".join(content_block.keys())
             messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
-    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
+    message: dict[str, Union[str, list[dict[str, dict]]]] = {}
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
-    if content_blocks:
-        message.update({"content": " ".join(content_blocks), "role": role})
+    if text_content_blocks:
+        message.update({"content": " ".join(text_content_blocks), "role": role})
+    if tool_result_content_blocks:
+        for tool_id, content in tool_result_content_blocks.items():
+            messages.append({"content": " ".join(content), "role": "tool", "tool_id": tool_id})
     if message:
         messages.append(message)
     return messages

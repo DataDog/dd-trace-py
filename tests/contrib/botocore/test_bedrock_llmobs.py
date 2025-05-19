@@ -860,7 +860,7 @@ class TestLLMObsBedrock:
             )
 
         assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "bar", "role": "tool result"}]
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "bar", "role": "tool", "tool_id": "foo"}]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
@@ -880,5 +880,5 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["meta"]["input"]["messages"] == [
-            {"content": '{"result": "bar"}', "role": "tool result"}
+            {"content": '{"result": "bar"}', "role": "tool", "tool_id": "foo"}
         ]
