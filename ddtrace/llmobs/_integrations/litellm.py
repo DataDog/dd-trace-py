@@ -5,6 +5,10 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -58,9 +62,13 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
+        # update input and output value for non-LLM spans
+        span_kind = self._get_span_kind(kwargs, model_name, operation)
+        self._update_input_output_value(span, kwargs, response, span_kind)
+
         metrics = self._extract_llmobs_metrics(response)
         span._set_ctx_items(
-            {SPAN_KIND: self._get_span_kind(kwargs, model_name, operation), MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
     
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
@@ -99,6 +107,17 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 del model["litellm_params"]["api_key"]
         return model_list
 
+    def _update_input_output_value(self, span: Span, kwargs: Dict[str, Any], response: Optional[Any] = None, span_kind: str = ""):
+        if span_kind == "llm":
+            return
+        input_messages = span._get_ctx_item(INPUT_MESSAGES)
+        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+        if input_messages:
+            span._set_ctx_item(INPUT_VALUE, input_messages)
+        if output_messages:
+            span._set_ctx_item(OUTPUT_VALUE, output_messages)
+        
+    
     def _skip_llm_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
