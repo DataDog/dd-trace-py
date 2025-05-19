@@ -107,32 +107,46 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
             span.finish()
 
 @with_traced_module
+def traced_router_completion(litellm, pin, func, instance, args, kwargs):
+    return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.completion")
+
+@with_traced_module
 async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
-    integration = litellm._datadog_integration
-    with integration.trace(
-        pin,
-        f"router.{func.__name__}",
-        submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = await func(*args, **kwargs)
-            return resp
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            kwargs["router_instance"] = instance
-            integration.llmobs_set_tags(
-                span, args=args, kwargs=kwargs, response=resp, operation="router.acompletion"
-            )
+    return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.acompletion")
+
+@with_traced_module
+def traced_router_text_completion(litellm, pin, func, instance, args, kwargs):
+    return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.text_completion")
 
 @with_traced_module
 async def traced_router_atext_completion(litellm, pin, func, instance, args, kwargs):
+    return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.atext_completion")
+
+def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
     with integration.trace(
         pin,
-        f"router.{func.__name__}",
+        operation,
+        submit_to_llmobs=True,
+    ) as span:
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            return resp
+        except Exception:
+            span.set_exc_info(*sys.exc_info())
+            raise
+        finally:
+            kwargs["router_instance"] = instance
+            integration.llmobs_set_tags(
+                span, args=args, kwargs=kwargs, response=resp, operation=operation
+            )
+
+async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
+    integration = litellm._datadog_integration
+    with integration.trace(
+        pin,
+        operation,
         submit_to_llmobs=True,
     ) as span:
         resp = None
@@ -145,7 +159,7 @@ async def traced_router_atext_completion(litellm, pin, func, instance, args, kwa
         finally:
             kwargs["router_instance"] = instance
             integration.llmobs_set_tags(
-                span, args=args, kwargs=kwargs, response=resp, operation="router.atext_completion"
+                span, args=args, kwargs=kwargs, response=resp, operation=operation
             )
 
 
@@ -175,7 +189,9 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "router.Router.completion", traced_router_completion(litellm))
     wrap("litellm", "router.Router.acompletion", traced_router_acompletion(litellm))
+    wrap("litellm", "router.Router.text_completion", traced_router_text_completion(litellm))
     wrap("litellm", "router.Router.atext_completion", traced_router_atext_completion(litellm))
 
 

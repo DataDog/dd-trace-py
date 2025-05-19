@@ -20,6 +20,10 @@ from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
+CHAT_COMPLETION_OPERATIONS = ("chat", "router.completion", "router.acompletion")
+TEXT_COMPLETION_OPERATIONS = ("completion", "router.text_completion", "router.atext_completion")
+
+
 
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
@@ -46,9 +50,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
         # use Open AI helpers since response format will match Open AI
-        if operation in ("completion", "router.acompletion"):
+        if operation in TEXT_COMPLETION_OPERATIONS:
             openai_set_meta_tags_from_completion(span, kwargs, response)
-        elif operation in ("chat", "router.atext_completion"):
+        elif operation in CHAT_COMPLETION_OPERATIONS:
             openai_set_meta_tags_from_chat(span, kwargs, response)
         
         # custom logic for updating metadata on litellm spans
@@ -122,7 +126,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         LLM spans should be submitted to LLMObs if:
             - base_url is not set AND an LLM span will not be submitted elsewhere
         """
-        router_operation = operation in ("router.acompletion", "router.atext_completion")
+        router_operation = "router" in operation
         base_url = kwargs.get("api_base", None)
         if router_operation or base_url or self._skip_llm_span(kwargs, model):
             return "workflow"
