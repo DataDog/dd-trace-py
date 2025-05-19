@@ -266,7 +266,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
-        print("entering chat completion response")
         if not resp:
             return
         for choice in resp.choices:

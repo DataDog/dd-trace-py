@@ -279,7 +279,12 @@ def _loop_handler(span, chunk, streamed_chunks):
         else:
             model = getattr(chunk, "model", "")
         span.set_tag_str("openai.response.model", model)
-    # For Responses
+
+    """
+    For Responses: 
+    according to https://platform.openai.com/docs/api-reference/responses-streaming,
+    each event is emitted with a response object, so only one response object is present in each chunk.
+    """
     for response in getattr(chunk, "response", ""):
         streamed_chunks[0].append(response)
     # For completion/chat completion
@@ -312,7 +317,6 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
         if integration.is_pc_sampled_span(span):
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
-        operation = "response" if is_response else "completion" if is_completion else "chat"
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
