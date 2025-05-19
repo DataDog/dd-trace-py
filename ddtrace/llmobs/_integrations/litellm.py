@@ -86,6 +86,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             routing_info["routing_strategy_args"] = getattr(llm_router, "routing_strategy_args", None)
             routing_info["provider_budget_config"] = getattr(llm_router, "provider_budget_config", None)
             routing_info["retry_policy"] = getattr(llm_router, "retry_policy", None)
+            routing_info["enable_tag_filtering"] = getattr(llm_router, "enable_tag_filtering", None)
             model_list = llm_router.get_model_list() if hasattr(llm_router, "get_model_list") else []
             routing_info["model_list"] = self._scrub_litellm_model_list(model_list)
             metadata["router_settings"] = routing_info
