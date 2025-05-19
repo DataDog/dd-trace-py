@@ -1159,3 +1159,19 @@ if __name__ == "__main__":
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True)
+def test_kafka_dsm_patching():
+    # Regression test to ensure confluent_kafka is not imported by dsm before the ddtrace patch is applied.
+    import sys
+
+    # Ensure the dsm module is imported by ddtrace setup.
+    assert "ddtrace.internal.datastreams.__init__" in sys.modules
+    # Ensure confluent_kafka is not in sys.modules after ddtrace setup
+    assert "confluent_kafka" not in sys.modules
+    # Ensure the confluent_kafka module is patched by ddtrace
+    import confluent_kafka
+
+    assert confluent_kafka.Consumer.__name__ == "TracedConsumer"
+    assert confluent_kafka.Producer.__name__ == "TracedProducer"

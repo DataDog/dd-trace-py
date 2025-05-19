@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 from importlib import import_module
+import sys
 from types import TracebackType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -16,10 +17,17 @@ class require_modules(object):
         # type: (List[str]) -> None
         self._missing_modules = []
         for module in modules:
-            try:
-                import_module(module)
-            except ImportError:
-                self._missing_modules.append(module)
+            if module not in sys.modules:
+                try:
+                    import_module(module)
+                except ImportError:
+                    self._missing_modules.append(module)
+                else:
+                    # ddtrace integration must be enabled (ie via `ddtrace.patch()`) before importing
+                    # from third party libraries this ensures all references to traced objects and
+                    # functions are instrumented. Here we remove imported modules from sys.modules.
+                    # This ensures ddtrace import hooks execute when libraries are imported in user code.
+                    sys.modules.pop(module)
 
     def __enter__(self):
         # type: () -> List[str]

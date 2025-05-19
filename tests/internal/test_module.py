@@ -597,3 +597,17 @@ def test_lazy_decorator():
     import tests.internal.lazy as lazy
 
     assert lazy.new_value == 42
+
+
+@pytest.mark.subprocess()
+def test_required_modules():
+    import sys
+
+    import ddtrace.internal.utils.importlib
+
+    with ddtrace.internal.utils.importlib.require_modules(["http.client", "confluent_kafka"]) as missing_modules:
+        pass
+
+    assert "http.client" not in sys.modules
+    assert "confluent_kafka" not in sys.modules
+    assert missing_modules == ["confluent_kafka"]
