@@ -150,14 +150,13 @@ def gen_build_docs() -> None:
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
             print("  cache:", file=f)
             print("    key: v1-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
-            print("      - '/tmp/docs'", file=f)
+            print("      - 'docs/'", file=f)
 
 
 def gen_pre_checks() -> None:
