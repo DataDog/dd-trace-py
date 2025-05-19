@@ -30,7 +30,7 @@ _ContextState = Tuple[
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
-    bool, # _reactivate
+    bool,  # _reactivate
 ]
 
 
