@@ -128,7 +128,7 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
     span._set_ctx_item("langgraph.from_astream", True)
 
     result = None
-    
+
     try:
         result = func(*args, **kwargs)
     except Exception:
