@@ -441,7 +441,7 @@ class CIVisibility(Service):
         # cls.enabled guarantees _instance is not None
         if not cls.enabled or cls._instance is None:
             return False
-        return cls._instance._api_settings.itr_enabled
+        return cls._instance._api_settings.itr_enabled and ddconfig._ci_visibility_intelligent_testrunner_enabled
 
     @classmethod
     def test_skipping_enabled(cls) -> bool:
