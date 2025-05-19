@@ -98,10 +98,10 @@ class LangGraphIntegration(BaseLLMIntegration):
             queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            triggered_node_ids = self._link_task_to_parents(
+            parent_ids = self._link_task_to_parents(
                 task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
             )
-            used_finished_task_ids.update(triggered_node_ids)
+            used_finished_task_ids.update(parent_ids)
 
         unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_task_ids
         graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
@@ -158,11 +158,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         seen_pregel_tasks_writes: set[int],
     ) -> List[str]:
         """Create the span links for a queued task from its triggering parent tasks."""
-        trigger_node_ids = _get_task_trigger_ids_from_finished_tasks(
+        parent_ids = _get_parent_ids_from_finished_tasks(
             task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
         )
 
-        for node_id in trigger_node_ids:
+        for node_id in parent_ids:
             if node_id is None:
                 continue
 
@@ -181,17 +181,17 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links: list[dict] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
-        return trigger_node_ids
+        return parent_ids
 
 
-def _get_task_trigger_ids_from_finished_tasks(
+def _get_parent_ids_from_finished_tasks(
     task,
     finished_tasks: dict[str, Any],
     finished_task_names_to_ids: dict[str, list[str]],
     seen_pregel_tasks_writes: set[int],
 ) -> List[str]:
     """
-    Get the set of task ids that are responsible for triggering the queued task.
+    Get the set of task ids that are responsible for triggering the queued task (parents).
 
     This logic handles legacy formatting of triggers (pre langgraph 0.3.22), and beyond.
     Older versions of langgraph would include a list of either task names or task relationships in their task config
