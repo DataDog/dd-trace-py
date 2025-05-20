@@ -2,6 +2,7 @@
 
 #include <Python.h>
 
+#include "_memalloc_debug.h"
 #include "_memalloc_tb.h"
 #include "vendor/cwisstable.h"
 
@@ -105,10 +106,13 @@ memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
          * we can hypothetically fail to remove a sample, leading to two entries
          * with the same pointer. If we see this key already, then the allocation
          * for the existing entry was freed. Replace it with the new one
+         *
+         * TODO(nick): make this an assertion instead?
          */
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
-        traceback_free(e->val);
+        traceback_t* prev = e->val;
         e->val = value;
+        traceback_free(prev);
     }
 }
 
@@ -150,6 +154,8 @@ memalloc_heap_map_export(memalloc_heap_map_t* m)
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
         PyList_SET_ITEM(heap_list, i, tb_and_size);
         i++;
+
+        memalloc_debug_gil_release();
     }
     return heap_list;
 }
