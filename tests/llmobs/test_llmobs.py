@@ -114,8 +114,17 @@ class TestLLMIOProcessing:
     def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts, llmobs_events):
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
+
         assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "", "role": ""}]}
         assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "", "role": ""}]}
+
+        # Also test input output values are removed
+        with llmobs.llm() as llm_span:
+            llm_span._set_ctx_item("_ml_obs.meta.input.value", "value")
+            llm_span._set_ctx_item("_ml_obs.meta.output.value", "value")
+
+        assert llmobs_events[1]["meta"]["input"] == {"value": ""}
+        assert llmobs_events[1]["meta"]["output"] == {"value": ""}
 
     def _mutate_input_output_messages(span: LLMObsSpan):
         for message in span.input + span.output:

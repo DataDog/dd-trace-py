@@ -7,6 +7,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Literal
 from typing import Optional
 from typing import Tuple
 from typing import TypedDict
@@ -214,21 +215,32 @@ class LLMObs(Service):
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         meta["metadata"] = span._get_ctx_item(METADATA) or {}
 
+        input_type: Literal["value", "messages", ""] = ""
+        output_type: Literal["value", "messages", ""] = ""
+        if span._get_ctx_item(INPUT_VALUE) is not None:
+            input_type = "value"
+            llmobs_span.input = [
+                {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
+            ]
+
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
+            input_type = "messages"
             llmobs_span.input = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
 
-        if span._get_ctx_item(INPUT_VALUE) is not None:
-            meta["input"]["value"] = safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False)
+        if span._get_ctx_item(OUTPUT_VALUE) is not None:
+            output_type = "value"
+            llmobs_span.output = [
+                {"content": safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False), "role": ""}
+            ]
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
+            output_type = "messages"
             llmobs_span.output = cast(List[LLMObsSpan.Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
-        if span._get_ctx_item(OUTPUT_VALUE) is not None:
-            meta["output"]["value"] = safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:
@@ -263,9 +275,15 @@ class LLMObs(Service):
                 telemetry.record_llmobs_user_processor_called(error)
 
         if llmobs_span.input is not None:
-            meta["input"]["messages"] = llmobs_span.input
+            if input_type == "messages":
+                meta["input"]["messages"] = llmobs_span.input
+            elif input_type == "value":
+                meta["input"]["value"] = llmobs_span.input[0]["content"]
         if llmobs_span.output is not None:
-            meta["output"]["messages"] = llmobs_span.output
+            if output_type == "messages":
+                meta["output"]["messages"] = llmobs_span.output
+            elif output_type == "value":
+                meta["output"]["value"] = llmobs_span.output[0]["content"]
 
         if not meta["input"]:
             meta.pop("input")
