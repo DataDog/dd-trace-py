@@ -281,7 +281,7 @@ def _loop_handler(span, chunk, streamed_chunks):
         span.set_tag_str("openai.response.model", model)
 
     """
-    For Responses: 
+    For Responses:
     according to https://platform.openai.com/docs/api-reference/responses-streaming,
     each event is emitted with a response object, so only one response object is present in each chunk.
     """

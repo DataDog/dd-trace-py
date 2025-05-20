@@ -117,32 +117,31 @@ response_tool_function = [
         "name": "get_current_weather",
         "description": "Get the current weather in a given location",
         "parameters": {
-          "type": "object",
-          "properties": {
-              "location": {
-                  "type": "string",
-                  "description": "The city and state, e.g. San Francisco, CA",
-              },
-              "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-          },
-          "required": ["location", "unit"],
-        }
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+            },
+            "required": ["location", "unit"],
+        },
     }
 ]
-response_tool_function_expected_output = [{
-    "tool_calls": [
-        {
-            "name": "get_current_weather",
-            'tool_id': "fc_682bab3e209481919cab5cfd61b6094c07dd0f6490834d00",
-            "type": "function_call",
-            "arguments": {
-                "location": "Boston, MA",
-                "unit": "celsius"
-            },
-        }
-    ],
-    "role": "",
-}]
+response_tool_function_expected_output = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "tool_id": "fc_682bab3e209481919cab5cfd61b6094c07dd0f6490834d00",
+                "type": "function_call",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+        "role": "",
+    }
+]
 
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
@@ -161,7 +160,7 @@ def get_openai_vcr(subdirectory_name=""):
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["OpenAI-Organization"],
+        filter_headers=["authorization", "OpenAI-Organization", "api-key"],
         # Ignore requests to the agent
         ignore_localhost=True,
     )

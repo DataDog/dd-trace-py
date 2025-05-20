@@ -9,9 +9,9 @@ from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import mock_openai_chat_completions_response
 from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import multi_message_input
-from tests.contrib.openai.utils import tool_call_expected_output
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
+from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -787,10 +787,7 @@ class TestLLMObsOpenaiV1:
             client = openai.OpenAI()
             input_messages = "What is the weather like in Boston today?"
             resp = client.responses.create(
-                tools=response_tool_function,
-                model=model,
-                input=input_messages,
-                tool_choice="auto"
+                tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -799,14 +796,34 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages = [{'content': input_messages, 'role': 'user'}],
+                input_messages=[{"content": input_messages, "role": "user"}],
                 output_messages=response_tool_function_expected_output,
-                metadata={'tools': [{'type': 'function', 'name': 'get_current_weather', 'description': 'Get the current weather in a given location', 'parameters': {'type': 'object', 'properties': {'location': {'type': 'string', 'description': 'The city and state, e.g. San Francisco, CA'}, 'unit': {'type': 'string', 'enum': ['celsius', 'fahrenheit']}}, 'required': ['location', 'unit']}}], 'tool_choice': 'auto'}, 
+                metadata={
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "get_current_weather",
+                            "description": "Get the current weather in a given location",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {
+                                        "type": "string",
+                                        "description": "The city and state, e.g. San Francisco, CA",
+                                    },
+                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                                },
+                                "required": ["location", "unit"],
+                            },
+                        }
+                    ],
+                    "tool_choice": "auto",
+                },
                 token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
-    
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
@@ -814,6 +831,7 @@ class TestLLMObsOpenaiV1:
         """Test that Response tool calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
             import os
+
             api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
             input_messages = "What is the weather like in Boston today?"
@@ -830,15 +848,38 @@ class TestLLMObsOpenaiV1:
                     resp_model = chunk.response.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        response_tool_function_expected_output[0]['tool_calls'][0]['tool_id'] = "fc_682c94223680819192287a2f84ee1bb20b603284be451166"
+        response_tool_function_expected_output[0]["tool_calls"][0][
+            "tool_id"
+        ] = "fc_682c94223680819192287a2f84ee1bb20b603284be451166"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp_model,
                 model_provider="openai",
-                input_messages = [{'content': input_messages, 'role': 'user'}],
+                input_messages=[{"content": input_messages, "role": "user"}],
                 output_messages=response_tool_function_expected_output,
-                metadata={"tools": [{'type': 'function', 'name': 'get_current_weather', 'description': 'Get the current weather in a given location', 'parameters': {'type': 'object', 'properties': {'location': {'type': 'string', 'description': 'The city and state, e.g. San Francisco, CA'}, 'unit': {'type': 'string', 'enum': ['celsius', 'fahrenheit']}}, 'required': ['location', 'unit']}}], "user": "ddtrace-test", "stream": True},
+                metadata={
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "get_current_weather",
+                            "description": "Get the current weather in a given location",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {
+                                        "type": "string",
+                                        "description": "The city and state, e.g. San Francisco, CA",
+                                    },
+                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                                },
+                                "required": ["location", "unit"],
+                            },
+                        }
+                    ],
+                    "user": "ddtrace-test",
+                    "stream": True,
+                },
                 token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -850,16 +891,29 @@ class TestLLMObsOpenaiV1:
     def test_response_error(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
         with pytest.raises(Exception):
-            with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create_error.yaml"):
-                model = "invalid-model"
+            with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
+                model = "gpt-4.1"
                 client = openai.OpenAI()
                 input_messages = "Hello world"
-                client.responses.create(
-                    model=model, input=input_messages, user="ddtrace-test"
-                )
+                client.responses.create(model=model, input=input_messages, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
-        span._set_ctx_item("span.kind", "llm")
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        # span._set_ctx_item("span.kind", "llm")
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=model,
+                model_provider="openai",
+                input_messages=[{"content": input_messages, "role": "user"}],
+                output_messages=[{"content": ""}],
+                metadata={"user": "ddtrace-test"},
+                token_metrics={},
+                error="openai.AuthenticationError",
+                error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                error_stack=span.get_tag("error.stack"),
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -882,4 +936,3 @@ def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config
             user="ddtrace-test",
         )
     assert mock_llmobs_writer.enqueue.call_count == 1
-
