@@ -806,6 +806,61 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+    
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_function_call_stream(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+        """Test that Response tool calls are recorded as LLMObs events correctly."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
+            import os
+            api_key = os.getenv("OPENAI_API_KEY")
+            model = "gpt-4.1"
+            input_messages = "What is the weather like in Boston today?"
+            client = openai.OpenAI(api_key=api_key)
+            resp = client.responses.create(
+                tools=response_tool_function,
+                model=model,
+                input=input_messages,
+                user="ddtrace-test",
+                stream=True,
+            )
+            for chunk in resp:
+                if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                    resp_model = chunk.response.model
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        response_tool_function_expected_output[0]['tool_calls'][0]['tool_id'] = "fc_682c94223680819192287a2f84ee1bb20b603284be451166"
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages = [{'content': input_messages, 'role': 'user'}],
+                output_messages=response_tool_function_expected_output,
+                metadata={"tools": [{'type': 'function', 'name': 'get_current_weather', 'description': 'Get the current weather in a given location', 'parameters': {'type': 'object', 'properties': {'location': {'type': 'string', 'description': 'The city and state, e.g. San Francisco, CA'}, 'unit': {'type': 'string', 'enum': ['celsius', 'fahrenheit']}}, 'required': ['location', 'unit']}}], "user": "ddtrace-test", "stream": True},
+                token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_error(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
+        """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
+        with pytest.raises(Exception):
+            with get_openai_vcr(subdirectory_name="v1").use_cassette("response_create_error.yaml"):
+                model = "invalid-model"
+                client = openai.OpenAI()
+                input_messages = "Hello world"
+                client.responses.create(
+                    model=model, input=input_messages, user="ddtrace-test"
+                )
+        span = mock_tracer.pop_traces()[0][0]
+        span._set_ctx_item("span.kind", "llm")
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",

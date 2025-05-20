@@ -445,6 +445,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                         tool_call_info = {
                             "name": tool.get("name", ""),
                             "type": tool.get("type", ""),
+                            "tool_id": tool.get("tool_id", ""),
                         }
                         if "arguments" in tool:
                             tool_call_info["arguments"] = tool["arguments"]
@@ -601,16 +602,18 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                     if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
                         tool_name = output.name if hasattr(output, "name") else ""
                         tool_type = output.type if hasattr(output, "type") else ""
-                        tool_parameters = output.parameters if hasattr(output, "parameters") else {}
+                        tool_id = output.id if hasattr(output, "id") else ""
+                        tool_arguments = output.arguments if hasattr(output, "arguments") else {}
                         # file search
                         tool_queries_raw = output.queries if hasattr(output, "queries") else []
-                        # tool_queries = []
+                        tool_query = ""
                         if tool_queries_raw:
                             # for query in tool_queries_raw:
                             tool_query = json.dumps({"queries": tool_queries_raw})
                             # tool_queries.append(tool_query)
 
                         # computer use
+                        tool_action = ""
                         action_raw = output.action if hasattr(output, "action") else ""
                         if action_raw:
                             action_json_str = action_raw.json()
@@ -619,16 +622,17 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                         tool_call = {
                             "name": tool_name,
                             "type": tool_type,
+                            "tool_id": tool_id,
                         }
-                        if tool_parameters:
-                            tool_call["arguments"] = json.loads(tool_parameters)
-                        elif tool_queries_raw:
+                        if tool_arguments:
+                            tool_call["arguments"] = json.loads(tool_arguments)
+                        if tool_queries_raw:
                             tool_call["arguments"] = json.loads(tool_query)
-                        elif tool_action:
+                        if tool_action:
                             tool_call["arguments"] = tool_action
                         message["tool_calls"].append(tool_call)
                         print(f"Added file search tool call: {tool_call}")
-                        breakpoint()
+                        # breakpoint()
 
     message["content"] = message["content"].strip()
     print("Final message is: ", message)
