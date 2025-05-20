@@ -78,8 +78,8 @@ def _assert_expected_agent_run(
             tool_call = tool_calls[i // 2]
             error_args = (
                 {
-                    "error": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
-                    "error_message": "Error running tool (non-fatal)",
+                    "error_message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "error": "Error running tool (non-fatal)",
                 }
                 if tool_call["error"]
                 else {}

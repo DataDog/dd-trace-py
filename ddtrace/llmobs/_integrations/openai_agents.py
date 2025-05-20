@@ -108,10 +108,15 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             error_msg = oai_span.get_error_message()
             error_data = oai_span.get_error_data()
             span.error = 1
+            """
+            Setting set type to "error message" since the OpenAI
+            Agents SDK usually sets error message to a concise string
+            describing the error, and the error data to the full error object.
+            """
             if error_msg:
-                span.set_tag("error.type", json.dumps(error_data))
+                span.set_tag("error.type", error_msg)
             if error_data and error_msg:
-                span.set_tag("error.message", error_msg)
+                span.set_tag("error.message", json.dumps(error_data))
 
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)
