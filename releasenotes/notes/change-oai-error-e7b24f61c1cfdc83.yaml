@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where error.message and error.type were swapped for the OpenAI Agents SDK, causing long error types.
+    LLM Observability: This fix resolves an issue where error type was being set to the full error data for OpenAI Agents SDK errors, causing long error types.
