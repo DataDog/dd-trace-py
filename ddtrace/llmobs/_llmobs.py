@@ -21,6 +21,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal._rand import rand64bits
+from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -211,8 +212,10 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
+        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+
         llmobs_span_event = {
-            "trace_id": format_trace_id(span.trace_id),
+            "trace_id": format_trace_id(llmobs_trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -221,7 +224,12 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
+            "_dd": {
+                "span_id": str(span.span_id),
+                "trace_id": format_trace_id(span.trace_id),
+                "apm_span_id": str(span.span_id),
+                "apm_trace_id": format_trace_id(span.trace_id),
+            },
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -645,8 +653,10 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
+            span._set_ctx_item(LLMOBS_TRACE_ID, str(llmobs_parent.trace_id))
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
+            span._set_ctx_item(LLMOBS_TRACE_ID, str(rand128bits()))
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
