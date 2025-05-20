@@ -128,5 +128,14 @@ class DynamicInstrumentationConfig(DDConfig):
         else None,
     )
 
+    redaction_excluded_identifiers = DDConfig.v(
+        set,
+        "redaction_excluded_identifiers",
+        map=normalize_ident,
+        default=set(),
+        help_type="List",
+        help="List of identifiers to exclude from redaction",
+    )
+
 
 config = DynamicInstrumentationConfig()
