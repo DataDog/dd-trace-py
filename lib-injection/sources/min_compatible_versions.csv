@@ -139,7 +139,7 @@ pynamodb,~=5.0
 pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
-pytest,~=4.0
+pytest,>=6.0
 pytest-aiohttp,0
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
