@@ -8,6 +8,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -77,6 +78,8 @@ from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
@@ -139,9 +142,9 @@ class LLMObs(Service):
 
     def __init__(
         self,
-        tracer: Tracer = None,
+        tracer: Optional[Tracer] = None,
         span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
-    ):
+    ) -> None:
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
@@ -165,18 +168,18 @@ class LLMObs(Service):
         forksafe.register(self._child_after_fork)
 
         self._link_tracker = LinkTracker()
-        self._annotations = []
+        self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
 
         self._tool_call_tracker = ToolCallTracker()
 
-    def _on_span_start(self, span):
+    def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
             telemetry.record_span_started()
             self._do_annotations(span)
 
-    def _on_span_finish(self, span):
+    def _on_span_finish(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
@@ -197,7 +200,7 @@ class LLMObs(Service):
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> Dict[str, Any]:
+    def _llmobs_span_event(self, span: Span) -> LLMObsSpanEvent:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
@@ -274,16 +277,17 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
-        llmobs_span_event = {
+        llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": format_trace_id(span.trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
             "start_ns": span.start_ns,
-            "duration": span.duration_ns,
+            "duration": cast(int, span.duration_ns),
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
+            "tags": [],
             "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
         }
         session_id = _get_session_id(span)
@@ -331,6 +335,8 @@ class LLMObs(Service):
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
+        if current_context is None:
+            return
         current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
         with self._annotation_context_lock:
             for _, context_id, annotation_kwargs in self._instance._annotations:
@@ -1268,12 +1274,12 @@ class LLMObs(Service):
                 )
                 return
 
-            evaluation_metric = {
+            evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": join_on,
                 "label": str(label),
                 "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,
+                "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }
@@ -1402,12 +1408,12 @@ class LLMObs(Service):
                         error = "invalid_tags"
                         log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
-            evaluation_metric = {
+            evaluation_metric: LLMObsEvaluationMetricEvent = {
                 "join_on": {"span": {"span_id": span_id, "trace_id": trace_id}},
                 "label": str(label),
                 "metric_type": metric_type.lower(),
                 "timestamp_ms": timestamp_ms,
-                "{}_value".format(metric_type): value,
+                "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
             }

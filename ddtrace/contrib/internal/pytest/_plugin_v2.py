@@ -282,7 +282,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="2" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -438,10 +438,21 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
 
 
 @pytest.hookimpl(specname="pytest_runtest_protocol")
-def pytest_runtest_protocol(item, nextitem) -> None:
+def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
-        return
+        return None
 
+    try:
+        _pytest_run_one_test(item, nextitem)
+        return True  # Do not run pytest's internal `pytest_runtest_protocol`.
+
+    except Exception:  # noqa: E722
+        log.warning("Encountered internal error while running test, disabling Datadog CI Visibility", exc_info=True)
+        _disable_ci_visibility()
+        return None
+
+
+def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     test_outcome = _process_reports(item, reports)
@@ -497,8 +508,6 @@ def pytest_runtest_protocol(item, nextitem) -> None:
             item.ihook.pytest_runtest_logreport(report=report)
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-
-    return True  # Do not run pytest's internal `pytest_runtest_protocol`.
 
 
 def _process_reports(item, reports) -> _TestOutcome:
