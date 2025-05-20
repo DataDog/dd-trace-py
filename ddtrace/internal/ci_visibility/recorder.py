@@ -14,6 +14,7 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace._trace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -89,7 +90,6 @@ from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-from ddtrace._trace.context import Context
 
 
 log = get_logger(__name__)

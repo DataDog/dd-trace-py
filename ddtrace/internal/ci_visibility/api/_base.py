@@ -390,19 +390,6 @@ class TestVisibilityItemBase(abc.ABC):
             )
 
             if self._span:
-                # Verify if parenting worked as expected
-                if self._span.parent_id != context.span_id:
-                    log.warning(
-                        f"Parent ID mismatch for span {self._span.span_id}! "
-                        f"Expected {context.span_id}, got {self._span.parent_id}. "
-                        f"Trace ID: {self._span.trace_id}, Expected Trace ID: {context.trace_id}"
-                    )
-                else:
-                    log.debug(
-                        f"Span {self._span.span_id} (trace_id: {self._span.trace_id}) "
-                        f"correctly parented to {context.span_id}."
-                    )
-
                 self._span.set_tag_str(EVENT_TYPE, self._event_type)
                 self._span.set_tag_str(SPAN_KIND, "test")
             else:
