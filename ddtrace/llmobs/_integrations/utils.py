@@ -417,11 +417,14 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             else:
                 content_text = str(content)
             input_messages.append({"content": content_text, "role": role})
+    # Add instructions to as an input system messages
+    if "instructions" in kwargs:
+        input_messages.append({"content": kwargs["instructions"], "role": "system"})
     parameters = {
         k: v for k, v in kwargs.items() if k not in ("model", "input", "api_key", "user_api_key", "user_api_key_hash")
     }
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
-
+    breakpoint()
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
