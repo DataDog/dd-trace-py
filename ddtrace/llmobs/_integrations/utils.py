@@ -484,13 +484,6 @@ class OaiSpanAdapter:
         self._raw_oai_span = oai_span  # openai span data type
 
     @property
-    def instructions(self) -> Optional[str]:
-        """Get the instructions from the span data."""
-        if not hasattr(self._raw_oai_span, "span_data"):
-            return None
-        return getattr(self._raw_oai_span.span_data, "instructions", None)
-
-    @property
     def span_id(self) -> str:
         """Get the span ID."""
         return self._raw_oai_span.span_id
