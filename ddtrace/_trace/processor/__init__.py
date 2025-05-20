@@ -3,7 +3,6 @@ from collections import defaultdict
 from itertools import chain
 from os import environ
 from threading import RLock
-from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
