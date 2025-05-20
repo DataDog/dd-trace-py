@@ -484,6 +484,13 @@ class OaiSpanAdapter:
         self._raw_oai_span = oai_span  # openai span data type
 
     @property
+    def instructions(self) -> Optional[str]:
+        """Get the instructions from the span data."""
+        if not hasattr(self._raw_oai_span, "span_data"):
+            return None
+        return getattr(self._raw_oai_span.span_data, "instructions", None)
+
+    @property
     def span_id(self) -> str:
         """Get the span ID."""
         return self._raw_oai_span.span_id
@@ -591,6 +598,13 @@ class OaiSpanAdapter:
         return self.response.output_text
 
     @property
+    def response_system_instructions(self) -> Optional[str]:
+        """Get the system instructions from the response."""
+        if not self.response:
+            return None
+        return getattr(self.response, "instructions", None)
+
+    @property
     def llmobs_model_name(self) -> Optional[str]:
         """Get the model name formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):
@@ -686,6 +700,9 @@ class OaiSpanAdapter:
         messages = self.input
         processed: List[Dict[str, Any]] = []
         tool_call_ids: List[str] = []
+
+        if self.response_system_instructions:
+            processed.append({"role": "system", "content": self.response_system_instructions})
 
         if not messages:
             return processed, tool_call_ids
