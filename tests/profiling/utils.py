@@ -1,16 +1,10 @@
-import gzip
-
-from ddtrace.profiling.exporter import pprof
+from tests.profiling.collector import pprof_utils
 
 
 def check_pprof_file(
     filename,  # type: str
 ):
-    # type: (...) -> None
-    with gzip.open(filename, "rb") as f:
-        content = f.read()
-    p = pprof.pprof_pb2.Profile()
-    p.ParseFromString(content)
-    assert len(p.sample_type) == 11
-    assert p.string_table[p.sample_type[0].type] == "cpu-samples"
-    assert len(p.sample) >= 1
+    profile = pprof_utils.parse_profile(filename)
+
+    cpu_samples = pprof_utils.get_samples_with_value_type(profile, "cpu-samples")
+    assert len(cpu_samples) >= 1

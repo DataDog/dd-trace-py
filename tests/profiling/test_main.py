@@ -21,10 +21,9 @@ def test_call_script(monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, interval, _ = list(s.strip() for s in stdout.decode().strip().split("\n"))
     assert hello == "hello world", stdout.decode().strip()
     assert float(interval) >= 0.01, stdout.decode().strip()
-    assert int(stacks) >= 1, stdout.decode().strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
@@ -52,8 +51,8 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
+    hello, interval, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    utils.check_pprof_file(filename + "." + str(pid))
     return filename, pid
 
 
@@ -68,8 +67,8 @@ def test_fork(tmp_path, monkeypatch):
     )
     assert exitcode == 0
     child_pid = stdout.decode().strip()
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
-    utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
+    utils.check_pprof_file(filename + "." + str(pid))
+    utils.check_pprof_file(filename + "." + str(child_pid))
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -101,8 +100,8 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     )
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
-    utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
+    utils.check_pprof_file(filename + "." + str(pid))
+    utils.check_pprof_file(filename + "." + str(child_pid))
 
 
 @pytest.mark.subprocess(
