@@ -41,23 +41,23 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA5RVTY/aOhTd8yssr5lRgAwQdu3T+9i0m1Z9rypVdLFvwH2OndrXtKMR/72yE5KQ
-        mUrtBsE59x7fb55mjHEl+Y5xh74p19vlAQ4ruZXbbLsoFpAvt5CvIM+zbAFim22kzKp1XmTbVS6z
-        jM+jgD18QUFXEWs8trhwCISyhMgtNvlmXSxXeZE4T0DBRx9h60YjoWyd0Dnr+I6ZoHUClLlalBIJ
-        lPa3rCcXBClrbvAavpc2UBOoJPs/TkgrUce3jw3d5feLu2W2fLjL8rtF3mWUPPmOfZoxxthT+uxL
-        VYlroXCZFXksVCHg8CAquV4c1lmRixcLlSToscEkEkyKuhSg9UD/rC6JBHcMNRpK/NOeaysgauz5
-        bs9fW0/WzNmbV3s+3/NgFCVcoPYq+D2/DELxzbJNJn19vzqf3/zZfH33r1Jf3mbf/qs2H/4pPh4H
-        DwN1CvuIVIrgHBoqvyHQCR1PNpcZY59T8RpwoDXqkqzVKb0YL7mALe3wrGzw5XVY2kD65jgEb40y
-        R77rCs+xqqyjkVEsVKhrcI8dOGPs0s4VurMSWJLCOEVcYgVBE++GzrqYRQXat8EQ1g06oJDwxX3W
-        od9peL2yrobh96iHya7Pvg2gTfpklUgmEMjynvDPR2o6D0PJJXrhVJPAHeN/IzE6Ieuqz7rqM2UY
-        sKM6o2HXefi1tvVGsWE1Ejo/SnIUWrff84FpnG3QkcJbD8b6kZzgIzVPLjZ3fstOkn0fE1X0yMBI
-        FncC5wzvj/fsHRj2lwMjlBd2zv54xUc6l7Fo2oDfDQNNqPsejfBuiSbmcTjg5NCcUBG/oT6Pw5q9
-        ECB3+DUoh3LyHH/WxCGZ2VT9MrobTqUbHPdsspBkm7IZj7cLpu8Sl8rDQV/Pb/BwxGH2lbm5oJuH
-        +XN8dJafhgMjTigHx2w2CpdPD/Ny9RLxkm5/HH4mTZZAD2Sx7RczeLz5X6mRQAJBlL/MLj8AAAD/
-        /wMAnv4tQwsHAAA=
+        H4sIAAAAAAAAA5RVTY/bNhC9+1cQPHsXkta2bN82BdpD0SBA0qTYOhDG5MhmQ5EKOdzuYuH/XpCW
+        JVm7AZqLYb838zjffpkxxpXkW8Yd+rZarQuBdVnflXKxzjf5BrM8z5br9brYlItilQHIFSyL/X4t
+        JOaSz6OA3f+Dgi4i1ng848IhEMoKIpeXi7Isl3fLTeI8AQUffYRtWo2EnRg6Zx3fMhO0ToAyF4tK
+        IoHS/pr15IIgZc0V3sBTZQO1gSqy33BCWok6vn1o6WZxm98UWbG8yRY3+aLLKHnyLft7xhhjL+mz
+        L1Ut+kLJfSFSoepytb/LIFuIHJer/M1CJQl6bjGJBJOirgRoPdA/qksiwR1Cg4YS/7Lj2gqIGju+
+        3fF31pM1c/bH/Y7PdzwYRQkXqL0KfsdPg1B8szonk74eivbhz6fl7w+rLzW9f7LfPryXf33294OH
+        gSaFfUCqRHAODVX/ItARHU82pxljX1PxWnCgNeqKrNUpvRgvuYBn2uGjssFXl2E5B9I3xyF4a5Q5
+        8G1XeI51bR2NjGKhQtOAe+7AGWOn81yhe1QCK1IYp4hLrCFo4t3QWRezqEH7czCETYsOKCQ8v806
+        9ImG12vrGhh+j3qY7PrszwGckz5aJZIJBLK8J/zrkZrOw1ByiV441SZwy/hvSIyOyLrqs676TBkG
+        7KAe0bDLPPy/tvVGsWENEjo/SnIUWrff84FpnW3RkcJrD8b6kZzgIzVPLjZ3fs1Okv0UE1X0zMBI
+        FncC5wxvD7fsIxj2qwMjlBd2zn655yOd01g0bcDPhoEmNH2PRni3RBPzOBxwdGiOqIhfUV/HYc3e
+        CJA7/B6UQzl5jr9q4pDMbKp+Gt0Np9INjns2WUiybdWOx9sF03eJS+Vhry/nN3g44DD7ylxd0HI5
+        f42PzvLLcGDEEeXgmM1G4fLpYS7u3iLe0u2Pw4+kyRLogdys+8UMHq/+VxokkEAQ5U+z038AAAD/
+        /wMA1kI3jgsHAAA=
     headers:
       CF-RAY:
-      - 9426e5e04cdd9041-BOS
+      - 942ed0791d473049-BOS
       Connection:
       - keep-alive
       Content-Encoding:
@@ -65,14 +65,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 19 May 2025 22:05:50 GMT
+      - Tue, 20 May 2025 21:09:20 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=r0O1JiFolqizxUIuAs31pqRD6UXLKZKZA9r9OlW1v5E-1747692350-1.0.1.1-7xdbrCxZcoRxrhftb29QViiZlX6MbQFLkFIxurxgkEUiCuda8b8ISe4UJFQfrb80JryvBlE73E6eKHV2nMVH.fB96XMKtSOdxfGVMdim9BI;
-        path=/; expires=Mon, 19-May-25 22:35:50 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=.yw0af02bXNaLqgQCHquWsLehe36Bwxm8j0GPWQYKg4-1747775360-1.0.1.1-SrCAuJP9s8cKSvv_EZPsw66VitQKoI6D1hgPij7PGo3M1uRb2zIP6hrEllZOTTh8Z2TnTkSQBGuMQiEzJqfQPlzeeeuYAcqUyYjndlK3a14;
+        path=/; expires=Tue, 20-May-25 21:39:20 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=BH3l1JaLRp1ZqVBaqp2hG2D7Ltsx3et3HRS7n0w30YU-1747692350363-0.0.1.1-604800000;
+      - _cfuvid=5zExe2xAkV.K5Azo8_bOYGmhhAnAiPuUEH5ip05kJMY-1747775360013-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -85,7 +85,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '815'
+      - '792'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -103,7 +103,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_6e60a750f2a61835865b7f0bb76dfe65
+      - req_35c25ac182ae47ec1b709968ced2c4e6
     status:
       code: 200
       message: OK

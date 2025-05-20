@@ -769,7 +769,7 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp_model,
                 model_provider="openai",
-                input_messages=input_messages,
+                input_messages=[{"content": input_messages, "role": "user"}],
                 output_messages=[{"content": expected_completion, "role": "assistant"}],
                 metadata={"stream": True},
                 token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
@@ -783,8 +783,11 @@ class TestLLMObsOpenaiV1:
     def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
+            import os   
+
+            api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
-            client = openai.OpenAI()
+            client = openai.OpenAI(api_key=api_key)
             input_messages = "What is the weather like in Boston today?"
             resp = client.responses.create(
                 tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
@@ -830,12 +833,9 @@ class TestLLMObsOpenaiV1:
     def test_response_function_call_stream(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that Response tool calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
-            import os
-
-            api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
             input_messages = "What is the weather like in Boston today?"
-            client = openai.OpenAI(api_key=api_key)
+            client = openai.OpenAI()
             resp = client.responses.create(
                 tools=response_tool_function,
                 model=model,

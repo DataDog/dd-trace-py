@@ -170,13 +170,13 @@ class OpenAIIntegration(BaseLLMIntegration):
             input_tokens = _get_attr(token_usage, "input_tokens", 0)
             output_tokens = _get_attr(token_usage, "output_tokens", 0)
 
-            input_tokens_value = prompt_tokens if prompt_tokens != 0 else input_tokens
-            output_tokens_value = completion_tokens if completion_tokens != 0 else output_tokens
+            input_tokens = prompt_tokens or input_tokens
+            output_tokens = completion_tokens or output_tokens
 
             return {
-                INPUT_TOKENS_METRIC_KEY: input_tokens_value,
-                OUTPUT_TOKENS_METRIC_KEY: output_tokens_value,
-                TOTAL_TOKENS_METRIC_KEY: input_tokens_value + output_tokens_value,
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
 

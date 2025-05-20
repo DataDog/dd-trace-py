@@ -397,7 +397,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
-def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
     input_messages = []
@@ -424,17 +424,15 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
         k: v for k, v in kwargs.items() if k not in ("model", "input", "api_key", "user_api_key", "user_api_key_hash")
     }
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
-    breakpoint()
-    if span.error or not messages:
+    if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
-    if isinstance(messages, list):  # streamed response
+    if isinstance(response, list):  # streamed response
         output_messages = []
         stored_tool_calls = []
-        print("Processing streamed messages, count:", len(messages))
-        for streamed_message in messages:
-            print("Processing message:", type(streamed_message))
+        
+        for streamed_message in response:
             if isinstance(streamed_message, dict):
                 content = streamed_message.get("content", "")
                 role = streamed_message.get("role", "assistant")
@@ -485,7 +483,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
         return
 
     # Non-streaming response
-    output_data = _get_attr(messages, "output", [])
+    output_data = _get_attr(response, "output", [])
     output_messages = []
     for output in output_data:
         # Message or reasoning
@@ -524,7 +522,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
                     # convert to valid json string
                     action = json.loads(f'{{"action": {action_json_str}}}')
 
-            # funcition call
+            # function call
             # Use output.id as the tool_id
             tool_id = _get_attr(output, "id", "")
             tool_name = _get_attr(output, "name", "")
@@ -538,20 +536,23 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], messa
             elif file_queries:
                 arguments = file_queries
 
-            tool_call_dict = {
+            tool_call = {
                 "name": tool_name,
                 "tool_id": tool_id,
                 "type": output_type,
             }
             if arguments:
-                tool_call_dict["arguments"] = arguments
-            tool_call_info.append(tool_call_dict)
+                tool_call["arguments"] = arguments
+            tool_call_info.append(tool_call)
+            arguments = tool_call.get("arguments", {})
+            # Convert arguments to string before dispatching
+            arguments_str = json.dumps(arguments) if isinstance(arguments, (dict, list)) else str(arguments)
             core.dispatch(
                 DISPATCH_ON_LLM_TOOL_CHOICE,
                 (
                     tool_id,
                     tool_name,
-                    arguments,
+                    arguments_str,
                     {
                         "trace_id": format_trace_id(span.trace_id),
                         "span_id": str(span.span_id),
@@ -609,9 +610,7 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                         tool_queries_raw = output.queries if hasattr(output, "queries") else []
                         tool_query = ""
                         if tool_queries_raw:
-                            # for query in tool_queries_raw:
                             tool_query = json.dumps({"queries": tool_queries_raw})
-                            # tool_queries.append(tool_query)
 
                         # computer use
                         tool_action = ""
@@ -633,7 +632,6 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                             tool_call["arguments"] = tool_action
                         message["tool_calls"].append(tool_call)
                         print(f"Added file search tool call: {tool_call}")
-                        # breakpoint()
 
     message["content"] = message["content"].strip()
     print("Final message is: ", message)
