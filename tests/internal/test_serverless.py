@@ -19,12 +19,12 @@ def test_not_gcp_function():
     assert in_gcp_function() is False
 
 
-def test_is_azure_function_consumption_plan():
+def test_is_azure_function():
     with override_env(dict(FUNCTIONS_WORKER_RUNTIME="python", FUNCTIONS_EXTENSION_VERSION="2")):
         assert in_azure_function() is True
 
 
-def test_not_azure_function_consumption_plan():
+def test_not_azure_function():
     assert in_azure_function() is False
 
 
