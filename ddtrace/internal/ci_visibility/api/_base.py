@@ -178,9 +178,12 @@ class TestVisibilityItemBase(abc.ABC):
             except Exception as e:
                 log.debug("Error setting tag %s: %s", tag, e)
 
-    def _start_span(self) -> None:
+    def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
+        if context is not None:
+            parent_span = context
+        else:
+            parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -370,38 +373,14 @@ class TestVisibilityItemBase(abc.ABC):
 
     def start(self, context: Optional[Context] = None) -> None:
         if self.is_started():
-            log.debug("Item %s already started, not starting again", self)
+            if self._session_settings.reject_duplicates:
+                error_msg = f"Item {self} has already been started"
+                log.warning(error_msg)
+                raise CIVisibilityDataError(error_msg)
             return
 
         self._telemetry_record_event_created()
-
-        if context:
-            # This is the xdist worker session case.
-            # The 'context' object here is the one from the main node,
-            # containing the correct trace_id and its span_id (which should be our parent_id).
-
-            self._span = self._tracer.start_span(
-                name=self._operation_name,
-                child_of=context,  # Explicitly pass the parent context here
-                service=self._service,
-                resource=self._resource if self._resource else self._operation_name,
-                span_type=SpanTypes.TEST,
-                activate=True,  # Activate the *newly created* span's context
-            )
-
-            if self._span:
-                self._span.set_tag_str(EVENT_TYPE, self._event_type)
-                self._span.set_tag_str(SPAN_KIND, "test")
-            else:
-                log.warning("Failed to create span for item %s with explicit parent context", self)
-
-            log.debug("Started span for item %s using explicit child_of with parent context", self)
-
-        else:
-            # Original behavior
-            self._start_span()
-
-        log.debug("Started item %s", self)
+        self._start_span(context)
 
     def is_started(self) -> bool:
         return self._span is not None
