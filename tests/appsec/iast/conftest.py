@@ -24,8 +24,6 @@ from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_pa
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
-from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -54,6 +52,7 @@ def _start_iast_context_and_oce(span=None):
     if oce.acquire_request(span):
         start_iast_context()
         request_iast_enabled = True
+
     set_iast_request_enabled(request_iast_enabled)
 
 
@@ -63,25 +62,6 @@ def _end_iast_context_and_oce(span=None):
 
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
-    try:
-        from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
-        from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_unpatch
-    except Exception:
-        langchain_patch = lambda: True  # noqa: E731
-        langchain_unpatch = lambda: True  # noqa: E731
-    try:
-        from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqlalchemy_patch
-        from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
-    except Exception:
-        sqlalchemy_patch = lambda: True  # noqa: E731
-        sqlalchemy_unpatch = lambda: True  # noqa: E731
-    try:
-        from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
-        from ddtrace.contrib.internal.psycopg.patch import unpatch as psycopg_unpatch
-    except Exception:
-        psycopg_patch = lambda: True  # noqa: E731
-        psycopg_unpatch = lambda: True  # noqa: E731
-
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
@@ -97,27 +77,19 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         _start_iast_context_and_oce(MockSpan())
         weak_hash_patch()
         weak_cipher_patch()
-        sqli_sqlite_patch()
         json_patch()
-        psycopg_patch()
-        sqlalchemy_patch()
         cmdi_patch()
         header_injection_patch()
         code_injection_patch()
-        langchain_patch()
         patch_common_modules()
         yield
         unpatch_common_modules()
         weak_hash_unpatch()
         weak_cipher_unpatch()
-        sqli_sqlite_unpatch()
         json_unpatch()
-        psycopg_unpatch()
-        sqlalchemy_unpatch()
         cmdi_unpatch()
         header_injection_unpatch()
         code_injection_unpatch()
-        langchain_unpatch()
         _end_iast_context_and_oce()
 
 

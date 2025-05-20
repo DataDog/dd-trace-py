@@ -52,8 +52,9 @@ class ProductManager:
 
     def __init__(self) -> None:
         self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
-
         self._failed: t.Set[str] = set()
+
+    def _load_products(self) -> None:
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
@@ -107,7 +108,7 @@ class ProductManager:
                 "Circular dependencies among products detected. These products won't be enabled: %s.", list(f.keys())
             )
 
-        return [(name, self.__products__[name]) for name in ordering if name not in f]
+        return [(name, self.__products__[name]) for name in ordering if name not in f and name in self.__products__]
 
     @property
     def products(self) -> t.List[t.Tuple[str, Product]]:
@@ -192,6 +193,8 @@ class ProductManager:
         atexit.register(self.exit_products)
 
     def run_protocol(self) -> None:
+        self._load_products()
+
         # uWSGI support
         try:
             check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)

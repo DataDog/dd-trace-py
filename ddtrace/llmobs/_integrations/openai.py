@@ -1,24 +1,17 @@
-import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
-from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -26,6 +19,8 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -103,7 +98,7 @@ class OpenAIIntegration(BaseLLMIntegration):
     def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
-        for token_type in ("prompt", "completion", "total"):
+        for token_type in ("prompt", "completion", "output", "input", "total"):
             num_tokens = getattr(usage, token_type + "_tokens", None)
             if not num_tokens:
                 continue
@@ -128,111 +123,15 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "deepseek"
 
         if operation == "completion":
-            self._llmobs_set_meta_tags_from_completion(span, kwargs, response)
+            openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
-            self._llmobs_set_meta_tags_from_chat(span, kwargs, response)
+            openai_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
-
-    @staticmethod
-    def _llmobs_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
-        """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
-        prompt = kwargs.get("prompt", "")
-        if isinstance(prompt, str):
-            prompt = [prompt]
-        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "prompt")}
-        output_messages = [{"content": ""}]
-        if not span.error and completions:
-            choices = getattr(completions, "choices", completions)
-            output_messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
-        span._set_ctx_items(
-            {
-                INPUT_MESSAGES: [{"content": str(p)} for p in prompt],
-                METADATA: parameters,
-                OUTPUT_MESSAGES: output_messages,
-            }
-        )
-
-    @staticmethod
-    def _llmobs_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
-        """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-        input_messages = []
-        for m in kwargs.get("messages", []):
-            tool_call_id = m.get("tool_call_id")
-            if tool_call_id:
-                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-            input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-        parameters = {k: v for k, v in kwargs.items() if k not in ("model", "messages", "tools", "functions")}
-        span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
-
-        if span.error or not messages:
-            span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
-            return
-        if isinstance(messages, list):  # streamed response
-            output_messages = []
-            for streamed_message in messages:
-                message = {"content": streamed_message["content"], "role": streamed_message["role"]}
-                tool_calls = streamed_message.get("tool_calls", [])
-                if tool_calls:
-                    message["tool_calls"] = [
-                        {
-                            "name": tool_call.get("name", ""),
-                            "arguments": json.loads(tool_call.get("arguments", "")),
-                            "tool_id": tool_call.get("tool_id", ""),
-                            "type": tool_call.get("type", ""),
-                        }
-                        for tool_call in tool_calls
-                    ]
-                output_messages.append(message)
-            span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-            return
-        choices = _get_attr(messages, "choices", [])
-        output_messages = []
-        for idx, choice in enumerate(choices):
-            tool_calls_info = []
-            choice_message = _get_attr(choice, "message", {})
-            role = _get_attr(choice_message, "role", "")
-            content = _get_attr(choice_message, "content", "") or ""
-            function_call = _get_attr(choice_message, "function_call", None)
-            if function_call:
-                function_name = _get_attr(function_call, "name", "")
-                arguments = json.loads(_get_attr(function_call, "arguments", ""))
-                function_call_info = {"name": function_name, "arguments": arguments}
-                output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
-                continue
-            tool_calls = _get_attr(choice_message, "tool_calls", []) or []
-            for tool_call in tool_calls:
-                tool_args = getattr(tool_call.function, "arguments", "")
-                tool_name = getattr(tool_call.function, "name", "")
-                tool_id = getattr(tool_call, "id", "")
-                tool_call_info = {
-                    "name": tool_name,
-                    "arguments": json.loads(tool_args),
-                    "tool_id": tool_id,
-                    "type": "function",
-                }
-                tool_calls_info.append(tool_call_info)
-                core.dispatch(
-                    DISPATCH_ON_LLM_TOOL_CHOICE,
-                    (
-                        tool_id,
-                        tool_name,
-                        tool_args,
-                        {
-                            "trace_id": format_trace_id(span.trace_id),
-                            "span_id": str(span.span_id),
-                        },
-                    ),
-                )
-            if tool_calls_info:
-                output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
-                continue
-            output_messages.append({"content": content, "role": role})
-        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: Dict[str, Any], resp: Any) -> None:

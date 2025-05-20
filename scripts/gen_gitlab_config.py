@@ -150,14 +150,13 @@ def gen_build_docs() -> None:
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
             print("  cache:", file=f)
             print("    key: v1-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
-            print("      - '/tmp/docs'", file=f)
+            print("      - 'docs/'", file=f)
 
 
 def gen_pre_checks() -> None:
@@ -198,7 +197,7 @@ def gen_pre_checks() -> None:
     check(
         name="Run scripts/*.py tests",
         command="hatch run scripts:test",
-        paths={"docker*", "scripts/*.py", "scripts/mkwheelhouse", "scripts/run-test-suite", "**suitespec.yml"},
+        paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
@@ -243,39 +242,6 @@ prechecks:
         )
 
 
-def gen_appsec_iast_packages() -> None:
-    """Generate the list of jobs for the appsec_iast_packages tests."""
-    with TESTS_GEN.open("a") as f:
-        f.write(
-            """
-appsec_iast_packages:
-  extends: .test_base_hatch
-  timeout: 50m
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
-    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
-    PYTEST_ADDOPTS: '-s'
-  cache:
-    # Share pip between jobs of the same Python version
-      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
-      paths:
-        - .cache
-  before_script:
-    - !reference [.test_base_hatch, before_script]
-    - pyenv global "${PYTHON_VERSION}"
-  script:
-    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
-    - export DD_FAST_BUILD="1"
-    - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
-    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
-        """
-        )
-
-
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
@@ -294,7 +260,7 @@ build_base_venvs:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '1'
+    PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'

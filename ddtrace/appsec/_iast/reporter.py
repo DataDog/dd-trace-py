@@ -64,28 +64,15 @@ class Evidence(NotNoneDictable):
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Location(NotNoneDictable):
+class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
     method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
     class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
 
-    def __repr__(self):
-        return f"Location(path='{self.path}', line={self.line})"
-
-
-@dataclasses.dataclass(unsafe_hash=True)
-class Vulnerability(NotNoneDictable):
-    type: str
-    evidence: Evidence
-    location: Location
-    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
-    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
-
     def __post_init__(self):
-        # avoid circular import
-
         self.hash = zlib.crc32(repr(self).encode())
         stacktrace_id = get_iast_stacktrace_id()
         self.stackId = None
@@ -95,7 +82,46 @@ class Vulnerability(NotNoneDictable):
                 self.stackId = str_id
 
     def __repr__(self):
+        return f"Location(path='{self.path}', line={self.line})"
+
+    def _to_dict(self):
+        result = {}
+        if self.spanId is not None:
+            result["spanId"] = self.spanId
+        if self.path:
+            result["path"] = self.path
+        if self.line is not None:
+            result["line"] = self.line
+        if self.method:
+            result["method"] = self.method
+        if self.class_name:
+            result["class"] = self.class_name
+        if self.stackId:
+            result["stackId"] = self.stackId
+        return result
+
+
+@dataclasses.dataclass(unsafe_hash=True)
+class Vulnerability:
+    type: str
+    evidence: Evidence
+    location: Location
+    hash: int = dataclasses.field(init=False, compare=False, hash=("PYTEST_CURRENT_TEST" in os.environ), repr=False)
+
+    def __post_init__(self):
+        self.hash = zlib.crc32(repr(self).encode())
+
+    def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
+
+    def _to_dict(self):
+        to_dict = {
+            "type": self.type,
+            "evidence": self.evidence._to_dict(),
+            "location": self.location._to_dict(),
+            "hash": self.hash,
+        }
+        return to_dict
 
 
 @dataclasses.dataclass
@@ -317,7 +343,7 @@ class IastSpanReporter(NotNoneDictable):
 
         return value_parts
 
-    def _to_str(self) -> str:
+    def _to_str(self, dict_data=None) -> str:
         """
         Converts the IAST span reporter to a JSON string.
 
@@ -334,4 +360,6 @@ class IastSpanReporter(NotNoneDictable):
                     return origin_to_str(obj)
                 return json.JSONEncoder.default(self, obj)
 
+        if dict_data:
+            return json.dumps(dict_data, cls=OriginTypeEncoder)
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)
