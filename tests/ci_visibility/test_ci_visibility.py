@@ -172,7 +172,6 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
             DD_API_KEY="foobar.baz",
             DD_APP_KEY="foobar",
             DD_CIVISIBILITY_AGENTLESS_ENABLED="1",
-            DD_CIVISIBILITY_ITR_ENABLED="0",
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()
@@ -405,7 +404,6 @@ def test_ci_visibility_service_enable_with_itr_disabled_in_env(_do_request, agen
         dict(
             DD_API_KEY="foobar.baz",
             DD_CIVISIBILITY_AGENTLESS_ENABLED=agentless_enabled_str,
-            DD_CIVISIBILITY_ITR_ENABLED="0",
         )
     ), _dummy_noop_git_client(), mock.patch(
         "ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()

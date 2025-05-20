@@ -81,7 +81,6 @@ class PytestSnapshotTestCase(TracerTestCase):
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
-                        DD_CIVISIBILITY_ITR_ENABLED="false",
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
@@ -126,7 +125,6 @@ class PytestSnapshotTestCase(TracerTestCase):
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
-                        DD_CIVISIBILITY_ITR_ENABLED="false",
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
@@ -161,7 +159,6 @@ class PytestSnapshotTestCase(TracerTestCase):
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
-                        DD_CIVISIBILITY_ITR_ENABLED="false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         DD_PATCH_MODULES="httpx:true",

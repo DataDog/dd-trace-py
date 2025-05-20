@@ -578,19 +578,6 @@ Test Visibility
      version_added:
         v1.13.0:
 
-   DD_CIVISIBILITY_ITR_ENABLED:
-     type: Boolean
-     default: True
-     
-     description: |
-        Configures the ``CIVisibility`` service to query the Datadog API to decide whether to enable the Datadog `Test
-        Impact Analysis <https://docs.datadoghq.com/tests/test_impact_analysis>`_ (formerly Intelligent Test
-        Runner). Setting the variable to ``false`` will skip querying the API and disable code coverage collection and
-        test skipping.
-     
-     version_added:
-        v1.13.0:
-
    DD_CIVISIBILITY_LOG_LEVEL:
       type: String
       default: "info"

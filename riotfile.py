@@ -123,9 +123,6 @@ venv = Venv(
                 "requests": latest,
                 "docker": latest,
             },
-            env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
-            },
         ),
         Venv(
             name="appsec_iast_packages",
@@ -673,7 +670,6 @@ venv = Venv(
                 "bcrypt": "==4.2.1",
             },
             env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             venvs=[
@@ -2230,7 +2226,6 @@ venv = Venv(
             },
             pys=select_pys(),
             env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
         ),
@@ -2238,7 +2233,6 @@ venv = Venv(
             name="dbapi_async",
             command="pytest {cmdargs} tests/contrib/dbapi_async",
             env={
-                "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
             },
             pkgs={
