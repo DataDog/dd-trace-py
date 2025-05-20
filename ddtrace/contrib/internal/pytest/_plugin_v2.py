@@ -101,7 +101,7 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 class XdistHooks:
     @pytest.hookimpl
-    def pytest_configure_node(node):
+    def pytest_configure_node(self, node):
         # compute or read whatever you need on master
         from ddtrace.internal.logger import get_logger
         from ddtrace.internal.test_visibility.api import InternalTestSession
