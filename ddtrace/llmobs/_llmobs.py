@@ -42,6 +42,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import METADATA
@@ -653,10 +654,11 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
-            span._set_ctx_item(LLMOBS_TRACE_ID, str(llmobs_parent.trace_id))
+            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID))
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, str(rand128bits()))
+            newId = rand128bits()
+            span._set_ctx_item(LLMOBS_TRACE_ID, newId)
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
