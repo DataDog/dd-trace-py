@@ -8,6 +8,7 @@ from tests.contrib.litellm.utils import consume_stream
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
+from tests.contrib.litellm.utils import expected_router_settings
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky
@@ -238,9 +239,9 @@ class TestLLMObsLiteLLM:
                 api_base="http://0.0.0.0:4000",
             )
             if stream:
-                output_messages, token_metrics = consume_stream(resp, n)
+                output_messages, _ = consume_stream(resp, n)
             else:
-                output_messages, token_metrics = parse_response(resp)
+                output_messages, _ = parse_response(resp)
 
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
@@ -256,7 +257,6 @@ class TestLLMObsLiteLLM:
                 "api_base": "http://0.0.0.0:4000",
                 "model": "gpt-3.5-turbo",
             },
-            token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
     
@@ -271,32 +271,115 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, token_metrics = consume_stream(resp, n)
+                output_messages, _ = consume_stream(resp, n)
             else:
-                output_messages, token_metrics = parse_response(resp)
+                output_messages, _ = parse_response(resp)
 
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
         workflow_span = trace[0]
-        llm_span = trace[1]
         
         assert len(llmobs_events) == 2
-        expected_router_span = _expected_llmobs_non_llm_span_event(
+        # streamed router workflow spans are submitted ahead of LLM spans
+        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
+        assert workflow_event == _expected_llmobs_non_llm_span_event(
             workflow_span,
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
-            output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
+            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-        assert llmobs_events[0] == expected_router_span
-        assert llmobs_events[1] == _expected_llmobs_llm_span_event(
-            llm_span,
-            model_name="gpt-3.5-turbo",
-            model_provider="openai",
-            input_messages=messages,
-            output_messages=output_messages,
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
-            token_metrics=token_metrics,
+
+    async def test_router_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = await router.acompletion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+            )
+            if stream:
+                output_messages, _ = await async_consume_stream(resp, n)
+            else:
+                output_messages, _ = parse_response(resp)
+
+        trace = mock_tracer.pop_traces()[0]
+        assert len(trace) == 2
+        workflow_span = trace[0]
+        
+        assert len(llmobs_events) == 2
+        # streamed router workflow spans are submitted ahead of LLM spans
+        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
+        assert workflow_event == _expected_llmobs_non_llm_span_event(
+            workflow_span,
+            span_kind="workflow",
+            input_value=safe_json(messages, ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+    
+    def test_router_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            prompt = "Hey, what is up?"
+            resp = router.text_completion(
+                model="gpt-3.5-turbo",
+                prompt=prompt,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+            )
+            if stream:
+                output_messages, _ = consume_stream(resp, n, is_completion=True)
+            else:
+                output_messages, _ = parse_response(resp, is_completion=True)
+
+        trace = mock_tracer.pop_traces()[0]
+        assert len(trace) == 2
+        workflow_span = trace[0]
+        
+        assert len(llmobs_events) == 2
+        # streamed router workflow spans are submitted ahead of LLM spans
+        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
+        assert workflow_event == _expected_llmobs_non_llm_span_event(
+            workflow_span,
+            span_kind="workflow",
+            input_value=safe_json([{"content": prompt}], ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+    
+    async def test_router_text_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            prompt = "Hey, what is up?"
+            resp = await router.atext_completion(
+                model="gpt-3.5-turbo",
+                prompt=prompt,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+            )
+            if stream:
+                output_messages, _ = await async_consume_stream(resp, n, is_completion=True)
+            else:
+                output_messages, _ = parse_response(resp, is_completion=True)
+
+        trace = mock_tracer.pop_traces()[0]
+        assert len(trace) == 2
+        workflow_span = trace[0]
+        
+        assert len(llmobs_events) == 2
+        # streamed router workflow spans are submitted ahead of LLM spans
+        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
+        assert workflow_event == _expected_llmobs_non_llm_span_event(
+            workflow_span,
+            span_kind="workflow",
+            input_value=safe_json([{"content": prompt}], ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )

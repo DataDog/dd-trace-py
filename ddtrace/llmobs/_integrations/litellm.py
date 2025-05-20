@@ -65,7 +65,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         span_kind = self._get_span_kind(kwargs, model_name, operation)
         self._update_input_output_value(span, kwargs, response, span_kind)
 
-        metrics = self._extract_llmobs_metrics(response)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
@@ -155,8 +155,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
         return "llm"
 
     @staticmethod
-    def _extract_llmobs_metrics(resp: Any) -> Dict[str, Any]:
-        if not resp:
+    def _extract_llmobs_metrics(resp: Any, span_kind: str) -> Dict[str, Any]:
+        if not resp or span_kind != "llm":
             return {}
         if isinstance(resp, list):
             token_usage = _get_attr(resp[0], "usage", None)
