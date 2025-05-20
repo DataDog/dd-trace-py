@@ -90,7 +90,7 @@ dependencies = [  # copied from library dependencies
     "bytecode",
 ]
 extra-dependencies = [
-    "reno[sphinx]~=3.5.0",
+    "reno~=3.5.0",
     "sphinx~=4.0",
     "sphinxcontrib-applehelp<1.0.8",
     "sphinxcontrib-devhelp<1.0.6",
@@ -103,6 +103,7 @@ extra-dependencies = [
     "sphinx-copybutton==0.5.1",
     # Later release of furo breaks formatting for code blocks
     "furo<=2023.05.20",
+    "standard-imghdr",
 ]
 pre-install-commands = [
     "scripts/docs/install.sh",
@@ -307,37 +308,6 @@ test = [
 [[envs.appsec_iast_default.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## ASM IAST memcheck
-
-[envs.appsec_iast_memcheck]
-template = "appsec_iast_memcheck"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "requests",
-    "urllib3",
-    "pycryptodome",
-    "cryptography",
-    "psycopg2-binary~=2.9.9",
-    "pytest-memray"
-]
-
-[envs.appsec_iast_memcheck.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-[envs.appsec_iast_memcheck.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest --memray --stacks=35 {args:tests/appsec/iast_memcheck/}",
-]
-
-[[envs.appsec_iast_memcheck.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
-
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -363,34 +333,6 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## ASM appsec_iast_packages
-
-[envs.appsec_iast_packages]
-template = "appsec_iast_packages"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "astunparse",
-    "flask",
-    "virtualenv-clone"
-]
-
-[envs.appsec_iast_packages.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-[envs.appsec_iast_packages.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/appsec/iast_packages",
-]
-
-[[envs.appsec_iast_packages.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
 
 ## ASM iast_tdd_propagation
 
@@ -454,7 +396,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -600,6 +542,47 @@ fastapi = ["==0.94.1"]
 [[envs.appsec_integrations_fastapi.matrix]]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
+
+## ASM appsec_integrations_langchain
+
+[envs.appsec_integrations_langchain]
+template = "appsec_integrations_langchain"
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "hypothesis",
+    "langchain{matrix:langchain:}",
+    "langchain-experimental{matrix:langchain-experimental:}",
+]
+
+[envs.appsec_integrations_langchain.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_integrations_langchain.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest -vvv {args:tests/appsec/integrations/langchain_tests/}",
+]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.1"]
+langchain-experimental = ["~=0.1"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.2"]
+langchain-experimental = ["~=0.2"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.3"]
+langchain-experimental = ["~=0.3"]
 
 ## ASM FastAPI
 
