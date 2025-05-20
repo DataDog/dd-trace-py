@@ -13,11 +13,11 @@ import uuid
 import pytest
 
 import ddtrace  # noqa:F401
+from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
-from ddtrace.profiling.collector import stack_event
 from tests.profiling.collector import pprof_utils
 from tests.utils import flaky
 
@@ -51,19 +51,6 @@ def func4():
 
 def func5():
     return time.sleep(1)
-
-
-def wait_for_event(collector, cond=lambda _: True, retries=10, interval=1):
-    for _ in range(retries):
-        events = list(collector.recorder.events[stack_event.StackSampleEvent])
-        matched = list(filter(cond, events))
-        if matched:
-            return matched[0]
-
-        collector.recorder.events[stack_event.StackSampleEvent].clear()
-        time.sleep(interval)
-
-    raise RuntimeError("event wait timeout")
 
 
 @pytest.mark.subprocess(
@@ -595,73 +582,100 @@ def test_exception_collection_threads(tmp_path):
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection():
-    r = recorder.Recorder()
-    c = stack.StackCollector(r)
-    with c:
+def test_exception_collection(tmp_path):
+    test_name = "test_exception_collection"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector():
         try:
             raise ValueError("hello")
         except Exception:
             time.sleep(1)
 
-    exception_events = r.events[stack_event.StackExceptionSampleEvent]
-    assert len(exception_events) >= 1
-    e = exception_events[0]
-    assert e.sampling_period > 0
-    assert e.thread_id == _thread.get_ident()
-    assert e.thread_name == "MainThread"
-    assert e.frames == [
-        (__file__, test_exception_collection.__code__.co_firstlineno + 8, "test_exception_collection", "")
-    ]
-    assert e.nframes == 1
-    assert e.exc_type == ValueError
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins.ValueError",
+            thread_id=_thread.get_ident(),
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    # this sample is captured while we're in time.sleep, so
+                    # the line number is the one of the time.sleep call
+                    line_no=test_exception_collection.__code__.co_firstlineno + 14,
+                )
+            ],
+        ),
+    )
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection_trace(
-    tracer,  # type: ddtrace.trace.Tracer
-):
-    # type: (...) -> None
-    r = recorder.Recorder()
-    c = stack.StackCollector(r, tracer=tracer)
-    with c:
-        with tracer.trace("test123") as span:
-            for _ in range(100):
-                try:
-                    raise ValueError("hello")
-                except Exception:
-                    time.sleep(1)
+def test_exception_collection_trace(tmp_path, tracer):
+    test_name = "test_exception_collection_trace"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
-                # Check we caught an event or retry
-                exception_events = r.reset()[stack_event.StackExceptionSampleEvent]
-                if len(exception_events) >= 1:
-                    break
-            else:
-                pytest.fail("No exception event found")
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-    e = exception_events[0]
-    assert e.sampling_period > 0
-    assert e.thread_id == _thread.get_ident()
-    assert e.thread_name == "MainThread"
-    assert e.frames == [
-        (__file__, test_exception_collection_trace.__code__.co_firstlineno + 13, "test_exception_collection_trace", "")
-    ]
-    assert e.nframes == 1
-    assert e.exc_type == ValueError
-    assert e.span_id == span.span_id
-    assert e.local_root_span_id == span._local_root.span_id
+    with stack.StackCollector(tracer=tracer):
+        with tracer.trace("test123"):
+            try:
+                raise ValueError("hello")
+            except Exception:
+                time.sleep(1)
+    ddup.upload()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins.ValueError",
+            thread_id=_thread.get_ident(),
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    # this sample is captured while we're in time.sleep, so
+                    # the line number is the one of the time.sleep call
+                    line_no=test_exception_collection_trace.__code__.co_firstlineno + 15,
+                )
+            ],
+        ),
+    )
 
 
+# if you don't need to check the output profile, you can use this fixture
 @pytest.fixture
-def tracer_and_collector(tracer):
-    r = recorder.Recorder()
-    c = stack.StackCollector(r, endpoint_collection_enabled=True, tracer=tracer)
+def tracer_and_collector(tracer, request, tmp_path):
+    test_name = request.node.name
+    pprof_prefix = str(tmp_path / test_name)
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    c = stack.StackCollector(tracer=tracer)
     c.start()
     try:
         yield tracer, c
     finally:
         c.stop()
-        tracer.shutdown()
+        ddup.upload(tracer=tracer)
 
 
 def test_thread_to_span_thread_isolation(tracer_and_collector):
@@ -733,57 +747,164 @@ def test_thread_to_child_span_multiple_more_children(tracer_and_collector):
     assert c._thread_span_links.get_active_span_from_thread_id(thread_id) == subsubspan2
 
 
-def test_collect_span_id(tracer_and_collector):
-    t, c = tracer_and_collector
-    resource = str(uuid.uuid4())
-    span_type = str(uuid.uuid4())
-    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
-    event = wait_for_event(c, lambda e: span.span_id == e.span_id)
-    assert span.span_id == event.span_id
-    assert event.trace_resource_container[0] == resource
-    assert event.trace_type == span_type
-    assert event.local_root_span_id == span._local_root.span_id
+def test_collect_span_id(tracer, tmp_path):
+    test_name = "test_collect_span_id"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
 
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
 
-def test_collect_span_resource_after_finish(tracer_and_collector):
-    t, c = tracer_and_collector
-    resource = str(uuid.uuid4())
-    span_type = str(uuid.uuid4())
-    span = t.start_span("foobar", activate=True, span_type=span_type)
-    event = wait_for_event(c, lambda e: span.span_id == e.span_id)
-    assert span.span_id == event.span_id
-    assert event.trace_resource_container[0] == "foobar"
-    assert event.trace_type == span_type
-    span.resource = resource
-    span.finish()
-    assert event.trace_resource_container[0] == resource
-
-
-def test_resource_not_collected(monkeypatch, tracer):
-    r = recorder.Recorder()
-    collector = stack.StackCollector(r, endpoint_collection_enabled=False, tracer=tracer)
-    collector.start()
-    try:
+    tracer._endpoint_call_counter_span_processor.enable()
+    with stack.StackCollector(tracer=tracer):
         resource = str(uuid.uuid4())
-        span_type = str(uuid.uuid4())
-        span = tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type)
-        event = wait_for_event(collector, lambda e: span.span_id == e.span_id)
-        assert span.span_id == event.span_id
-        assert event.trace_resource_container is None
-        assert event.trace_type == span_type
-    finally:
-        collector.stop()
+        span_type = ext.SpanTypes.WEB
+        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
+            for _ in range(10):
+                time.sleep(0.1)
+            span_id = span.span_id
+            local_root_span_id = span._local_root.span_id
+
+    ddup.upload(tracer=tracer)
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "trace endpoint")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            span_id=span_id,
+            trace_type=span_type,
+            local_root_span_id=local_root_span_id,
+            trace_endpoint=resource,
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    line_no=test_collect_span_id.__code__.co_firstlineno + 15,
+                )
+            ],
+        ),
+    )
 
 
-def test_collect_multiple_span_id(tracer_and_collector):
-    t, c = tracer_and_collector
-    resource = str(uuid.uuid4())
-    span_type = str(uuid.uuid4())
-    span = t.start_span("foobar", activate=True, resource=resource, span_type=span_type)
-    child = t.start_span("foobar", child_of=span, activate=True)
-    event = wait_for_event(c, lambda e: child.span_id == e.span_id)
-    assert event.trace_resource_container[0] == resource
-    assert event.trace_type == span_type
+def test_collect_span_resource_after_finish(tracer, tmp_path, request):
+    test_name = request.node.name
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    with stack.StackCollector(tracer=tracer, endpoint_collection_enabled=True):
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+        span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
+        for _ in range(10):
+            time.sleep(0.1)
+    ddup.upload(tracer=tracer)
+    span.finish()
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = profile.sample
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            span_id=span.span_id,
+            trace_type=span_type,
+            # Looks like the endpoint is not collected if the span is not finished
+            # trace_endpoint=resource,
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    line_no=test_collect_span_resource_after_finish.__code__.co_firstlineno + 14,
+                )
+            ],
+        ),
+    )
+
+
+def test_resource_not_collected(tmp_path, tracer):
+    test_name = "test_resource_not_collected"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(endpoint_collection_enabled=False, tracer=tracer):
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
+            for _ in range(10):
+                time.sleep(0.1)
+    ddup.upload(tracer=tracer)
+
+    profile = pprof_utils.parse_profile(output_filename)
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        profile.sample,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            span_id=span.span_id,
+            trace_type=span_type,
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    line_no=test_resource_not_collected.__code__.co_firstlineno + 14,
+                )
+            ],
+        ),
+    )
+
+
+def test_collect_nested_span_id(tmp_path, tracer, request):
+    test_name = request.node.name
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    tracer._endpoint_call_counter_span_processor.enable()
+    with stack.StackCollector(tracer=tracer, endpoint_collection_enabled=True):
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type):
+            with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as child_span:
+                for _ in range(10):
+                    time.sleep(0.1)
+    ddup.upload(tracer=tracer)
+
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "span id")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            span_id=child_span.span_id,
+            trace_type=span_type,
+            local_root_span_id=child_span._local_root.span_id,
+            trace_endpoint=resource,
+            locations=[
+                pprof_utils.StackLocation(
+                    filename=os.path.basename(__file__),
+                    function_name=test_name,
+                    line_no=test_collect_nested_span_id.__code__.co_firstlineno + 16,
+                )
+            ],
+        ),
+    )
 
 
 def test_stress_trace_collection(tracer_and_collector):
@@ -862,17 +983,13 @@ def test_collect_gevent_threads():
 
     gevent.monkey.patch_all()
 
-    import collections
+    import os
     import threading
     import time
 
-    from ddtrace.profiling import recorder
+    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
-    from ddtrace.profiling.collector import stack_event
-
-    # type: (...) -> None
-    r = recorder.Recorder()
-    s = stack.StackCollector(r, max_time_usage_pct=100)
+    from tests.profiling.collector import pprof_utils
 
     iteration = 100
     sleep_time = 0.01
@@ -884,55 +1001,55 @@ def test_collect_gevent_threads():
             # Do nothing and just switch to another greenlet
             time.sleep(sleep_time)
 
-    threads = []
-    with s:
+    test_name = "test_collect_gevent_threads"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service="test_collect_gevent_threads", version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+
+    with stack.StackCollector(max_time_usage_pct=100):
+        threads = []
+        i_to_tid = {}
         for i in range(nb_threads):
             t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+            i_to_tid[i] = t.ident
             t.start()
             threads.append(t)
         for t in threads:
             t.join()
 
-    main_thread_found = False
-    sleep_task_found = False
-    wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
+    ddup.upload()
 
-    events = r.events[stack_event.StackSampleEvent]
-    for event in events:
-        if event.task_name == "MainThread":
-            main_thread_found = True
-        elif event.task_id in {t.ident for t in threads}:
-            for _filename, _lineno, funcname, _classname in event.frames:
-                if funcname in (
-                    "_nothing",
-                    "sleep",
-                ):
-                    # Make sure we capture the sleep call and not a gevent hub frame
-                    sleep_task_found = True
-                    break
+    profile = pprof_utils.parse_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
 
-            wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
-
-    assert main_thread_found
-    assert sleep_task_found
-
-    # sanity check: we don't have duplicate in thread/task ids.
-    assert len(wall_time_ns_per_thread) == nb_threads
-
-    # In theory there should be only one value in this set, but due to timing,
-    # it's possible one task has less event, so we're not checking the len() of
-    # values here.
-    values = set(wall_time_ns_per_thread.values())
-
-    # NOTE(jd): I'm disabling this check because it works 90% of the test only.
-    # There are some cases where this test is run inside the complete test suite
-    # and fails, while it works 100% of the time in its own. Check that the sum
-    # of wall time generated for each task is right. Accept a 30% margin though,
-    # don't be crazy, we're just doing 5 seconds with a lot of tasks. exact_time
-    # = iteration * sleep_time * 1e9 assert (exact_time * 0.7) <= values.pop()
-    # <= (exact_time * 1.3)
-
-    assert values.pop() > 0
+    for task_id in range(nb_threads):
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                task_name="TestThread %d" % task_id,
+                task_id=i_to_tid[task_id],
+                thread_id=i_to_tid[task_id],
+                locations=[
+                    pprof_utils.StackLocation(
+                        filename="test_stack.py",
+                        function_name="_nothing",
+                        line_no=_nothing.__code__.co_firstlineno + 3,
+                    )
+                ],
+            ),
+        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            task_name="MainThread",
+        ),
+    )
 
 
 @flaky(1748750400)

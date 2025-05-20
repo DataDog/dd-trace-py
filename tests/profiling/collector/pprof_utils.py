@@ -16,7 +16,7 @@ from tests.profiling.collector.lock_utils import LineNo
 
 
 UINT64_MAX = (1 << 64) - 1
-DEBUG_TEST = True
+DEBUG_TEST = False
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -299,7 +299,6 @@ def assert_sample_has_locations(profile, sample, expected_locations: Optional[Li
 
 def assert_stack_event(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, expected_event: StackEvent):
     # Check that the sample has label "exception type" with value
-    print(expected_event)
     assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
     assert_sample_has_locations(profile, sample, expected_event.locations)
     assert_base_event(profile.string_table, sample, expected_event)
