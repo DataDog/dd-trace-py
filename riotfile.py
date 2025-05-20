@@ -2853,7 +2853,6 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={
-                                "cython": latest,
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
                             },
