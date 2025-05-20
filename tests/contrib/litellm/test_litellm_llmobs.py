@@ -271,7 +271,8 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = consume_stream(resp, n)
+                consume_stream(resp, n)
+                output_messages = [{"content": ""}]
             else:
                 output_messages, _ = parse_response(resp)
 
@@ -286,10 +287,11 @@ class TestLLMObsLiteLLM:
             workflow_span,
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
-            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            output_value=safe_json(output_messages, ensure_ascii=False),
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
+
 
     async def test_router_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
@@ -302,7 +304,8 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = await async_consume_stream(resp, n)
+                await async_consume_stream(resp, n)
+                output_messages = [{"content": ""}]
             else:
                 output_messages, _ = parse_response(resp)
 
@@ -317,7 +320,7 @@ class TestLLMObsLiteLLM:
             workflow_span,
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
-            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            output_value=safe_json(output_messages, ensure_ascii=False),
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -333,7 +336,8 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = consume_stream(resp, n, is_completion=True)
+                consume_stream(resp, n, is_completion=True)
+                output_messages = [{"content": ""}]
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
@@ -348,7 +352,7 @@ class TestLLMObsLiteLLM:
             workflow_span,
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
-            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            output_value=safe_json(output_messages, ensure_ascii=False),
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
@@ -364,7 +368,8 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = await async_consume_stream(resp, n, is_completion=True)
+                await async_consume_stream(resp, n, is_completion=True)
+                output_messages = [{"content": ""}]
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
@@ -379,7 +384,7 @@ class TestLLMObsLiteLLM:
             workflow_span,
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
-            output_value=safe_json(output_messages, ensure_ascii=False) if not stream else None,
+            output_value=safe_json(output_messages, ensure_ascii=False),
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )

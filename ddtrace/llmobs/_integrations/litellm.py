@@ -52,6 +52,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
 
+        # streamed router spans do not consume the response object directly, so skip setting output messages
+        stream = kwargs.get("stream", False)
+        if "router" in operation and stream:
+            response = None
         # use Open AI helpers since response format will match Open AI
         if operation in TEXT_COMPLETION_OPERATIONS:
             openai_set_meta_tags_from_completion(span, kwargs, response)
@@ -63,7 +67,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         # update input and output value for non-LLM spans
         span_kind = self._get_span_kind(kwargs, model_name, operation)
-        self._update_input_output_value(span, kwargs, response, span_kind)
+        self._update_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
         span._set_ctx_items(
@@ -107,7 +111,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         return model_list
 
     def _update_input_output_value(
-        self, span: Span, kwargs: Dict[str, Any], response: Optional[Any] = None, span_kind: str = ""
+        self, span: Span, span_kind: str = ""
     ):
         if span_kind == "llm":
             return
