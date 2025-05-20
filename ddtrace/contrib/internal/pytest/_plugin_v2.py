@@ -333,42 +333,21 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
             received_root_trace = session.config.workerinput.get("root_trace", "MISSING_TRACE")
             received_root_span = session.config.workerinput.get("root_span", "MISSING_SPAN")
-            log.debug(
-                "pytest_sessionstart (worker): Received from main - root_trace: %s, root_span: %s",
-                received_root_trace,
-                received_root_span,
-            )
 
-            if (
-                isinstance(received_root_trace, str)
-                or isinstance(received_root_span, str)
-                or received_root_span == 0
-                or received_root_span is None
-            ):
-                log.error(
-                    "pytest_sessionstart (worker): root_trace (%s) or root_span (%s)"
-                    " is missing/invalid from workerinput",
-                    received_root_trace,
-                    received_root_span,
-                )
-                # Not creating extracted_context, so InternalTestSession.start() will get None
-            else:
+            try:
                 root_trace = int(received_root_trace)
-                root_span = int(received_root_span)  # This is the parent_id for the worker session
-
-                log.debug(
-                    "pytest_sessionstart (worker): Creating context with trace_id=%s, parent_span_id=%s",
-                    root_trace,
-                    root_span,
-                )
+                root_span = int(received_root_span)
                 extracted_context = Context(
                     trace_id=root_trace,
                     span_id=root_span,  # This span_id here becomes context.span_id for the parent context
                     sampling_priority=USER_KEEP,
                 )
-            # tracer = InternalTestSession.get_tracer()
-            # tracer.context_provider.activate(extracted_context)
-            # InternalTestSession.get_span()._context = extracted_context.copy(root_trace, root_span)
+            except ValueError:
+                log.debug(
+                    "pytest_sessionstart: Could not convert root_trace %s or root_span %s to int",
+                    received_root_trace,
+                    received_root_span,
+                )
 
         InternalTestSession.start(extracted_context)
 
