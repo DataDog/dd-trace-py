@@ -180,6 +180,7 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
+        parent_span: Optional[Union[Span, Context]] = None
         if context is not None:
             parent_span = context
         else:
