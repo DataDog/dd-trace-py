@@ -629,7 +629,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     InternalTestSession.finish(force_finish_children=True)
 
 
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    yield
+
     if not is_test_visibility_enabled():
         return
 
