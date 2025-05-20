@@ -99,6 +99,33 @@ OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 
+class XdistHooks:
+    @pytest.hookimpl
+    def pytest_configure_node(node):
+        # compute or read whatever you need on master
+        from ddtrace.internal.logger import get_logger
+        from ddtrace.internal.test_visibility.api import InternalTestSession
+
+        log = get_logger(__name__)
+        main_session_span = InternalTestSession.get_span()
+        if main_session_span:
+            root_trace = main_session_span.trace_id
+            root_span = main_session_span.span_id
+            log.debug(
+                "pytest_configure_node (main): Main session span_id: %s, trace_id: %s. Passing to worker.",
+                root_span,
+                root_trace,
+            )
+        else:
+            log.error("pytest_configure_node (main): Could not get main session span!")
+            root_trace = 0
+            root_span = 0
+
+        log.debug("Setting root_span %s and root_trace %s", root_span, root_trace)
+        node.workerinput["root_span"] = root_span
+        node.workerinput["root_trace"] = root_trace
+
+
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -249,6 +276,9 @@ def pytest_configure(config: pytest_Config) -> None:
                 from ddtrace.contrib.internal.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
 
                 config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
+
+            if config.pluginmanager.hasplugin("xdist"):
+                config.pluginmanager.register(XdistHooks())
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
