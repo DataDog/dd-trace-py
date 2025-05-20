@@ -4,14 +4,18 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -50,11 +54,14 @@ _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def atr_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get(TestPhase.SETUP)
+    call_report = test_reports.get(TestPhase.CALL)
+    teardown_report = test_reports.get(TestPhase.TEARDOWN)
+
     if is_quarantined:
         retry_outcomes = _QUARANTINE_ATR_RETRY_OUTCOMES
         final_outcomes = _QUARANTINE_FINAL_OUTCOMES
@@ -70,11 +77,14 @@ def atr_handle_retries(
         XPASS=retry_outcomes.ATR_ATTEMPT_FAILED,
     )
 
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = outcomes.FAILED
-        return
+            call_report.outcome = outcomes.FAILED
+
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     atr_outcome = _atr_do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
@@ -83,19 +93,14 @@ def atr_handle_retries(
         nodeid=item.nodeid,
         location=item.location,
         keywords={k: 1 for k in item.keywords},
-        when="call",
+        when=TestPhase.CALL,
         longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
-        user_properties=item.user_properties + [("dd_retry_reason", "auto_test_retry")],
+        user_properties=item.user_properties + [(UserProperty.RETRY_REASON, RetryReason.AUTO_TEST_RETRY)],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
-
-def get_user_property(report, key, default=None):
-    for k, v in report.user_properties:
-        if k == key:
-            return v
-    return default
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
@@ -127,12 +132,12 @@ def _atr_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
-    retry_reason: str = "auto_test_retry",
+    retry_reason: str = RetryReason.AUTO_TEST_RETRY,
 ):
     reports = [
         report
         for report in terminalreporter.getreports(report_outcome)
-        if get_user_property(report, "dd_retry_reason") == retry_reason
+        if get_user_property(report, UserProperty.RETRY_REASON) == retry_reason
     ]
     markup_kwargs = {color: True}
     if reports:
