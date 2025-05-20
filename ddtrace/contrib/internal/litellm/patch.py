@@ -214,6 +214,8 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.main, "get_llm_provider")
+    unwrap(litellm.router.Router, "completion")
     unwrap(litellm.router.Router, "acompletion")
+    unwrap(litellm.router.Router, "text_completion")
     unwrap(litellm.router.Router, "atext_completion")
     delattr(litellm, "_datadog_integration")

@@ -3,7 +3,6 @@ import pytest
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
 
-
 def test_global_tags(litellm, request_vcr, mock_tracer):
     """
     When the global config UST tags are set
@@ -105,10 +104,9 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
             )
 
 
-def test_litellm_router_completion(litellm, snapshot_context, request_vcr, router):
+@pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
+def test_litellm_router_completion(litellm, snapshot_context, request_vcr, router, stream, n):
     with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion"):
-        stream = False
-        n = 1
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -119,4 +117,50 @@ def test_litellm_router_completion(litellm, snapshot_context, request_vcr, route
             )
             if stream:
                 for _ in resp:
+                    pass
+
+
+@pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
+async def test_litellm_router_acompletion(litellm, snapshot_context, request_vcr, router, stream, n):
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+        with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = await router.acompletion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                stream=stream,
+                n=n,
+            )
+            if stream:
+                async for _ in resp:
+                    pass
+
+@pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
+def test_litellm_router_text_completion(litellm, snapshot_context, request_vcr, router, stream, n):
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+        with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
+            prompt = "What color is the sky?"
+            resp = router.text_completion(
+                model="gpt-3.5-turbo",
+                prompt=prompt,
+                stream=stream,
+                n=n,
+            )
+            if stream:
+                for _ in resp:
+                    pass
+
+@pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
+async def test_litellm_router_atext_completion(litellm, snapshot_context, request_vcr, router, stream, n):
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+        with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
+            prompt = "What color is the sky?"
+            resp = await router.atext_completion(
+                model="gpt-3.5-turbo",
+                prompt=prompt,
+                stream=stream,
+                n=n,
+            )
+            if stream:
+                async for _ in resp:
                     pass
