@@ -636,11 +636,11 @@ async def test_race_conditions_reset_contexs_async(caplog, telemetry_writer):
         OriginType.PATH,
     ],
 )
-def test_has_source_match(source_origin):
-    """Test that has_source correctly identifies matching origins."""
+def test_has_origin_match(source_origin):
+    """Test that has_origin correctly identifies matching origins."""
     source = Source(name="name", value="value", origin=source_origin)
     taint_range = TaintRange(0, 2, source)
-    assert taint_range.has_source(source_origin)
+    assert taint_range.has_origin(source_origin)
 
 
 @pytest.mark.parametrize(
@@ -654,30 +654,30 @@ def test_has_source_match(source_origin):
         (OriginType.PATH, OriginType.HEADER_NAME),
     ],
 )
-def test_has_source_no_match(source_origin, test_origin):
-    """Test that has_source correctly identifies non-matching origins."""
+def test_has_origin_no_match(source_origin, test_origin):
+    """Test that has_origin correctly identifies non-matching origins."""
     source = Source(name="name", value="value", origin=source_origin)
     taint_range = TaintRange(0, 2, source)
-    assert not taint_range.has_source(test_origin)
+    assert not taint_range.has_origin(test_origin)
 
 
-def test_has_source_multiple_ranges():
-    """Test has_source with multiple taint ranges."""
+def test_has_origin_multiple_ranges():
+    """Test has_origin with multiple taint ranges."""
     source1 = Source(name="name1", value="value1", origin=OriginType.COOKIE)
     source2 = Source(name="name2", value="value2", origin=OriginType.PARAMETER)
 
     taint_range1 = TaintRange(0, 2, source1)
     taint_range2 = TaintRange(2, 2, source2)
 
-    assert taint_range1.has_source(OriginType.COOKIE)
-    assert not taint_range1.has_source(OriginType.PARAMETER)
-    assert taint_range2.has_source(OriginType.PARAMETER)
-    assert not taint_range2.has_source(OriginType.COOKIE)
+    assert taint_range1.has_origin(OriginType.COOKIE)
+    assert not taint_range1.has_origin(OriginType.PARAMETER)
+    assert taint_range2.has_origin(OriginType.PARAMETER)
+    assert not taint_range2.has_origin(OriginType.COOKIE)
 
 
-def test_has_source_invalid_origin():
-    """Test has_source with invalid origin type."""
+def test_has_origin_invalid_origin():
+    """Test has_origin with invalid origin type."""
     source = Source(name="name", value="value", origin=OriginType.COOKIE)
     taint_range = TaintRange(0, 2, source)
     with pytest.raises(TypeError):
-        taint_range.has_source("INVALID_ORIGIN")
+        taint_range.has_origin("INVALID_ORIGIN")

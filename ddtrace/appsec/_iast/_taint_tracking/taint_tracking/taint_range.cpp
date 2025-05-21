@@ -51,7 +51,7 @@ TaintRange::has_secure_mark(VulnerabilityType mark) const
 }
 
 bool
-TaintRange::has_source(OriginType origin) const
+TaintRange::has_origin(OriginType origin) const
 {
     return source.origin == origin;
 }
@@ -500,7 +500,7 @@ pyexport_taintrange(py::module& m)
       .def("get_hash", &TaintRange::get_hash)
       .def("add_secure_mark", &TaintRange::add_secure_mark)
       .def("has_secure_mark", &TaintRange::has_secure_mark)
-      .def("has_source", &TaintRange::has_source)
+      .def("has_origin", &TaintRange::has_origin)
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

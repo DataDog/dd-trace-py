@@ -3,7 +3,7 @@
 
 using TaintRangeOriginTest = ::testing::Test;
 
-// Tests for has_source method
+// Tests for has_origin method
 TEST(TaintRange, CheckSingleSource)
 {
     // Create a taint range with a COOKIE source
@@ -11,9 +11,9 @@ TEST(TaintRange, CheckSingleSource)
     TaintRange taint_range(0, 2, source);
 
     // Check that the source matches
-    EXPECT_TRUE(taint_range.has_source(OriginType::COOKIE));
+    EXPECT_TRUE(taint_range.has_origin(OriginType::COOKIE));
     // Check that other sources don't match
-    EXPECT_FALSE(taint_range.has_source(OriginType::PARAMETER));
+    EXPECT_FALSE(taint_range.has_origin(OriginType::PARAMETER));
 }
 
 TEST(TaintRange, CheckAllSourceTypes)
@@ -27,12 +27,12 @@ TEST(TaintRange, CheckAllSourceTypes)
         TaintRange taint_range(0, 2, source);
 
         // Check that the correct source matches
-        EXPECT_TRUE(taint_range.has_source(origin));
+        EXPECT_TRUE(taint_range.has_origin(origin));
 
         // Check that other sources don't match
         for (const auto& other_origin : origins) {
             if (other_origin != origin) {
-                EXPECT_FALSE(taint_range.has_source(other_origin));
+                EXPECT_FALSE(taint_range.has_origin(other_origin));
             }
         }
     }
@@ -45,14 +45,14 @@ TEST(TaintRange, SourcePersistsAfterReset)
     TaintRange taint_range(0, 2, source);
 
     // Verify initial state
-    EXPECT_TRUE(taint_range.has_source(OriginType::COOKIE));
+    EXPECT_TRUE(taint_range.has_origin(OriginType::COOKIE));
 
     // Reset the taint range
     taint_range.reset();
 
     // Verify that secure marks are cleared but source remains
-    EXPECT_FALSE(taint_range.has_source(OriginType::COOKIE));
-    EXPECT_TRUE(taint_range.has_source(OriginType::EMPTY));
+    EXPECT_FALSE(taint_range.has_origin(OriginType::COOKIE));
+    EXPECT_TRUE(taint_range.has_origin(OriginType::EMPTY));
 }
 
 TEST(TaintRange, SourceCopyConstructor)
@@ -66,12 +66,12 @@ TEST(TaintRange, SourceCopyConstructor)
     TaintRange copy = original;
 
     // Verify both have the same source
-    EXPECT_TRUE(original.has_source(OriginType::COOKIE));
-    EXPECT_TRUE(copy.has_source(OriginType::COOKIE));
+    EXPECT_TRUE(original.has_origin(OriginType::COOKIE));
+    EXPECT_TRUE(copy.has_origin(OriginType::COOKIE));
 
     original.source = source2;
 
     // Verify both haven't the same source
-    EXPECT_TRUE(original.has_source(OriginType::HEADER_NAME));
-    EXPECT_TRUE(copy.has_source(OriginType::COOKIE));
+    EXPECT_TRUE(original.has_origin(OriginType::HEADER_NAME));
+    EXPECT_TRUE(copy.has_origin(OriginType::COOKIE));
 }
