@@ -22,13 +22,13 @@ import ddtrace
 from ddtrace import config as dd_config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal import agent
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -36,6 +36,7 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._database_monitoring import dbm_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
@@ -159,7 +160,6 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
-        "_llmobs_auto_span_linking_enabled",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
     ]
@@ -504,7 +504,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer._writer.pop()
+        self.tracer._span_aggregator.writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -524,10 +524,12 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         original = ddtrace.tracer
         tracer = tracer or self.tracer
         ddtrace.tracer = tracer
+        core.tracer = tracer
         try:
             yield
         finally:
             ddtrace.tracer = original
+            core.tracer = original
 
 
 class DummyWriterMixin:
@@ -563,7 +565,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
     def __init__(self, *args, **kwargs):
         # original call
         if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent.get_trace_url()
+            kwargs["agent_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -591,6 +593,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
+    def recreate(self):
+        return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
     def __init__(self, *args, **kwargs):
@@ -602,7 +607,8 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         DummyWriterMixin.write(self, spans=spans)
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
-        self._encoded = self._encoder._build_payload()
+        if spans:
+            self._encoded = self._encoder._build_payload([spans])
 
 
 class DummyTracer(Tracer):
@@ -614,52 +620,39 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self._trace_flush_disabled_via_env = not asbool(os.getenv("_DD_TEST_TRACE_FLUSH_ENABLED", True))
         self._trace_flush_enabled = True
-        self._configure(*args, **kwargs)
+        # Ensure DummyTracer is always initialized with a DummyWriter
+        self._span_aggregator.writer = DummyWriter(
+            trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
+        )
 
     @property
     def agent_url(self):
         # type: () -> str
-        return self._writer.agent_url
+        return self._span_aggregator.writer.agent_url
 
     @property
     def encoder(self):
         # type: () -> Encoder
-        return self._writer.msgpack_encoder
+        return self._span_aggregator.writer.msgpack_encoder
 
     def get_spans(self):
         # type: () -> List[List[Span]]
-        spans = self._writer.spans
+        spans = self._span_aggregator.writer.spans
         if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._writer)
+            flush_test_tracer_spans(self._span_aggregator.writer)
         return spans
 
     def pop(self):
         # type: () -> List[Span]
-        spans = self._writer.pop()
+        spans = self._span_aggregator.writer.pop()
         return spans
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        traces = self._writer.pop_traces()
+        traces = self._span_aggregator.writer.pop_traces()
         if self._trace_flush_enabled:
-            flush_test_tracer_spans(self._writer)
+            flush_test_tracer_spans(self._span_aggregator.writer)
         return traces
-
-    def configure(self, *args, **kwargs):
-        self._configure(*args, **kwargs)
-
-    def _configure(self, *args, **kwargs):
-        assert isinstance(
-            kwargs.get("writer"), (DummyWriterMixin, type(None))
-        ), "cannot configure writer of DummyTracer"
-
-        if not kwargs.get("writer"):
-            # if no writer is present, check if test agent is running to determine if we
-            # should emit traces.
-            kwargs["writer"] = DummyWriter(
-                trace_flush_enabled=check_test_agent_status() if not self._trace_flush_disabled_via_env else False
-            )
-        super(DummyTracer, self)._configure(*args, **kwargs)
 
 
 class TestSpan(Span):
@@ -888,7 +881,7 @@ class TracerSpanContainer(TestSpanContainer):
         :returns: List of spans attached to this tracer
         :rtype: list
         """
-        return self.tracer._writer.spans
+        return self.tracer._span_aggregator.writer.spans
 
     def pop(self):
         return self.tracer.pop()
@@ -1014,8 +1007,10 @@ def override_global_tracer(tracer):
     """
     original_tracer = ddtrace.tracer
     ddtrace.tracer = tracer
+    core.tracer = tracer
     yield
     ddtrace.tracer = original_tracer
+    core.tracer = original_tracer
 
 
 class SnapshotFailed(Exception):
@@ -1058,19 +1053,19 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
         # itself run
         try:
-            tracer._writer.flush_queue()
+            tracer._span_aggregator.writer.flush_queue()
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
+            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1108,9 +1103,9 @@ def snapshot_context(
             )
         finally:
             # Force a flush so all traces are submitted.
-            tracer._writer.flush_queue()
+            tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._writer._headers["X-Datadog-Test-Session-Token"]
+                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1300,9 +1295,8 @@ def git_repo(git_repo_empty):
 
 
 def check_test_agent_status():
-    agent_url = agent.get_trace_url()
     try:
-        parsed = parse.urlparse(agent_url)
+        parsed = parse.urlparse(agent_config.trace_agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/info")
         response = conn.getresponse()
@@ -1401,3 +1395,24 @@ def _build_env(env=None, file_path=FILE_PATH):
         for k, v in env.items():
             environ[k] = v
     return environ
+
+
+_ID = 0
+
+
+def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_content=False):
+    global _ID
+    if not id_based_on_content:
+        _ID += 1
+    hash_key = str(sha_hash or hash(str(data)))
+    return Payload(
+        {
+            "id": hash_key if id_based_on_content else _ID,
+            "product_name": product,
+            "sha256_hash": hash_key,
+            "length": len(str(data)),
+            "tuf_version": 1,
+        },
+        f"Datadog/1/{product}/{path}",
+        data,
+    )

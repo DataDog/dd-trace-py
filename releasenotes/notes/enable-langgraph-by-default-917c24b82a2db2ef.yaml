@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    langgraph: Introduces tracing support for LangGraph, specifically tracing graph and node executions.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#langgraph>`_
+      for more information.
+  - |
+    LLM Observability: Introduces tracing support for LangGraph graph and node invocation.

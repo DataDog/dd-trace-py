@@ -15,7 +15,7 @@
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
     variables:
-      LOG_LEVEL: INFO
+      LOG_LEVEL: ERROR
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
       SNAPSHOT_CI: 1
       PORT: 9126
@@ -120,3 +120,6 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
+  azurite:
+    name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
+    alias: azurite

@@ -81,6 +81,18 @@ def test_runtime_tags_empty():
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
 
 
+@pytest.mark.subprocess()
+def test_runtime_platformv2_tags():
+    from ddtrace.internal.runtime.runtime_metrics import PlatformTagsV2
+
+    tags = list(PlatformTagsV2())
+    assert len(tags) == 5
+
+    tags = dict(tags)
+    # Ensure runtime-id is present along with all the v1 tags
+    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "runtime-id"])
+
+
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
 def test_runtime_tags_usm():
     from ddtrace.internal.runtime.runtime_metrics import TracerTags

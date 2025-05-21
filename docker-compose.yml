@@ -1,6 +1,4 @@
-version: "3"
 # remember to use this compose file __ONLY__ for development/testing purposes
-
 services:
     elasticsearch:
         image: elasticsearch:7.17.13
@@ -88,7 +86,7 @@ services:
             - "127.0.0.1:7004:7004"
             - "127.0.0.1:7005:7005"
     mongo:
-        image: mongo:3.6
+        image: mongo:4.4
         ports:
             - "127.0.0.1:27017:27017"
     memcached:
@@ -145,13 +143,19 @@ services:
           - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"
+    azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+            - "127.0.0.1:10000:10000"
+            - "127.0.0.1:10001:10001"
+            - "127.0.0.1:10002:10002"
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
+        image: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
         command: bash
         environment:
             - TOX_SKIP_DIST=True
@@ -184,22 +188,6 @@ services:
       platform: linux/amd64
       ports:
         - "127.0.0.1:8001:80"
-
-    pygoat:
-        build:
-            context: .
-            dockerfile: tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1
-        ports:
-            - "127.0.0.1:8321:8321"
-        environment:
-            - DD_IAST_ENABLED=true
-            - _DD_IAST_DEBUG=true
-            - DD_IAST_REQUEST_SAMPLING=100
-            - DD_IAST_VULNERABILITIES_PER_REQUEST=100
-            - DD_REMOTE_CONFIGURATION_ENABLED=true
-            - DD_AGENT_PORT=8126
-            - DD_TRACE_AGENT_URL=http://testagent:8126
-            - DD_IAST_DEDUPLICATION_ENABLED=false
 
     valkey:
         image: valkey/valkey:8.0-alpine

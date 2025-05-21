@@ -16,7 +16,7 @@ jobs:
           path: dd-trace-py
 
       - name: Install Python 3.12
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
           python-version: '3.12'
 
@@ -42,19 +42,25 @@ jobs:
           done
           deactivate
 
-      - name: Set up main environment
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.base_ref }}
+          persist-credentials: false
+          path: dd-trace-py
+  
+      - name: Set up base environment
         run: |
-          python -m venv .venv-main
-          source .venv-main/bin/activate
-          python -m pip install git+https://github.com/datadog/dd-trace-py.git@main
+          python -m venv .venv-base
+          source .venv-base/bin/activate
+          python -m pip install ./dd-trace-py
           python -c "import ddtrace.auto"
           deactivate
   
-      - name: Collect import data from main
+      - name: Collect import data from base
         run: |
-          source .venv-main/bin/activate
+          source .venv-base/bin/activate
           for n in {0..1000}; do
-            python -X importtime -c "import ddtrace.auto" 2> import-main-${n}.txt
+            python -X importtime -c "import ddtrace.auto" 2> import-base-${n}.txt
           done
           deactivate
 
@@ -66,9 +72,71 @@ jobs:
           deactivate
 
       - name: Report analysis result on PR
-        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
-          filePath: import_analysis.txt
-          comment_tag: import_analysis
+          file-path: import_analysis.txt
+          comment-tag: import_analysis
           mode: upsert
         if: always()
+
+  import_cycles:
+    name: "Circular import analysis"
+    runs-on: ubuntu-latest
+    permissions:
+       pull-requests: write
+    steps:
+      - name: "Install Python 3.12"
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: '3.12'
+
+      - name: "Checkout the PR"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          path: dd-trace-py
+            
+      - name: "Install dependencies"
+        run: python -m pip install -r dd-trace-py/scripts/import-analysis/requirements-cycles.txt
+
+      # TODO: Remove this step
+      - name: Cache the cycle script
+        run: cp dd-trace-py/scripts/import-analysis/cycles.py .
+
+      - name: "Analyze imports on PR"
+        run: python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-pr.json
+
+      - name: "Checkout the base branch"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.base_ref }}
+          persist-credentials: false
+          path: dd-trace-py
+
+      # TODO: Remove this step
+      - name: Ensure cycle script is available
+        run: |
+          mkdir -p dd-trace-py/scripts/import-analysis || true
+          mv cycles.py dd-trace-py/scripts/import-analysis/cycles.py
+
+      - name: "Analyze imports on base branch"
+        run: python dd-trace-py/scripts/import-analysis/cycles.py analyze cycles-base.json
+
+      - name: "Upload cycle artifacts"
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cycles
+          path: cycles-*.json
+
+      - name: "Compare import cycles"
+        run: python dd-trace-py/scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json > cycles_report.txt
+
+      - name: "Report analysis result on PR"
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
+        with:
+          file-path: cycles_report.txt
+          comment-tag: import_cycles
+          mode: upsert
+        if: failure()
+
+      

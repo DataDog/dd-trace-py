@@ -3,8 +3,7 @@ import json
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
-from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
@@ -27,7 +26,6 @@ def traced_function(tracer):
     return span
 
 
-@pytest.mark.skip_iast_check_logs
 def test_appsec_iast_processor(iast_context_defaults):
     """
     test_appsec_iast_processor.
@@ -38,11 +36,9 @@ def test_appsec_iast_processor(iast_context_defaults):
     span = traced_function(tracer)
     tracer._on_span_finish(span)
 
-    span_report = get_iast_reporter()
     result = span.get_tag(IAST.JSON)
 
     assert len(json.loads(result)["vulnerabilities"]) == 1
-    assert len(span_report.vulnerabilities) == 1
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "0.5", "1.0"])

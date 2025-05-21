@@ -21,6 +21,9 @@ For advanced usage and configuration information, check out the [library documen
 
 To get started as a contributor, see [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) first.
 
+For information about the bug/security fix and maintenance policy, see the [versioning docs][versioning docs].
+
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
 [api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
+[versioning docs]: https://github.com/DataDog/dd-trace-py/blob/main/docs/versioning.rst#release-support

@@ -4,25 +4,24 @@ import functools
 from wrapt import when_imported
 from wrapt import wrap_function_wrapper as _w
 
-from ddtrace.appsec._iast._iast_request_context import get_iast_stacktrace_reported
-from ddtrace.appsec._iast._iast_request_context import set_iast_stacktrace_reported
+from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request
-from ddtrace.appsec._iast._patch import _iast_instrument_starlette_request_body
 from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
-from ddtrace.appsec._iast._patch import _patched_dictionary
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
+from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-
-from ._logs import iast_instrumentation_wrapt_debug_log
-from ._logs import iast_propagation_listener_log_log
-from ._taint_tracking._taint_objects import taint_pyobject
 
 
 MessageMapContainer = None
@@ -56,6 +55,11 @@ def _on_request_init(wrapped, instance, args, kwargs):
 
 
 def _on_flask_patch(flask_version):
+    """Handle Flask framework patch event.
+
+    Args:
+        flask_version: The version tuple of Flask being patched
+    """
     if asm_config._iast_enabled:
         try:
             try_wrap_function_wrapper(
@@ -95,12 +99,12 @@ def _on_flask_patch(flask_version):
             try_wrap_function_wrapper(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
-                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+                functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
             try_wrap_function_wrapper(
                 "werkzeug.wrappers.request",
                 "Request.get_json",
-                functools.partial(_patched_dictionary, OriginType.BODY, OriginType.BODY),
+                functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
 
             _set_metric_iast_instrumented_source(OriginType.BODY)
@@ -150,6 +154,7 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def _on_django_patch():
+    """Handle Django framework patch event."""
     if asm_config._iast_enabled:
         try:
             when_imported("django.http.request")(
@@ -159,7 +164,7 @@ def _on_django_patch():
                     functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
                 )
             )
-
+            try_wrap_function_wrapper("django.utils.shlex", "quote", cmdi_sanitizer)
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -240,14 +245,12 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                         v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
                     )
             except Exception:
-                iast_propagation_listener_log_log(
-                    "IAST: Unexpected exception while tainting path parameters", exc_info=True
-                )
+                iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
 
 def _custom_protobuf_getattribute(self, name):
     ret = type(self).__saved_getattr(self, name)
-    if isinstance(ret, (str, bytes, bytearray)):
+    if isinstance(ret, IAST.TEXT_TYPES):
         ret = taint_pyobject(
             pyobject=ret,
             source_name=OriginType.GRPC_BODY,
@@ -351,7 +354,7 @@ def _on_iast_fastapi_patch():
     try_wrap_function_wrapper(
         "starlette.requests",
         "cookie_parser",
-        functools.partial(_patched_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
+        functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
     )
     _set_metric_iast_instrumented_source(OriginType.COOKIE)
     _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
@@ -532,3 +535,37 @@ def _on_werkzeug_render_debugger_html(html):
         set_iast_stacktrace_reported(True)
     except Exception:
         log.debug("Unexpected exception checking for stacktrace leak", exc_info=True)
+
+
+def _iast_instrument_starlette_request(wrapped, instance, args, kwargs):
+    def receive(self):
+        """This pattern comes from a Request._receive property, which returns a callable"""
+
+        async def wrapped_property_call():
+            body = await self._receive()
+            return taint_structure(body, OriginType.BODY, OriginType.BODY, override_pyobject_tainted=True)
+
+        return wrapped_property_call
+
+    # `self._receive` is set in `__init__`, so we wait for the constructor to finish before setting the new property
+    wrapped(*args, **kwargs)
+    instance.__class__.receive = property(receive)
+
+
+async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwargs):
+    result = await wrapped(*args, **kwargs)
+
+    return taint_pyobject(
+        result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
+    )
+
+
+def _iast_instrument_starlette_scope(scope, route):
+    if scope.get("path_params"):
+        try:
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+        except Exception:
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

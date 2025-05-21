@@ -10,9 +10,9 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 logger = get_logger(__name__)
@@ -341,6 +341,14 @@ class ProfilingConfigStack(DDConfig):
     # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
     v2_enabled = DDConfig.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
 
+    v2_adaptive_sampling = DDConfig.v(
+        bool,
+        "v2.adaptive_sampling.enabled",
+        default=True,
+        help_type="Boolean",
+        private=True,
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -445,7 +453,7 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
-_report_telemetry(config)
+report_configuration(config)
 
 # If during processing we discover that the configuration was injected, we need to do a few things
 # - Mark it as such

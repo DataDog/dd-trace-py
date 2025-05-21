@@ -15,8 +15,8 @@ import pytest
 from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
+from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
@@ -52,7 +52,7 @@ def _aux_appsec_prepare_tracer(tracer):
     oce.reconfigure()
 
     # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._configure(api_version="v0.4")
+    tracer._recreate()
 
 
 def get_response_body(response):
@@ -684,7 +684,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["location"]["method"] == "test_route"
-        assert vulnerability["location"]["class_name"] == ""
+        assert "class" not in vulnerability["location"]
         assert vulnerability["hash"] == hash_value
 
 
@@ -946,7 +946,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert vulnerability["location"]["line"] == line
         assert vulnerability["location"]["path"] == TEST_FILE_PATH
         assert vulnerability["location"]["method"] == "header_injection"
-        assert vulnerability["location"]["class_name"] == ""
+        assert "class" not in vulnerability["location"]
         assert vulnerability["location"]["spanId"]
 
 

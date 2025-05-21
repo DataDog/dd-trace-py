@@ -2,6 +2,7 @@
 This app exists to replicate and report on failures and degraded behavior that can arise when using ddtrace with
 gunicorn
 """
+
 import os
 
 
@@ -17,11 +18,7 @@ from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer._configure(trace_processors=[PingFilter()])
-
-SCHEDULER_SENTINEL = -1
-assert bootstrap.profiler._scheduler._last_export not in (None, SCHEDULER_SENTINEL)
-bootstrap.profiler._scheduler._last_export = SCHEDULER_SENTINEL
+tracer.configure(trace_processors=[PingFilter()])
 
 
 def aggressive_shutdown():
@@ -37,7 +34,12 @@ def simple_app(environ, start_response):
         data = b"goodbye"
     else:
         payload = {
-            "profiler": {"is_active": bootstrap.profiler._scheduler._last_export != SCHEDULER_SENTINEL},
+            "profiler": {
+                # Once the scheduler is initialized, the last_export is set to a
+                # timestamp using time.time_ns()
+                "is_active": bootstrap.profiler._scheduler._last_export
+                > 0,
+            },
         }
         data = json.dumps(payload).encode("utf-8")
 

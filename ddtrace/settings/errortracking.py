@@ -2,7 +2,6 @@ import sys
 import typing as t
 
 from ddtrace.settings._core import DDConfig
-from ddtrace.settings._telemetry import report_telemetry as _report_telemetry
 
 
 def parse_modules(value: t.Union[str, None]) -> t.List[str]:
@@ -14,21 +13,11 @@ def parse_modules(value: t.Union[str, None]) -> t.List[str]:
 
 
 class ErrorTrackingConfig(DDConfig):
-    __prefix__ = "dd.error.tracking.report.handled.errors"
+    __prefix__ = "dd.error.tracking"
 
-    _report_handled_errors = DDConfig.v(str, "enabled", default="")
+    _report_handled_errors = DDConfig.v(str, "handled.errors", default="")
     # Specify the modules (user and third party mixed) for which we report handled exceptions
-    _modules_to_report = DDConfig.v(list, "enabled.modules", parser=parse_modules, default=[])
-
-    # Report only handled exceptions if an unhandled exception occurs in the span
-    # Experimental feature: will likely be removed
-    _report_after_unhandled = DDConfig.v(bool, "after_unhandled", default=False)
-
-    """
-    At the moment, we are also logging the exceptions so ET can fingerprint the exceptions
-    It will be removed when Error Track is GA
-    """
-    _internal_logger = DDConfig.var(str, "logger", default="")
+    _modules_to_report = DDConfig.v(list, "handled.errors.include", parser=parse_modules, default=[])
 
     if sys.version_info >= (3, 12):
         """
@@ -60,4 +49,3 @@ if (not config._modules_to_report) is False or config._report_handled_errors in 
     elif config._report_handled_errors == "all":
         config._instrument_all = True
     config.enabled = True
-    _report_telemetry(config)

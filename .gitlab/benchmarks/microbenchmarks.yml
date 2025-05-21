@@ -16,10 +16,7 @@ variables:
   tags: ["runner:apm-k8s-tweaked-metal"]
   image: $MICROBENCHMARKS_CI_IMAGE
   interruptible: true
-  timeout: 1h
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    CARGO_BUILD_JOBS: 12
+  timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
@@ -33,7 +30,7 @@ variables:
 
     capture-hardware-software-info.sh
 
-    if [[ $SCENARIO =~ ^flask_* ]];
+    if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
     then
       BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
     else
@@ -57,6 +54,8 @@ variables:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
 
 baseline:detect:
   image: $GITHUB_CLI_IMAGE
@@ -65,15 +64,17 @@ baseline:detect:
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
+    GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
+    git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
+    git remote set-url origin "${GITHUB_REPO_URL}"
+
     if [ -z ${GH_TOKEN} ]
     then
       aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
       gh auth login --with-token < token
       rm token
     fi
-
-    # Needed to run `git describe`
-    git config --global --add safe.directory ${CI_PROJECT_DIR}
 
     # Determine baseline to test against and save env variables into `baseline.env`
     .gitlab/benchmarks/steps/detect-baseline.sh
@@ -144,23 +145,40 @@ microbenchmarks:
         - "flask_sqli"
         - "core_api"
         - "otel_span"
-        - "appsec_iast_propagation"
         - "appsec_iast_aspects"
+        - "appsec_iast_aspects_ospath"
+        - "appsec_iast_aspects_re_module"
+        - "appsec_iast_aspects_split"
+        # Flaky timeouts on starting up
+        # - "appsec_iast_django_startup"
+        - "appsec_iast_propagation"
+        - "errortracking_django_simple"
+        - "errortracking_flask_sqli"
         # Flaky. Timeout errors
         # - "encoder"
         - "http_propagation_extract"
         - "http_propagation_inject"
         - "rate_limiter"
+        - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
         - "startup"
-        - "ddtrace_run"
+
+"microbenchmarks flaky":
+  extends: .benchmarks
+  allow_failure: true
+  parallel:
+    matrix:
+      - SCENARIO:
+        # Flaky timeouts on starting up
+        - "appsec_iast_django_startup"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
   stage: report
   when: always
+  allow_failure: true
   script: |
     export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
     if [[ -n "$CI_JOB_TOKEN" ]];
@@ -171,9 +189,10 @@ benchmarks-pr-comment:
     export PATH="$PATH:/platform/steps"
 
     (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
-    post-pr-comment.sh || :
-  except:
-    - main
+    if [ "$CI_COMMIT_REF_NAME" != "main" ];
+    then
+      post-pr-comment.sh || :
+    fi
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -183,6 +202,15 @@ benchmarks-pr-comment:
 
 check-big-regressions:
   stage: report
+  rules:
+    # Run and warn on releases, but don't fail the pipeline
+    #   v2.10.0
+    #   v2.10.1
+    #   v2.10.0rc0
+    #   v2.10.0rc5
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+      allow_failure: true
+    - allow_failure: false
   when: always
   tags: ["arch:amd64"]
   image: $MICROBENCHMARKS_CI_IMAGE

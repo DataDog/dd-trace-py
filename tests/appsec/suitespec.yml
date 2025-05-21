@@ -13,7 +13,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
-    parallelism: 6
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -27,9 +27,6 @@ suites:
     runner: riot
     snapshot: true
   appsec_iast_default:
-    env:
-      TEST_POSTGRES_HOST: postgres
-      TEST_MYSQL_HOST: mysql
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -41,11 +38,6 @@ suites:
       - tests/appsec/iast/*
     retry: 2
     runner: hatch
-    services:
-      - postgres
-      - mysql
-    snapshot: true
-    timeout: 40m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -60,8 +52,8 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: hatch
-    snapshot: true
+    runner: riot
+    timeout: 30m
   appsec_iast_native:
     parallelism: 6
     paths:
@@ -80,23 +72,12 @@ suites:
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
     timeout: 50m
-#  appsec_iast_packages:
-#    env:
-#      PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
-#    paths:
-#      - '@appsec_iast'
-#      - tests/appsec/iast_packages/*
-#    runner: hatch
-#    timeout: 50m
-#    cache:
-#      key: v1-iast_packages-$PYTHON_VERSION-$CI_COMMIT_REF_SLUG-cache
-#      paths:
-#        - .cache
-#    python_versions:
-#      - "3.9"
-#      - "3.10"
-#      - "3.11"
-#      - "3.12"
+  appsec_iast_packages:
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_packages/*
+    runner: riot
+    timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
     paths:
@@ -110,9 +91,8 @@ suites:
     retry: 2
     runner: hatch
     snapshot: true
-    timeout: 40m
   appsec_integrations_pygoat:
-    parallelism: 7
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -123,8 +103,40 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: riot
+    runner: hatch
     snapshot: true
+  appsec_integrations_packages:
+    env:
+      TEST_POSTGRES_HOST: postgres
+      TEST_MYSQL_HOST: mysql
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/packages_tests/*
+    retry: 2
+    runner: hatch
+    services:
+      - postgres
+      - mysql
+  appsec_integrations_langchain:
+    parallelism: 15
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/langchain_tests/*
+    retry: 2
+    runner: hatch
   appsec_integrations_flask:
     parallelism: 17
     paths:
@@ -169,7 +181,6 @@ suites:
     runner: hatch
     services:
       - testagent
-    timeout: 40m
   appsec_threats_django:
     parallelism: 12
     paths:
@@ -230,8 +241,6 @@ suites:
     runner: riot
     skip: true  # TODO: No environment available
   webbrowser:
-    # services:
-    # - pygoat
     paths:
       - '@bootstrap'
       - '@core'

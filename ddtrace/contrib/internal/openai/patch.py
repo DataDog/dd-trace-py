@@ -72,7 +72,12 @@ _RESOURCES = {
         "delete": _endpoint_hooks._FileDeleteHook,
         "retrieve_content": _endpoint_hooks._FileDownloadHook,
     },
+    "responses.Responses": {
+        "create": _endpoint_hooks._ResponseHook,
+    },
 }
+
+OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
 
 
 def patch():
@@ -99,6 +104,18 @@ def patch():
     wrap(openai, "AsyncOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AzureOpenAI.__init__", patched_client_init(openai))
     wrap(openai, "AsyncAzureOpenAI.__init__", patched_client_init(openai))
+    wrap(
+        openai, "resources.chat.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
+    )
+    wrap(openai, "resources.CompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai))
+    wrap(
+        openai,
+        "resources.chat.AsyncCompletionsWithRawResponse.__init__",
+        patched_completions_with_raw_response_init(openai),
+    )
+    wrap(
+        openai, "resources.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
+    )
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -133,6 +150,10 @@ def unpatch():
     unwrap(openai.AsyncOpenAI, "__init__")
     unwrap(openai.AzureOpenAI, "__init__")
     unwrap(openai.AsyncAzureOpenAI, "__init__")
+    unwrap(openai.resources.chat.CompletionsWithRawResponse, "__init__")
+    unwrap(openai.resources.CompletionsWithRawResponse, "__init__")
+    unwrap(openai.resources.chat.AsyncCompletionsWithRawResponse, "__init__")
+    unwrap(openai.resources.AsyncCompletionsWithRawResponse, "__init__")
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
@@ -159,6 +180,28 @@ def patched_client_init(openai, pin, func, instance, args, kwargs):
         api_key = instance.api_key
     if api_key is not None:
         integration.user_api_key = api_key
+    return
+
+
+@with_traced_module
+def patched_completions_with_raw_response_init(openai, pin, func, instance, args, kwargs):
+    """
+    Patch create method of CompletionsWithRawResponse classes to catch requests that use with_raw_response wrapper
+    since the response for these streamed requests cannot be traced and we therefore need to avoid creating
+    spans for these cases.
+    """
+    func(*args, **kwargs)
+    if hasattr(instance, "create"):
+        if isinstance(instance, openai.resources.completions.CompletionsWithRawResponse):
+            wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._CompletionWithRawResponseHook))
+        elif isinstance(instance, openai.resources.chat.CompletionsWithRawResponse):
+            wrap(instance, "create", _patched_endpoint(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook))
+        elif isinstance(instance, openai.resources.completions.AsyncCompletionsWithRawResponse):
+            wrap(instance, "create", _patched_endpoint_async(openai, _endpoint_hooks._CompletionWithRawResponseHook))
+        elif isinstance(instance, openai.resources.chat.AsyncCompletionsWithRawResponse):
+            wrap(
+                instance, "create", _patched_endpoint_async(openai, _endpoint_hooks._ChatCompletionWithRawResponseHook)
+            )
     return
 
 
@@ -203,6 +246,15 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
 def _patched_endpoint(openai, patch_hook):
     @with_traced_module
     def patched_endpoint(openai, pin, func, instance, args, kwargs):
+        if (
+            patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
+            or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook
+        ):
+            kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
+            return func(*args, **kwargs)
+        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            return func(*args, **kwargs)
+
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)
@@ -228,6 +280,15 @@ def _patched_endpoint_async(openai, patch_hook):
     # Same as _patched_endpoint but async
     @with_traced_module
     async def patched_endpoint(openai, pin, func, instance, args, kwargs):
+        if (
+            patch_hook is _endpoint_hooks._ChatCompletionWithRawResponseHook
+            or patch_hook is _endpoint_hooks._CompletionWithRawResponseHook
+        ):
+            kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
+            return await func(*args, **kwargs)
+        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            return await func(*args, **kwargs)
+
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, pin, args, kwargs)
         g.send(None)

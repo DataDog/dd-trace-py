@@ -4,6 +4,7 @@ from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._constants import IAST
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
@@ -55,7 +56,7 @@ def wrapped_loads(wrapped, instance, args, kwargs):
                     obj = taint_structure(obj, source.origin, source.origin)
                 elif isinstance(obj, list):
                     obj = taint_structure(obj, source.origin, source.origin)
-                elif isinstance(obj, (str, bytes, bytearray)):
+                elif isinstance(obj, IAST.TEXT_TYPES):
                     obj = taint_pyobject(obj, source.name, source.value, source.origin)
             except Exception:
                 log.debug("Unexpected exception while reporting vulnerability", exc_info=True)

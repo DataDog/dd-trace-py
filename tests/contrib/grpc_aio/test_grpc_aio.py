@@ -232,7 +232,7 @@ def _create_server(servicer, target):
 
 
 def _get_spans(tracer):
-    return tracer._writer.spans
+    return tracer._span_aggregator.writer.spans
 
 
 def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
@@ -340,7 +340,7 @@ async def test_invalid_target(server_info, tracer):
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_pin_not_activated(server_info, tracer):
-    tracer._configure(enabled=False)
+    tracer.enabled = False
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
@@ -840,8 +840,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
 
     # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
     # in old versions of Python, but it's not always so. Thus not checked.
-    if sys.version_info >= (3, 8):
-        _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
 @pytest.mark.parametrize(

@@ -8,10 +8,9 @@ import time
 import mock
 import pytest
 
-from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
-from ddtrace.llmobs._writer import LLMObsSpanWriter
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -67,27 +66,6 @@ def mock_llmobs_submit_evaluation():
 
 
 @pytest.fixture
-def mock_http_writer_send_payload_response():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._send_payload",
-        return_value=Response(status=200, body="{}"),
-    ):
-        yield
-
-
-@pytest.fixture
-def mock_http_writer_put_response_forbidden():
-    with mock.patch(
-        "ddtrace.internal.writer.HTTPWriter._put",
-        return_value=Response(
-            status=403,
-            reason=b'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}',
-        ),
-    ):
-        yield
-
-
-@pytest.fixture
 def mock_writer_logs():
     with mock.patch("ddtrace.llmobs._writer.logger") as m:
         yield m
@@ -97,6 +75,7 @@ def mock_writer_logs():
 def mock_evaluator_logs():
     with mock.patch("ddtrace.llmobs._evaluators.runner.logger") as m:
         yield m
+        m.reset_mock()
 
 
 @pytest.fixture
@@ -197,25 +176,10 @@ def llmobs_env():
     }
 
 
-class TestLLMObsSpanWriter(LLMObsSpanWriter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._events = []
-
-    def enqueue(self, event):
-        self._events.append(event)
-        super().enqueue(event)
-
-    def events(self):
-        return self._events
-
-
 @pytest.fixture
 def llmobs_span_writer(_llmobs_backend):
     url, _ = _llmobs_backend
-    sw = TestLLMObsSpanWriter(interval=1.0, timeout=1.0, agentless_url=url)
-    sw._headers["DD-API-KEY"] = "<test-key>"
-    yield sw
+    yield TestLLMObsSpanWriter(1.0, 1.0, is_agentless=True, _api_key="<test-key>", _override_url=url)
 
 
 class LLMObsServer(BaseHTTPRequestHandler):
@@ -294,10 +258,35 @@ def llmobs(
     with override_global_config(global_config):
         llmobs_service.enable(_tracer=tracer)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service._instance._llmobs_span_writer.start()
         yield llmobs_service
     llmobs_service.disable()
 
 
 @pytest.fixture
 def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events()
+    return llmobs_span_writer.events
+
+
+@pytest.fixture
+def agent():
+    with mock.patch("ddtrace.internal.agent.info", return_value={"endpoints": ["/evp_proxy/v2/"]}):
+        yield
+
+
+@pytest.fixture
+def agent_missing_proxy():
+    with mock.patch("ddtrace.internal.agent.info", return_value={"endpoints": []}):
+        yield
+
+
+@pytest.fixture
+def no_agent_info():
+    with mock.patch("ddtrace.internal.agent.info", return_value=None):
+        yield
+
+
+@pytest.fixture
+def no_agent():
+    with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
+        yield

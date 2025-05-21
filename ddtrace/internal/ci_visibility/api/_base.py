@@ -70,6 +70,7 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    known_tests_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
     test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
@@ -89,6 +90,7 @@ class TestVisibilitySessionSettings:
 
 class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
+    NONSTARTED = 2
 
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
@@ -208,6 +210,9 @@ class TestVisibilityItemBase(abc.ABC):
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
 
+        if self._session_settings.known_tests_enabled:
+            self._set_known_tests_tags()
+
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
 
@@ -276,6 +281,10 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
+        pass
+
+    def _set_known_tests_tags(self) -> None:
+        """Known test tags are only set at the test level"""
         pass
 
     def _set_atr_tags(self) -> None:
@@ -407,6 +416,8 @@ class TestVisibilityItemBase(abc.ABC):
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.is_finished():
             return self._status
+        if not self.is_started():
+            return SPECIAL_STATUS.NONSTARTED
         return SPECIAL_STATUS.UNFINISHED
 
     def get_raw_status(self) -> TestStatus:
@@ -554,7 +565,10 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         for child in self._children.values():
             child_status = child.get_status()
-            if child_status == SPECIAL_STATUS.UNFINISHED:
+            if child_status == SPECIAL_STATUS.NONSTARTED:
+                # This means that the child was never started, so we don't count it
+                continue
+            elif child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
                 log.debug("Item %s has unfinished children", self)
                 return SPECIAL_STATUS.UNFINISHED

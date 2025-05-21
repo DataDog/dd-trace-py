@@ -1,6 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
+import gzip
 import logging
 import os
 import sys
@@ -16,13 +17,13 @@ import ddtrace
 from ddtrace import config
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from ...internal.utils.formats import parse_tags_str
 from ...internal.utils.http import Response
 from ...internal.utils.time import StopWatch
-from .. import agent
 from .. import compat
 from .. import periodic
 from .. import service
@@ -47,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from .agent import ConnectionType  # noqa:F401
+    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -152,13 +153,15 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         reuse_connections: Optional[bool] = None,
         headers: Optional[Dict[str, str]] = None,
         report_metrics: bool = True,
+        use_gzip: bool = False,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.config.trace_agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
+        self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._headers = headers or {}
@@ -369,8 +372,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         n_traces = len(client.encoder)
         try:
             encoded, n_traces = client.encoder.encode()
+
             if encoded is None:
                 return
+
+            # Should gzip the payload if intake accepts it
+            if self._intake_accepts_gzip:
+                original_size = len(encoded)
+                # Replace the value to send with the gzipped the value
+                encoded = gzip.compress(encoded, compresslevel=6)
+                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+
+                # And add the header
+                self._headers["Content-Encoding"] = "gzip"
+
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
@@ -451,7 +466,7 @@ class AgentWriter(HTTPWriter):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.config.trace_agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -464,10 +479,21 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
+        if (
+            is_windows
+            or in_gcp_function()
+            or in_azure_function()
+            or asm_config._asm_enabled
+            or asm_config._iast_enabled
+        ):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
+
+        if agent_config.trace_native_span_events:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+            self._api_version = "v0.4"
+
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "

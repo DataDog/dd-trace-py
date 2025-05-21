@@ -28,8 +28,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
-from ddtrace.llmobs._writer import LLMObsAgentlessEventClient
-from ddtrace.llmobs._writer import LLMObsProxiedEventClient
 from ddtrace.llmobs.utils import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
@@ -46,18 +44,18 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 def run_llmobs_trace_filter(dummy_tracer):
     with dummy_tracer.trace("span1", span_type=SpanTypes.LLM) as span:
         span.set_tag_str(SPAN_KIND, "llm")
-    return dummy_tracer._writer.pop()
+    return dummy_tracer._span_aggregator.writer.pop()
 
 
-def test_service_enable_proxy_default():
+def test_service_enable_proxy():
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
-        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_service.enable(_tracer=dummy_tracer, agentless_enabled=False)
         llmobs_instance = llmobs_service._instance
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsProxiedEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is False
         assert run_llmobs_trace_filter(dummy_tracer) is not None
         llmobs_service.disable()
 
@@ -70,8 +68,56 @@ def test_enable_agentless():
         assert llmobs_instance is not None
         assert llmobs_service.enabled
         assert llmobs_instance.tracer == dummy_tracer
-        assert isinstance(llmobs_instance._llmobs_span_writer._clients[0], LLMObsAgentlessEventClient)
+        assert llmobs_instance._llmobs_span_writer._agentless is True
         assert run_llmobs_trace_filter(dummy_tracer) is not None
+
+        llmobs_service.disable()
+
+
+def test_enable_agent_proxy_when_agent_is_available(agent):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance._llmobs_span_writer._agentless is False
+
+        llmobs_service.disable()
+
+
+def test_enable_agentless_when_agent_info_is_not_available(no_agent_info):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance._llmobs_span_writer._agentless is True
+
+        llmobs_service.disable()
+
+
+def test_enable_agentless_when_agent_is_not_available(no_agent):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance._llmobs_span_writer._agentless is True
+
+        llmobs_service.disable()
+
+
+def test_enable_agentless_when_agent_does_not_have_proxy(agent_missing_proxy):
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        dummy_tracer = DummyTracer()
+        llmobs_service.enable(_tracer=dummy_tracer)
+        llmobs_instance = llmobs_service._instance
+        assert llmobs_instance is not None
+        assert llmobs_service.enabled
+        assert llmobs_instance._llmobs_span_writer._agentless is True
 
         llmobs_service.disable()
 
@@ -392,6 +438,13 @@ def test_annotate_tag(llmobs):
         assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
 
 
+def test_annotate_tag_can_set_session_id(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"session_id": "1234567890"})
+        assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+        assert span._get_ctx_item(SESSION_ID) == "1234567890"
+
+
 def test_annotate_tag_wrong_type(llmobs, mock_llmobs_logs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags=12345)
@@ -471,6 +524,22 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs, m
         mock_llmobs_logs.reset_mock()
         llmobs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
         mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
+
+
+def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input"}])
+
+        # force the span event to be created - this is where we normalize the role
+        span_event = llmobs._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
+
+
+def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": None}])
+        span_event = llmobs._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 
 def test_annotate_document_str(llmobs):
@@ -841,20 +910,6 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
         assert span_context["trace_id"] == format_trace_id(span.trace_id)
-
-
-def test_submit_evaluation_no_api_key_raises_warning(llmobs, mock_llmobs_logs):
-    with override_global_config(dict(_dd_api_key="")):
-        llmobs.submit_evaluation(
-            span_context={"span_id": "123", "trace_id": "456"},
-            label="toxicity",
-            metric_type="categorical",
-            value="high",
-        )
-        mock_llmobs_logs.warning.assert_called_once_with(
-            "DD_API_KEY is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-            "Ensure this configuration is set before running your application."
-        )
 
 
 def test_submit_evaluation_ml_app_raises_warning(llmobs, mock_llmobs_logs):
@@ -1319,6 +1374,7 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
+import mock
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
@@ -1329,7 +1385,7 @@ with LLMObs.agent("dummy"):
     )
     assert status == 0, err
     assert out == b""
-    agentless_writer_log = b"failed to send traces to intake at https://llmobs-intake.datad0g.com/api/v2/llmobs: HTTP error status 403, reason Forbidden\n"  # noqa: E501
+    agentless_writer_log = b'failed to send 1 LLMObs span events to https://llmobs-intake.datad0g.com/api/v2/llmobs, got response code 403, status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n'  # noqa: E501
     agent_proxy_log = b"failed to send, dropping 1 traces to intake at http://localhost:8126/evp_proxy/v2/api/v2/llmobs after 5 retries"  # noqa: E501
     assert err == agentless_writer_log
     assert agent_proxy_log not in err
@@ -1337,17 +1393,14 @@ with LLMObs.agent("dummy"):
 
 def test_llmobs_fork_recreates_and_restarts_span_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
-        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
-        original_pid = llmobs_service._instance.tracer._pid
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
+        llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=False)
         original_span_writer = llmobs_service._instance._llmobs_span_writer
         pid = os.fork()
         if pid:  # parent
-            assert llmobs_service._instance.tracer._pid == original_pid
             assert llmobs_service._instance._llmobs_span_writer == original_span_writer
             assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
         else:  # child
-            assert llmobs_service._instance.tracer._pid != original_pid
             assert llmobs_service._instance._llmobs_span_writer != original_span_writer
             assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
             llmobs_service.disable()
@@ -1359,19 +1412,38 @@ def test_llmobs_fork_recreates_and_restarts_span_writer():
         llmobs_service.disable()
 
 
+def test_llmobs_fork_recreates_and_restarts_agentless_span_writer():
+    """Test that forking a process correctly recreates and restarts the LLMObsSpanWriter."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+        with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
+            llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app", agentless_enabled=True)
+            original_span_writer = llmobs_service._instance._llmobs_span_writer
+            pid = os.fork()
+            if pid:  # parent
+                assert llmobs_service._instance._llmobs_span_writer == original_span_writer
+                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+            else:  # child
+                assert llmobs_service._instance._llmobs_span_writer != original_span_writer
+                assert llmobs_service._instance._llmobs_span_writer.status == ServiceStatus.RUNNING
+                llmobs_service.disable()
+                os._exit(12)
+
+            _, status = os.waitpid(pid, 0)
+            exit_code = os.WEXITSTATUS(status)
+            assert exit_code == 12
+            llmobs_service.disable()
+
+
 def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     """Test that forking a process correctly recreates and restarts the LLMObsEvalMetricWriter."""
     with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter.periodic"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
-        original_pid = llmobs_service._instance.tracer._pid
         original_eval_metric_writer = llmobs_service._instance._llmobs_eval_metric_writer
         pid = os.fork()
         if pid:  # parent
-            assert llmobs_service._instance.tracer._pid == original_pid
             assert llmobs_service._instance._llmobs_eval_metric_writer == original_eval_metric_writer
             assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
         else:  # child
-            assert llmobs_service._instance.tracer._pid != original_pid
             assert llmobs_service._instance._llmobs_eval_metric_writer != original_eval_metric_writer
             assert llmobs_service._instance._llmobs_eval_metric_writer.status == ServiceStatus.RUNNING
             llmobs_service.disable()
@@ -1389,15 +1461,12 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
     with override_env(dict(DD_LLMOBS_EVALUATORS="ragas_faithfulness")):
         with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
             llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
-            original_pid = llmobs_service._instance.tracer._pid
             original_evaluator_runner = llmobs_service._instance._evaluator_runner
             pid = os.fork()
             if pid:  # parent
-                assert llmobs_service._instance.tracer._pid == original_pid
                 assert llmobs_service._instance._evaluator_runner == original_evaluator_runner
                 assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
             else:  # child
-                assert llmobs_service._instance.tracer._pid != original_pid
                 assert llmobs_service._instance._evaluator_runner != original_evaluator_runner
                 assert llmobs_service._instance._evaluator_runner.status == ServiceStatus.RUNNING
                 llmobs_service.disable()
@@ -1412,18 +1481,18 @@ def test_llmobs_fork_recreates_and_restarts_evaluator_runner(mock_ragas_evaluato
 def test_llmobs_fork_create_span(monkeypatch):
     """Test that forking a process correctly encodes new spans created in each process."""
     monkeypatch.setenv("_DD_LLMOBS_WRITER_INTERVAL", "5.0")
-    with mock.patch("ddtrace.internal.writer.HTTPWriter._send_payload"):
+    with mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload"):
         llmobs_service.enable(_tracer=DummyTracer(), ml_app="test_app")
         pid = os.fork()
         if pid:  # parent
             with llmobs_service.task():
                 pass
-            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 1
+            assert len(llmobs_service._instance._llmobs_span_writer._buffer) == 1
         else:  # child
             with llmobs_service.workflow():
                 with llmobs_service.task():
                     pass
-            assert len(llmobs_service._instance._llmobs_span_writer._encoder) == 2
+            assert len(llmobs_service._instance._llmobs_span_writer._buffer) == 2
             llmobs_service.disable()
             os._exit(12)
 
@@ -1567,6 +1636,13 @@ def test_annotation_context_modifies_span_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
             assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+
+
+def test_annotation_context_can_update_session_id(llmobs):
+    with llmobs.annotation_context(tags={"session_id": "1234567890"}):
+        with llmobs.agent(name="test_agent") as span:
+            assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
+            assert span._get_ctx_item(SESSION_ID) == "1234567890"
 
 
 def test_annotation_context_modifies_prompt(llmobs):
@@ -2127,3 +2203,50 @@ def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock
             tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
+
+
+def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
+    # orphaned llmobs spans with apm root have undefined parent_id
+    with tracer.trace("no_llm_span"):
+        with llmobs.task("llm_span"):
+            pass
+        with llmobs.task("llm_span_2"):
+            pass
+    assert len(llmobs_events) == 2
+    assert llmobs_events[0]["name"] == "llm_span"
+    assert llmobs_events[0]["parent_id"] == "undefined"
+    assert llmobs_events[1]["name"] == "llm_span_2"
+    assert llmobs_events[1]["parent_id"] == "undefined"
+    # document buggy `trace_id` behavior
+    assert llmobs_events[0]["trace_id"] == llmobs_events[1]["trace_id"]
+
+
+def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_events):
+    with llmobs.task("level_1_llm"):
+        with tracer.trace("intermediate_apm"):  # APM span
+            with tracer.trace("intermediate_apm_2"):  # APM span
+                with llmobs.task("level_2_llm_a"):
+                    with tracer.trace("intermediate_apm_3"):  # APM span
+                        with llmobs.task("level_3_llm"):
+                            pass
+                with llmobs.task("level_2_llm_b"):
+                    pass
+    """
+    Expected LLM Obs trace structure;
+        level_1_llm
+            level_2_llm_a
+                level_3_llm
+            level_2_llm_b
+    """
+    assert len(llmobs_events) == 4
+    assert llmobs_events[0]["name"] == "level_3_llm"
+    assert llmobs_events[0]["parent_id"] == llmobs_events[1]["span_id"]
+
+    assert llmobs_events[1]["name"] == "level_2_llm_a"
+    assert llmobs_events[1]["parent_id"] == llmobs_events[3]["span_id"]
+
+    assert llmobs_events[2]["name"] == "level_2_llm_b"
+    assert llmobs_events[2]["parent_id"] == llmobs_events[3]["span_id"]
+
+    assert llmobs_events[3]["name"] == "level_1_llm"
+    assert llmobs_events[3]["parent_id"] == "undefined"

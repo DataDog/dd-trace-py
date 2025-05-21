@@ -4,14 +4,18 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
@@ -36,32 +40,37 @@ class _EFD_RETRY_OUTCOMES:
 _EFD_FLAKY_OUTCOME = "flaky"
 
 _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
-    EFDTestStatus.ALL_PASS: _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED,
-    EFDTestStatus.ALL_FAIL: _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED,
-    EFDTestStatus.ALL_SKIP: _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED,
-    EFDTestStatus.FLAKY: _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY,
+    EFDTestStatus.ALL_PASS: PYTEST_STATUS.PASSED,
+    EFDTestStatus.ALL_FAIL: PYTEST_STATUS.FAILED,
+    EFDTestStatus.ALL_SKIP: PYTEST_STATUS.SKIPPED,
+    EFDTestStatus.FLAKY: PYTEST_STATUS.PASSED,
 }
 
 
 def efd_handle_retries(
     test_id: InternalTestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
+    is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get(TestPhase.SETUP)
+    call_report = test_reports.get(TestPhase.CALL)
+    teardown_report = test_reports.get(TestPhase.TEARDOWN)
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED
         elif test_outcome.status == TestStatus.PASS:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED
         elif test_outcome.status == TestStatus.SKIP:
-            original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
-        return
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+
     if InternalTest.get_tag(test_id, "_dd.ci.efd_setup_failed"):
         log.debug("Test item %s failed during setup, will not be retried for Early Flake Detection")
         return
+
     if InternalTest.get_tag(test_id, "_dd.ci.efd_teardown_failed"):
         # NOTE: tests that passed their call but failed during teardown are not retried
         log.debug("Test item %s failed during teardown, will not be retried for Early Flake Detection")
@@ -69,32 +78,37 @@ def efd_handle_retries(
 
     # If the test skipped (can happen either in setup or call depending on mark vs calling .skip()), we set the original
     # status as skipped and then continue handling retries because we may not return
-    if test_outcome.status == TestStatus.SKIP and when in ["setup", "call"]:
-        original_result.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
-        # We don't return for when == call when skip happens during setup, so we need to log it and make sure the status
-        # of the test is set
-        if when == "setup":
-            item.ihook.pytest_runtest_logreport(
-                nodeid=item.nodeid,
-                locationm=item.location,
-                keywords=item.keywords,
-                when="setup",
-                longrepr=None,
-                outcome=_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
-            )
-            InternalTest.mark_skip(test_id)
+    if test_outcome.status == TestStatus.SKIP:
+        if call_report:
+            call_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+        else:
+            # When skip happens during setup, we don't have a call report.
+            setup_report.outcome = _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED
+
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
+    if call_report:
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     efd_outcome = _efd_do_retries(item)
+    longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords=item.keywords,
-        when="call",
-        longrepr=None,
+        keywords={k: 1 for k in item.keywords},
+        when=TestPhase.CALL,
+        longrepr=longrepr,
         outcome=_FINAL_OUTCOMES[efd_outcome],
+        user_properties=item.user_properties
+        + [
+            (UserProperty.RETRY_REASON, RetryReason.EARLY_FLAKE_DETECTION),
+            (UserProperty.RETRY_FINAL_OUTCOME, efd_outcome.value),
+        ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
+
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
@@ -323,14 +337,17 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
             "s",
             (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED:
-        return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
-    if report.outcome == _EFD_RETRY_OUTCOMES.EFD_FINAL_FLAKY:
-        # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the final
-        # count of terminal summary
-        return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
+
+    if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.EARLY_FLAKE_DETECTION:
+        efd_outcome = get_user_property(report, UserProperty.RETRY_FINAL_OUTCOME)
+        if efd_outcome == "passed":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
+        if efd_outcome == "failed":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
+        if efd_outcome == "skipped":
+            return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
+        if efd_outcome == "flaky":
+            # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the
+            # final count of terminal summary
+            return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))
     return None

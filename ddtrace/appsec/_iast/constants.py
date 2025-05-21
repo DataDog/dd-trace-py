@@ -1,6 +1,4 @@
 import re
-from typing import Any
-from typing import Dict
 
 
 VULN_INSECURE_HASHING_TYPE = "WEAK_HASH"
@@ -17,8 +15,6 @@ VULN_CODE_INJECTION = "CODE_INJECTION"
 VULN_XSS = "XSS"
 VULN_SSRF = "SSRF"
 VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
-
-VULNERABILITY_TOKEN_TYPE = Dict[int, Dict[str, Any]]
 
 HEADER_NAME_VALUE_SEPARATOR = ": "
 
@@ -64,6 +60,8 @@ DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
 }
 
 DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
+    "_io": {"open"},
+    "io": {"open"},
     "glob": {"glob"},
     "os": {
         "mkdir",
@@ -97,3 +95,7 @@ DBAPI_MYSQLDB = "mysqldb"
 DBAPI_PYMYSQL = "pymysql"
 DBAPI_MARIADB = "mariadb"
 DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MYSQLDB, DBAPI_MARIADB, DBAPI_PYMYSQL)
+
+DEFAULT_SOURCE_IO_FUNCTIONS = {
+    "_io": {"read"},
+}

@@ -109,6 +109,34 @@ class RateSamplerTest(unittest.TestCase):
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
+    def test_deterministic_behavior_with_list_of_trace_ids(self):
+        """Test that specific trace IDs are consistently kept or dropped"""
+        sample_rate = 0.5
+        rule = SamplingRule(sample_rate=sample_rate)
+        rate = RateSampler(sample_rate=sample_rate)
+
+        test_cases = [
+            (6645412625895797507, False),
+            (8696342848850656916, True),
+            (14629469446186818297, False),
+            (13794769880582338323, True),
+            (18444899399302180861, False),
+            (18446744073709551615, False),
+            (10, False),
+        ]
+
+        for trace_id, expected_decision in test_cases:
+            span = Span(name="test.span", trace_id=trace_id)
+
+            for _ in range(10):
+                rule_sample_decision = rule.sample(span)
+                rate_sample_decision = rate.sample(span)
+                assert rule_sample_decision == rate_sample_decision == expected_decision, (
+                    f"Trace ID {trace_id} should be {'kept' if expected_decision else 'dropped'} "
+                    f"with sample rate {sample_rate}, but got SamplingRule:{rule_sample_decision} "
+                    f"and RateSampler:{rate_sample_decision}"
+                )
+
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
         tracer._sampler = RateSampler(sample_rate=-0.5)
@@ -561,7 +589,7 @@ def test_datadog_sampler_init():
 @mock.patch("ddtrace._trace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
 
     mock_sample.return_value = True
     dummy_tracer.trace("test").finish()
@@ -701,10 +729,20 @@ class MatchNoSample(SamplingRule):
             0,
             None,
         ),
+        (  # Regression test for https://github.com/DataDog/dd-trace-py/issues/12775
+            # We should not match None values with ?* patterns.
+            DatadogSampler(
+                rules=[SamplingRule(sample_rate=0, name="?*", resource="?*", service="?*", tags={"key": "?*"})],
+            ),
+            AUTO_KEEP,
+            SamplingMechanism.DEFAULT,
+            0,
+            None,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mechanism, rule, limit, dummy_tracer):
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
     dummy_tracer.trace("span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) > 0, "A tracer using DatadogSampler should always emit its spans"
@@ -721,7 +759,7 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mecha
 def test_datadog_sampler_tracer_child(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
 
     with dummy_tracer.trace("parent.span"):
         dummy_tracer.trace("child.span").finish()
@@ -747,7 +785,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0)
     sampler = DatadogSampler(rules=[rule])
-    dummy_tracer._configure(sampler=sampler)
+    dummy_tracer._sampler = sampler
     dummy_tracer.start_span("test.span").finish()
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "A tracer using a DatadogSampler should emit all of its spans"
