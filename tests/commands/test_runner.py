@@ -525,7 +525,7 @@ def test_ddtrace_run_and_auto_sitecustomize():
 
 
 @pytest.mark.subprocess(ddtrace_run=False, err="")
-def test_ddtrace_run_atexit():
+def test_ddtrace_auto_atexit():
     """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
     import sys
 
