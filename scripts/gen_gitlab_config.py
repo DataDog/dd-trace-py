@@ -119,6 +119,10 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
+    # If the ci_visibility suite is in the list of required suites, we need to run all suites
+    if "ci_visibility" in required_suites:
+        required_suites = sorted(suites.keys())
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
