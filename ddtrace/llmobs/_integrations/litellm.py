@@ -141,7 +141,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
-            - operation is router.acompletion or router.atext_completion
+            - span represents a router operation
             - base_url is set (indicates a request to the proxy) OR
             - base_url is not set AND an LLM span will be submitted elsewhere
         LLM spans should be submitted to LLMObs if:
