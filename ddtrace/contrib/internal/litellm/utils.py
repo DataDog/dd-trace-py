@@ -17,15 +17,36 @@ def extract_host_tag(kwargs):
 
 
 class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+    def __init__(self, wrapped, integration, span, kwargs):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         self._dd_integration = integration
-        self._dd_span = span
-        self._kwargs = kwargs
+        self._dd_spans = [span]
+        self._kwargs = [kwargs] # each span is associated with a different kwargs
         self._streamed_chunks = [[] for _ in range(n)]
-        self._is_completion = is_completion
 
+    def add_router_span_info(self, span, kwargs, instance):
+        """Handler to add router span to this streaming object.
+
+        Helps to ensure that all spans associated with a single stream are finished and have the correct tags.
+        """
+        self._dd_spans.append(span)
+        kwargs["router_instance"] = instance
+        self._kwargs.append(kwargs)
+    
+    def finish_spans(self):
+        """Helper to finish all spans associated with this stream."""
+        formatted_completions = None
+        for span, kwargs in zip(self._dd_spans, self._kwargs):
+            if not formatted_completions:
+                formatted_completions = _process_finished_stream(
+                    self._dd_integration, span, kwargs, self._streamed_chunks, span.resource
+                )
+            elif self._dd_integration.is_pc_sampled_llmobs(span):
+                self._dd_integration.llmobs_set_tags(
+                    span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
+                )
+            span.finish()
 
 class TracedLiteLLMStream(BaseTracedLiteLLMStream):
     def __enter__(self):
@@ -41,13 +62,11 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
+            for span in self._dd_spans:
+                span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
+            self.finish_spans()
 
     def __next__(self):
         try:
@@ -57,13 +76,11 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
         except StopIteration:
             raise
         except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
+            for span in self._dd_spans:
+                span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
+            self.finish_spans()
 
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
@@ -80,13 +97,11 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
+            for span in self._dd_spans:
+                span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
+            self.finish_spans()
 
     async def __anext__(self):
         try:
@@ -96,13 +111,11 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
         except StopAsyncIteration:
             raise
         except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
+            for span in self._dd_spans:
+                span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
-            )
-            self._dd_span.finish()
+            self.finish_spans()
 
 
 def _loop_handler(chunk, streamed_chunks):
@@ -116,8 +129,10 @@ def _loop_handler(chunk, streamed_chunks):
         streamed_chunks[0].insert(0, chunk)
 
 
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation):
     try:
+        formatted_completions = None
+        is_completion = "text" in operation
         if is_completion:
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
@@ -126,10 +141,12 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_comp
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        operation = "completion" if is_completion else "chat"
+        operation = operation if "router" in operation else "completion" if is_completion else "chat"
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(
                 span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation
             )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
+    finally:
+        return formatted_completions

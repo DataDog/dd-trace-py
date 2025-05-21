@@ -58,7 +58,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMStream(resp, integration, span, kwargs, is_completion)
+            return TracedLiteLLMStream(resp, integration, span, kwargs)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -89,7 +89,7 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs, is_completion)
+            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -128,46 +128,58 @@ def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operat
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    with integration.trace(
+    span = integration.trace(
         pin,
         operation,
         model=model,
         host=host,
         submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = func(*args, **kwargs)
-            return resp
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            kwargs["router_instance"] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+    )
+    stream = kwargs.get("stream", False)
+    resp = None
+    try:
+        resp = func(*args, **kwargs)
+        if stream:
+            resp.add_router_span_info(span, kwargs, instance)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                kwargs["router_instance"] = instance
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            span.finish()
 
 
 async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    with integration.trace(
+    span = integration.trace(
         pin,
         operation,
         model=model,
         host=host,
         submit_to_llmobs=True,
-    ) as span:
-        resp = None
-        try:
-            resp = await func(*args, **kwargs)
-            return resp
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            kwargs["router_instance"] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+    )
+    stream = kwargs.get("stream", False)
+    resp = None
+    try:
+        resp = await func(*args, **kwargs)
+        if stream:
+            resp.add_router_span_info(span, kwargs, instance)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                kwargs["router_instance"] = instance
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            span.finish()
 
 
 @with_traced_module

@@ -271,27 +271,24 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                consume_stream(resp, n)
-                output_messages = [{"content": ""}]
+                output_messages, _ = consume_stream(resp, n)
             else:
                 output_messages, _ = parse_response(resp)
 
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
-        workflow_span = trace[0]
+        router_span = trace[0]
         
         assert len(llmobs_events) == 2
-        # streamed router workflow spans are submitted ahead of LLM spans
-        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
-        assert workflow_event == _expected_llmobs_non_llm_span_event(
-            workflow_span,
+        router_event = llmobs_events[1]
+        assert router_event == _expected_llmobs_non_llm_span_event(
+            router_span,
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-
 
     async def test_router_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
@@ -304,20 +301,18 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                await async_consume_stream(resp, n)
-                output_messages = [{"content": ""}]
+                output_messages, _ = await async_consume_stream(resp, n)
             else:
                 output_messages, _ = parse_response(resp)
 
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
-        workflow_span = trace[0]
+        router_span = trace[0]
         
         assert len(llmobs_events) == 2
-        # streamed router workflow spans are submitted ahead of LLM spans
-        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
-        assert workflow_event == _expected_llmobs_non_llm_span_event(
-            workflow_span,
+        router_event = llmobs_events[1]
+        assert router_event == _expected_llmobs_non_llm_span_event(
+            router_span,
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -336,20 +331,18 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                consume_stream(resp, n, is_completion=True)
-                output_messages = [{"content": ""}]
+                output_messages, _ = consume_stream(resp, n, is_completion=True)
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
-        workflow_span = trace[0]
+        router_span = trace[0]
         
         assert len(llmobs_events) == 2
-        # streamed router workflow spans are submitted ahead of LLM spans
-        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
-        assert workflow_event == _expected_llmobs_non_llm_span_event(
-            workflow_span,
+        router_event = llmobs_events[1]
+        assert router_event == _expected_llmobs_non_llm_span_event(
+            router_span,
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -368,20 +361,18 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                await async_consume_stream(resp, n, is_completion=True)
-                output_messages = [{"content": ""}]
+                output_messages, _ = await async_consume_stream(resp, n, is_completion=True)
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
-        workflow_span = trace[0]
+        router_span = trace[0]
         
         assert len(llmobs_events) == 2
-        # streamed router workflow spans are submitted ahead of LLM spans
-        workflow_event = llmobs_events[0] if stream else llmobs_events[1]
-        assert workflow_event == _expected_llmobs_non_llm_span_event(
-            workflow_span,
+        router_event = llmobs_events[1]
+        assert router_event == _expected_llmobs_non_llm_span_event(
+            router_span,
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
