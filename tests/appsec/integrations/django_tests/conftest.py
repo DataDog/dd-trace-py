@@ -67,9 +67,17 @@ def tracer():
 
 @pytest.fixture
 def test_spans(tracer):
+    container = TracerSpanContainer(tracer)
+    yield container
+    container.reset()
+
+
+@pytest.fixture
+def iast_span(tracer):
     with override_global_config(
         dict(
             _iast_enabled=True,
+            _appsec_enabled=False,
             _iast_deduplication_enabled=False,
             _iast_request_sampling=100.0,
         )
