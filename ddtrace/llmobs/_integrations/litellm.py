@@ -72,7 +72,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         )
 
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
-        metadata = span._get_ctx_item(METADATA)
+        metadata = span._get_ctx_item(METADATA) or {}
         base_url = kwargs.get("api_base", None)
         # only add model to metadata if it's a litellm client request
         if base_url:
@@ -147,7 +147,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         LLM spans should be submitted to LLMObs if:
             - base_url is not set AND an LLM span will not be submitted elsewhere
         """
-        router_operation = "router" in operation
+        router_operation = "router" in operation if operation else False
         base_url = kwargs.get("api_base", None)
         if router_operation or base_url or self._skip_llm_span(kwargs, model):
             return "workflow"
