@@ -21,6 +21,7 @@ from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import update_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -111,7 +112,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         operation: str = "",  # oneof "completion", "chat", "embedding"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        proxy_request = span.resource == "proxy"
+        proxy_request = "proxy" in span.resource
         span_kind = "workflow" if proxy_request else "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
@@ -127,6 +128,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
+        update_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}

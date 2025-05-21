@@ -210,7 +210,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     base_url = getattr(client, "_base_url", None) if client else None
     default_base_url = integration.is_default_base_url(str(base_url) if base_url else None)
 
-    operation_id = endpoint_hook.OPERATION_ID if default_base_url else "proxy"
+    operation_id = endpoint_hook.OPERATION_ID if default_base_url else f"proxy.{endpoint_hook.OPERATION_ID}"
     span = integration.trace(
         pin,
         operation_id,

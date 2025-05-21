@@ -5,21 +5,18 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import update_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
@@ -64,7 +61,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         # update input and output value for non-LLM spans
         span_kind = self._get_span_kind(kwargs, model_name, operation)
-        self._update_input_output_value(span, span_kind)
+        update_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
         span._set_ctx_items(
@@ -107,15 +104,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 del model["litellm_params"]["api_key"]
         return model_list
 
-    def _update_input_output_value(self, span: Span, span_kind: str = ""):
-        if span_kind == "llm":
-            return
-        input_messages = span._get_ctx_item(INPUT_MESSAGES)
-        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
-        if input_messages:
-            span._set_ctx_item(INPUT_VALUE, input_messages)
-        if output_messages:
-            span._set_ctx_item(OUTPUT_VALUE, output_messages)
 
     def _skip_llm_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
