@@ -228,7 +228,6 @@ class LLMObs(Service):
             "_dd": {
                 "span_id": str(span.span_id),
                 "trace_id": format_trace_id(span.trace_id),
-                "apm_span_id": str(span.span_id),
                 "apm_trace_id": format_trace_id(span.trace_id),
             },
         }
