@@ -217,6 +217,15 @@ def iast_header_injection_vulnerability():
     return resp
 
 
+@app.route("/iast-code-injection", methods=["GET"])
+def iast_code_injection_vulnerability():
+    filename = request.args.get("filename")
+    a = ""  # noqa: F841
+    c = eval("a + '" + filename + "'")
+    resp = Response(f"OK:{tracer._span_aggregator.writer._api_version}:{c}")
+    return resp
+
+
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
     tracer._span_aggregator.writer.flush_queue()
