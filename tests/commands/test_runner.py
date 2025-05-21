@@ -561,5 +561,5 @@ def test_ddtrace_auto_atexit():
         tracer.shutdown()
         tracer.shutdown()
 
-        assert registered_funcs, "No registered functions"
-        assert unregistered_funcs, "No unregistered functions"
+    assert registered_funcs, "No registered functions"
+    assert unregistered_funcs, "No unregistered functions"
