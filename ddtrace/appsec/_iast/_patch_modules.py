@@ -2,6 +2,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
@@ -53,11 +54,17 @@ def patch_iast(patch_modules=IAST_PATCH):
         lambda _: try_wrap_function_wrapper("pymysql.converters", "escape_string", sqli_sanitizer)
     )
 
+    # Header Injection sanitizers
+    when_imported("werkzeug.utils")(
+        lambda _: try_wrap_function_wrapper(
+            "werkzeug.datastructures.headers", "_str_header_value", header_injection_sanitizer
+        )
+    )
     # Path Traversal sanitizers
     when_imported("werkzeug.utils")(
         lambda _: try_wrap_function_wrapper("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
     )
-    # TODO: werkzeug.utils.safe_join propagation doesn't work because strip("._") which is not yet supported by IAST
+    # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
     # when_imported("werkzeug.utils")(
     #     lambda _: try_wrap_function_wrapper(
     #         "werkzeug.utils",

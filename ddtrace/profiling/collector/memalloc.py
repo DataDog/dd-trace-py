@@ -11,6 +11,7 @@ from typing import Optional
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
+    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup

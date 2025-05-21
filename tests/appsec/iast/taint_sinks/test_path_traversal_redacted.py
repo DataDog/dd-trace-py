@@ -51,7 +51,7 @@ def test_path_traversal_redact_exclude(file_path, iast_context_defaults):
             {
                 "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
                 "type": VULN_PATH_TRAVERSAL,
             }
         ],
@@ -103,7 +103,7 @@ def test_path_traversal_redact_rel_paths(file_path, iast_context_defaults):
             {
                 "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
                 "type": VULN_PATH_TRAVERSAL,
             }
         ],
@@ -126,7 +126,7 @@ def test_path_traversal_redact_abs_paths(iast_context_defaults):
             {
                 "evidence": {"valueParts": [{"source": 0, "value": file_path}]},
                 "hash": ANY,
-                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY, "method": ANY, "class_name": ANY},
+                "location": {"line": ANY, "path": "foobar.py", "spanId": ANY},
                 "type": VULN_PATH_TRAVERSAL,
             }
         ],

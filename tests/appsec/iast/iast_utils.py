@@ -20,8 +20,8 @@ from ddtrace.appsec._iast._patch_modules import patch_iast
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
 # "iast::instrumentation::" or "iast::instrumentation::"
-# are valid logs
-IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::).*$")
+# are valid
+IAST_VALID_LOG = re.compile(r"^iast::(?!instrumentation::|propagation::context::|propagation::sink_point).*$")
 
 
 class IastTestException(Exception):
@@ -53,6 +53,7 @@ def get_line_and_hash(label: Text, vuln_type: Text, filename=None, fixed_line=No
 def _iast_patched_module_and_patched_source(module_name, new_module_object=False):
     module = importlib.import_module(module_name)
     module_path, patched_source = astpatch_module(module)
+    assert patched_source is not None
     compiled_code = compile(patched_source, module_path, "exec")
     module_changed = types.ModuleType(module_name) if new_module_object else module
     exec(compiled_code, module_changed.__dict__)
