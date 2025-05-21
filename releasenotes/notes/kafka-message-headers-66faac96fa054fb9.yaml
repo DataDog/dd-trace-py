@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: This fix resolves an issue where message headers were sent to Kafka brokers that do not support them.
+    Message headers are turned off when the Kafka server responds with ``UNKNOWN_SERVER_ERROR (-1)``.

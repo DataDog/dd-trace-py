@@ -15,7 +15,7 @@
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
     variables:
-      LOG_LEVEL: INFO
+      LOG_LEVEL: ERROR
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
       SNAPSHOT_CI: 1
       PORT: 9126

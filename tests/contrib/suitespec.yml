@@ -16,6 +16,7 @@ components:
     - ddtrace/contrib/internal/asgi/*
   asyncio:
     - ddtrace/contrib/_asyncio.py
+    - ddtrace/contrib/internal/asyncio/*
   avro:
     - ddtrace/contrib/_avro.py
     - ddtrace/contrib/internal/avro/*

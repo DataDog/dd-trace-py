@@ -18,6 +18,7 @@ anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
 asgiref,~=3.0
+astunparse,0
 async_generator,~=1.10
 asyncpg,~=0.23
 asynctest,==0.13.0
@@ -130,6 +131,7 @@ psutil,0
 psycopg,0
 psycopg2-binary,~=2.8.0
 py-cpuinfo,~=8.0.0
+pycryptodome,0
 pyfakefs,0
 pylibmc,~=1.6.2
 pymemcache,~=3.4.2
@@ -139,15 +141,17 @@ pynamodb,~=5.0
 pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
-pytest,~=4.0
+pytest,>=6.0
 pytest-aiohttp,0
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
 pytest-cpp,0
 pytest-django[testing],==3.10.0
+pytest-memray,0
 pytest-mock,==2.0.0
 pytest-sanic,~=1.6.2
+pytest-xdist,0
 python-consul,>=1.1
 python-memcached,0
 python-multipart,0
@@ -180,6 +184,7 @@ valkey,0
 vcrpy,==4.2.1
 vertexai,0
 vertica-python,>=0.6.0
+virtualenv-clone,0
 websockets,<11.0
 webtest,0
 werkzeug,<1.0
