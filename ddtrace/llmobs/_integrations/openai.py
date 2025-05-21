@@ -53,10 +53,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        base_url = kwargs.get("base_url", None)
-        submit_to_llmobs = self.is_default_base_url(str(base_url) if base_url else None) and (
-            operation_id.endswith("Completion") or operation_id == "createEmbedding"
-        )
+        if operation_id.endswith("Completion") or operation_id == "createEmbedding" or operation_id == "proxy":
+            submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -113,7 +111,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         operation: str = "",  # oneof "completion", "chat", "embedding"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        span_kind = "embedding" if operation == "embedding" else "llm"
+        proxy_request = span.resource == "proxy"
+        span_kind = "workflow" if proxy_request else "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
         model_provider = "openai"
