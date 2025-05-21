@@ -441,6 +441,11 @@ class CIVisibility(Service):
         # cls.enabled guarantees _instance is not None
         if not cls.enabled or cls._instance is None:
             return False
+
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            log.debug("Intelligent Test Runner is disabled by environment variable")
+            return False
+
         return cls._instance._api_settings.itr_enabled
 
     @classmethod
