@@ -1159,7 +1159,7 @@ def _on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> N
 
 
 @_requires_civisibility_enabled
-def _on_session_get_path_codeowners(path: Path) -> None
+def _on_session_get_path_codeowners(path: Path) -> None:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
     core.set_item(
