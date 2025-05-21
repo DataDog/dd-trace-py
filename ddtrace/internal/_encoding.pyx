@@ -154,7 +154,8 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         if len(text) > MAX_SPAN_META_VALUE_LEN:
             text = truncate_string(text)
         IF PY_MAJOR_VERSION >= 3:
-            ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
+            ret = msgpack_pack_unicode(pk, text, ITEM_LIMIT)
+            # ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
             if ret == -2:
                 raise ValueError("unicode string is too large")
         ELSE:
