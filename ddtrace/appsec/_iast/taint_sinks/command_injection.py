@@ -47,6 +47,7 @@ class CommandInjection(VulnerabilityBase):
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
+    log.debug(f"_iast_report_cmdi: shell_args={shell_args}")
     report_cmdi = ""
 
     try:
