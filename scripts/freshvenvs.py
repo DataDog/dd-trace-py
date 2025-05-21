@@ -14,6 +14,7 @@ from typing import Optional
 from packaging.version import Version
 from pip import _internal
 
+
 # add project root to path to import riotfile
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
