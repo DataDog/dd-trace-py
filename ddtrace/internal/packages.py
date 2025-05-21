@@ -113,7 +113,8 @@ def _root_module(path: Path) -> str:
     # Try the most likely prefixes first
     for parent_path in (purelib_path, platlib_path):
         try:
-            return _effective_root(path.relative_to(parent_path), parent_path)
+            # Resolve the path to use the shortest relative path.
+            return _effective_root(path.resolve().relative_to(parent_path), parent_path)
         except ValueError:
             # Not relative to this path
             pass
@@ -222,7 +223,8 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
-        return mapping.get(_root_module(path.resolve()))
+        # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
+        return mapping.get(_root_module(path))
     except (ValueError, OSError):
         return None
 
