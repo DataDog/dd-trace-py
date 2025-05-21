@@ -368,10 +368,11 @@ def generate_supported_versions(contrib_modules, all_used_versions):
 
 def _get_version_floor(version: str) -> str:
     """
-    Get the version floor for a given version.
+    Get the minor version floor for a given version.
     """
     major = version.split(".")[0]
-    return f">={major}.0.0"
+    minor = version.split(".")[1]
+    return f">={major}.{minor}.0"
 
 
 def add_implied_support_versions():
@@ -386,6 +387,8 @@ def add_implied_support_versions():
 
         if pinned:
             dep_info["maximum_tracer_supported"] = dep_info["maximum_tracer_tested"]
+        else:
+            dep_info["maximum_tracer_supported"] = "latest"
 
         dep_info["minimum_tracer_supported"] = _get_version_floor(dep_info["minimum_tracer_tested"])
 

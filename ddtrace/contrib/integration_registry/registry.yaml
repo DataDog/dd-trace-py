@@ -8,7 +8,7 @@ integrations:
     aiobotocore:
       tested_min: 1.4.2
       tested_max: 2.16.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.4.0'
       supported_max: latest
 
 - integration_name: aiohttp
@@ -20,7 +20,7 @@ integrations:
     aiohttp:
       tested_min: 3.10.5
       tested_max: 3.10.9
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.10.0'
       supported_max: latest
 
 - integration_name: aiohttp_jinja2
@@ -33,12 +33,12 @@ integrations:
     aiohttp-jinja2:
       tested_min: 1.5.1
       tested_max: 1.6.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.5.0'
       supported_max: latest
     aiohttp_jinja2:
       tested_min: 1.5.1
       tested_max: 1.6.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.5.0'
       supported_max: latest
 
 - integration_name: aiomysql
@@ -50,7 +50,7 @@ integrations:
     aiomysql:
       tested_min: 0.1.1
       tested_max: 0.2.0
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.1.0'
       supported_max: latest
 
 - integration_name: aiopg
@@ -62,7 +62,7 @@ integrations:
     aiopg:
       tested_min: 1.4.0
       tested_max: 1.4.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.4.0'
       supported_max: 1.4.0
 
 - integration_name: aioredis
@@ -80,7 +80,7 @@ integrations:
     algoliasearch:
       tested_min: 2.6.3
       tested_max: 2.6.3
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.6.0'
       supported_max: 2.6.3
 
 - integration_name: anthropic
@@ -92,7 +92,7 @@ integrations:
     anthropic:
       tested_min: 0.49.0
       tested_max: 0.49.0
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.49.0'
       supported_max: latest
 
 - integration_name: aredis
@@ -104,7 +104,7 @@ integrations:
     aredis:
       tested_min: 1.1.8
       tested_max: 1.1.8
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.1.0'
       supported_max: latest
 
 - integration_name: asgi
@@ -124,7 +124,7 @@ integrations:
     asyncpg:
       tested_min: 0.23.0
       tested_max: 0.30.0
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.23.0'
       supported_max: latest
 
 - integration_name: avro
@@ -136,7 +136,7 @@ integrations:
     avro:
       tested_min: 1.12.0
       tested_max: 1.12.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.12.0'
       supported_max: latest
 
 - integration_name: aws_lambda
@@ -149,12 +149,12 @@ integrations:
     datadog-lambda:
       tested_min: 6.105.0
       tested_max: 6.105.0
-      supported_min: '>=6.0.0'
+      supported_min: '>=6.105.0'
       supported_max: latest
     datadog_lambda:
       tested_min: 6.105.0
       tested_max: 6.105.0
-      supported_min: '>=6.0.0'
+      supported_min: '>=6.105.0'
       supported_max: latest
 
 - integration_name: azure_functions
@@ -166,7 +166,7 @@ integrations:
     azure-functions:
       tested_min: 1.21.3
       tested_max: 1.21.3
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.21.0'
       supported_max: 1.21.3
 
 - integration_name: boto
@@ -185,12 +185,12 @@ integrations:
     boto3:
       tested_min: 1.34.49
       tested_max: 1.37.5
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.34.0'
       supported_max: 1.37.5
     botocore:
       tested_min: 1.34.49
       tested_max: 1.37.5
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.34.0'
       supported_max: 1.37.5
 
 - integration_name: bottle
@@ -202,7 +202,7 @@ integrations:
     bottle:
       tested_min: 0.12.25
       tested_max: 0.13.2
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.12.0'
       supported_max: latest
 
 - integration_name: cassandra
@@ -214,7 +214,7 @@ integrations:
     cassandra-driver:
       tested_min: 3.24.0
       tested_max: 3.28.0
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.24.0'
       supported_max: latest
 
 - integration_name: celery
@@ -226,7 +226,7 @@ integrations:
     celery:
       tested_min: 5.3.6
       tested_max: 5.4.0
-      supported_min: '>=5.0.0'
+      supported_min: '>=5.3.0'
       supported_max: latest
 
 - integration_name: cherrypy
@@ -238,7 +238,7 @@ integrations:
     cherrypy:
       tested_min: 17.4.2
       tested_max: 18.10.0
-      supported_min: '>=17.0.0'
+      supported_min: '>=17.4.0'
       supported_max: latest
 
 - integration_name: consul
@@ -250,7 +250,7 @@ integrations:
     python-consul:
       tested_min: 1.1.0
       tested_max: 1.1.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.1.0'
       supported_max: latest
 
 - integration_name: coverage
@@ -268,7 +268,7 @@ integrations:
     crewai:
       tested_min: 0.108.0
       tested_max: 0.108.0
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.108.0'
       supported_max: latest
 
 - integration_name: ddtrace_api
@@ -284,7 +284,7 @@ integrations:
     django:
       tested_min: 2.2.1
       tested_max: 5.2.0
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.2.0'
       supported_max: latest
 
 - integration_name: dogpile_cache
@@ -298,17 +298,17 @@ integrations:
     dogpile-cache:
       tested_min: 0.9.2
       tested_max: 1.3.3
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.9.0'
       supported_max: latest
     dogpile.cache:
       tested_min: 0.9.2
       tested_max: 1.3.3
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.9.0'
       supported_max: latest
     dogpile_cache:
       tested_min: 0.9.2
       tested_max: 1.3.3
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.9.0'
       supported_max: latest
 
 - integration_name: dramatiq
@@ -320,7 +320,7 @@ integrations:
     dramatiq:
       tested_min: 1.17.0
       tested_max: 1.17.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.17.0'
       supported_max: latest
 
 - integration_name: elasticsearch
@@ -339,42 +339,42 @@ integrations:
     elastic-transport:
       tested_min: 8.11.0
       tested_max: 8.17.1
-      supported_min: '>=8.0.0'
+      supported_min: '>=8.11.0'
       supported_max: latest
     elasticsearch:
       tested_min: 7.13.4
       tested_max: 9.0.0
-      supported_min: '>=7.0.0'
+      supported_min: '>=7.13.0'
       supported_max: latest
     elasticsearch1:
       tested_min: 1.10.0
       tested_max: 1.10.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.10.0'
       supported_max: latest
     elasticsearch2:
       tested_min: 2.5.1
       tested_max: 2.5.1
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.5.0'
       supported_max: latest
     elasticsearch5:
       tested_min: 5.5.6
       tested_max: 5.5.6
-      supported_min: '>=5.0.0'
+      supported_min: '>=5.5.0'
       supported_max: latest
     elasticsearch6:
       tested_min: 6.8.2
       tested_max: 6.8.2
-      supported_min: '>=6.0.0'
+      supported_min: '>=6.8.0'
       supported_max: latest
     elasticsearch7:
       tested_min: 7.13.4
       tested_max: 7.17.12
-      supported_min: '>=7.0.0'
+      supported_min: '>=7.13.0'
       supported_max: latest
     opensearch-py:
       tested_min: 1.1.0
       tested_max: 2.8.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.1.0'
       supported_max: latest
 
 - integration_name: falcon
@@ -398,7 +398,7 @@ integrations:
     fastapi:
       tested_min: 0.64.0
       tested_max: 0.115.12
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.64.0'
       supported_max: latest
 
 - integration_name: flask
@@ -410,7 +410,7 @@ integrations:
     flask:
       tested_min: 1.1.4
       tested_max: 3.1.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.1.0'
       supported_max: latest
 
 - integration_name: flask_cache
@@ -423,12 +423,12 @@ integrations:
     flask-cache:
       tested_min: 0.13.1
       tested_max: 0.13.1
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.13.0'
       supported_max: latest
     flask-caching:
       tested_min: 1.10.1
       tested_max: 2.3.0
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.10.0'
       supported_max: latest
 
 - integration_name: freezegun
@@ -450,7 +450,7 @@ integrations:
     gevent:
       tested_min: 20.12.1
       tested_max: 24.11.1
-      supported_min: '>=20.0.0'
+      supported_min: '>=20.12.0'
       supported_max: latest
 
 - integration_name: google_generativeai
@@ -462,7 +462,7 @@ integrations:
     google-generativeai:
       tested_min: 0.8.3
       tested_max: 0.8.3
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.8.0'
       supported_max: latest
 
 - integration_name: graphql
@@ -474,7 +474,7 @@ integrations:
     graphql-core:
       tested_min: 3.1.7
       tested_max: 3.2.6
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.1.0'
       supported_max: latest
 
 - integration_name: grpc
@@ -486,7 +486,7 @@ integrations:
     grpcio:
       tested_min: 1.34.1
       tested_max: 1.68.1
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.34.0'
       supported_max: latest
 
 - integration_name: httplib
@@ -502,7 +502,7 @@ integrations:
     httpx:
       tested_min: 0.17.1
       tested_max: 0.27.2
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.17.0'
       supported_max: latest
 
 - integration_name: jinja2
@@ -514,7 +514,7 @@ integrations:
     jinja2:
       tested_min: 2.10.3
       tested_max: 3.1.4
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.10.0'
       supported_max: latest
 
 - integration_name: kafka
@@ -526,7 +526,7 @@ integrations:
     confluent-kafka:
       tested_min: 1.9.2
       tested_max: 2.6.2
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.9.0'
       supported_max: latest
 
 - integration_name: kombu
@@ -538,7 +538,7 @@ integrations:
     kombu:
       tested_min: 4.6.11
       tested_max: 5.4.2
-      supported_min: '>=4.0.0'
+      supported_min: '>=4.6.0'
       supported_max: latest
 
 - integration_name: langchain
@@ -550,7 +550,7 @@ integrations:
     langchain:
       tested_min: 0.1.20
       tested_max: 0.3.18
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.1.0'
       supported_max: latest
 
 - integration_name: langgraph
@@ -563,7 +563,7 @@ integrations:
     langgraph:
       tested_min: 0.2.60
       tested_max: 0.2.61
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.2.0'
       supported_max: 0.2.61
     langgraph-checkpoint:
       tested_min: 2.0.9
@@ -580,7 +580,7 @@ integrations:
     litellm:
       tested_min: 1.65.4
       tested_max: 1.65.4
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.65.0'
       supported_max: 1.65.4
 
 - integration_name: logbook
@@ -608,7 +608,7 @@ integrations:
     loguru:
       tested_min: 0.4.1
       tested_max: 0.7.2
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.4.0'
       supported_max: latest
 
 - integration_name: mako
@@ -620,7 +620,7 @@ integrations:
     mako:
       tested_min: 1.1.6
       tested_max: 1.3.8
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.1.0'
       supported_max: latest
 
 - integration_name: mariadb
@@ -656,7 +656,7 @@ integrations:
     mongoengine:
       tested_min: 0.29.1
       tested_max: 0.29.1
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.29.0'
       supported_max: latest
 
 - integration_name: mysql
@@ -680,7 +680,7 @@ integrations:
     mysqlclient:
       tested_min: 2.2.1
       tested_max: 2.2.6
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.2.0'
       supported_max: latest
 
 - integration_name: openai
@@ -716,7 +716,7 @@ integrations:
     protobuf:
       tested_min: 5.29.3
       tested_max: 6.30.1
-      supported_min: '>=5.0.0'
+      supported_min: '>=5.29.0'
       supported_max: latest
 
 - integration_name: psycopg
@@ -729,12 +729,12 @@ integrations:
     psycopg:
       tested_min: 3.2.1
       tested_max: 3.2.1
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.2.0'
       supported_max: latest
     psycopg2-binary:
       tested_min: 2.8.6
       tested_max: 2.9.10
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.8.0'
       supported_max: latest
 
 - integration_name: pylibmc
@@ -746,7 +746,7 @@ integrations:
     pylibmc:
       tested_min: 1.6.3
       tested_max: 1.6.3
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.6.0'
       supported_max: latest
 
 - integration_name: pymemcache
@@ -758,7 +758,7 @@ integrations:
     pymemcache:
       tested_min: 3.4.4
       tested_max: 4.0.0
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.4.0'
       supported_max: latest
 
 - integration_name: pymongo
@@ -770,7 +770,7 @@ integrations:
     pymongo:
       tested_min: 3.8.0
       tested_max: 4.10.1
-      supported_min: '>=3.0.0'
+      supported_min: '>=3.8.0'
       supported_max: latest
 
 - integration_name: pymysql
@@ -782,7 +782,7 @@ integrations:
     pymysql:
       tested_min: 0.10.1
       tested_max: 1.1.1
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.10.0'
       supported_max: latest
 
 - integration_name: pynamodb
@@ -794,7 +794,7 @@ integrations:
     pynamodb:
       tested_min: 5.5.1
       tested_max: 5.5.1
-      supported_min: '>=5.0.0'
+      supported_min: '>=5.5.0'
       supported_max: 5.5.1
 
 - integration_name: pyodbc
@@ -818,7 +818,7 @@ integrations:
     pyramid:
       tested_min: 1.10.8
       tested_max: 2.0.2
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.10.0'
       supported_max: latest
 
 - integration_name: pytest
@@ -830,7 +830,7 @@ integrations:
     pytest:
       tested_min: 6.2.5
       tested_max: 8.1.1
-      supported_min: '>=6.0.0'
+      supported_min: '>=6.2.0'
       supported_max: latest
 
 - integration_name: pytest_bdd
@@ -842,7 +842,7 @@ integrations:
     pytest-bdd:
       tested_min: 4.1.0
       tested_max: 6.0.1
-      supported_min: '>=4.0.0'
+      supported_min: '>=4.1.0'
       supported_max: 6.0.1
 
 - integration_name: pytest_benchmark
@@ -860,7 +860,7 @@ integrations:
     redis:
       tested_min: 4.6.0
       tested_max: 5.2.0
-      supported_min: '>=4.0.0'
+      supported_min: '>=4.6.0'
       supported_max: latest
 
 - integration_name: rediscluster
@@ -884,7 +884,7 @@ integrations:
     requests:
       tested_min: 2.22.0
       tested_max: 2.32.3
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.22.0'
       supported_max: latest
 
 - integration_name: rq
@@ -896,7 +896,7 @@ integrations:
     rq:
       tested_min: 1.8.1
       tested_max: 1.16.2
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.8.0'
       supported_max: latest
 
 - integration_name: sanic
@@ -908,7 +908,7 @@ integrations:
     sanic:
       tested_min: 20.12.7
       tested_max: 24.6.0
-      supported_min: '>=20.0.0'
+      supported_min: '>=20.12.0'
       supported_max: latest
 
 - integration_name: selenium
@@ -926,7 +926,7 @@ integrations:
     snowflake-connector-python:
       tested_min: 2.3.10
       tested_max: 3.12.2
-      supported_min: '>=2.0.0'
+      supported_min: '>=2.3.0'
       supported_max: latest
 
 - integration_name: sqlalchemy
@@ -938,7 +938,7 @@ integrations:
     sqlalchemy:
       tested_min: 1.3.24
       tested_max: 2.0.40
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.3.0'
       supported_max: latest
 
 - integration_name: sqlite3
@@ -954,7 +954,7 @@ integrations:
     starlette:
       tested_min: 0.14.2
       tested_max: 0.39.2
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.14.0'
       supported_max: latest
 
 - integration_name: structlog
@@ -966,7 +966,7 @@ integrations:
     structlog:
       tested_min: 20.2.0
       tested_max: 24.4.0
-      supported_min: '>=20.0.0'
+      supported_min: '>=20.2.0'
       supported_max: latest
 
 - integration_name: subprocess
@@ -982,7 +982,7 @@ integrations:
     tornado:
       tested_min: 6.2.0
       tested_max: 6.4.1
-      supported_min: '>=6.0.0'
+      supported_min: '>=6.2.0'
       supported_max: 6.4.1
 
 - integration_name: unittest
@@ -1002,7 +1002,7 @@ integrations:
     urllib3:
       tested_min: 1.25.0
       tested_max: 2.2.3
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.25.0'
       supported_max: latest
 
 - integration_name: valkey
@@ -1027,12 +1027,12 @@ integrations:
     google-cloud-aiplatform:
       tested_min: 1.71.1
       tested_max: 1.71.1
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.71.0'
       supported_max: latest
     vertexai:
       tested_min: 1.71.1
       tested_max: 1.71.1
-      supported_min: '>=1.0.0'
+      supported_min: '>=1.71.0'
       supported_max: latest
 
 - integration_name: vertica
@@ -1044,7 +1044,7 @@ integrations:
     vertica-python:
       tested_min: 0.6.14
       tested_max: 0.7.4
-      supported_min: '>=0.0.0'
+      supported_min: '>=0.6.0'
       supported_max: 0.7.4
 
 - integration_name: webbrowser
