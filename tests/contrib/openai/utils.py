@@ -111,6 +111,37 @@ tool_call_expected_output = function_call_expected_output.copy()
 tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQRRkm6vY"
 tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
+response_tool_function = [
+    {
+        "type": "function",
+        "name": "get_current_weather",
+        "description": "Get the current weather in a given location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+            },
+            "required": ["location", "unit"],
+        },
+    }
+]
+response_tool_function_expected_output = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "tool_id": "fc_682cef7fdb2c81919f76b30a04c1e5610aad6a52bb8cde1d",
+                "type": "function_call",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+        "role": "",
+    }
+]
 
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
