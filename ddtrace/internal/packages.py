@@ -113,7 +113,8 @@ def _root_module(path: Path) -> str:
     # Try the most likely prefixes first
     for parent_path in (purelib_path, platlib_path):
         try:
-            return _effective_root(path.relative_to(parent_path), parent_path)
+            # Resolve the path to use the shortest relative path.
+            return _effective_root(path.resolve().relative_to(parent_path), parent_path)
         except ValueError:
             # Not relative to this path
             pass
@@ -137,7 +138,7 @@ def _root_module(path: Path) -> str:
 
     # Bazel runfiles support: we assume that these paths look like
     # /some/path.runfiles/.../site-packages/<root_module>/...
-    if any(p.suffix == ".runfiles" for p in path.parents):
+    if any(".runfiles" in segment for segment in path.parts):
         for s in path.parents:
             if s.parent.name == "site-packages":
                 return s.name
@@ -222,7 +223,8 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
-        return mapping.get(_root_module(path.resolve()))
+        # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
+        return mapping.get(_root_module(path))
     except (ValueError, OSError):
         return None
 
@@ -251,7 +253,7 @@ def is_stdlib(path: Path) -> bool:
 
 @cached(maxsize=256)
 def is_third_party(path: Path) -> bool:
-    package = filename_to_package(str(path))
+    package = filename_to_package(path)
     if package is None:
         return False
 
