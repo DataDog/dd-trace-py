@@ -1,0 +1,5 @@
+---
+
+fixes:
+  - |
+    Resolves the "sample_before_fork was unregistered without first being registered" warning by removing tracer at_exit hooks from the product protocol, ensuring hooks are registered and unregistered exactly once.

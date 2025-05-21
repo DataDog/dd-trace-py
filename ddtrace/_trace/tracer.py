@@ -5,7 +5,6 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -216,15 +215,10 @@ class Tracer(object):
             register_on_exit_signal(self._atexit)
 
         self._hooks = Hooks()
+        # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
-
-        # Non-global tracers require that we still register these hooks, until
-        # their usage is fully deprecated. The global one will be managed by the
-        # product protocol. We also need to register these hooks if the library
-        # was not bootstrapped correctly.
-        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
-            atexit.register(self._atexit)
-            forksafe.register(self._child_after_fork)
+        atexit.register(self._atexit)
+        forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -895,13 +889,9 @@ class Tracer(object):
                 if processor:
                     processor.shutdown(timeout)
             self.enabled = False
-            forksafe.unregister_before_fork(self._sample_before_fork)
-            # Non-global tracers require that we still register these hooks,
-            # until their usage is fully deprecated. The global one will be
-            # managed by the product protocol. We also need to register these
-            # hooks if the library was not bootstrapped correctly.
-            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            if self.start_span != self._start_span_after_shutdown:
+                # Ensure that tracer exit hooks are registered and unregistered once per instance
+                forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
-
-        self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+                self.start_span = self._start_span_after_shutdown
