@@ -1,8 +1,9 @@
 import json
 import os
 
-import vcr
 from litellm import RouterGeneralSettings
+import vcr
+
 
 CASETTE_EXTENSION = ".yaml"
 

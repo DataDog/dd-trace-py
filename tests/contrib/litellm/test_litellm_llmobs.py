@@ -1,14 +1,14 @@
-from ddtrace.llmobs._utils import safe_json
 import pytest
 
 from ddtrace._monkey import patch
 from ddtrace._trace.pin import Pin
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream
 from tests.contrib.litellm.utils import consume_stream
+from tests.contrib.litellm.utils import expected_router_settings
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
-from tests.contrib.litellm.utils import expected_router_settings
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import flaky

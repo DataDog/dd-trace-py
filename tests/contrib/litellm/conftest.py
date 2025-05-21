@@ -1,3 +1,4 @@
+from litellm import Router
 import pytest
 
 from ddtrace.contrib.internal.litellm.patch import patch
@@ -9,7 +10,6 @@ from tests.contrib.litellm.utils import model_list
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-from litellm import Router
 
 
 def default_global_config():

@@ -6,15 +6,15 @@ from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -23,6 +23,7 @@ from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_comple
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
+
 
 CHAT_COMPLETION_OPERATIONS = ("chat", "router.completion", "router.acompletion")
 TEXT_COMPLETION_OPERATIONS = ("completion", "router.text_completion", "router.atext_completion")
