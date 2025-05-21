@@ -91,10 +91,8 @@ def _langchain_llm_generate_after(prompts, completions):
             return
         for gens in generations:
             for gen in gens:
-                if not hasattr(gen, "text"):
-                    continue
-                text = gen.text
-                if not isinstance(text, str):
+                text_attr, text = _get_text_attribute_for_generation(gen)
+                if not text_attr or not text:
                     continue
                 new_text = taint_pyobject(
                     pyobject=text,
@@ -102,7 +100,7 @@ def _langchain_llm_generate_after(prompts, completions):
                     source_value=source.value,
                     source_origin=source.origin,
                 )
-                setattr(gen, "text", new_text)
+                setattr(gen, text_attr, new_text)
     except Exception as e:
         from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 
@@ -144,17 +142,15 @@ def _langchain_chatmodel_generate_after(messages, completions):
 
         for gens in generations:
             for gen in gens:
-                if hasattr(gen, "text"):
-                    text = gen.text
-                    if not isinstance(text, str):
-                        continue
+                text_attr, text = _get_text_attribute_for_generation(gen)
+                if text_attr and text:
                     new_text = taint_pyobject(
                         pyobject=text,
                         source_name=source.name,
                         source_value=source.value,
                         source_origin=source.origin,
                     )
-                    setattr(gen, "text", new_text)
+                    setattr(gen, text_attr, new_text)
                 if hasattr(gen, "message"):
                     message = gen.message
                     if not hasattr(message, "content"):
@@ -220,6 +216,23 @@ def _get_tainted_source_from_chat_prompt_value(chat_prompt_value):
         if tainted_ranges:
             return tainted_ranges[0].source
     return None
+
+
+def _get_text_attribute_for_generation(gen):
+    text_attr = None
+    if hasattr(gen, "_text"):
+        # langchain-core 0.3.60+ uses _text attribute (and text is a property)
+        # See https://github.com/langchain-ai/langchain/pull/31238
+        text_attr = "_text"
+    elif hasattr(gen, "text"):
+        # Previous version use just text attribute.
+        text_attr = "text"
+    else:
+        return None, None
+    text = getattr(gen, text_attr)
+    if not isinstance(text, str):
+        return None, None
+    return text_attr, text
 
 
 def _langchain_iast_taint_chunk(source, chunk):
