@@ -20,7 +20,6 @@ class IASTEnvironment:
         self.request_enabled: bool = False
         self.iast_reporter: Optional[Any] = None
         self.iast_span_metrics: Dict[str, int] = {}
-        self.iast_stack_trace_id: int = 0
         self.iast_stack_trace_reported: bool = False
 
 

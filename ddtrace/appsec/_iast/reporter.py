@@ -14,7 +14,6 @@ import zlib
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
-from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_id
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
@@ -66,7 +65,7 @@ class Evidence(NotNoneDictable):
 @dataclasses.dataclass(unsafe_hash=True)
 class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
-    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
+    stackId: Optional[int] = dataclasses.field(init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
     method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
@@ -74,12 +73,6 @@ class Location:
 
     def __post_init__(self):
         self.hash = zlib.crc32(repr(self).encode())
-        stacktrace_id = get_iast_stacktrace_id()
-        self.stackId = None
-        if stacktrace_id:
-            str_id = str(stacktrace_id)
-            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
-                self.stackId = str_id
 
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
@@ -97,7 +90,7 @@ class Location:
         if self.class_name:
             result["class"] = self.class_name
         if self.stackId:
-            result["stackId"] = self.stackId
+            result["stackId"] = str(self.stackId)
         return result
 
 
@@ -150,6 +143,7 @@ class IastSpanReporter(NotNoneDictable):
     Class representing an IAST span reporter.
     """
 
+    stacktrace_id: int = 0
     sources: List[Source] = dataclasses.field(default_factory=list)
     vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
 
@@ -161,6 +155,48 @@ class IastSpanReporter(NotNoneDictable):
         - int: Hash value.
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
+
+    def __post_init__(self):
+        """
+        Populates the stacktrace_id of provided vulnerabilities if any.
+        """
+        for vulnerability in self.vulnerabilities:
+            self._populate_stacktrace_id(vulnerability)
+
+    def _append_vulnerability(self, vulnerability: Vulnerability) -> None:
+        """
+        Appends a vulnerability to the IAST span reporter.
+
+        Args:
+        - vulnerability (Vulnerability): Vulnerability to append.
+        """
+        self._populate_stacktrace_id(vulnerability)
+        self.vulnerabilities.add(vulnerability)
+
+    def _populate_stacktrace_id(self, vulnerability: Vulnerability) -> None:
+        """
+        Populates the stacktrace_id of the IAST span reporter.
+        """
+        self.stacktrace_id += 1
+
+        str_id = str(self.stacktrace_id)
+        if not report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+            vulnerability.location.stackId = None
+        else:
+            vulnerability.location.stackId = self.stacktrace_id
+
+    def _merge_json(self, json_str: str) -> None:
+        """
+        Merges the current IAST span reporter with another IAST span reporter from a JSON string.
+
+        Args:
+        - json_str (str): JSON string.
+        """
+        other = IastSpanReporter()
+        other.stacktrace_id = self.stacktrace_id
+        other._from_json(json_str)
+        self._merge(other)
+        self.stacktrace_id = other.stacktrace_id
 
     def _merge(self, other: "IastSpanReporter") -> None:
         """
@@ -220,12 +256,14 @@ class IastSpanReporter(NotNoneDictable):
                 evidence.valueParts = i["evidence"]["valueParts"]
             if "dialect" in i["evidence"]:
                 evidence.dialect = i["evidence"]["dialect"]
-            self.vulnerabilities.add(
+            self._append_vulnerability(
                 Vulnerability(
                     type=i["type"],
                     evidence=evidence,
                     location=Location(
-                        spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
+                        spanId=i["location"]["spanId"],
+                        path=i["location"]["path"],
+                        line=i["location"]["line"],
                     ),
                 )
             )
