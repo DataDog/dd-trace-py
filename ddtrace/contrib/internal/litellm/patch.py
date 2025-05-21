@@ -54,6 +54,7 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
                 )
             span.finish()
 
+
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     is_completion = "text" in func.__name__
@@ -86,6 +87,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
                 )
             span.finish()
 
+
 @with_traced_module
 def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     operation = f"router.{func.__name__}"
@@ -115,6 +117,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
                 kwargs["router_instance"] = instance
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
+
 
 @with_traced_module
 async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):

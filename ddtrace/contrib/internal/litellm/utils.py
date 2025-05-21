@@ -22,7 +22,7 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
         n = kwargs.get("n", 1) or 1
         self._dd_integration = integration
         self._dd_spans = [span]
-        self._kwargs = [kwargs] # each span is associated with a different kwargs
+        self._kwargs = [kwargs]  # each span is associated with a different kwargs
         self._streamed_chunks = [[] for _ in range(n)]
 
     def add_router_span_info(self, span, kwargs, instance):
@@ -33,7 +33,7 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
         self._dd_spans.append(span)
         kwargs["router_instance"] = instance
         self._kwargs.append(kwargs)
-    
+
     def finish_spans(self):
         """Helper to finish all spans associated with this stream."""
         formatted_completions = None
@@ -47,6 +47,7 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
                     span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
                 )
             span.finish()
+
 
 class TracedLiteLLMStream(BaseTracedLiteLLMStream):
     def __enter__(self):

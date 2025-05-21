@@ -259,7 +259,7 @@ class TestLLMObsLiteLLM:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-    
+
     def test_router_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -278,7 +278,7 @@ class TestLLMObsLiteLLM:
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
-        
+
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
         assert router_event == _expected_llmobs_non_llm_span_event(
@@ -286,7 +286,12 @@ class TestLLMObsLiteLLM:
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_router_settings,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
@@ -308,7 +313,7 @@ class TestLLMObsLiteLLM:
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
-        
+
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
         assert router_event == _expected_llmobs_non_llm_span_event(
@@ -316,10 +321,15 @@ class TestLLMObsLiteLLM:
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_router_settings,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-    
+
     def test_router_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -338,7 +348,7 @@ class TestLLMObsLiteLLM:
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
-        
+
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
         assert router_event == _expected_llmobs_non_llm_span_event(
@@ -346,10 +356,15 @@ class TestLLMObsLiteLLM:
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_router_settings,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-    
+
     async def test_router_text_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -368,7 +383,7 @@ class TestLLMObsLiteLLM:
         trace = mock_tracer.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
-        
+
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
         assert router_event == _expected_llmobs_non_llm_span_event(
@@ -376,6 +391,11 @@ class TestLLMObsLiteLLM:
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
-            metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}, "router_settings": expected_router_settings},
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_router_settings,
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )

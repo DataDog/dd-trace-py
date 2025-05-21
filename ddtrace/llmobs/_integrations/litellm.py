@@ -106,9 +106,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 del model["litellm_params"]["api_key"]
         return model_list
 
-    def _update_input_output_value(
-        self, span: Span, span_kind: str = ""
-    ):
+    def _update_input_output_value(self, span: Span, span_kind: str = ""):
         if span_kind == "llm":
             return
         input_messages = span._get_ctx_item(INPUT_MESSAGES)

@@ -3,6 +3,7 @@ import pytest
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
 
+
 def test_global_tags(litellm, request_vcr, mock_tracer):
     """
     When the global config UST tags are set
@@ -122,7 +123,9 @@ def test_litellm_router_completion(litellm, snapshot_context, request_vcr, route
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_router_acompletion(litellm, snapshot_context, request_vcr, router, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await router.acompletion(
@@ -135,9 +138,12 @@ async def test_litellm_router_acompletion(litellm, snapshot_context, request_vcr
                 async for _ in resp:
                     pass
 
+
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_router_text_completion(litellm, snapshot_context, request_vcr, router, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             prompt = "What color is the sky?"
             resp = router.text_completion(
@@ -150,9 +156,12 @@ def test_litellm_router_text_completion(litellm, snapshot_context, request_vcr, 
                 for _ in resp:
                     pass
 
+
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_router_atext_completion(litellm, snapshot_context, request_vcr, router, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]):
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             prompt = "What color is the sky?"
             resp = await router.atext_completion(

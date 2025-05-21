@@ -298,7 +298,9 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     if isinstance(prompt, str):
         prompt = [prompt]
     parameters = {
-        k: v for k, v in kwargs.items() if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash", "router_instance")
+        k: v
+        for k, v in kwargs.items()
+        if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash", "router_instance")
     }
     output_messages = [{"content": ""}]
     if not span.error and completions:
@@ -324,7 +326,17 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     parameters = {
         k: v
         for k, v in kwargs.items()
-        if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash", "router_instance")
+        if k
+        not in (
+            "model",
+            "messages",
+            "tools",
+            "functions",
+            "api_key",
+            "user_api_key",
+            "user_api_key_hash",
+            "router_instance",
+        )
     }
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
