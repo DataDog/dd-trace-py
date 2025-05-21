@@ -24,25 +24,7 @@ def get_version() -> str:
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_completion(litellm, pin, func, instance, args, kwargs, False)
-
-
-@with_traced_module
-async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, False)
-
-
-@with_traced_module
-def traced_text_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_completion(litellm, pin, func, instance, args, kwargs, True)
-
-
-@with_traced_module
-async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, True)
-
-
-def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
+    is_completion = "text" in func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
@@ -72,8 +54,9 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
                 )
             span.finish()
 
-
-async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_completion):
+@with_traced_module
+async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
+    is_completion = "text" in func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
@@ -103,28 +86,9 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
                 )
             span.finish()
 
-
 @with_traced_module
 def traced_router_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.completion")
-
-
-@with_traced_module
-async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.acompletion")
-
-
-@with_traced_module
-def traced_router_text_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_router_completion(litellm, pin, func, instance, args, kwargs, "router.text_completion")
-
-
-@with_traced_module
-async def traced_router_atext_completion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, "router.atext_completion")
-
-
-def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operation):
+    operation = f"router.{func.__name__}"
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
@@ -152,8 +116,9 @@ def _traced_router_completion(litellm, pin, func, instance, args, kwargs, operat
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
-
-async def _traced_router_acompletion(litellm, pin, func, instance, args, kwargs, operation):
+@with_traced_module
+async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
+    operation = f"router.{func.__name__}"
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
@@ -204,14 +169,14 @@ def patch():
 
     wrap("litellm", "completion", traced_completion(litellm))
     wrap("litellm", "acompletion", traced_acompletion(litellm))
-    wrap("litellm", "text_completion", traced_text_completion(litellm))
-    wrap("litellm", "atext_completion", traced_atext_completion(litellm))
+    wrap("litellm", "text_completion", traced_completion(litellm))
+    wrap("litellm", "atext_completion", traced_acompletion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "router.Router.completion", traced_router_completion(litellm))
     wrap("litellm", "router.Router.acompletion", traced_router_acompletion(litellm))
-    wrap("litellm", "router.Router.text_completion", traced_router_text_completion(litellm))
-    wrap("litellm", "router.Router.atext_completion", traced_router_atext_completion(litellm))
+    wrap("litellm", "router.Router.text_completion", traced_router_completion(litellm))
+    wrap("litellm", "router.Router.atext_completion", traced_router_acompletion(litellm))
 
 
 def unpatch():
