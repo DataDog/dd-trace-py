@@ -45,6 +45,7 @@ tests-gen:
     - pip install riot==0.20.1
     - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
     - riot -v run --pass-env -s gitlab-gen-config -v
+    - exit 1
   needs: []
   artifacts:
     paths:
