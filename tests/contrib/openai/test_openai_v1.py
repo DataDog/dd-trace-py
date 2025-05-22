@@ -1464,3 +1464,85 @@ async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
             stream=True,
         )
         _ = [c async for c in resp]
+
+
+@pytest.mark.snapshot
+def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.chat.completions, "_post", return_value=None):
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=multi_message_input, top_p=0.9, n=2, user="ddtrace-test", stream=True
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_chat_completion_resp_returns")
+async def test_empty_streamed_chat_completion_resp_returns_async(openai, openai_vcr, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.chat.completions, "_post", return_value=None):
+        resp = await client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=multi_message_input, top_p=0.9, n=2, user="ddtrace-test", stream=True
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot
+def test_empty_streamed_completion_resp_returns(openai, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.completions, "_post", return_value=None):
+        resp = client.completions.create(
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
+            user="ddtrace-test",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_completion_resp_returns")
+async def test_empty_streamed_completion_resp_returns_async(openai, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.completions, "_post", return_value=None):
+        resp = await client.completions.create(
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
+            user="ddtrace-test",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot
+def test_empty_streamed_response_resp_returns(openai, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.responses, "_post", return_value=None):
+        resp = client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_response_resp_returns")
+async def test_empty_streamed_response_resp_returns_async(openai, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.responses, "_post", return_value=None):
+        resp = await client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        assert resp is None
