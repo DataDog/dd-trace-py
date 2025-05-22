@@ -1,9 +1,9 @@
-from typing import Any
 from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.internal import core
 
 
@@ -18,7 +18,7 @@ class IASTEnvironment:
         self.span = span or core.get_span()
 
         self.request_enabled: bool = False
-        self.iast_reporter: Optional[Any] = None
+        self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: Dict[str, int] = {}
         self.iast_stack_trace_reported: bool = False
 
