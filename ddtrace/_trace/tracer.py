@@ -8,13 +8,12 @@ from os import getpid
 import sys
 from threading import RLock
 from typing import TYPE_CHECKING
-from typing import Callable
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TypeVar
 from typing import Union
 
 from ddtrace._hooks import Hooks
@@ -839,6 +838,7 @@ class Tracer(object):
                 async def func_wrapper(*args, **kwargs):
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return await f(*args, **kwargs)
+
             else:
 
                 @functools.wraps(f)
