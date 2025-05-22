@@ -419,7 +419,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             input_messages.append({"content": content_text, "role": role})
     # Add instructions to as an input system messages
     if "instructions" in kwargs:
-        input_messages.append({"content": kwargs["instructions"], "role": "system"})
+        input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
     parameters = {
         k: v for k, v in kwargs.items() if k not in ("model", "input", "api_key", "user_api_key", "user_api_key_hash")
     }
@@ -431,7 +431,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     if isinstance(response, list):  # streamed response
         output_messages = []
         stored_tool_calls = []
-        
+
         for streamed_message in response:
             if isinstance(streamed_message, dict):
                 content = streamed_message.get("content", "")
@@ -527,13 +527,13 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             tool_id = _get_attr(output, "id", "")
             tool_name = _get_attr(output, "name", "")
             arguments = _get_attr(output, "arguments", "")
-            if arguments:
+            if _get_attr(output, "arguments", ""):
                 arguments = json.loads(arguments)
             # Set reasoning action as the parameter
-            elif action_raw:
+            elif _get_attr(output, "action", ""):
                 arguments = action
             # Set file search queries as the parameter
-            elif file_queries:
+            elif _get_attr(output, "queries", None):
                 arguments = file_queries
 
             tool_call = {

@@ -783,7 +783,7 @@ class TestLLMObsOpenaiV1:
     def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
-            import os   
+            import os
 
             api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
@@ -911,6 +911,34 @@ class TestLLMObsOpenaiV1:
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
                 error_stack=span.get_tag("error.stack"),
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    async def test_response_async(self, openai, mock_llmobs_writer, mock_tracer):
+        input_messages = multi_message_input
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
+            model = "gpt-4.1"
+            input_messages = multi_message_input
+            client = openai.AsyncOpenAI()
+            resp = await client.responses.create(
+                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+            )
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
+                metadata={"top_p": 0.9, "max_output_tokens": 100, "user": "ddtrace-test"},
+                token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
