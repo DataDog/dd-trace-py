@@ -1,7 +1,9 @@
 #pragma once
 
+#include <memory>
 #include <stddef.h>
 #include <stdint.h>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 
@@ -23,7 +25,6 @@ extern "C"
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
     void ddup_config_timeline(bool enable);
-    void ddup_config_output_filename(std::string_view filename);
     void ddup_config_sample_pool_capacity(uint64_t capacity);
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
@@ -34,8 +35,7 @@ extern "C"
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
     void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
-    // Explicitly make copy
-    bool ddup_upload(std::string output_filename);
+    bool ddup_upload(std::unique_ptr<std::string> output_filename);
 
     // Proxy functions to the underlying sample
     Datadog::Sample* ddup_start_sample();

@@ -39,7 +39,6 @@ class TestAsyncioLockCollector:
             env="test",
             service="test_asyncio",
             version="my_version",
-            output_filename=self.output_prefix,
         )
         ddup.start()
 
@@ -57,7 +56,7 @@ class TestAsyncioLockCollector:
             assert lock.locked()
             lock.release()  # !RELEASE! test_asyncio_lock_events
 
-        ddup.upload()
+        ddup.upload(output_filename=self.output_filename)
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
@@ -102,7 +101,7 @@ class TestAsyncioLockCollector:
             lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
             async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
-        ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer, output_filename=self.output_filename)
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")

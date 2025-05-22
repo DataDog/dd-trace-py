@@ -20,7 +20,7 @@ single_sample_noframe()
     h = nullptr;
 
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(nullptr);
 
     std::exit(0);
 }
@@ -44,7 +44,7 @@ single_oneframe_sample()
     h = nullptr;
 
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(nullptr);
 
     std::exit(0);
 }
@@ -76,7 +76,7 @@ single_manyframes_sample()
     h = nullptr;
 
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(nullptr);
 
     std::exit(0);
 }
@@ -108,7 +108,7 @@ single_toomanyframes_sample()
     h = nullptr;
 
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(nullptr);
 
     std::exit(0);
 }
@@ -152,7 +152,7 @@ lotsa_frames_lotsa_samples()
     }
 
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(nullptr);
 
     std::exit(0);
 }

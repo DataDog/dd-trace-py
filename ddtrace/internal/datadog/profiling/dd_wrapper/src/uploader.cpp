@@ -26,25 +26,27 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 }
 
 bool
-Datadog::Uploader::export_to_file(ddog_prof_Profile& profile, std::string_view output_filename)
+Datadog::Uploader::export_to_file(std::unique_ptr<std::string> output_filename, ddog_prof_Profile& profile)
 {
-    std::string errmsg;
+    if (!output_filename) {
+        std::cerr << "Error: output_filename is null" << std::endl;
+        return false;
+    }
 
+    // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
-    if (serialize_result.tag !=
-        DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = serialize_result.err;         // NOLINT (cppcoreguidelines-pro-type-union-access)
-        errmsg = err_to_msg(&err, "Error serializing pprof");
-        std::cerr << errmsg << std::endl;
+    if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
+        auto err = serialize_result.err;
+        std::cerr << "Error serializing pprof: " << err_to_msg(&err, "Error serializing pprof") << std::endl;
         ddog_Error_drop(&err);
         return false;
     }
-    ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    ddog_prof_EncodedProfile* encoded = &serialize_result.ok;
 
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
-    oss << output_filename << "." << getpid() << "." << upload_seq;
+    oss << *(output_filename.get()) << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {

@@ -12,13 +12,12 @@ def config(
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
     max_nframes: Optional[int],
     timeline_enabled: Optional[bool],
-    output_filename: Optional[str],
     sample_pool_capacity: Optional[int],
 ) -> None: ...
 def start() -> None: ...
-def upload(tracer: Optional[Tracer],
-           enable_code_provenance: Optional[bool]
-           output_filename: Optional[str]) -> None: ...
+def upload(
+    tracer: Optional[Tracer], enable_code_provenance: Optional[bool], output_filename: Optional[str]
+) -> None: ...
 
 class SampleHandle:
     def flush_sample(self) -> None: ...

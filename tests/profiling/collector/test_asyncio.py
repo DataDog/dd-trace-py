@@ -39,7 +39,6 @@ class TestAsyncioLockCollector:
             env="test",
             service="test_asyncio",
             version="my_version",
-            output_filename=self.output_prefix,
         )
         ddup.start()
 

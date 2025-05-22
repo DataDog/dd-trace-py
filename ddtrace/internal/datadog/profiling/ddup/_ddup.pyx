@@ -7,8 +7,11 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
+from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport make_unique
 from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
+from libcpp.utility cimport move
 from libcpp.utility cimport pair
 
 import ddtrace
@@ -48,7 +51,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
-    void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
 
     void ddup_config_user_tag(string_view key, string_view val)
@@ -58,7 +60,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    bint ddup_upload(string output_filename) nogil
+    bint ddup_upload(unique_ptr[string] output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -330,7 +332,6 @@ def config(
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
-        output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
@@ -342,8 +343,6 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
 
     # Inherited
     call_func_with_str(ddup_config_runtime, platform.python_implementation())
@@ -378,11 +377,24 @@ def _get_endpoint(tracer)-> str:
 
 
 def upload(tracer: Optional[Tracer] = ddtrace.tracer,
+           # Here, enable_code_provenance and output_filename can't be defaulted
+           # to ddtrace.settings.profiling.enable_code_provenance and
+           # ddtrace.settings.profiling.output_pprof because it leads to a
+           # circular import.
            enable_code_provenance: Optional[bool] = None,
            output_filename: Optional[str] = None) -> None:
     global _code_provenance_set
 
-    cdef string output_filename_str
+    # Previously, we used to configure output_filename similar to what we do
+    # for other strings as in ddup_config. And output_filename was stored as a
+    # static field in UploaderBuilder class. For uwsgi tests, this resulted in
+    # output_filename destructed before it was used which led to a crash. To
+    # avoid this, we explicitly create a unique_ptr[string] here to pass. The
+    # actual allocation happens with make_unique[string] below, and only happens
+    # if output_filenmae is not None and not empty.
+    # This is a workaround for testing mostly and doesn't solve the problem
+    # that uwsgi doesn't work well with our native components.
+    cdef unique_ptr[string] output_filename_cstr
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
@@ -399,11 +411,11 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
         call_code_provenance_set_json_str(json_str_to_export())
         _code_provenance_set = True
 
-    if output_filename:
-        output_filename_str = output_filename
+    if output_filename and len(output_filename) > 0:
+        output_filename_cstr = make_unique[string](output_filename)
 
     with nogil:
-        ddup_upload(output_filename_str)
+        ddup_upload(move(output_filename_cstr))
 
 
 cdef class SampleHandle:

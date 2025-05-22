@@ -9,7 +9,7 @@
 void*
 upload_in_thread(void*)
 {
-    ddup_upload();
+    ddup_upload(nullptr);
 
     return nullptr;
 }
@@ -28,7 +28,7 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
     join_samplers(new_threads, done);
-    ddup_upload();
+    ddup_upload(nullptr);
     std::exit(0);
 }
 
@@ -112,7 +112,7 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     int status;
     done.store(true);
     waitpid(pid, &status, 0);
-    ddup_upload();
+    ddup_upload(nullptr);
     join_pthread_samplers(thread_handles, done);
     if (!is_exit_normal(status)) {
         std::exit(1);

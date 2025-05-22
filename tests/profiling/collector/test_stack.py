@@ -90,14 +90,14 @@ def test_collect_once(tmp_path):
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     s = stack.StackCollector()
     s._init()
     all_events = s.collect()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
     # assert len(all_events) == 0
     assert len(all_events) == 2
 
@@ -145,13 +145,13 @@ def test_collect_once_with_class(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector():
         SomeClass.sleep_class()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -199,13 +199,13 @@ def test_collect_once_with_class_not_right_type(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector():
         SomeClass.sleep_class(123)
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -268,7 +268,7 @@ def test_collect_gevent_thread_task():
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     # Start some (green)threads
@@ -288,7 +288,7 @@ def test_collect_gevent_thread_task():
         for t in threads:
             t.join()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     expected_task_ids = {thread.ident for thread in threads}
 
@@ -334,7 +334,7 @@ def test_ignore_profiler(tmp_path, ignore_profiler):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     s = stack.StackCollector(ignore_profiler=ignore_profiler)
@@ -345,7 +345,7 @@ def test_ignore_profiler(tmp_path, ignore_profiler):
             time.sleep(0.1)
         collector_worker_thread_id = s._worker.ident
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
@@ -388,7 +388,7 @@ def test_ignore_profiler_gevent_task():
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     s = stack.StackCollector()
@@ -399,7 +399,7 @@ def test_ignore_profiler_gevent_task():
             time.sleep(0.1)
         collector_worker_thread_id = s._worker.ident
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
@@ -469,7 +469,7 @@ def test_stress_threads(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector() as s:
@@ -499,7 +499,7 @@ def test_stress_threads(tmp_path):
         for t in threads:
             t.join()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
@@ -512,7 +512,7 @@ def test_stress_threads_run_as_thread(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     quit_thread = threading.Event()
@@ -535,7 +535,7 @@ def test_stress_threads_run_as_thread(tmp_path):
         for t in threads:
             t.join()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
@@ -549,7 +549,7 @@ def test_exception_collection_threads(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     tids = []
@@ -565,7 +565,7 @@ def test_exception_collection_threads(tmp_path):
         for t in threads:
             t.join()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
@@ -588,7 +588,7 @@ def test_exception_collection(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector():
@@ -597,7 +597,7 @@ def test_exception_collection(tmp_path):
         except Exception:
             time.sleep(1)
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
@@ -627,7 +627,7 @@ def test_exception_collection_trace(tmp_path, tracer):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector(tracer=tracer):
@@ -636,7 +636,7 @@ def test_exception_collection_trace(tmp_path, tracer):
                 raise ValueError("hello")
             except Exception:
                 time.sleep(1)
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
@@ -666,7 +666,7 @@ def tracer_and_collector(tracer, request, tmp_path):
     pprof_prefix = str(tmp_path / test_name)
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     c = stack.StackCollector(tracer=tracer)
@@ -675,7 +675,7 @@ def tracer_and_collector(tracer, request, tmp_path):
         yield tracer, c
     finally:
         c.stop()
-        ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer, output_filename=pprof_prefix)
 
 
 def test_thread_to_span_thread_isolation(tracer_and_collector):
@@ -753,7 +753,7 @@ def test_collect_span_id(tracer, tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -766,7 +766,7 @@ def test_collect_span_id(tracer, tmp_path):
             span_id = span.span_id
             local_root_span_id = span._local_root.span_id
 
-    ddup.upload(tracer=tracer)
+    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "trace endpoint")
@@ -795,7 +795,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -805,7 +805,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
         span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
         for _ in range(10):
             time.sleep(0.1)
-    ddup.upload(tracer=tracer, output_filename=output_filename)
+    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
     span.finish()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -836,7 +836,7 @@ def test_resource_not_collected(tmp_path, tracer):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     with stack.StackCollector(endpoint_collection_enabled=False, tracer=tracer):
@@ -845,7 +845,7 @@ def test_resource_not_collected(tmp_path, tracer):
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
             for _ in range(10):
                 time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     pprof_utils.assert_profile_has_sample(
@@ -872,7 +872,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="my_version")
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -883,7 +883,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
             with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as child_span:
                 for _ in range(10):
                     time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
@@ -1006,7 +1006,7 @@ def test_collect_gevent_threads():
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service="test_collect_gevent_threads", version="my_version", output_filename=pprof_prefix)
+    ddup.config(env="test", service="test_collect_gevent_threads", version="my_version")
     ddup.start()
 
     with stack.StackCollector(max_time_usage_pct=100):
@@ -1020,7 +1020,7 @@ def test_collect_gevent_threads():
         for t in threads:
             t.join()
 
-    ddup.upload()
+    ddup.upload(output_filename=pprof_prefix)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
