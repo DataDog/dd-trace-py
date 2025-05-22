@@ -60,38 +60,53 @@ def total_time(time_data, funcname):
     return sum(functime[funcname] for functime in time_data.values())
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_MAX_TIME_USAGE_PCT="100"))
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_MAX_TIME_USAGE_PCT="100",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy.pprof",
+        DD_PROFILING_EXPORT_LIBDD_ENABLED="1",
+    )
+)
 def test_accuracy():
     import collections
+    import os
 
     from ddtrace.profiling import profiler
-    from ddtrace.profiling.collector import stack_event
+    from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import spend_16
-    from tests.profiling.test_accuracy import total_time
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
     p = profiler.Profiler()
-    # don't export data
-    p._profiler._scheduler = None
     p.start()
     spend_16()
     p.stop()
-    # First index is the stack position, second is the function name
-    time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    cpu_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    for event in p._profiler._recorder.events[stack_event.StackSampleEvent]:
-        for idx, frame in enumerate(reversed(event.frames)):
-            time_spent_ns[idx][frame[2]] += event.wall_time_ns
-            cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns
+    wall_times = collections.defaultdict(lambda: 0)
+    cpu_times = collections.defaultdict(lambda: 0)
+    profile = pprof_utils.parse_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
 
-    assert_almost_equal(total_time(time_spent_ns, "spend_3"), 9e9)
-    assert_almost_equal(total_time(time_spent_ns, "spend_1"), 2e9)
-    assert_almost_equal(total_time(time_spent_ns, "spend_4"), 4e9)
-    assert_almost_equal(total_time(time_spent_ns, "spend_16"), 16e9)
-    assert_almost_equal(total_time(time_spent_ns, "spend_7"), 7e9)
+    for sample in profile.sample:
+        wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")
 
-    assert_almost_equal(total_time(time_spent_ns, "spend_cpu_2"), 2e9)
-    assert_almost_equal(total_time(time_spent_ns, "spend_cpu_3"), 3e9)
-    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_2"), 2e9)
-    assert_almost_equal(total_time(cpu_spent_ns, "spend_cpu_3"), 3e9)
+        wall_time_spent_ns = sample.value[wall_time_index]
+        cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+        cpu_time_spent_ns = sample.value[cpu_time_index]
+
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_name = profile.string_table[function.name]
+            wall_times[function_name] += wall_time_spent_ns
+            cpu_times[function_name] += cpu_time_spent_ns
+
+    assert_almost_equal(wall_times["spend_3"], 9e9)
+    assert_almost_equal(wall_times["spend_1"], 2e9)
+    assert_almost_equal(wall_times["spend_4"], 4e9)
+    assert_almost_equal(wall_times["spend_16"], 16e9)
+    assert_almost_equal(wall_times["spend_7"], 7e9)
+
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9, tolerance=0.07)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9, tolerance=0.07)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=0.07)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=0.07)
