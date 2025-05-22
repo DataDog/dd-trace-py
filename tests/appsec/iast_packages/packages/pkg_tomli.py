@@ -3,6 +3,7 @@ tomli==2.0.1
 
 https://pypi.org/project/tomli/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -38,7 +39,7 @@ def pkg_tomli_view():
 def pkg_tomli_propagation_view():
     import tomli
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):
