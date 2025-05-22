@@ -18,7 +18,7 @@ generic_launch_sleep_upload(int n, unsigned int sleep_time_ns)
     launch_samplers(ids, sleep_time_ns, threads, done);
     std::this_thread::sleep_for(std::chrono::seconds(1));
     join_samplers(threads, done);
-    ddup_upload(); // upload will fail right away, no need to wait
+    ddup_upload(std::string()); // upload will fail right away, no need to wait
 }
 
 void
