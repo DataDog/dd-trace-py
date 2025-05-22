@@ -377,6 +377,10 @@ def _get_endpoint(tracer)-> str:
 
 
 def upload(tracer: Optional[Tracer] = ddtrace.tracer,
+           # Here, enable_code_provenance and output_filename can't be defaulted
+           # to ddtrace.settings.profiling.enable_code_provenance and
+           # ddtrace.settings.profiling.output_pprof because it leads to a
+           # circular import.
            enable_code_provenance: Optional[bool] = None,
            output_filename: Optional[str] = None) -> None:
     global _code_provenance_set
