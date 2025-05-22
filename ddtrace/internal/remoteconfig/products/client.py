@@ -1,6 +1,6 @@
 from ddtrace import config
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.internal.remoteconfig.client import config as rc_config
+from ddtrace.settings._agent import config as agent_config
 
 
 # TODO: Modularize better into their own respective components

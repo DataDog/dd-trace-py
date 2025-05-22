@@ -12,6 +12,7 @@ log = get_logger(__name__)
 
 
 def _tracerFlarePubSub():
+    log.warning("JJJ in _tracerFlarePubSub")
     from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
@@ -30,6 +31,7 @@ def _tracerFlarePubSub():
 
 
 def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
+    log.warning("JJJ in _handle_tracer_flare")
     if cleanup:
         log.info("Reverting tracer flare configurations and cleaning up any generated files")
         flare.revert_configs()
@@ -58,6 +60,7 @@ def _prepare_tracer_flare(flare: Flare, config: PayloadType) -> bool:
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
     """
+    log.warning("JJJ in _prepare_tracer_flare")
     # AGENT_CONFIG is currently being used for multiple purposes
     # We only want to prepare for a tracer flare if the config name
     # starts with 'flare-log-level'
@@ -82,6 +85,7 @@ def _generate_tracer_flare(flare: Flare, config: PayloadType) -> bool:
     Revert tracer flare configurations back to original state
     before sending the flare.
     """
+    log.warning("JJJ in _generate_tracer_flare")
     # AGENT_TASK is currently being used for multiple purposes
     # We only want to generate the tracer flare if the task_type is
     # 'tracer_flare'
