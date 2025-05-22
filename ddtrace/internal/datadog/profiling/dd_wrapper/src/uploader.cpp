@@ -28,19 +28,15 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 bool
 Datadog::Uploader::export_to_file(std::string&& output_filename, ddog_prof_Profile& profile)
 {
-    std::cout << "Exporting profile to file: " << output_filename << std::endl;
     // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
     if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-        std::cout << "Error serializing pprof" << std::endl;
         auto err = serialize_result.err;
         std::cerr << "Error serializing pprof: " << err_to_msg(&err, "Error serializing pprof") << std::endl;
         ddog_Error_drop(&err);
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok;
-
-    std::cout << "Serialized profile" << std::endl;
 
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
@@ -49,13 +45,11 @@ Datadog::Uploader::export_to_file(std::string&& output_filename, ddog_prof_Profi
     std::string filename = oss.str();
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
-        std::cout << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         std::cerr << "Error opening output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
     auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
     if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
-        std::cout << "Error getting bytes from encoded profile" << std::endl;
         std::cerr << "Error getting bytes from encoded profile: "
                   << err_to_msg(&bytes_res.err, "Error getting bytes from encoded profile") << std::endl;
         ddog_Error_drop(&bytes_res.err);
@@ -63,11 +57,9 @@ Datadog::Uploader::export_to_file(std::string&& output_filename, ddog_prof_Profi
     }
     out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
     if (out.fail()) {
-        std::cout << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
         std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
-    std::cout << "Successfully wrote profile to file " << filename << std::endl;
     return true;
 }
 
