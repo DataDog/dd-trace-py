@@ -3,6 +3,7 @@ pyparsing==3.1.2
 
 https://pypi.org/project/pyparsing/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request
@@ -47,7 +48,7 @@ def pkg_pyparsing_view():
 def pkg_pyparsing_propagation_view():
     import pyparsing as pp
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 
