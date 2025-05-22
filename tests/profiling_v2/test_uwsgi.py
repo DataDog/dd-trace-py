@@ -80,7 +80,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
+def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (
@@ -111,7 +111,7 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
@@ -127,7 +127,7 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
 
 
 @pytest.mark.skip(reason="Worker process either crashes or hangs")
-def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
@@ -148,7 +148,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
 
 
 @pytest.mark.skip(reason="Worker process either crashes or hangs")
-def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
