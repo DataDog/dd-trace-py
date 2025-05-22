@@ -2,8 +2,13 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ddtrace._trace.context import Context
 
 
 class ArgumentError(Exception):
@@ -72,14 +77,10 @@ def set_argument_value(
     return args, kwargs
 
 
-def _get_metas_to_propagate(context):
-    # type: (Any) -> List[Tuple[str, str]]
-    metas_to_propagate = []
-    # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
-    for k, v in list(context._meta.items()):
-        if isinstance(k, str) and k.startswith("_dd.p."):
-            metas_to_propagate.append((k, v))
-    return metas_to_propagate
+def _get_metas_to_propagate(context: "Context", skip: Optional[Set[str]] = None) -> Dict[str, str]:
+    # type: (Any) -> Dict[str, str]
+    _skip: Set[str] = skip or set()
+    return {k: v for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.") and k not in _skip}
 
 
 def get_blocked() -> Optional[Dict[str, Any]]:

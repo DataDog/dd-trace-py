@@ -153,6 +153,7 @@ class Span(object):
         on_finish: Optional[List[Callable[["Span"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
         links: Optional[List[SpanLink]] = None,
+        _meta: Optional[_MetaDictType] = None,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -193,7 +194,7 @@ class Span(object):
         self.span_type = span_type
         self._span_api = span_api
 
-        self._meta: _MetaDictType = {}
+        self._meta: _MetaDictType = {} if _meta is None else _meta
         self.error = 0
         self._metrics: _MetricDictType = {}
 

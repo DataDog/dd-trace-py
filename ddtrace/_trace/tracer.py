@@ -32,13 +32,13 @@ from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
 from ddtrace.internal import compat
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
-from ddtrace.internal.core import dispatch
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -49,6 +49,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
@@ -56,6 +57,7 @@ from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
+from ddtrace.vendor.debtcollector import removals
 from ddtrace.version import get_version
 
 
@@ -215,7 +217,6 @@ class Tracer(object):
             self.data_streams_processor = DataStreamsProcessor()
             register_on_exit_signal(self._atexit)
 
-        self._hooks = Hooks()
         forksafe.register_before_fork(self._sample_before_fork)
 
         # Non-global tracers require that we still register these hooks, until
@@ -261,6 +262,7 @@ class Tracer(object):
         )
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
+    @removals.remove(removal_version="4.0.0", category=DDTraceDeprecationWarning)
     def on_start_span(self, func: Callable) -> Callable:
         """Register a function to execute when a span start.
 
@@ -269,9 +271,10 @@ class Tracer(object):
         :param func: The function to call when starting a span.
                      The started span will be passed as argument.
         """
-        self._hooks.register(self.__class__.start_span, func)
+        core.on("tracer.start_span", func)
         return func
 
+    @removals.remove(removal_version="4.0.0", category=DDTraceDeprecationWarning)
     def deregister_on_start_span(self, func: Callable) -> Callable:
         """Unregister a function registered to execute when a span starts.
 
@@ -279,8 +282,7 @@ class Tracer(object):
 
         :param func: The function to stop calling when starting a span.
         """
-
-        self._hooks.deregister(self.__class__.start_span, func)
+        core.reset("tracer.start_span", func)
         return func
 
     def sample(self, span):
@@ -567,6 +569,15 @@ class Tracer(object):
 
         links = context._span_links if not parent else []
         if trace_id or links or context._baggage:
+            if parent is None:
+                # We do not want to propagate AppSec propagation headers
+                # to children spans, only across distributed spans
+                _meta = _get_metas_to_propagate(
+                    context, skip=(SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER)
+                )
+            else:
+                _meta = {}
+
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
                 name=name,
@@ -579,18 +590,13 @@ class Tracer(object):
                 span_api=span_api,
                 links=links,
                 on_finish=[self._on_span_finish],
+                _meta=_meta,
             )
 
             # Extra attributes when from a local parent
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
-
-            for k, v in _get_metas_to_propagate(context):
-                # We do not want to propagate AppSec propagation headers
-                # to children spans, only across distributed spans
-                if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
         else:
             # this is the root span of a new trace
             span = Span(
@@ -638,8 +644,7 @@ class Tracer(object):
             ):
                 if p:
                     p.on_span_start(span)
-        self._hooks.emit(self.__class__.start_span, span)
-        dispatch("trace.span_start", (span,))
+        core.dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -659,7 +664,7 @@ class Tracer(object):
                 if p:
                     p.on_span_finish(span)
 
-        dispatch("trace.span_finish", (span,))
+        core.dispatch("trace.span_finish", (span,))
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)

@@ -5,9 +5,9 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 
@@ -30,16 +30,13 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
-    def __init__(self) -> None:
-        self._hooks = Hooks()
-
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
 
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        self._hooks.emit(self.activate, ctx)
+        core.dispatch("context_provider.activate", ctx)
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:
@@ -55,7 +52,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
         :param func: The function to call when a span is activated.
                      The activated span will be passed as argument.
         """
-        self._hooks.register(self.activate, func)
+        core.on("context_provider.activate", func)
         return func
 
     def _deregister_on_activate(
@@ -67,8 +64,7 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
 
         :param func: The function to stop calling when a span is activated.
         """
-
-        self._hooks.deregister(self.activate, func)
+        core.reset("context_provider.activate", func)
         return func
 
     def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]:
