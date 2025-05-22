@@ -84,7 +84,6 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
-from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
 
