@@ -128,6 +128,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_packages",
+            # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
+            pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
+            command="pytest {cmdargs} tests/appsec/iast_packages/",
+            pkgs={
+                "requests": latest,
+                "astunparse": latest,
+                "flask": latest,
+                "virtualenv-clone": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -957,7 +974,7 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=4.0",
+                        "pytest": "~=6.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "~=3.0",
                         "Jinja2": "~=2.10.0",
@@ -1085,6 +1102,24 @@ venv = Venv(
                     ],
                 ),
             ],
+        ),
+        Venv(
+            name="appsec_iast_memcheck",
+            command="pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "pytest-memray": latest,
+                "psycopg2-binary": "~=2.9.9",
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="pymemcache",
@@ -1458,6 +1493,7 @@ venv = Venv(
             command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",

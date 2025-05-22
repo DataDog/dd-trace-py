@@ -52,7 +52,8 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/iast_memcheck/*
     retry: 2
-    runner: hatch
+    runner: riot
+    timeout: 30m
   appsec_iast_native:
     parallelism: 6
     paths:
@@ -70,6 +71,12 @@ suites:
       - '@appsec_iast'
       - tests/appsec/iast_aggregated_memcheck/*
     runner: hatch
+    timeout: 50m
+  appsec_iast_packages:
+    paths:
+      - '@appsec_iast'
+      - tests/appsec/iast_packages/*
+    runner: riot
     timeout: 50m
   iast_tdd_propagation:
     parallelism: 5
@@ -117,6 +124,19 @@ suites:
     services:
       - postgres
       - mysql
+  appsec_integrations_langchain:
+    parallelism: 15
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@remoteconfig'
+      - tests/appsec/iast/*
+      - tests/appsec/integrations/langchain_tests/*
+    retry: 2
+    runner: hatch
   appsec_integrations_flask:
     parallelism: 17
     paths:

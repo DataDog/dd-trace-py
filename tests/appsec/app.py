@@ -209,6 +209,23 @@ def view_cmdi_secure():
     return Response("OK")
 
 
+@app.route("/iast-header-injection-vulnerability", methods=["GET"])
+def iast_header_injection_vulnerability():
+    header = request.args.get("header")
+    resp = Response("OK")
+    resp.headers["Header-Injection"] = header
+    return resp
+
+
+@app.route("/iast-code-injection", methods=["GET"])
+def iast_code_injection_vulnerability():
+    filename = request.args.get("filename")
+    a = ""  # noqa: F841
+    c = eval("a + '" + filename + "'")
+    resp = Response(f"OK:{tracer._span_aggregator.writer._api_version}:{c}")
+    return resp
+
+
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
     tracer._span_aggregator.writer.flush_queue()
