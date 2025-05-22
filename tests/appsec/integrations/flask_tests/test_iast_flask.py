@@ -346,18 +346,18 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             header_ranges = get_tainted_ranges(request.headers["User-Agent"])
             assert header_ranges
             assert header_ranges[0].source.name.lower() == "user-agent"
-            assert header_ranges[0].source.origin == OriginType.HEADER
+            assert header_ranges[0].has_origin(OriginType.HEADER)
 
             if flask_version > (2, 0):
                 query_string_ranges = get_tainted_ranges(request.query_string)
                 assert query_string_ranges
                 assert query_string_ranges[0].source.name == "http.request.query"
-                assert query_string_ranges[0].source.origin == OriginType.QUERY
+                assert query_string_ranges[0].has_origin(OriginType.QUERY)
 
                 request_path_ranges = get_tainted_ranges(request.path)
                 assert request_path_ranges
                 assert request_path_ranges[0].source.name == "http.request.path"
-                assert request_path_ranges[0].source.origin == OriginType.PATH
+                assert request_path_ranges[0].has_origin(OriginType.PATH)
 
             _ = get_tainted_ranges(param_str)
             assert not is_pyobject_tainted(param_int)
