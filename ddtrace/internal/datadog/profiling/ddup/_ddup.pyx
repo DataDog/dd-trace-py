@@ -1,5 +1,5 @@
 # distutils: language = c++
-# cython: language_level=3
+# cython: language_level=3, c_string_type=unicode, c_string_encoding=utf8
 
 import platform
 from typing import Dict
@@ -7,6 +7,7 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
+from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
@@ -57,7 +58,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    bint ddup_upload() nogil
+    bint ddup_upload(string output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -376,8 +377,12 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer,
+           enable_code_provenance: Optional[bool] = None,
+           output_filename: Optional[str] = None) -> None:
     global _code_provenance_set
+
+    cdef string output_filename_str
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
@@ -394,8 +399,11 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
         call_code_provenance_set_json_str(json_str_to_export())
         _code_provenance_set = True
 
+    if output_filename:
+        output_filename_str = output_filename
+
     with nogil:
-        ddup_upload()
+        ddup_upload(output_filename_str)
 
 
 cdef class SampleHandle:

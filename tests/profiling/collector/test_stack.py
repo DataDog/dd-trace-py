@@ -805,7 +805,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
         span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
         for _ in range(10):
             time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+    ddup.upload(tracer=tracer, output_filename=output_filename)
     span.finish()
 
     profile = pprof_utils.parse_profile(output_filename)

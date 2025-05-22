@@ -326,8 +326,9 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 }
 
 bool
-ddup_upload() // cppcheck-suppress unusedFunction
+ddup_upload(std::string output_filename) // cppcheck-suppress unusedFunction
 {
+    std::cout << "in ddup_upload() " << getpid() << std::endl;
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
         if (!already_warned) {
@@ -337,27 +338,35 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
-    auto uploader_or_err = Datadog::UploaderBuilder::build();
+    if (output_filename.empty()) {
+        auto uploader_or_err = Datadog::UploaderBuilder::build();
 
-    if (std::holds_alternative<std::string>(uploader_or_err)) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+        if (std::holds_alternative<std::string>(uploader_or_err)) {
+            std::cout << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+            }
+            return false;
         }
-        return false;
-    }
 
-    // Get the reference to the uploader
-    auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
-    // There are a few things going on here.
-    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
-    //  be modified.  It gets released and cleared after uploading.
-    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-    //   we have for now.
-    uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
-    Datadog::Sample::profile_clear_state();
-    return true;
+        // Get the reference to the uploader
+        auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
+        // There are a few things going on here.
+        // * profile_borrow() takes a reference in a way that locks the areas where the profile might
+        //  be modified.  It gets released and cleared after uploading.
+        // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+        //   we have for now.
+        uploader.upload(Datadog::Sample::profile_borrow());
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
+        return true;
+    } else {
+        Datadog::Uploader::export_to_file(Datadog::Sample::profile_borrow(), output_filename);
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
+        return true;
+    }
 }
 
 void
