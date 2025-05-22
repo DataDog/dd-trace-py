@@ -1274,7 +1274,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
-    def test_flask_header_injection_exclusions_location(self):
+    def test_flask_header_injection_exclusions_transfer_encoding(self):
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
@@ -1283,7 +1283,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
-            resp.headers["Location"] = tainted_string
+            resp.headers["Transfer-Encoding"] = tainted_string
             return resp
 
         with override_global_config(
