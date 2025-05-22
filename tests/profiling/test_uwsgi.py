@@ -30,8 +30,6 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 def uwsgi(monkeypatch):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "0")
-    monkeypatch.setenv("DD_PROFILING_EXPORT_LIBDD_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = tempfile.mktemp()
     cmd = ["uwsgi", "--need-app", "--die-on-term", "--socket", socket_name, "--wsgi-file", uwsgi_app]
@@ -67,8 +65,6 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     # Give some time to the process to actually startup
     time.sleep(3)
     proc.terminate()
-    for line in proc.stdout.readlines():
-        print(line)
     assert proc.wait() == 30
     for pid in worker_pids:
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
