@@ -87,7 +87,7 @@ class Profiler(object):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
         # Do not flush data as we don't want to have multiple copies of the parent profile exported.
         try:
-            self._profiler.stop(flush=False)
+            self._profiler.stop(flush=False, join=False)
         except service.ServiceStatusError:
             # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
             pass
