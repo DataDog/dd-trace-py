@@ -46,9 +46,9 @@ config._add(
     },
 )
 
-def _instrumented_versions() -> Dict[str, Collection[str]]:
+def _supported_versions() -> Dict[str, Collection[str]]:
     return {
-        "aiobotocore": (">= 0.0.0", "< 1.0.0")
+        "aiobotocore": ">=0.0.0,<1.0.0"
     }
 
 
