@@ -401,22 +401,30 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
     input_messages = []
+    
     if isinstance(input_data, str):
         input_messages.append({"content": input_data, "role": "user"})
     elif isinstance(input_data, list):
         for m in input_data:
-            role = m.get("role", "user") if isinstance(m, dict) else "user"
-            content = m.get("content", "") if isinstance(m, dict) else str(m)
-            content_text = ""
+            role = m.get("role", "user")
+            content = m.get("content", "")
             if isinstance(content, list):
+                content_text = ""
                 for content_item in content:
-                    if isinstance(content_item, dict):
+                    if isinstance(content_item, dict) and "text" in content_item:
                         content_text += content_item.get("text", "")
+                    elif isinstance(content_item, str):
+                        content_text += content_item
                     else:
-                        content_text += str(content_item)
+                        content_text += "[Unsupported content item type of {}]".format(type(content_item))
+            elif isinstance(content, str):
+                content_text = content
             else:
-                content_text = str(content)
+                content_text = "[Unsupported content type of {}]".format(type(content))
             input_messages.append({"content": content_text, "role": role})
+    else:
+        input_messages.append({"content": "[Unsupported content type of {}]".format(type(input_data))})
+
     # Add instructions to as an input system messages
     if "instructions" in kwargs:
         input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
@@ -428,61 +436,15 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
-    if isinstance(response, list):  # streamed response
-        output_messages = []
-        stored_tool_calls = []
-
-        for streamed_message in response:
-            if isinstance(streamed_message, dict):
-                content = streamed_message.get("content", "")
-                role = streamed_message.get("role", "assistant")
-                tools = streamed_message.get("tool_calls", [])
-                summary = streamed_message.get("summary", "")
-                # Handle tools from the message
-                if tools:
-                    for tool in tools:
-                        tool_call_info = {
-                            "name": tool.get("name", ""),
-                            "type": tool.get("type", ""),
-                            "tool_id": tool.get("tool_id", ""),
-                        }
-                        if "arguments" in tool:
-                            tool_call_info["arguments"] = tool["arguments"]
-                        stored_tool_calls.append(tool_call_info)
-                        output_messages.append(({"tool_calls": stored_tool_calls}))
-
-                if content:
-                    output_messages.append({"content": content, "role": role})
-                if summary:
-                    output_messages.append({"content": summary, "role": "reasoning"})
-            streamed_message_type = streamed_message.get("type", "")
-            print("Found message with type:", streamed_message_type)
-            if streamed_message_type == "response.completed":
-                print("Processing completed response")
-                # Handle tools from the completed response
-                if hasattr(streamed_message, "response") and hasattr(streamed_message.response, "tools"):
-                    print("Found tools in response:", streamed_message.response.tools)
-                    for tool in streamed_message.response.tools:
-                        tool_call_info = {
-                            "name": getattr(tool, "name", ""),
-                            "type": getattr(tool, "type", "function"),
-                        }
-                        if hasattr(tool, "parameters"):
-                            tool_call_info["arguments"] = getattr(tool, "parameters", {})
-                        stored_tool_calls.append(tool_call_info)
-                    print("stored_tool_calls is: ", stored_tool_calls)
-            elif streamed_message_type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
-                print("Processing tool call chunk")
-                openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=streamed_message)
-                print("elif statement, stored_tool_calls is: ", stored_tool_calls)
-                if stored_tool_calls:
-                    output_messages.append({"tool_calls": stored_tool_calls})
-                    stored_tool_calls = []  # Reset for next tool call
-        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-        print("Final streamed output_messages is: ", output_messages)
-        return
-
-    # Non-streaming response
+    # For streamed responses
+    if kwargs.get("stream"):
+        # To discuss: should I remove usage from streamed output message?
+        for item in response:
+            if "usage" in item:
+                item.pop("usage")
+        span._set_ctx_item(OUTPUT_MESSAGES, response)
+    # For non-streamed responses
+    # else:
     output_data = _get_attr(response, "output", [])
     output_messages = []
     for output in output_data:
@@ -560,10 +522,9 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
                 ),
             )
             if tool_call_info:
-                output_messages.append({"tool_calls": tool_call_info})
+                output_messages.append({"content": "", "tool_calls": tool_call_info})
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
-    print("Final non-streamed output_messages is: ", output_messages)
-    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
 def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
@@ -571,21 +532,24 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
     The resulting response dictionary is of form:
     {"output": [{"role": "...", "content": [{"text": "..."}]}]}
     """
-    message: Dict[str, Any] = {"content": "", "summary": "", "tool_calls": []}
-    print("Processing chunks:", streamed_chunks)
+    message: Dict[str, Any] = {"content": "", "tool_calls": []}
 
     for chunk in streamed_chunks:
         if not isinstance(chunk, tuple) or len(chunk) != 2:
             continue
 
         chunk_type, chunk_value = chunk
-        print(f"Processing chunk type: {chunk_type}, value: {chunk_value}")
+        # print(f"Processing chunk type: {chunk_type}, value: {chunk_value}")
         if chunk_type == "usage":
+            """
+            TODO: currently chunk_value is a ResponseUsage object.
+            We want to convert it to a dict that looks like 
+            {"input_tokens": ..., "output_tokens": ..., "total_tokens": ...}
+            """
             message["usage"] = chunk_value
 
         if chunk_type == "output" and isinstance(chunk_value, list):
             for output in chunk_value:
-                print(f"Processing output: {output}")
                 if hasattr(output, "content"):
                     # content is a list of ResponseOutputText objects
                     for content in output.content:
@@ -596,11 +560,10 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                 if hasattr(output, "summary"):
                     for summary in output.summary:
                         # summary_text = summary.text
-                        message["summary"] += summary.text
-                        # message["role"] = "reasoning"
+                        message["content"] += summary.text
+                        message["role"] = "reasoning"
 
                 elif hasattr(output, "type"):
-                    print(f"Found output with type: {output.type}")
                     if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
                         tool_name = output.name if hasattr(output, "name") else ""
                         tool_type = output.type if hasattr(output, "type") else ""
@@ -630,11 +593,10 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                             tool_call["arguments"] = json.loads(tool_query)
                         if tool_action:
                             tool_call["arguments"] = tool_action
-                        message["tool_calls"].append(tool_call)
-                        print(f"Added file search tool call: {tool_call}")
+                        message["tool_calls"] = [tool_call]
+
 
     message["content"] = message["content"].strip()
-    print("Final message is: ", message)
     return message
 
 

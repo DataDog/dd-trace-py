@@ -3,7 +3,6 @@ import os
 import openai
 import vcr
 
-
 mock_openai_completions_response = openai.types.Completion(
     id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
     choices=[
@@ -131,15 +130,15 @@ response_tool_function = [
 ]
 response_tool_function_expected_output = [
     {
+        "content": "",
         "tool_calls": [
             {
                 "name": "get_current_weather",
-                "tool_id": "fc_682cef7fdb2c81919f76b30a04c1e5610aad6a52bb8cde1d",
                 "type": "function_call",
+                "tool_id": "fc_682f80f647c48191b7fbc7f71049db4a03d0b2fd90d3afa9",
                 "arguments": {"location": "Boston, MA", "unit": "celsius"},
             }
         ],
-        "role": "",
     }
 ]
 

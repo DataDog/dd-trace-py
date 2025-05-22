@@ -40,39 +40,48 @@ interactions:
     uri: https://api.openai.com/v1/responses
   response:
     body:
-      string: !!binary |
-        H4sIAAAAAAAAA5RVTY/bNhC9+1cQPHsXkta2bN82BdpD0SBA0qTYOhDG5MhmQ5EKOdzuYuH/XpCW
-        JVm7AZqLYb838zjffpkxxpXkW8Yd+rZarQuBdVnflXKxzjf5BrM8z5br9brYlItilQHIFSyL/X4t
-        JOaSz6OA3f+Dgi4i1ng848IhEMoKIpeXi7Isl3fLTeI8AQUffYRtWo2EnRg6Zx3fMhO0ToAyF4tK
-        IoHS/pr15IIgZc0V3sBTZQO1gSqy33BCWok6vn1o6WZxm98UWbG8yRY3+aLLKHnyLft7xhhjL+mz
-        L1Ut+kLJfSFSoepytb/LIFuIHJer/M1CJQl6bjGJBJOirgRoPdA/qksiwR1Cg4YS/7Lj2gqIGju+
-        3fF31pM1c/bH/Y7PdzwYRQkXqL0KfsdPg1B8szonk74eivbhz6fl7w+rLzW9f7LfPryXf33294OH
-        gSaFfUCqRHAODVX/ItARHU82pxljX1PxWnCgNeqKrNUpvRgvuYBn2uGjssFXl2E5B9I3xyF4a5Q5
-        8G1XeI51bR2NjGKhQtOAe+7AGWOn81yhe1QCK1IYp4hLrCFo4t3QWRezqEH7czCETYsOKCQ8v806
-        9ImG12vrGhh+j3qY7PrszwGckz5aJZIJBLK8J/zrkZrOw1ByiV441SZwy/hvSIyOyLrqs676TBkG
-        7KAe0bDLPPy/tvVGsWENEjo/SnIUWrff84FpnW3RkcJrD8b6kZzgIzVPLjZ3fs1Okv0UE1X0zMBI
-        FncC5wxvD7fsIxj2qwMjlBd2zn655yOd01g0bcDPhoEmNH2PRni3RBPzOBxwdGiOqIhfUV/HYc3e
-        CJA7/B6UQzl5jr9q4pDMbKp+Gt0Np9INjns2WUiybdWOx9sF03eJS+Vhry/nN3g44DD7ylxd0HI5
-        f42PzvLLcGDEEeXgmM1G4fLpYS7u3iLe0u2Pw4+kyRLogdys+8UMHq/+VxokkEAQ5U+z038AAAD/
-        /wMA1kI3jgsHAAA=
+      string: "{\n  \"id\": \"resp_682f80f5bdb88191bb25ea6b93eb685f03d0b2fd90d3afa9\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1747943669,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"error\": null,\n  \"incomplete_details\":
+        null,\n  \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"model\":
+        \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\": \"fc_682f80f647c48191b7fbc7f71049db4a03d0b2fd90d3afa9\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"location\\\":\\\"Boston, MA\\\",\\\"unit\\\":\\\"celsius\\\"}\",\n
+        \     \"call_id\": \"call_tjEzTywkXuBUO42ugPFnQYqi\",\n      \"name\": \"get_current_weather\"\n
+        \   }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+        null,\n  \"reasoning\": {\n    \"effort\": null,\n    \"summary\": null\n
+        \ },\n  \"service_tier\": \"default\",\n  \"store\": false,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    }\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"function\",\n      \"description\": \"Get the current weather in a given
+        location\",\n      \"name\": \"get_current_weather\",\n      \"parameters\":
+        {\n        \"type\": \"object\",\n        \"properties\": {\n          \"location\":
+        {\n            \"type\": \"string\",\n            \"description\": \"The city
+        and state, e.g. San Francisco, CA\"\n          },\n          \"unit\": {\n
+        \           \"type\": \"string\",\n            \"enum\": [\n              \"celsius\",\n
+        \             \"fahrenheit\"\n            ]\n          }\n        },\n        \"required\":
+        [\n          \"location\",\n          \"unit\"\n        ]\n      },\n      \"strict\":
+        true\n    }\n  ],\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\":
+        {\n    \"input_tokens\": 75,\n    \"input_tokens_details\": {\n      \"cached_tokens\":
+        0\n    },\n    \"output_tokens\": 23,\n    \"output_tokens_details\": {\n
+        \     \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 98\n  },\n  \"user\":
+        null,\n  \"metadata\": {}\n}"
     headers:
       CF-RAY:
-      - 942ed0791d473049-BOS
+      - 943edd9e4c85904a-BOS
       Connection:
       - keep-alive
-      Content-Encoding:
-      - gzip
       Content-Type:
       - application/json
       Date:
-      - Tue, 20 May 2025 21:09:20 GMT
+      - Thu, 22 May 2025 19:54:30 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=.yw0af02bXNaLqgQCHquWsLehe36Bwxm8j0GPWQYKg4-1747775360-1.0.1.1-SrCAuJP9s8cKSvv_EZPsw66VitQKoI6D1hgPij7PGo3M1uRb2zIP6hrEllZOTTh8Z2TnTkSQBGuMQiEzJqfQPlzeeeuYAcqUyYjndlK3a14;
-        path=/; expires=Tue, 20-May-25 21:39:20 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=5CWWmQJRX3WDLu_OWuf0D4BErKXuBVTrZz7CiSI2yAc-1747943670-1.0.1.1-9jEnLbVd7FGIaXUOxcO6XUJPrzMQPSCYaz41iTk82orFyKjjgLsXP00T.QSO8fDeDKRzFEjbGu5pVyEUw27jL48cICg8vSUTZQO9uLSppY8;
+        path=/; expires=Thu, 22-May-25 20:24:30 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=5zExe2xAkV.K5Azo8_bOYGmhhAnAiPuUEH5ip05kJMY-1747775360013-0.0.1.1-604800000;
+      - _cfuvid=BPPHO.vzXC07T5DlOdEmkwdajT02PqigcwSqdDdYcG8-1747943670423-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -82,10 +91,12 @@ interactions:
       - h3=":443"; ma=86400
       cf-cache-status:
       - DYNAMIC
+      content-length:
+      - '1826'
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '792'
+      - '672'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
@@ -103,7 +114,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_35c25ac182ae47ec1b709968ced2c4e6
+      - req_1c9acab9d4c19339d82b6d672457d059
     status:
       code: 200
       message: OK

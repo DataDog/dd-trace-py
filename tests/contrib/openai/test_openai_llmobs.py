@@ -770,7 +770,7 @@ class TestLLMObsOpenaiV1:
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"content": input_messages, "role": "user"}],
-                output_messages=[{"content": expected_completion, "role": "assistant"}],
+                output_messages=[{"content": expected_completion, "tool_calls": [], "role": "assistant"}],
                 metadata={"stream": True},
                 token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
@@ -897,7 +897,6 @@ class TestLLMObsOpenaiV1:
                 input_messages = "Hello world"
                 client.responses.create(model=model, input=input_messages, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
-        # span._set_ctx_item("span.kind", "llm")
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
