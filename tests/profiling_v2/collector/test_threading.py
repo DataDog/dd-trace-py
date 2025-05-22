@@ -161,7 +161,7 @@ def test_wrapt_disable_extensions():
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload(output_filename=output_filename)
 
     expected_filename = "test_threading.py"
 
@@ -231,7 +231,7 @@ def test_lock_gevent_tasks():
         t.start()
         t.join()
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload(output_filename=output_filename)
 
     expected_filename = "test_threading.py"
     linenos = get_lock_linenos(test_name)
