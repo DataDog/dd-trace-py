@@ -4,6 +4,7 @@ stages:
   - shared-pipeline
   - benchmarks
   - release
+  - notify
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -190,3 +191,34 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
+
+
+# Taken from https://github.com/DataDog/slack-notifier/blob/master/gitlab-pipeline-templates/v3-sdm/template.yml
+.slack-notifier-base:
+  stage: notify
+  image: registry.ddbuild.io/slack-notifier:v27936653-9a2a7db-sdm-gbi-jammy@sha256:c9d1145319d1904fa72ea97904a15200d3cb684324723f9e1700bc02cc85065c
+  before_script:
+    - if [[ $GITLAB_USER_LOGIN = "codesync" || $GITLAB_USER_LOGIN = "ddci-service-account" ]]; then EMAIL=$(git show -s --format="%ae" HEAD); else EMAIL=$GITLAB_USER_EMAIL; fi
+    - SLACK_AUTHOR=$(echo $EMAIL | email2slackid || echo "")
+    - if [ -z "$SLACK_AUTHOR" ]; then echo "author not found or unsubscribed"; fi
+    - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
+
+notify-on-failure-branch:
+  extends: .slack-notifier-base
+  when: on_failure
+  except:
+    - main
+    - tags
+    - schedules
+  script:
+    - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed."'
+    - postmessage "$SLACK_AUTHOR" "$MESSAGE_TEXT"
+
+notify-on-failure-main:
+  extends: .slack-notifier-base
+  when: on_failure
+  only:
+    - main
+  script:
+    - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME <@$SLACK_AUTHOR> $CI_COMMIT_REF_NAME pipeline <$BUILD_URL|$CI_PIPELINE_ID> failed and main might be broken - please look into it."'
+    - postmessage "guild-dd-trace-py" "$MESSAGE_TEXT"
