@@ -113,8 +113,8 @@ struct TaintRange
      * @return true if the vulnerability mark is set, false otherwise
      * @details Checks the corresponding bit in the secure_marks bitfield using bit operations.
      */
-    [[nodiscard]] bool has_secure_mark(VulnerabilityType mark) const;
-    [[nodiscard]] bool has_source(OriginType origin) const;
+    bool has_secure_mark(VulnerabilityType mark) const;
+    bool has_origin(OriginType origin) const;
     explicit operator std::string() const;
 };
 
