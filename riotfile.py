@@ -275,8 +275,8 @@ venv = Venv(
                 ),
             ],
         ),
-        # Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
-        # across all supported versions
+        # Internal coverage (dd_coverage to distinguish from regular coverage)
+        # has version-specific code so tests are run across all supported versions
         Venv(
             name="dd_coverage",
             command="pytest --no-cov {cmdargs} tests/coverage -s",
