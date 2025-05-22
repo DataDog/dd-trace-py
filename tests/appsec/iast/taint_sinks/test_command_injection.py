@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
