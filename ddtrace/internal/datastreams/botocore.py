@@ -142,7 +142,6 @@ def get_datastreams_context(message):
         - message.MesssageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
     """
     context_json = None
-    message_body = message
     try:
         message_body = message.get("Body") or message.get("body")
         message_body = json.loads(message_body)
@@ -163,7 +162,7 @@ def get_datastreams_context(message):
         k.lower(): v for k, v in message_lower["messageattributes"]["_datadog"].items()
     }
 
-    if message_body.get("type", "").lower() == "notification":
+    if message_body and message_body.get("type", "").lower() == "notification":
         # This is potentially a DSM SNS notification
         if datadog_attribute_lower.get("type", "").lower() == "binary":
             context_json = json.loads(base64.b64decode(datadog_attribute_lower["value"]).decode())
