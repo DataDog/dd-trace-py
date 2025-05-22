@@ -95,6 +95,8 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     started = 0
     while True:
         line = stdout.readline()
+        if line != b"":
+            print(line)
         if line == b"":
             break
         elif b"WSGI app 0 (mountpoint='') ready" in line:
@@ -127,7 +129,6 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
 
 # This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
 # interrupted randomly in the middle and has no time to flush out the profile.
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -150,7 +151,6 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
 
 # This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
 # interrupted randomly in the middle and has no time to flush out the profile.
-@pytest.mark.skipif(TESTING_GEVENT, reason="Test fails with greenlet 2")
 def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)

@@ -83,14 +83,6 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
     }
 }
 
-void
-Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
-{
-    if (!_output_filename.empty()) {
-        output_filename = _output_filename;
-    }
-}
-
 std::string
 join(const std::vector<std::string>& vec, const std::string& delim)
 {
@@ -184,15 +176,13 @@ Datadog::UploaderBuilder::build()
     }
 
     // We create a std::variant here instead of creating a temporary Uploader object.
-    // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter }
+    // i.e. return Datadog::Uploader{ *ddog_exporter }
     // because above code creates a temporary Uploader object, moves it into the
     // variant, and then the destructor of the temporary Uploader object is called
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         output_filename,
-                                                         *ddog_exporter };
+    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>, *ddog_exporter };
 }
 
 void

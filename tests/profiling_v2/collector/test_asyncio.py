@@ -39,7 +39,6 @@ class TestAsyncioLockCollector:
             env="test",
             service="test_asyncio",
             version="my_version",
-            output_filename=self.output_prefix,
         )
         ddup.start()
 
@@ -57,7 +56,7 @@ class TestAsyncioLockCollector:
             assert lock.locked()
             lock.release()  # !RELEASE! test_asyncio_lock_events
 
-        ddup.upload()
+        ddup.upload(output_filename=self.output_prefix)
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
