@@ -19,7 +19,6 @@ exclude_patterns() {
         '.riot/'
         '_taint_tracking/_vendor/'
         'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
-        'ddtrace/profiling/collector/vendor/'
     )
 
     # Join all patterns with '|'

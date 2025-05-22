@@ -59,9 +59,8 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
 {
     // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
-    if (serialize_result.tag !=
-        DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = serialize_result.err;         // NOLINT (cppcoreguidelines-pro-type-union-access)
+    if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = serialize_result.err;                                 // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error serializing pprof");
         std::cerr << errmsg << std::endl;
         ddog_Error_drop(&err);
