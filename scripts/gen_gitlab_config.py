@@ -120,7 +120,9 @@ def gen_required_suites() -> None:
     )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites
-    if "ci_visibility" in required_suites:
+    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    # If any of them in required_suites:
+    if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
     # Copy the template file

@@ -196,6 +196,9 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if not resp:
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
+            return
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=True)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
@@ -261,11 +264,12 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
+        if not resp:
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
+            return
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
-        if not resp:
-            return
         for choice in resp.choices:
             idx = choice.index
             finish_reason = getattr(choice, "finish_reason", None)
@@ -749,9 +753,9 @@ class _ResponseHook(_BaseCompletionHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         if not resp:
             return resp
+        if kwargs.get("stream") and error is None:
+            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
         integration.record_usage(span, resp.usage)
         return resp
