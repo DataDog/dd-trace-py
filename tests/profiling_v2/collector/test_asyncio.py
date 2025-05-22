@@ -56,7 +56,7 @@ class TestAsyncioLockCollector:
             assert lock.locked()
             lock.release()  # !RELEASE! test_asyncio_lock_events
 
-        ddup.upload(output_filename=self.output_prefix)
+        ddup.upload(output_filename=self.output_filename)
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
         profile = pprof_utils.parse_profile(self.output_filename)
