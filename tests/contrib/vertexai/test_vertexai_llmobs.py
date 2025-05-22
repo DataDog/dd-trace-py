@@ -21,7 +21,7 @@ class TestLLMObsVertexai:
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
-            "Why do bears hibernate?",
+            contents="Why do bears hibernate?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
@@ -126,7 +126,7 @@ class TestLLMObsVertexai:
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
         ]
         response = llm.generate_content(
-            "How big is the solar system?",
+            contents="How big is the solar system?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
@@ -293,7 +293,7 @@ class TestLLMObsVertexai:
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         chat = llm.start_chat()
         chat.send_message(
-            "Why do bears hibernate?",
+            content="Why do bears hibernate?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
@@ -389,7 +389,7 @@ class TestLLMObsVertexai:
         ]
         chat = llm.start_chat()
         response = chat.send_message(
-            "How big is the solar system?",
+            content="How big is the solar system?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),

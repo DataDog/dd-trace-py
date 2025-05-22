@@ -1,11 +1,11 @@
 import avro
 from avro.schema import Schema as AvroSchema
 
-from ddtrace._trace.span import Span
 from ddtrace.ext import schema as SCHEMA_TAGS
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.schemas.schema_builder import SchemaBuilder
 from ddtrace.internal.datastreams.schemas.schema_iterator import SchemaIterator
+from ddtrace.trace import Span
 
 
 class SchemaExtractor(SchemaIterator):

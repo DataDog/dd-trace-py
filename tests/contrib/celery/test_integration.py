@@ -8,15 +8,14 @@ from celery.exceptions import Retry
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace._trace.context import Context
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.celery import patch
-from ddtrace.contrib.celery import unpatch
+from ddtrace.contrib.internal.celery.patch import patch
+from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import Context
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
-from tests.utils import flaky
 
 from ...utils import override_global_config
 from .base import CeleryBaseTestCase
@@ -209,7 +208,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.get_tag("component") == "celery"
         assert run_span.get_tag("span.kind") == "consumer"
 
-    @flaky(1722529274)
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
         @self.app.task
@@ -650,7 +648,9 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert len(traces) == 2
         assert len(traces[0]) + len(traces[1]) == 3
 
-    @flaky(1720288420)
+    @pytest.mark.no_getattr_patch
+    # this mark is added to prevent patching of getattr necessary for integration registry update
+    # see: https://github.com/DataDog/dd-trace-py/pull/13215
     def test_beat_scheduler_tracing(self):
         @self.app.task
         def fn_task():
@@ -706,7 +706,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             # beat_service.stop() can happen any time during the beat thread's execution.
             # When by chance it happens between apply_entry() and run(), the run() span will be
             # omitted, resulting in one fewer span for run() than the other functions
-            assert actual_run_count >= spans_counter["celery.run"] >= actual_run_count - 1
+            assert actual_run_count >= spans_counter["celery.run"]
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):

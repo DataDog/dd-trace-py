@@ -32,15 +32,16 @@ class ThreadingLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledThreadingLock
 
-    def _get_original(self):
+    def _get_patch_target(self):
         # type: (...) -> typing.Any
         return threading.Lock
 
-    def _set_original(
-        self, value  # type: typing.Any
+    def _set_patch_target(
+        self,
+        value,  # type: typing.Any
     ):
         # type: (...) -> None
-        threading.Lock = value  # type: ignore[misc]
+        threading.Lock = value
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

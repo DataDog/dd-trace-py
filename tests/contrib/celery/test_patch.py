@@ -1,6 +1,6 @@
 import unittest
 
-from ddtrace import Pin
+from ddtrace.trace import Pin
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 
 
@@ -9,7 +9,7 @@ class CeleryPatchTest(unittest.TestCase):
         import celery
 
         from ddtrace import patch
-        from ddtrace.contrib.celery import unpatch
+        from ddtrace.contrib.internal.celery.patch import unpatch
 
         patch(celery=True)
 
@@ -19,7 +19,7 @@ class CeleryPatchTest(unittest.TestCase):
 
     def test_patch_before_import(self):
         from ddtrace import patch
-        from ddtrace.contrib.celery import unpatch
+        from ddtrace.contrib.internal.celery.patch import unpatch
 
         patch(celery=True)
         import celery
@@ -29,7 +29,7 @@ class CeleryPatchTest(unittest.TestCase):
         unpatch()
 
     def test_and_emit_get_version(self):
-        from ddtrace.contrib.celery import get_version
+        from ddtrace.contrib.internal.celery.patch import get_version
 
         version = get_version()
         assert type(version) == str

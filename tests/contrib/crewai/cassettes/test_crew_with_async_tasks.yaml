@@ -1,0 +1,386 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\nTool Name: Standard Deviation Calculator\nTool Arguments: {''entries'':
+      {''description'': None, ''type'': ''list''}}\nTool Description: This tool returns
+      the standard deviation of a list of numbers.\n\nIMPORTANT: Use the following
+      format in your response:\n\n```\nThought: you should always think about what
+      to do\nAction: the action to take, only one name of [Average Calculator, Standard
+      Deviation Calculator], just the name, exactly as it''s written.\nAction Input:
+      the input to the action, just a simple JSON object, enclosed in curly braces,
+      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Analyze
+      the given dataset and calculate the average age of participants. Ages: [10,
+      12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete
+      sentence showing the question and the answer.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1820'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFNNj5swEL3zK0Y+wwpIlA9u6apa5dCqVW/bRMhrD+AWbMseoq6i/PfK
+        kAS23Uo9wGHevMebN8M5AmBKsgKYaDiJzrbJh8fdR7N/+tTs621Gu6/fPnNe+9f9l8Xz0zOLA8O8
+        /EBBN9aDMJ1tkZTRIywccsKgmq2Xeb7YbLfpAHRGYhtotaVkaZJOaZXkab5M0nWSba7sxiiBnhXw
+        PQIAOA/v4FNL/MUKGLSGSofe8xpZcW8CYM60ocK498oT18TiCRRGE+rB+h40ogQyIHgr+pYTAjUI
+        /ISO1wjhMdVQstyREspyTR56r3Q9lp05KYkytPqHgz7onQgpFLC7ajxelY0DuKGw17anAs4Hhpqc
+        Qn8Is2ZpDFkeQ7aMIVvFkG2OF4C5d4dV73nIT/dtOwO41oZ40B5SO16Ryz2n1tTWmRf/B5VVSivf
+        lA65Nzpk4slYNqCXCOA47KN/EzGzznSWSjI/cfjcYpWPemw6gwld3kAyxNtZPV3G7+iVEomr1s82
+        ygQXDcqJOq2f91KZGRDNpv7bzXva4+RK1/8jPwFCoCWUpXUolXg78dTmMPwl/2q7pzwYZh7dSQks
+        SaELm5BY8b4db5f5V0/YlZXSNTrr1HjAlS3XlZCrdLtabVh0iX4DAAD//wMAs6IGMs4DAAA=
+    headers:
+      CF-RAY:
+      - 921ed339abbd2d0b-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 19:16:30 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=QzZN2Q4lWBBBgSFEU82mtAGlISEMx1IT2BpF_abjHjc-1742238990-1.0.1.1-exyhMlIdNcTG_LA.YLQ7oPz9rWV82pKUA8.DQeHWw0UrhTiXsvav58j5I6Ft1yzcJusWoxL02bb0hbTogNe2_Epe.4uDv4WTomG47ZS.klo;
+        path=/; expires=Mon, 17-Mar-25 19:46:30 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=iJiV.gPBp3WfBb37JjdwXzOXHvYxkLIlzjcURKj7SNQ-1742238990941-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '479'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999569'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_42cf4e5d6a37c5e284a550a68b7c6606
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\nTool Name: Standard Deviation Calculator\nTool Arguments: {''entries'':
+      {''description'': None, ''type'': ''list''}}\nTool Description: This tool returns
+      the standard deviation of a list of numbers.\n\nIMPORTANT: Use the following
+      format in your response:\n\n```\nThought: you should always think about what
+      to do\nAction: the action to take, only one name of [Average Calculator, Standard
+      Deviation Calculator], just the name, exactly as it''s written.\nAction Input:
+      the input to the action, just a simple JSON object, enclosed in curly braces,
+      using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Analyze
+      the given dataset and calculate the average age of participants. Ages: [10,
+      12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete
+      sentence showing the question and the answer.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}, {"role": "assistant", "content": "I need to calculate
+      the average age of the participants using the provided ages.\n\nAction: Average
+      Calculator  \nAction Input: {\"entries\": [10, 12, 14, 16, 18]}  \nObservation:
+      14.0"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2042'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=QzZN2Q4lWBBBgSFEU82mtAGlISEMx1IT2BpF_abjHjc-1742238990-1.0.1.1-exyhMlIdNcTG_LA.YLQ7oPz9rWV82pKUA8.DQeHWw0UrhTiXsvav58j5I6Ft1yzcJusWoxL02bb0hbTogNe2_Epe.4uDv4WTomG47ZS.klo;
+        _cfuvid=iJiV.gPBp3WfBb37JjdwXzOXHvYxkLIlzjcURKj7SNQ-1742238990941-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFLBbtswDL37Kwid4yBJ3ST2rR0yLJduh16GrTBUmbbVypIg0cmCIv8+
+        SEljt+uAHiRAenyPfCRfEgAmK1YAEy0n0VmV3n652dgfNam7b0/Xe33nD8L8zL9vN9vdJmeTwDCP
+        TyjolTUVprMKSRp9goVDThhU56tssbha5/k8Ap2pUAVaYynNTNpJLdPFbJGls1U6X5/ZrZECPSvg
+        VwIA8BLvUKeu8A8rYDZ5/enQe94gKy5BAMwZFX4Y91564prYZACF0YQ6ln7fmr5pqYAtaLOH53BR
+        i1BLzRVw7ffoAH7rr/F9E98F3LcIfIeONwjhmDqSLHckhbRckwfpYZ5NZ3BA7vx0nN5h3XseWqB7
+        pUYA19oQDy2Mxh/OyPFiVZnGOvPo31FZLbX0bemQe6ODLU/GsogeE4CH2NL+TZeYdaazVJJ5xpgu
+        m2cnPTZMckAX12eQDHE1Yl3lkw/0ygqJS+VHQ2GCixargTpMkPeVNCMgGbn+t5qPtE/OpW4+Iz8A
+        QqAlrErrsJLireMhzGFY9P+FXbocC2Ye3U4KLEmiC5OosOa9Oq0f8wdP2JW11A066+RpB2tbrmpR
+        LWf5crlmyTH5CwAA//8DAMoqk3SRAwAA
+    headers:
+      CF-RAY:
+      - 921ed3409bbb2d0b-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 19:16:31 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '350'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999522'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2ce3b0dcc6c34fd07821d2fd819239bc
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Tour Guide. You are
+      a tour guide with a passion for finding the best activities for groups of people.\nYour
+      personal goal is: Recommend fun activities for a group of humans.\nTo give my
+      best complete final answer to the task respond using the exact following format:\n\nThought:
+      I now can give a great answer\nFinal Answer: Your final answer must be the great
+      and the most complete as possible, it must be outcome described.\n\nI MUST use
+      these formats, my job depends on it!"}, {"role": "user", "content": "\nCurrent
+      Task: Given the average age of participants, recommend a fun activity for the
+      group.\n\nThis is the expected criteria for your final answer: Blog post with
+      3 bullet points of recommended activities.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nThis is the context you''re working
+      with:\nThe average age of the participants is 14.0 years.\n\nBegin! This is
+      VERY important to you, use the tools available and give your best Final Answer,
+      your job depends on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1136'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=QzZN2Q4lWBBBgSFEU82mtAGlISEMx1IT2BpF_abjHjc-1742238990-1.0.1.1-exyhMlIdNcTG_LA.YLQ7oPz9rWV82pKUA8.DQeHWw0UrhTiXsvav58j5I6Ft1yzcJusWoxL02bb0hbTogNe2_Epe.4uDv4WTomG47ZS.klo;
+        _cfuvid=iJiV.gPBp3WfBb37JjdwXzOXHvYxkLIlzjcURKj7SNQ-1742238990941-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.66.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.66.3
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.5
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFbbbhtHEn3XV1TmZQGBJERJ8UVvWq+dzcPCQeLENqJAKPYUZyrs6ert
+        qiFNBwb8EXnJ7/lLguoRKTkXIC8EOHU/py79ywlAw21zBU3o0cKQ4/zfz66f///N7oeVvfrf/vuz
+        5ZvH314s37z4anmRw/tm5hay+pmCHawWQYYcyVjSJA6F0Mi9Lh9fnp9fPHn69LwKBmkpulmXbX4p
+        84ETz8/Pzi/nZ4/nyyd31r1wIG2u4McTAIBf6q/nmVp611zB2ezwZSBV7Ki5OioBNEWif2lQldUw
+        WTO7FwZJRqmm/jUk2UHABB1vCRA6Txsw6Y7KAuAmveCEEa7rhyu4STfp9PQCXowJroPxlo1JYS0F
+        EL4qMmaQNSwv528Jy/xlbPX01G2WCzg9fTlaK1Lgut1SsrEQfBdwS6mjAv8dk52eekAAeFk6TPye
+        ABPQu8DGqQM96vZjMuAECFECRshYNiAFElanhZTKlhbwrFLgaqzmebHRoK4ZeozRnSlYj+YejANn
+        TKYwjGqw5tRWzYlWmkHkDYFmsSmbTIHXHGDHsY28phkEiZFCldZMMMLUIzpzTypx67L1mKBw20bS
+        BbzqWQEnIPeQiwxinhThsJOygV3PkQBjlJ3b0pbKXhKBCdC7HKU4Ri1Q+ln2YD2BTBi7awHNHAjY
+        YMwz2MtYieYU4tiSaw/U3mFSKHq3ul+ELHmMWGCQLZOnvhLZgFLhA15GlBSibOmL2hLnTu9zDZgJ
+        vhUZ4Pm77Oop0JHUV7ipQaGrbeKREtBkU9xm11OpGvuaZ63fpCPrqbi6A0iQx/fvI2kte0xRwgaG
+        vRoVllEhxPEIKyejUrGdQOJhoKL13wHwtbilVupwJQV9fqtyKGzszWU9p41jj4Ok7vNOQZ3SLRgI
+        sENOarXEUPMygZtmqvCmgR27K0BQMjAeCCIPbAt4zdYDwhYLk+29Tys1CrhFjriK9Onjr7X7eilF
+        ygzwMEC1saby958+/upI0b8UVAbyYN3E1o5jBK1TwskKdyPViT1008IpvHAK//P1W7guNqH7rODa
+        FF5L2Wgv+Ujkd+QNBQh1xVU8DyZhMlFSdSCJK3do0MtQO6kCEGQYxuT4a8ZAC/imyJZbAh1zjod9
+        4ng4pblIHSLQMfQOeUZOPmUzMKZ5uyewufZc7uZswErX2tuv1Z4zrJyfSKYLuPZJ+pzEaZQKaSWT
+        y6Esz89rylRUEkbfRwcFr/Kuy3pMrc69aw5NlcRAUtwDpSBjQd8yHlCNwyGUo7MaDTCq1NVbgw8w
+        0EDJpGZlWCkfaHaoyVuLjpPl/CUYfAcMNEjxTlnAN3HUGbB9+vibHvf5DvcV0xrDBFaS2lqc9rIL
+        qIfKOLW85XbECGr7SPqFt8arnvQ4NFyrca7YPGL1u7yc733hS2x1VsWUOuwqSRXDabEd99rsAciT
+        Rl3ztfi7QTtuisXD01VoPSr6+UxjjA8EmJJYHd96NH+6k3w4nskoXS6y0j+YNmtOrP1tIVRJfhLV
+        JDdV+uEE4Kd6jsfPLmzj5WS7NdlQDXe+/HLy19y/Au6lFxfLO6mJYbwXfHn5aPYXDm9bMuSoDy56
+        EzD01N6b3p9/HFuWB4KTB2X/OZ2/8j2Vzqn7J+7vBSFQNmpvc6GWw+cl36sV8uH9O7UjzDXhxu82
+        B7o1puJUtLTGMU5vl0Z9zQ23a/Y3QC48PWDW+fbxOrSPzp4+evSkOflw8jsAAAD//wMAVHjiPc4J
+        AAA=
+    headers:
+      CF-RAY:
+      - 921ed344a86f2d0b-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 17 Mar 2025 19:16:34 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '2118'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999735'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_f29e1567cfd40603e18f27aad6868717
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,6 +1,22 @@
 import pytest
 
 
+def _global_sampling_rule():
+    from ddtrace._trace.sampling_rule import SamplingRule
+    from ddtrace.trace import tracer
+
+    for rule in tracer._sampler.rules:
+        if (
+            rule.service == SamplingRule.NO_RULE
+            and rule.name == SamplingRule.NO_RULE
+            and rule.resource == SamplingRule.NO_RULE
+            and rule.tags == SamplingRule.NO_RULE
+            and rule.provenance == "default"
+        ):
+            return rule
+    assert False, "Rule not found"
+
+
 @pytest.mark.subprocess(
     env={
         "OTEL_SERVICE_NAME": "Test",
@@ -10,7 +26,7 @@ import pytest
         "OTEL_PROPAGATORS": "jaegar, tracecontext, b3",
         "DD_TRACE_PROPAGATION_STYLE": "b3",
         "OTEL_TRACES_SAMPLER": "always_off",
-        "DD_TRACE_SAMPLE_RATE": "1.0",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.1}]',
         "OTEL_TRACES_EXPORTER": "True",
         "DD_TRACE_ENABLED": "True",
         "OTEL_METRICS_EXPORTER": "none",
@@ -26,11 +42,12 @@ import pytest
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
     assert config.service == "DD_service_test", config.service
     assert config._debug_mode is False, config._debug_mode
     assert config._propagation_style_extract == ["b3"], config._propagation_style_extract
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.1
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
     assert config._otel_enabled is True, config._otel_enabled
@@ -45,7 +62,7 @@ def test_dd_otel_mixed_env_configuration():
         "OTEL_LOG_LEVEL": "debug",
         "OTEL_PROPAGATORS": "jaegar, tracecontext, b3",
         "OTEL_TRACES_SAMPLER": "always_off",
-        "DD_TRACE_SAMPLE_RATE": "1.0",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0.9}]',
         "OTEL_TRACES_EXPORTER": "OTLP",
         "OTEL_METRICS_EXPORTER": "none",
         "OTEL_LOGS_EXPORTER": "warning",
@@ -53,19 +70,19 @@ def test_dd_otel_mixed_env_configuration():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
-    err=b"Following style not supported by ddtrace: jaegar.\n"
-    b"Setting OTEL_TRACES_EXPORTER to otlp is not supported by ddtrace, "
-    b"this configuration will be ignored.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, "
+    b"this configuration will be ignored.\nFollowing style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
     assert config.service == "Test", config.service
     assert config.version == "1.0"
     assert config._otel_enabled is True, config._otel_enabled
     assert config._debug_mode is True, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    assert _global_sampling_rule().sample_rate == 0.9
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
     assert config.tags == {
@@ -132,9 +149,10 @@ def test_otel_propagation_style_configuration_unsupportedwarning():
     err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwayson():
-    from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 1.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -142,9 +160,10 @@ def test_otel_traces_sampler_configuration_alwayson():
     err=b"Trace sampler set from always_on to parentbased_always_on; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_ignore_parent():
-    from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 1.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 1.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -152,9 +171,10 @@ def test_otel_traces_sampler_configuration_ignore_parent():
     err=b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_alwaysoff():
-    from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 0.0, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 0.0, sample_rate
 
 
 @pytest.mark.subprocess(
@@ -162,13 +182,13 @@ def test_otel_traces_sampler_configuration_alwaysoff():
         "OTEL_TRACES_SAMPLER": "traceidratio",
         "OTEL_TRACES_SAMPLER_ARG": "0.5",
     },
-    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n"
-    b"OpenTelemetry configuration OTEL_TRACES_SAMPLER_ARG is not supported by Datadog.\n",
+    err=b"Trace sampler set from traceidratio to parentbased_traceidratio; only parent based sampling is supported.\n",
 )
 def test_otel_traces_sampler_configuration_traceidratio():
-    from ddtrace import config
+    from tests.opentelemetry.test_config import _global_sampling_rule
 
-    assert config._trace_sample_rate == 0.5, config._trace_sample_rate
+    sample_rate = _global_sampling_rule().sample_rate
+    assert sample_rate == 0.5, sample_rate
 
 
 @pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "none"})
@@ -206,7 +226,7 @@ def test_otel_metrics_exporter_configuration_unsupported_exporter():
 
 
 @pytest.mark.subprocess(
-    env={"otel_LOGS_EXPORTER": "console"},
+    env={"OTEL_LOGS_EXPORTER": "console"},
     err=b"Setting OTEL_LOGS_EXPORTER to console is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_logs_exporter_configuration_unsupported():
@@ -291,14 +311,14 @@ def test_otel_resource_attributes_tags_warning():
     }, config.tags
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false"})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "false", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration():
     from ddtrace import config
 
     assert config._otel_enabled is True
 
 
-@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": ""})
+@pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 

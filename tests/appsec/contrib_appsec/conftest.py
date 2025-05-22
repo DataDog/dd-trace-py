@@ -12,6 +12,12 @@ from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _dj_autoclear_mailbox() -> None:
+    # Override the `_dj_autoclear_mailbox` test fixture in `pytest_django`.
+    pass
+
+
 @pytest.fixture
 def test_spans(interface, check_waf_timeout):
     container = TracerSpanContainer(interface.tracer)
@@ -45,8 +51,17 @@ def check_waf_timeout(request):
 
 
 @pytest.fixture
-def get_tag(root_span):
-    yield lambda name: root_span().get_tag(name)
+def get_tag(test_spans, root_span):
+    # checking both root spans and web spans for the tag
+    def get(name):
+        for span in test_spans.spans:
+            if span.parent_id is None or span.span_type == "web":
+                res = span.get_tag(name)
+                if res is not None:
+                    return res
+        return root_span().get_tag(name)
+
+    yield get
 
 
 @pytest.fixture

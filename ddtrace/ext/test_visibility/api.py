@@ -40,10 +40,12 @@ from ddtrace.ext.test_visibility._utils import _set_item_tag
 from ddtrace.ext.test_visibility._utils import _set_item_tags
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger as _get_logger
-import ddtrace.tracing  # noqa: F401 -- this triggers the registration of trace handlers
 
 
 log = _get_logger(__name__)
+
+# this triggers the registration of trace handlers after civis startup
+import ddtrace._trace.trace_handlers  # noqa: F401, E402
 
 
 class TestStatus(Enum):

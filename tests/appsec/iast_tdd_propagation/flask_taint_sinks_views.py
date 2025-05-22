@@ -5,8 +5,8 @@ from Crypto.Cipher import ARC4
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.trace import tracer
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 

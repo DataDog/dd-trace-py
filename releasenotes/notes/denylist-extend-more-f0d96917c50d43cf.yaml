@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add more modules to the IAST patching denylist to improve startup time

@@ -1,9 +1,9 @@
 from tornado import template
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.trace import Pin
 
 
 def generate(func, renderer, args, kwargs):

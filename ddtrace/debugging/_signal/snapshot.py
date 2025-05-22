@@ -17,6 +17,8 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
+from ddtrace.debugging._probe.model import LogFunctionProbe
+from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.debugging._probe.model import LogProbeMixin
 from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
@@ -25,8 +27,9 @@ from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._safety import get_globals
 from ddtrace.debugging._safety import get_locals
 from ddtrace.debugging._signal import utils
+from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
-from ddtrace.debugging._signal.model import LogSignal
+from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.utils.time import HourGlass
@@ -177,3 +180,13 @@ class Snapshot(LogSignal):
             "captures": captures,
             "duration": self.duration,
         }
+
+
+@probe_to_signal.register
+def _(probe: LogFunctionProbe, frame, thread, trace_context, meter):
+    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
+
+
+@probe_to_signal.register
+def _(probe: LogLineProbe, frame, thread, trace_context, meter):
+    return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

@@ -1,4 +1,4 @@
-from ddtrace import tracer
+from ddtrace.trace import tracer
 
 
 if __name__ == "__main__":

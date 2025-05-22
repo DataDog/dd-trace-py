@@ -59,8 +59,7 @@ At this time, do not use the merge queue option.
 Backporting
 -----------
 
-Each minor version has its own branch. Bug fixes are "backported" from trunk to certain
-minor version branches according to the :ref:`version support policy<versioning_release>`.
+Each minor version has its own branch.
 
 * **Fix PRs** are backported to all maintained release branches.
 * **CI PRs** are backported to the maintained release branches.
@@ -114,7 +113,7 @@ Tests
 -----
 
 If your change touches Python code, it should probably include at least one test. See the
-:ref:`testing guidelines<testing_guidelines>` for details.
+`testing guidelines <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_ for details.
 
 Documentation
 -------------

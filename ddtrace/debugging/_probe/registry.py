@@ -116,7 +116,16 @@ class ProbeRegistry(dict):
     def set_emitting(self, probe: Probe) -> None:
         """Set the emitting flag for a probe."""
         with self._lock:
-            entry = cast(ProbeRegistryEntry, self[probe.probe_id])
+            try:
+                entry = cast(ProbeRegistryEntry, self[probe.probe_id])
+            except KeyError:
+                # The probe has likely been removed by remote config but the
+                # instrumentation has raced that thread from another thread.
+                # Since we can't get an entry from the registry for it we don't
+                # log the emitting state.
+                logger.debug("Probe %s no longer registered emitted data", probe.probe_id)
+                return
+
             if not entry.emitting:
                 entry.set_emitting()
                 self.logger.emitting(probe)
@@ -150,10 +159,10 @@ class ProbeRegistry(dict):
                 self._log_probe_status_unlocked(entry)
 
     def _remove_pending(self, probe: Probe) -> None:
-        location = _get_probe_location(probe)
-
-        # Pending probes must have valid location information
-        assert location is not None, probe  # nosec
+        if (location := _get_probe_location(probe)) is None:
+            # If the probe has no location information, then it cannot be
+            # pending.
+            return
 
         pending_probes = self._pending[location]
         try:

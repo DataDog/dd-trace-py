@@ -1,11 +1,12 @@
-from mock.mock import ANY
+from unittest.mock import ANY
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.reporter import Evidence
@@ -92,11 +93,11 @@ def test_common_django_header_injection_redact(header_name, header_value, value_
 
 
 @pytest.mark.parametrize(
-    "evidence_input, sources_expected, vulnerabilities_expected",
+    "evidence_input,sources_expected,vulnerabilities_expected,element",
     list(get_parametrize(VULN_HEADER_INJECTION)),
 )
 def test_header_injection_redaction_suite(
-    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults
+    evidence_input, sources_expected, vulnerabilities_expected, iast_context_defaults, element
 ):
     tainted_object = _taint_pyobject_multiranges(
         evidence_input["value"],

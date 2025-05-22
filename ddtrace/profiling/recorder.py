@@ -50,7 +50,7 @@ class Recorder:
         # type: (...) -> None
         # NOTE: do not try to push events if the process forked
         # This means we don't know the state of _events_lock and it might be unusable — we'd deadlock
-        self.push_events = self._push_events_noop  # type: ignore[assignment]
+        self.push_events = self._push_events_noop  # type: ignore[method-assign]
 
     def _push_events_noop(self, events):
         pass

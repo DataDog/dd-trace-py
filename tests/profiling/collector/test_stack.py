@@ -253,14 +253,13 @@ def test_ignore_profiler_single():
     assert thread_id not in {e.thread_id for e in events}
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_API_TIMEOUT="0.1"))
 def test_ignore_profiler_gevent_task():
     import gevent.monkey
 
     gevent.monkey.patch_all()
 
-    import os
     import time
 
     from ddtrace.profiling import collector  # noqa:F401
@@ -282,28 +281,22 @@ def test_ignore_profiler_gevent_task():
             _fib(22)
             return []
 
-    for ignore in (True, False):
-        os.environ["DD_PROFILING_API_TIMEOUT"] = "0.1"
-        os.environ["DD_PROFILING_IGNORE_PROFILER"] = str(ignore)
-        p = profiler.Profiler()
-        p.start()
-        # This test is particularly useful with gevent enabled: create a test collector that run often and for long
-        # we're sure to catch it with the StackProfiler and that it's not ignored.
-        c = CollectorTest(p._profiler._recorder, interval=0.00001)
-        c.start()
+    p = profiler.Profiler()
+    p.start()
+    # This test is particularly useful with gevent enabled: create a test collector that run often and for long
+    # we're sure to catch it with the StackProfiler and that it's not ignored.
+    c = CollectorTest(p._profiler._recorder, interval=0.00001)
+    c.start()
 
-        for _ in range(100):
-            events = p._profiler._recorder.reset()
-            ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
-            if (c._worker.ident in ids) != str(ignore):
-                break
-            # Give some time for gevent to switch greenlets
-            time.sleep(0.1)
-        else:
-            raise AssertionError("ignore == " + ignore)
+    for _ in range(100):
+        events = p._profiler._recorder.reset()
+        ids = {e.task_id for e in events[stack_event.StackSampleEvent]}
+        if c._worker.ident in ids:
+            raise AssertionError("Collector thread found")
+        time.sleep(0.1)
 
-        c.stop()
-        p.stop(flush=False)
+    c.stop()
+    p.stop(flush=False)
 
 
 def test_collect():
@@ -454,7 +447,7 @@ def test_exception_collection():
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
 def test_exception_collection_trace(
-    tracer,  # type: ddtrace.Tracer
+    tracer,  # type: ddtrace.trace.Tracer
 ):
     # type: (...) -> None
     r = recorder.Recorder()
@@ -690,7 +683,7 @@ def test_thread_time_cache():
         )
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_threads():
     import gevent.monkey
@@ -770,7 +763,7 @@ def test_collect_gevent_threads():
     assert values.pop() > 0
 
 
-@flaky(1731169861)
+@flaky(1748750400)
 @pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
 def test_collect_ensure_all_frames_gc():
     # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+

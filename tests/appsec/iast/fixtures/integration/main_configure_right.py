@@ -4,8 +4,8 @@ import logging
 import os
 import sys
 
-from ddtrace import tracer
 from ddtrace.ext import SpanTypes
+from ddtrace.trace import tracer
 
 
 logger = logging.getLogger(__name__)

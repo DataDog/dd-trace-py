@@ -1,6 +1,9 @@
+import json
 import os
 import sqlite3
+import subprocess
 import tempfile
+from typing import Optional
 
 import django
 from django.contrib.auth import login
@@ -10,8 +13,8 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from ddtrace import tracer
 import ddtrace.constants
+from ddtrace.trace import tracer
 
 
 # django.conf.urls.url was deprecated in django 3 and removed in django 4
@@ -129,13 +132,33 @@ def rasp(request, endpoint: str):
                 res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
-    elif endpoint == "command_injection":
-        res = ["command_injection endpoint"]
+    elif endpoint == "shell_injection":
+        res = ["shell_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    if param.startswith("cmdsys"):
+                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    else:
+                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return HttpResponse("<\\br>\n".join(res))
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
+        for param in query_params:
+            if param.startswith("cmda"):
+                cmd = query_params[param]
+                try:
+                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            elif param.startswith("cmds"):
+                cmd = query_params[param]
+                try:
+                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
@@ -162,8 +185,8 @@ def login_user(request):
         except Exception:
             pass
 
-    username = request.GET.get("username")
-    password = request.GET.get("password")
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
     user = authenticate(username=username, password=password)
     if user is not None:
         login(request, user)
@@ -172,10 +195,54 @@ def login_user(request):
 
 
 @csrf_exempt
+def login_user_sdk(request):
+    """manual instrumentation login endpoint using SDK V2"""
+    try:
+        from ddtrace.appsec import track_user_sdk
+    except ImportError:
+        return HttpResponse("SDK V2 not available", status=422)
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+    metadata = json.loads(request.GET.get("metadata", "{}"))
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            track_user_sdk.track_login_failure(
+                login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+            )
+            return None
+        track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+        return None
+
+    def login(user_id: str, login: str) -> None:
+        """login user"""
+        track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+    username = request.GET.get("username", "")
+    password = request.GET.get("password", "")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id, username)
+        return HttpResponse("OK")
+    return HttpResponse("login failure", status=401)
+
+
+@csrf_exempt
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 
@@ -219,6 +286,8 @@ if django.VERSION >= (2, 0, 0):
         path("rasp/<str:endpoint>", rasp, name="rasp"),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
+        path("login_sdk/", login_user_sdk, name="login_sdk"),
+        path("login_sdk", login_user_sdk, name="login_sdk"),
     ]
 else:
     urlpatterns += [

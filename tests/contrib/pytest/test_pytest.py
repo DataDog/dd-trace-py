@@ -7,12 +7,12 @@ from unittest import mock
 import pytest
 
 import ddtrace
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.pytest import get_version
-from ddtrace.contrib.pytest._utils import _USE_PLUGIN_V2
-from ddtrace.contrib.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
+from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
+from ddtrace.contrib.internal.pytest.patch import get_version
+from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
@@ -35,11 +35,11 @@ from tests.utils import override_env
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.Span],
+    spans: t.List[ddtrace.trace.Span],
     span_type: str,
     name: str = None,
     status: t.Optional[str] = None,
-) -> t.List[ddtrace.Span]:
+) -> t.List[ddtrace.trace.Span]:
     _names_map = {
         "session": ("test_session_end",),
         "module": ("test_module_end", "test.module"),
@@ -724,7 +724,7 @@ class PytestTestCase(PytestTestCaseBase):
             """
             import pytest
             import ddtrace
-            from ddtrace import Pin
+            from ddtrace.trace import Pin
 
             def test_service(ddtracer):
                 with ddtracer.trace("SPAN2") as span2:
@@ -805,7 +805,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
+        assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
         """Test that pytest sets exception information correctly."""
@@ -952,6 +952,25 @@ class PytestTestCase(PytestTestCaseBase):
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
+
+    def test_pytest_will_report_codeowners_when_called_from_subdirectory(self):
+        self.testdir.mkdir(".github")
+        self.testdir.makefile("", **{".github/CODEOWNERS": "* @default-team"})
+
+        subdir = self.testdir.mkdir("subdir")
+        test_file_content = """
+        import pytest
+
+        def test_foo():
+            assert 1 == 1
+        """
+        self.testdir.makepyfile(**{"subdir/test_foo": test_file_content})
+
+        subdir.chdir()
+        self.inline_run("--ddtrace", "test_foo.py")
+        spans = self.pop_spans()
+        [test_span] = [span for span in spans if span.get_tag("type") == "test"]
+        assert json.loads(test_span.get_tag(test.CODEOWNERS)) == ["@default-team"]
 
     def test_pytest_session(self):
         """Test that running pytest will generate a test session span."""

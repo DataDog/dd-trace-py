@@ -1,6 +1,8 @@
 import logging
 import sys
 
+from hypothesis import given
+from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -9,18 +11,28 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
 from ddtrace.appsec._iast._taint_tracking import _aspect_split
 from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
-from ddtrace.appsec._iast._taint_tracking import create_context
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import reset_context
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from tests.appsec.iast.aspects.test_aspect_helpers import _build_sample_range
+from tests.appsec.iast.iast_utils import non_empty_text
 from tests.utils import override_global_config
 
 
 def wrap_somesplit(func, *args, **kwargs):
     # Remove the orig_function and flag_added_args arguments
     return func(None, 0, *args, **kwargs)
+
+
+@given(one_of(non_empty_text))
+def test_aspect_split(text):
+    text_1 = text
+    text_2 = text * 3
+    s = text_1 + " " + text_2
+    res = wrap_somesplit(_aspect_split, s)
+    assert res == s.split()
 
 
 # These tests are simple ones testing the calls and replacements since most of the
@@ -178,4 +190,4 @@ def test_propagate_ranges_with_no_context(caplog):
         result = wrap_somesplit(_aspect_split, string_input, "|")
         assert result == ["abc", "def"]
     log_messages = [record.getMessage() for record in caplog.get_records("call")]
-    assert not any("[IAST] " in message for message in log_messages), log_messages
+    assert not any("iast::" in message for message in log_messages), log_messages

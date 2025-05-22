@@ -2,24 +2,28 @@ import contextlib
 
 import pymongo
 
-from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import mongo
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import Pin
+from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
 
 # keep TracedMongoClient import to maintain backwards compatibility
 from .client import TracedMongoClient  # noqa: F401
+from .client import _dbm_comment_injector
 from .client import _trace_mongo_client_init
 from .client import _trace_server_run_operation_and_with_response
 from .client import _trace_server_send_message_with_response
@@ -47,8 +51,16 @@ else:
 
 _CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
 
+log = get_logger(__name__)
 
-config._add("pymongo", dict(_default_service=schematize_service_name("pymongo")))
+
+config._add(
+    "pymongo",
+    dict(
+        _default_service=schematize_service_name("pymongo"),
+        _dbm_propagator=_DBM_Propagator(2, "spec", _dbm_comment_injector, _generate_comment_from_metadata),
+    ),
+)
 
 
 def get_version():
@@ -129,7 +141,7 @@ def traced_get_socket(func, args, kwargs):
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
-            span.set_tag(SPAN_MEASURED_KEY)
+            span.set_tag(_SPAN_MEASURED_KEY)
             # Ensure the pin used on the traced mongo client is passed down to the socket instance
             # (via the server instance)
             Pin.get_from(instance).onto(sock_info)

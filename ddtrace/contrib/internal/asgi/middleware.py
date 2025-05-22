@@ -7,7 +7,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -24,6 +23,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
@@ -91,6 +91,18 @@ async def _blocked_asgi_app(scope, receive, send):
     await send({"type": "http.response.body", "body": b""})
 
 
+def _parse_response_cookies(response_headers):
+    cookies = {}
+    try:
+        result = response_headers.get("set-cookie", "").split("=", maxsplit=1)
+        if len(result) == 2:
+            cookie_key, cookie_value = result
+            cookies[cookie_key] = cookie_value
+    except Exception:
+        log.debug("failed to extract response cookies", exc_info=True)
+    return cookies
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -138,7 +150,9 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        pin = ddtrace.pin.Pin(service="asgi", tracer=self.tracer)
+        pin = ddtrace.trace.Pin(service="asgi")
+        pin._tracer = self.tracer
+
         with core.context_with_data(
             "asgi.__call__",
             remote_addr=scope.get("REMOTE_ADDR"),
@@ -150,6 +164,9 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
+            distributed_headers=headers,
+            integration_config=config.asgi,
+            activate_distributed_headers=True,
             pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -211,7 +228,6 @@ class TraceMiddleware:
                 peer_ip = client[0]
             else:
                 peer_ip = None
-
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -234,15 +250,8 @@ class TraceMiddleware:
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
                     response_headers = None
-
                 if span and message.get("type") == "http.response.start" and "status" in message:
-                    cookies = {}
-                    try:
-                        cookie_key, cookie_value = response_headers.get("set-cookie", "").split("=", maxsplit=1)
-                        cookies[cookie_key] = cookie_value
-                    except Exception:
-                        log.debug("failed to extract response cookies", exc_info=True)
-
+                    cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
                     trace_utils.set_http_meta(
                         span,
@@ -308,6 +317,15 @@ class TraceMiddleware:
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
                 raise
+            except BaseException as exception:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if exception.__class__.__name__ == "BaseExceptionGroup":
+                    for exc in exception.exceptions:
+                        if isinstance(exc, BlockingException):
+                            set_blocked(exc.args[0])
+                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                raise
             finally:
+                core.dispatch("web.request.final_tags", (span,))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)

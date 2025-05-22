@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    span: Fix issue where spans weren't being handled correctly and were not being sent when using a custom Exception class that raises an exception in `__str__`.

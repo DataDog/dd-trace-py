@@ -2,10 +2,10 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
-from ddtrace.contrib.pymongo.patch import get_version
-from ddtrace.contrib.pymongo.patch import patch
-from ddtrace.contrib.pymongo.patch import pymongo
-from ddtrace.contrib.pymongo.patch import unpatch
+from ddtrace.contrib.internal.pymongo.patch import get_version
+from ddtrace.contrib.internal.pymongo.patch import patch
+from ddtrace.contrib.internal.pymongo.patch import pymongo
+from ddtrace.contrib.internal.pymongo.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 

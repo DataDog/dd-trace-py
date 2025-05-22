@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    langchain: Removes prompt-completion log sampling from the LangChain integration. To continue logging prompt completions,
+     enable LLM Observability.
+  - |
+    langchain: Removes integration metrics from the LangChain integration. To continue tracking operational metrics from the
+     OpenAI integration, enable LLM Observability or use trace metrics instead.

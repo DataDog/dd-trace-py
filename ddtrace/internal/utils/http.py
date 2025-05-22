@@ -1,9 +1,11 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+from email.encoders import encode_noop
 from json import loads
 import logging
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
@@ -14,11 +16,10 @@ from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
+from urllib import parse
 
-from ddtrace.constants import USER_ID_KEY
-from ddtrace.internal import compat
+from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -26,21 +27,23 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
-from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
-
-
-ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 
-Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
+if TYPE_CHECKING:
+    import http.client as httplib
+
+    from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
+Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
 
 
 log = logging.getLogger(__name__)
@@ -81,7 +84,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
-    parts = compat.parse.urlparse(url)
+    parts = parse.urlparse(url)
     redacted_query = None
 
     if query_string:
@@ -136,7 +139,7 @@ def connector(url, **kwargs):
 
     @contextmanager
     def _connector_context():
-        # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
+        # type: () -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -163,13 +166,13 @@ def w3c_get_dd_list_member(context):
             "t.dm:{}".format((w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", sampling_decision))))
         )
     # since this can change, we need to grab the value off the current span
-    usr_id = context._meta.get(USER_ID_KEY)
+    usr_id = context._meta.get(_USER_ID_KEY)
     if usr_id:
         tags.append("t.usr.id:{}".format(w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", usr_id))))
 
     current_tags_len = sum(len(i) for i in tags)
     for k, v in _get_metas_to_propagate(context):
-        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
+        if k not in [SAMPLING_DECISION_TRACE_TAG_KEY, _USER_ID_KEY]:
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             k = k.replace("_dd.p.", "t.")
@@ -280,6 +283,10 @@ def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType
     parsed = verify_url(url)
     hostname = parsed.hostname or ""
     path = parsed.path or "/"
+
+    from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.uds import UDSHTTPConnection
 
     if parsed.scheme == "https":
         return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
@@ -418,7 +425,7 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
 class FormData:
     name: str
     filename: str
-    data: str
+    data: Union[str, bytes]
     content_type: str
 
 
@@ -431,12 +438,12 @@ def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
     del msg["MIME-Version"]
 
     for part in parts:
-        app = MIMEApplication(part.data, part.content_type, lambda _: _)
+        app = MIMEApplication(part.data, part.content_type, encode_noop)
         app.add_header("Content-Disposition", "form-data", name=part.name, filename=part.filename)
         del app["MIME-Version"]
         msg.attach(app)
 
     # Split headers and body
-    headers, _, body = msg.as_string(policy=HTTP).partition("\r\n\r\n")
+    headers, _, body = msg.as_bytes(policy=HTTP).partition(b"\r\n\r\n")
 
-    return body.encode("utf-8"), dict(_.split(": ") for _ in headers.splitlines())
+    return body, dict(_.split(": ") for _ in headers.decode().splitlines())

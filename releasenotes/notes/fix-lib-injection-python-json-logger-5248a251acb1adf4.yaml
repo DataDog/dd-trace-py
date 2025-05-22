@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: remove python-json-logger from library compatibility check.

@@ -11,12 +11,16 @@ from typing import Set
 from typing import Tuple
 import zlib
 
-from ddtrace.appsec._iast._evidence_redaction import sensitive_handler
+from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
+from ddtrace.appsec._iast._evidence_redaction._sensitive_handler import sensitive_handler
+from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_id
 from ddtrace.appsec._iast._utils import _get_source_index
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -60,17 +64,45 @@ class Evidence(NotNoneDictable):
 
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Location(NotNoneDictable):
+class Location:
     spanId: int = dataclasses.field(compare=False, hash=False, repr=False)
+    stackId: Optional[str] = dataclasses.field(init=False, compare=False)
     path: Optional[str] = None
     line: Optional[int] = None
+    method: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
+    class_name: Optional[str] = dataclasses.field(compare=False, hash=False, repr=False, default="")
+
+    def __post_init__(self):
+        self.hash = zlib.crc32(repr(self).encode())
+        stacktrace_id = get_iast_stacktrace_id()
+        self.stackId = None
+        if stacktrace_id:
+            str_id = str(stacktrace_id)
+            if report_stack(stack_id=str_id, namespace=STACK_TRACE.IAST):
+                self.stackId = str_id
 
     def __repr__(self):
         return f"Location(path='{self.path}', line={self.line})"
 
+    def _to_dict(self):
+        result = {}
+        if self.spanId is not None:
+            result["spanId"] = self.spanId
+        if self.path:
+            result["path"] = self.path
+        if self.line is not None:
+            result["line"] = self.line
+        if self.method:
+            result["method"] = self.method
+        if self.class_name:
+            result["class"] = self.class_name
+        if self.stackId:
+            result["stackId"] = self.stackId
+        return result
+
 
 @dataclasses.dataclass(unsafe_hash=True)
-class Vulnerability(NotNoneDictable):
+class Vulnerability:
     type: str
     evidence: Evidence
     location: Location
@@ -81,6 +113,15 @@ class Vulnerability(NotNoneDictable):
 
     def __repr__(self):
         return f"Vulnerability(type='{self.type}', location={self.location})"
+
+    def _to_dict(self):
+        to_dict = {
+            "type": self.type,
+            "evidence": self.evidence._to_dict(),
+            "location": self.location._to_dict(),
+            "hash": self.hash,
+        }
+        return to_dict
 
 
 @dataclasses.dataclass
@@ -121,6 +162,74 @@ class IastSpanReporter(NotNoneDictable):
         """
         return reduce(operator.xor, (hash(obj) for obj in set(self.sources) | self.vulnerabilities))
 
+    def _merge(self, other: "IastSpanReporter") -> None:
+        """
+        Merges the current IAST span reporter with another IAST span reporter.
+
+        Args:
+        - other (IastSpanReporter): IAST span reporter to merge.
+        """
+        len_previous_sources = len(self.sources)
+        self.sources = self.sources + other.sources
+        self._update_vulnerabilities(other, len_previous_sources)
+
+    def _update_vulnerabilities(self, other: "IastSpanReporter", offset: int):
+        for vuln in other.vulnerabilities:
+            if (
+                hasattr(vuln, "evidence")
+                and hasattr(vuln.evidence, "valueParts")
+                and vuln.evidence.valueParts is not None
+            ):
+                for part in vuln.evidence.valueParts:
+                    if "source" in part:
+                        part["source"] = part["source"] + offset
+            self.vulnerabilities.add(vuln)
+
+    def _from_json(self, json_str: str):
+        """
+        Initializes the IAST span reporter from a JSON string.
+
+        Args:
+        - json_str (str): JSON string.
+        """
+        from ._taint_tracking import str_to_origin
+
+        data = json.loads(json_str)
+        self.sources = []
+        for i in data["sources"]:
+            source = Source(
+                origin=str_to_origin(i["origin"]),
+                name=i["name"],
+            )
+            if "value" in i:
+                source.value = i["value"]
+            if "redacted" in i:
+                source.redacted = i["redacted"]
+            if "pattern" in i:
+                source.pattern = i["pattern"]
+            self.sources.append(source)
+
+        self.vulnerabilities = set()
+        for i in data["vulnerabilities"]:
+            evidence = Evidence()
+            if "ranges" in i["evidence"]:
+                evidence._ranges = i["evidence"]["ranges"]
+            if "value" in i["evidence"]:
+                evidence.value = i["evidence"]["value"]
+            if "valueParts" in i["evidence"]:
+                evidence.valueParts = i["evidence"]["valueParts"]
+            if "dialect" in i["evidence"]:
+                evidence.dialect = i["evidence"]["dialect"]
+            self.vulnerabilities.add(
+                Vulnerability(
+                    type=i["type"],
+                    evidence=evidence,
+                    location=Location(
+                        spanId=i["location"]["spanId"], path=i["location"]["path"], line=i["location"]["line"]
+                    ),
+                )
+            )
+
     def _to_dict(self):
         return {
             "sources": [i._to_dict() for i in self.sources],
@@ -138,7 +247,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - Tuple[Set[Source], List[Dict]]: Set of Source objects and list of tainted ranges as dictionaries.
         """
-        from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 
         sources = list()
         tainted_ranges = get_tainted_ranges(pyobject)
@@ -157,11 +266,9 @@ class IastSpanReporter(NotNoneDictable):
         return sources, tainted_ranges_to_dict
 
     def add_ranges_to_evidence_and_extract_sources(self, vuln):
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] add_ranges_to_evidence_and_extract_sources. "
+                "iast::propagation::context::add_ranges_to_evidence_and_extract_sources. "
                 "No request quota or this vulnerability is outside the context"
             )
             return
@@ -178,11 +285,10 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
-        from ddtrace.appsec._iast._iast_request_context import is_iast_request_enabled
-
-        if not is_iast_request_enabled():
+        if not asm_config.is_iast_request_enabled:
             log.debug(
-                "[IAST] build_and_scrub_value_parts. No request quota or this vulnerability is outside the context"
+                "iast::propagation::context::build_and_scrub_value_parts. "
+                "No request quota or this vulnerability is outside the context"
             )
             return {}
         for vuln in self.vulnerabilities:
@@ -237,7 +343,7 @@ class IastSpanReporter(NotNoneDictable):
 
         return value_parts
 
-    def _to_str(self) -> str:
+    def _to_str(self, dict_data=None) -> str:
         """
         Converts the IAST span reporter to a JSON string.
 
@@ -254,4 +360,6 @@ class IastSpanReporter(NotNoneDictable):
                     return origin_to_str(obj)
                 return json.JSONEncoder.default(self, obj)
 
+        if dict_data:
+            return json.dumps(dict_data, cls=OriginTypeEncoder)
         return json.dumps(self._to_dict(), cls=OriginTypeEncoder)

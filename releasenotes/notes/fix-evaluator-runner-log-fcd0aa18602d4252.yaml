@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where spans were being enqueued to an inactive evaluator runner which caused noisy logs
+                  related to the evaluator runner buffer being full.

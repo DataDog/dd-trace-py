@@ -10,19 +10,18 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace.internal import agent
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
-from ddtrace.sampler import DatadogSampler
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from .logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Tracer  # noqa:F401
+    from ddtrace.trace import Tracer  # noqa:F401
 
 
 logger = get_logger(__name__)
@@ -55,11 +54,11 @@ def collect(tracer):
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-    if isinstance(tracer._writer, LogWriter):
+    if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._writer, AgentWriter):
-        writer = tracer._writer
+    elif isinstance(tracer._span_aggregator.writer, AgentWriter):
+        writer = tracer._span_aggregator.writer
         agent_url = writer.agent_url
         try:
             writer.write([])
@@ -72,13 +71,11 @@ def collect(tracer):
         agent_url = "CUSTOM"
         agent_error = None
 
-    sampler_rules = None
-    if isinstance(tracer._sampler, DatadogSampler):
-        sampler_rules = [str(rule) for rule in tracer._sampler.rules]
+    sampler_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
-    packages_available = {p.name: p.version for p in get_distributions()}
+    packages_available = {name: version for (name, version) in get_distributions().items()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
@@ -117,8 +114,8 @@ def collect(tracer):
     from ddtrace._trace.tracer import log
 
     return dict(
-        # Timestamp UTC ISO 8601
-        date=datetime.datetime.utcnow().isoformat(),
+        # Timestamp UTC ISO 8601 with the trailing +00:00 removed
+        date=datetime.datetime.now(datetime.timezone.utc).isoformat()[0:-6],
         # eg. "Linux", "Darwin"
         os_name=platform.system(),
         # eg. 12.5.0
@@ -133,7 +130,7 @@ def collect(tracer):
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        statsd_url=agent.get_stats_url(),
+        statsd_url=agent_config.dogstatsd_url,
         env=ddtrace.config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
@@ -149,11 +146,11 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        global_tags=os.getenv("DD_TAGS", ""),
+        global_tags=tags_to_str(ddtrace.config.tags),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
-        partial_flush_enabled=tracer._partial_flush_enabled,
-        partial_flush_min_spans=tracer._partial_flush_min_spans,
+        partial_flush_enabled=tracer._span_aggregator.partial_flush_enabled,
+        partial_flush_min_spans=tracer._span_aggregator.partial_flush_min_spans,
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,

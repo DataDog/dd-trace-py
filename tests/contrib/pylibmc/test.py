@@ -5,12 +5,13 @@ from unittest.case import SkipTest
 # 3p
 import pylibmc
 
-# project
-from ddtrace import Pin
-from ddtrace.contrib.pylibmc import TracedClient
-from ddtrace.contrib.pylibmc.patch import patch
-from ddtrace.contrib.pylibmc.patch import unpatch
+from ddtrace.contrib.internal.pylibmc.client import TracedClient
+from ddtrace.contrib.internal.pylibmc.patch import patch
+from ddtrace.contrib.internal.pylibmc.patch import unpatch
 from ddtrace.ext import memcached
+
+# project
+from ddtrace.trace import Pin
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -315,7 +316,7 @@ class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
         client = pylibmc.Client([url])
         client.flush_all()
 
-        Pin.get_from(client).clone(tracer=self.tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=self.tracer).onto(client)
 
         return client, self.tracer
 
@@ -328,7 +329,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
     def get_client(self):
         client, tracer = TestPylibmcPatchDefault.get_client(self)
 
-        Pin.get_from(client).clone(service=self.TEST_SERVICE).onto(client)
+        Pin.get_from(client)._clone(service=self.TEST_SERVICE).onto(client)
 
         return client, tracer
 
@@ -340,7 +341,7 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin.get_from(client).clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
 
         client.set("a", 1)
 
@@ -361,9 +362,41 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
 
         client = pylibmc.Client([url])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        pin = Pin(service=self.TEST_SERVICE)
+        pin._tracer = self.tracer
+        pin.onto(client)
         client.set("a", 1)
 
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+
+    def test_client_with_servers_option(self):
+        """
+        A test to make sure we support using `servers`, ie: with pylibmc.Client(servers=[url])
+        """
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+
+        patch()
+        client = pylibmc.Client(servers=[url])
+        assert client.addresses[0] is url
+        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.set("a", 1)
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+
+    def test_client_without_servers_option(self):
+        """
+        A test to make sure we support the most basic use case of calling pylibmc.Client([url])
+        """
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+
+        patch()
+        client = pylibmc.Client([url])
+        assert client.addresses[0] is url
+        Pin.get_from(client)._clone(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1

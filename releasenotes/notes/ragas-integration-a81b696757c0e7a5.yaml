@@ -1,0 +1,21 @@
+---
+features:
+  - |
+    LLM Observability: This introduces an integration with the `RAGAS <https://docs.ragas.io/en/stable/>`_ evaluation framework to continuously monitor 
+                    the performance of context-augmented LLM generations in production.
+
+                    The integration supports evaluating LLM inferences with the following RAGAS metrics:
+                    - `Faithfulness <https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/faithfulness/>`_: measures if the LLM response is faithful to the provided context.
+                    - `Answer Relevancy <https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/answer_relevance/>`_: measures how relevant the LLM response is to the user input.
+                    - `Context Precision <https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/>`_:  measures how effectively the context is used in the generated response.
+
+                    To learn more, see the `LLM Observability evaluations guide <https://docs.datadoghq.com/llm_observability/submit_evaluations/>`_.
+deprecations:
+  - |
+    LLM Observability: The `_DD_LLMOBS_EVALUATORS` environment variable is deprecated and will be removed in ddtrace 3.0.0.
+                      As an alternative to `_DD_LLMOBS_EVALUATORS`, you can use `DD_LLMOBS_EVALUATORS` instead.
+                      To migrate, replace `_DD_LLMOBS_EVALUATORS` with `DD_LLMOBS_EVALUATORS`.
+  - |
+    LLM Observability: The `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` environment variable is deprecated and will be removed in ddtrace 3.0.0.
+                      As an alternative to `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES`, you can use `DD_LLMOBS_EVALUATOR_SAMPLING_RULES` instead.
+                      To migrate, replace `_DD_LLMOBS_EVALUATOR_SAMPLING_RULES` with `DD_LLMOBS_EVALUATOR_SAMPLING_RULES`.

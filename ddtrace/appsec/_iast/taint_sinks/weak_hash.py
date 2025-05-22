@@ -1,30 +1,25 @@
 import os
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
 from typing import Set
-from typing import Text  # noqa:F401
 
 from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST_SPAN_TAGS
-from .. import oce
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
-from .._metrics import increment_iast_span_metric
+from .._overhead_control_engine import oce
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
+from .._span_metrics import increment_iast_span_metric
 from ..constants import DEFAULT_WEAK_HASH_ALGORITHMS
 from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
-
-
-log = get_logger(__name__)
 
 
 def get_weak_hash_algorithms() -> Set:
@@ -64,7 +59,7 @@ def unpatch_iast():
     try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
-def get_version() -> Text:
+def get_version() -> str:
     return ""
 
 
@@ -118,48 +113,54 @@ def patch():
         _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
 
 
-@WeakHash.wrap
 def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if instance.name.lower() in get_weak_hash_algorithms():
+    if asm_config.is_iast_request_enabled:
+        if WeakHash.has_quota() and instance.name.lower() in get_weak_hash_algorithms():
+            WeakHash.report(
+                evidence_value=instance.name,
+            )
+
+        # Reports Span Metrics
         increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+        # Report Telemetry Metrics
         _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
-        WeakHash.report(
-            evidence_value=instance.name,
-        )
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
-@WeakHash.wrap
 def wrapped_md5_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, MD5_DEF, instance, args, kwargs)
 
 
-@WeakHash.wrap
 def wrapped_sha1_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
     return wrapped_function(wrapped, SHA1_DEF, instance, args, kwargs)
 
 
-@WeakHash.wrap
 def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if args[0].lower() in get_weak_hash_algorithms():
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
-        _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
-        WeakHash.report(
-            evidence_value=args[0].lower(),
-        )
+    if asm_config.is_iast_request_enabled:
+        if WeakHash.has_quota() and args[0].lower() in get_weak_hash_algorithms():
+            WeakHash.report(
+                evidence_value=args[0].lower(),
+            )
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
 
 
-def wrapped_function(wrapped: Callable, evidence: Text, instance: Any, args: Any, kwargs: Any) -> Any:
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
-    _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
-    WeakHash.report(
-        evidence_value=evidence,
-    )
+def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any, kwargs: Any) -> Any:
+    if asm_config.is_iast_request_enabled:
+        if WeakHash.has_quota():
+            WeakHash.report(
+                evidence_value=evidence,
+            )
+        # Reports Span Metrics
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+        # Report Telemetry Metrics
+        _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
+
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)

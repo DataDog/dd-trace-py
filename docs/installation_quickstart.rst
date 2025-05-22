@@ -59,24 +59,6 @@ When ``ddtrace-run`` cannot be used, a similar start-up behavior can be achieved
 with the import of ``ddtrace.auto``. This should normally be imported as the
 first thing during the application start-up.
 
-If neither ``ddtrace-run`` nor ``import ddtrace.auto`` are suitable for your application, then
-:py:func:`ddtrace.patch_all` can be used to configure the tracer::
-
-    from ddtrace import config, patch_all
-
-    config.env = "dev"      # the environment the application is in
-    config.service = "app"  # name of your application
-    config.version = "0.1"  # version of your application
-    patch_all()
-
-
-.. note::
-    We recommend the use of ``ddtrace-run`` when possible. If you are importing
-    ``ddtrace.auto`` as a programmatic replacement for ``ddtrace``, then note
-    that integrations will take their configuration from the environment
-    variables. A call to :py:func:`ddtrace.patch_all` cannot be used to disable
-    an integration at this point.
-
 
 Service names also need to be configured for libraries that query other
 services (``requests``, ``grpc``, database libraries, etc).  Check out the
@@ -109,53 +91,3 @@ Configuration
 
 Almost all configuration of ``ddtrace`` can be done via environment
 variable. See the full list in :ref:`Configuration`.
-
-OpenTracing
------------
-
-``ddtrace`` also provides an OpenTracing API to the Datadog tracer so
-that you can use the Datadog tracer in your OpenTracing-compatible
-applications.
-
-Installation
-~~~~~~~~~~~~
-
-Include OpenTracing with ``ddtrace``::
-
-  $ pip install ddtrace[opentracing]
-
-To include the OpenTracing dependency in your project with ``ddtrace``, ensure
-you have the following in ``setup.py``::
-
-    install_requires=[
-        "ddtrace[opentracing]",
-    ],
-
-Configuration
-~~~~~~~~~~~~~
-
-The OpenTracing convention for initializing a tracer is to define an
-initialization method that will configure and instantiate a new tracer and
-overwrite the global ``opentracing.tracer`` reference.
-
-Typically this method looks something like::
-
-    from ddtrace.opentracer import Tracer, set_global_tracer
-
-    def init_tracer(service_name):
-        """
-        Initialize a new Datadog opentracer and set it as the
-        global tracer.
-
-        This overwrites the opentracing.tracer reference.
-        """
-        config = {
-          'agent_hostname': 'localhost',
-          'agent_port': 8126,
-        }
-        tracer = Tracer(service_name, config=config)
-        set_global_tracer(tracer)
-        return tracer
-
-For more advanced usage of OpenTracing in ``ddtrace`` refer to the
-documentation :ref:`here<adv_opentracing>`.

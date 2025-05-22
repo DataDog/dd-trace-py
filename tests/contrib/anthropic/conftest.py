@@ -3,10 +3,10 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
-from ddtrace.contrib.anthropic.patch import patch
-from ddtrace.contrib.anthropic.patch import unpatch
+from ddtrace.contrib.internal.anthropic.patch import patch
+from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Pin
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -36,8 +36,7 @@ def mock_tracer(ddtrace_global_config, anthropic):
     try:
         pin = Pin.get_from(anthropic)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin.override(anthropic, tracer=mock_tracer)
-        pin.tracer.configure()
+        pin._override(anthropic, tracer=mock_tracer)
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()

@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    langchain: Drops tracing and LLM Observability support for Langchain v0.0.x versions.

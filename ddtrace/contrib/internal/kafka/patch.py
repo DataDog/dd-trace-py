@@ -1,19 +1,20 @@
 import os
 import sys
+from time import time_ns
 
 import confluent_kafka
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.compat import time_ns
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
@@ -24,8 +25,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.trace import Pin
 
 
 _Producer = confluent_kafka.Producer
@@ -62,7 +63,9 @@ _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPL
 
 
 class TracedProducerMixin:
-    def __init__(self, config, *args, **kwargs):
+    def __init__(self, config=None, *args, **kwargs):
+        if not config:
+            config = kwargs
         super(TracedProducerMixin, self).__init__(config, *args, **kwargs)
         self._dd_bootstrap_servers = (
             config.get("bootstrap.servers")
@@ -79,7 +82,9 @@ class TracedProducerMixin:
 
 
 class TracedConsumerMixin:
-    def __init__(self, config, *args, **kwargs):
+    def __init__(self, config=None, *args, **kwargs):
+        if not config:
+            config = kwargs
         super(TracedConsumerMixin, self).__init__(config, *args, **kwargs)
         self._group_id = config.get("group.id", "")
         self._auto_commit = asbool(config.get("enable.auto.commit", True))
@@ -182,6 +187,9 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.kafka.integration_name)
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         span.set_tag_str(kafkax.TOPIC, topic)
+        if topic:
+            # Should fall back to broker id if topic is not provided but it is not readily available here
+            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
@@ -192,7 +200,7 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         if instance._dd_bootstrap_servers is not None:
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
         rate = config.kafka.get_analytics_sample_rate()
@@ -247,7 +255,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None else pin.tracer.context_provider.active(),
+        child_of=ctx if ctx is not None and ctx.trace_id is not None else pin.tracer.context_provider.active(),
         activate=True,
     ) as span:
         # reset span start time to before function call
@@ -271,7 +279,9 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            span.set_tag_str(kafkax.TOPIC, str(first_message.topic()))
+            topic = str(first_message.topic())
+            span.set_tag_str(kafkax.TOPIC, topic)
+            span.set_tag_str(MESSAGING_DESTINATION_NAME, topic)
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -289,7 +299,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 pass
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         rate = config.kafka.get_analytics_sample_rate()
         if rate is not None:
             span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)

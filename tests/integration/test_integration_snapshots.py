@@ -1,29 +1,25 @@
 # -*- coding: utf-8 -*-
-import multiprocessing
 import os
 
 import mock
 import pytest
 
-from ddtrace import Tracer
-from ddtrace import tracer
-from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.constants import USER_KEEP
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.trace import tracer
+from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import mark_snapshot
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config
 from tests.utils import snapshot
-
-from .test_integration import AGENT_VERSION
 
 
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 
 
 @snapshot(include_tracer=True)
+@pytest.mark.subprocess()
 def test_single_trace_single_span(tracer):
+    from ddtrace.trace import tracer
+
     s = tracer.trace("operation", service="my-svc")
     s.set_tag("k", "v")
     # numeric tag
@@ -31,11 +27,14 @@ def test_single_trace_single_span(tracer):
     s.set_metric("float_metric", 12.34)
     s.set_metric("int_metric", 4321)
     s.finish()
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot(include_tracer=True)
+@pytest.mark.subprocess()
 def test_multiple_traces(tracer):
+    from ddtrace.trace import tracer
+
     with tracer.trace("operation1", service="my-svc") as s:
         s.set_tag("k", "v")
         s.set_tag("num", 1234)
@@ -49,27 +48,18 @@ def test_multiple_traces(tracer):
         s.set_metric("float_metric", 12.34)
         s.set_metric("int_metric", 4321)
         tracer.trace("child").finish()
-    tracer.shutdown()
+    tracer.flush()
 
 
-@pytest.mark.parametrize(
-    "writer",
-    ("default", "sync"),
-)
 @snapshot(include_tracer=True)
-def test_filters(writer, tracer):
-    if writer == "sync":
-        writer = AgentWriter(
-            tracer.agent_trace_url,
-            sync_mode=True,
-        )
-        # Need to copy the headers which contain the test token to associate
-        # traces with this test case.
-        writer._headers = tracer._writer._headers
-    else:
-        writer = tracer._writer
+@pytest.mark.subprocess(
+    token="tests.integration.test_integration_snapshots.test_filters",
+)
+def test_filters():
+    from ddtrace.trace import TraceFilter
+    from ddtrace.trace import tracer
 
-    class FilterMutate(object):
+    class FilterMutate(TraceFilter):
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -79,27 +69,26 @@ def test_filters(writer, tracer):
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer.configure(
-        settings={
-            "FILTERS": [FilterMutate("boop", "beep")],
-        },
-        writer=writer,
-    )
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
             pass
-    tracer.shutdown()
+    tracer.flush()
 
 
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
+@pytest.mark.subprocess()
 @snapshot(async_mode=False)
 def test_synchronous_writer():
-    tracer = Tracer()
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer.configure(writer=writer)
+    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import tracer
+
+    writer = AgentWriter(tracer._span_aggregator.writer.agent_url, sync_mode=True)
+    tracer._span_aggregator.writer = writer
+    tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass
@@ -110,61 +99,73 @@ def test_synchronous_writer():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child process.
     """
-    tracer = Tracer()
+    import multiprocessing
+
+    from ddtrace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         with tracer.trace("child"):
             pass
-        tracer.shutdown()
+        tracer.flush()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
 
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
-        The trace should be continued in the child processes. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child processes.
     """
-    tracer = Tracer()
+    import multiprocessing
+
+    from ddtrace.trace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         def task2(tracer):
+            import ddtrace.auto  # noqa
+
             with tracer.trace("child2"):
                 pass
-            tracer.shutdown()
+            tracer.flush()
 
         with tracer.trace("child1"):
             p = multiprocessing.Process(target=task2, args=(tracer,))
             p.start()
             p.join()
-        tracer.shutdown()
+        tracer.flush()
 
     with tracer.trace("parent"):
         p = multiprocessing.Process(target=task, args=(tracer,))
         p.start()
         p.join()
-    tracer.shutdown()
+    tracer.flush()
 
 
 @snapshot()
+@pytest.mark.subprocess()
 def test_wrong_span_name_type_not_sent():
     """Span names should be a text type."""
-    tracer = Tracer()
+    import mock
+
+    from ddtrace.trace import tracer
+
     with mock.patch("ddtrace._trace.span.log") as log:
         with tracer.trace(123):
             pass
@@ -180,11 +181,9 @@ def test_wrong_span_name_type_not_sent():
     ],
 )
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-@snapshot()
 def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
     """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace._trace.span.log") as log:
             with tracer.trace("root") as root:
                 root._meta = meta
@@ -208,7 +207,6 @@ def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
 def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
     """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     with override_global_config(dict(_trace_api=encoding)):
-        tracer = Tracer()
         with mock.patch("ddtrace._trace.span.log") as log:
             with tracer.trace("root") as root:
                 root._metrics = metrics
@@ -218,14 +216,19 @@ def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch)
             log.exception.assert_called_once_with("error closing trace")
 
 
-@snapshot()
+@pytest.mark.subprocess()
+@pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
-    tracer = Tracer()
+    from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+    from ddtrace.constants import AUTO_KEEP
+    from ddtrace.constants import USER_KEEP
+    from ddtrace.trace import tracer
+
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
-    tracer.shutdown()
+    tracer.flush()
 
 
 # Override the token so that both parameterizations of the test use the same snapshot
@@ -250,7 +253,9 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
 
     fn(
         """
-from ddtrace import tracer
+import ddtrace.auto
+
+from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
         env=env,
@@ -275,3 +280,23 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs():
     s.set_metric("number2", 12.0)
     s.set_metric("number3", "1")
     s.finish()
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_string_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
+            span.set_tag(key="c" * 25001, value="d" * 2000)
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_unicode_string_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="á" * 25000, resource="â" * 25001) as span:
+            span.set_tag(key="å" * 25001, value="ä" * 2000)

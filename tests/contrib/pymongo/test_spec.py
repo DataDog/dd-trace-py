@@ -4,7 +4,7 @@ tests for parsing specs.
 
 from bson.son import SON
 
-from ddtrace.contrib.pymongo.parse import parse_spec
+from ddtrace.contrib.internal.pymongo.parse import parse_spec
 
 
 def test_empty():

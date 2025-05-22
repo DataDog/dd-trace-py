@@ -26,6 +26,7 @@ log = get_logger(__name__)
 
 DEFAULT_PROBE_RATE = 5000.0
 DEFAULT_SNAPSHOT_PROBE_RATE = 1.0
+DEFAULT_TRIGGER_PROBE_RATE = 1.0 / 60.0  # 1 per minute
 DEFAULT_PROBE_CONDITION_ERROR_RATE = 1.0 / 60 / 5
 
 
@@ -65,6 +66,12 @@ class CaptureLimits:
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
+# NOTE: Probe dataclasses are mutable, but have an identity, so can be hashed.
+# When defining a probe class, the `eq` parameter of the `dataclass` decorator
+# should be set to `False` to allow the `__hash__` method from the base Probe
+# class to be used.
+
+
 @dataclass
 class Probe(abc.ABC):
     __context_creator__ = False
@@ -84,6 +91,9 @@ class Probe(abc.ABC):
 
         for attrib in (f.name for f in fields(self) if f.compare):
             setattr(self, attrib, getattr(other, attrib))
+
+    def is_global_rate_limited(self) -> bool:
+        return False
 
     def __hash__(self):
         return hash(self.probe_id)
@@ -190,12 +200,12 @@ class MetricProbeMixin(AbstractProbeMixIn):
     value: Optional[DDExpression]
 
 
-@dataclass
+@dataclass(eq=False)
 class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class MetricFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
@@ -242,15 +252,21 @@ class LogProbeMixin(AbstractProbeMixIn):
     take_snapshot: bool
     limits: CaptureLimits = field(compare=False)
 
+    @property
+    def __budget__(self) -> int:
+        return 10 if self.take_snapshot else 100
 
-@dataclass
+
+@dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
-@dataclass
+@dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
-    pass
+    def is_global_rate_limited(self) -> bool:
+        return self.take_snapshot
 
 
 @dataclass
@@ -258,7 +274,7 @@ class SpanProbeMixin:
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
     __context_creator__: bool = field(default=True, init=False, repr=False, compare=False)
 
@@ -286,18 +302,36 @@ class SpanDecorationMixin:
     decorations: List[SpanDecoration]
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, SpanDecorationMixin):
     pass
 
 
-LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe]
-FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe]
+@dataclass
+class SessionMixin:
+    session_id: str
+    level: int
+
+
+@dataclass(eq=False)
+class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
+    pass
+
+
+@dataclass(eq=False)
+class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
+    pass
+
+
+LineProbe = Union[LogLineProbe, MetricLineProbe, SpanDecorationLineProbe, TriggerLineProbe]
+FunctionProbe = Union[
+    LogFunctionProbe, MetricFunctionProbe, SpanFunctionProbe, SpanDecorationFunctionProbe, TriggerFunctionProbe
+]
 
 
 class ProbeType(str, Enum):
@@ -305,3 +339,4 @@ class ProbeType(str, Enum):
     METRIC_PROBE = "METRIC_PROBE"
     SPAN_PROBE = "SPAN_PROBE"
     SPAN_DECORATION_PROBE = "SPAN_DECORATION_PROBE"
+    TRIGGER_PROBE = "TRIGGER_PROBE"

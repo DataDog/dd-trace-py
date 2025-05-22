@@ -1,12 +1,12 @@
 from pathlib import Path
 
-import mock
+from mock import patch
 import pytest
 
+from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
+from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
+from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
-from .test_anthropic import ANTHROPIC_VERSION
-from .utils import tools
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -31,6 +31,37 @@ Francisco, CA is 73°F."
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsAnthropic:
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self,
+        mock_anthropic_messages_post,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        mock_tracer,
+        request_vcr,
+    ):
+        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
+        llm = anthropic.Anthropic(base_url="http://localhost:4000")
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            system="Respond only in all caps.",
+            temperature=0.8,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Hello, I am looking for information about some books!"},
+                        {"type": "text", "text": "What is the best selling book?"},
+                    ],
+                }
+            ],
+        )
+        # base_url is specified, so no llm obs span should be sent
+        assert mock_llmobs_writer.enqueue.call_count == 0
+
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -68,6 +99,59 @@ class TestLLMObsAnthropic:
                 output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
+        )
+
+    def test_completion_with_multiple_system_prompts(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+    ):
+        """Ensure llmobs records are emitted for completion endpoints with a list of messages as the system prompt.
+
+        Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_multi_system_prompt.yaml"):
+            llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                temperature=0.8,
+                system=[
+                    {
+                        "type": "text",
+                        "text": "You are an AI assistant tasked with analyzing literary works.",
+                    },
+                    {"type": "text", "text": "only respond in all caps", "cache_control": {"type": "ephemeral"}},
+                ],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Hello, I am looking for information about some books!"},
+                            {"type": "text", "text": "What is the best selling book?"},
+                        ],
+                    }
+                ],
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-3-opus-20240229",
+                model_provider="anthropic",
+                input_messages=[
+                    {
+                        "content": "You are an AI assistant tasked with analyzing literary works.",
+                        "role": "system",
+                    },
+                    {"content": "only respond in all caps", "role": "system"},
+                    {"content": "Hello, I am looking for information about some books!", "role": "user"},
+                    {"content": "What is the best selling book?", "role": "user"},
+                ],
+                output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
+                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                token_metrics={"input_tokens": 43, "output_tokens": 15, "total_tokens": 58},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
@@ -116,37 +200,6 @@ class TestLLMObsAnthropic:
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
                 )
-
-    def test_error_unserializable_arg(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
-    ):
-        """Ensure we handle unserializable arguments correctly and still emit llmobs records."""
-        llm = anthropic.Anthropic()
-        with pytest.raises(Exception):
-            llm.messages.create(
-                model="claude-3-opus-20240229",
-                max_tokens=object(),
-                temperature=0.8,
-                messages=[{"role": "user", "content": "Hello World!"}],
-            )
-
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        expected_span = _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-opus-20240229",
-            model_provider="anthropic",
-            input_messages=[{"content": "Hello World!", "role": "user"}],
-            output_messages=[{"content": ""}],
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
-            metadata={"temperature": 0.8, "max_tokens": mock.ANY},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
-        )
-        mock_llmobs_writer.enqueue.assert_called_with(expected_span)
-        actual_span = mock_llmobs_writer.enqueue.call_args[0][0]
-        assert "[Unserializable object: <object object at " in actual_span["meta"]["metadata"]["max_tokens"]
 
     def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.

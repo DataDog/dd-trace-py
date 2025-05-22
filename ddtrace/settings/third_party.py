@@ -1,17 +1,17 @@
-from envier import En
+from ddtrace.settings._core import DDConfig
 
 
-class ThirdPartyDetectionConfig(En):
+class ThirdPartyDetectionConfig(DDConfig):
     __prefix__ = "dd.third_party_detection"
 
-    excludes = En.v(
+    excludes = DDConfig.v(
         set,
         "excludes",
         help="List of packages that should not be treated as third-party",
         help_type="List",
         default=set(),
     )
-    includes = En.v(
+    includes = DDConfig.v(
         set,
         "includes",
         help="Additional packages to treat as third-party",

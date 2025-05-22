@@ -1,10 +1,13 @@
 from collections import deque
 from dis import findlinestarts
+from functools import lru_cache
 from functools import partial
 from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
+from typing import Iterator
+from typing import List
 from typing import Set
 from typing import cast
 
@@ -19,7 +22,7 @@ def linenos(_) -> Set[int]:
 @linenos.register
 def _(code: CodeType) -> Set[int]:
     """Get the line numbers of a function."""
-    return {ln for _, ln in findlinestarts(code)} - {code.co_firstlineno}
+    return {ln for _, ln in findlinestarts(code) if ln is not None} - {code.co_firstlineno}
 
 
 @linenos.register
@@ -112,3 +115,19 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             pass
 
     return f
+
+
+def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
+    q = deque([code])
+    while q:
+        c = q.popleft()
+        for new_code in (_ for _ in c.co_consts if isinstance(_, CodeType)):
+            yield new_code
+            q.append(new_code)
+
+
+@lru_cache(maxsize=(1 << 14))  # 16k entries
+def functions_for_code(code: CodeType) -> List[FunctionType]:
+    import gc
+
+    return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]

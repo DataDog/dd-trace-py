@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fix ``ddtrace`` internal logger initialization mutating an unlocked shared resource.

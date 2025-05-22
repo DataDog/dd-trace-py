@@ -50,7 +50,7 @@ def get_source_lines_for_test_method(
 
 
 def _add_start_end_source_file_path_data_to_span(
-    span: ddtrace.Span, test_method_object, test_name: str, repo_directory: str
+    span: ddtrace.trace.Span, test_method_object, test_name: str, repo_directory: str
 ):
     if not test_method_object:
         log.debug(
@@ -75,7 +75,7 @@ def _add_start_end_source_file_path_data_to_span(
         span.set_tag(test.SOURCE_END, end_line)
 
 
-def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.Span):
+def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
     if not coverage_data or PCT_COVERED_KEY not in coverage_data:
         log.warning("Tried to add total covered percentage to session span but no data was found")
         return
@@ -117,7 +117,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
     if remove_ddtrace_stream_handlers:
         log.debug("CIVisibility removing DDTrace logger handler")
         ddtrace_logger = logging.getLogger("ddtrace")
-        for handler in ddtrace_logger.handlers:
+        for handler in list(ddtrace_logger.handlers):
             ddtrace_logger.removeHandler(handler)
     else:
         log.warning("Keeping DDTrace logger handler, double logging is likely")

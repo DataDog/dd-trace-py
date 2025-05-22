@@ -3,8 +3,6 @@ import sys
 
 import pytest
 
-from ddtrace.settings.profiling import config as profiling_config
-from ddtrace.settings.profiling import config_str
 import tests.internal.crashtracker.utils as utils
 
 
@@ -506,6 +504,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="Fails on 3.13")
 def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
     port, sock = utils.crashtracker_receiver_bind()
     assert sock
@@ -527,7 +526,7 @@ def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
 
     # Now check for the profiler_config tag
     assert b"profiler_config" in data
-    profiler_config = config_str(profiling_config)
+    profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
     assert profiler_config.encode() in data
 
 

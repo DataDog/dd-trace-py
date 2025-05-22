@@ -7,10 +7,10 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -20,7 +20,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import deep_getattr
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 # Pynamodb connection class
@@ -70,7 +70,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         try:
             operation = get_argument_value(args, kwargs, 0, "operation_name")

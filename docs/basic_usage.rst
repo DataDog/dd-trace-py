@@ -3,39 +3,19 @@
 Basic Usage
 ===========
 
-Tracing
-~~~~~~~
+Automatic Instrumentation
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``ddtrace.auto``
 ----------------
 
-To set up instrumentation within your application, call :ref:`import ddtrace.auto<ddtraceauto>` as early as possible
+To enable full ddtrace support (library instrumentation, profiling, application security monitoring, dynamic instrumentation, etc.) call :ref:`import ddtrace.auto<ddtraceauto>` as the very first thing
 in your application. This will only work if your application is not running under ``ddtrace-run``.
 
-``patch_all``
--------------
+Note: Some Datadog products and instrumentation are disabled by default. Products and instrumentation can be enabled/disable via environment variables, see :ref:`configurations <Configuration>` page for more details.
 
-For fine-grained control over instrumentation setup, use ``patch_all`` as early as possible
-in the application::
-
-  from ddtrace import patch_all
-  patch_all()
-
-To toggle instrumentation for a particular module::
-
-  from ddtrace import patch_all
-  patch_all(redis=False, cassandra=False)
-
-By default all supported libraries will be instrumented when ``patch_all`` is
-used.
-
-**Note:** To ensure that the supported libraries are instrumented properly in
-the application, they must be patched *prior* to being imported. So make sure
-to call ``patch_all`` *before* importing libraries that are to be instrumented.
-
-More information about ``patch_all`` is available in the :py:func:`patch_all<ddtrace.patch_all>` API
-documentation.
-
+Tracing
+~~~~~~~
 
 Manual Instrumentation
 ----------------------
@@ -55,13 +35,13 @@ in your application::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer.wrap`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer.wrap`.
 
 Context Manager
 ---------------
 
-To trace an arbitrary block of code, you can use :py:meth:`ddtrace.Tracer.trace`
-that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
+To trace an arbitrary block of code, you can use :py:meth:`ddtrace.trace.Tracer.trace`
+that returns a :py:mod:`ddtrace.trace.Span` which can be used as a context manager::
 
   # trace some interesting operation
   with tracer.trace('interesting.operations'):
@@ -69,7 +49,7 @@ that returns a :py:mod:`ddtrace.Span` which can be used as a context manager::
     # ...
     # ...
 
-API documentation can be found here :py:meth:`ddtrace.Tracer`.
+API documentation can be found here :py:meth:`ddtrace.trace.Tracer`.
 
 Using the API
 -------------
@@ -87,8 +67,8 @@ manual API to provide complete control over starting and stopping spans is avail
 
 API details for creating and finishing spans can be found here:
 
-- :py:meth:`ddtrace.Tracer.trace`
-- :py:meth:`ddtrace.Span.finish`.
+- :py:meth:`ddtrace.trace.Tracer.trace`
+- :py:meth:`ddtrace.trace.Span.finish`.
 
 
 Profiling
@@ -159,3 +139,58 @@ the ``set_asyncio_event_loop_policy`` method::
 
   prof = Profiler()
   prof.set_asyncio_event_loop_policy()
+
+Error Tracking
+~~~~~~~~~~~~~~
+
+``dd-trace`` can report handled errors. Reported errors will be directly available
+in Error Tracking as well as attached as a span event to the span in which they were handled.
+
+Automatic Instrumentation
+-------------------------
+
+.. important::
+
+  This feature is available on Python3.10+ and ddtrace 3.8.0+.
+
+To enable automatic reporting of handled errors, you can set one of the two environment variables:
+
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS`` = ``user|third_party|all``. Report handled errors of: user code, third party packages or both.
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE`` = ``module1, module2...``. List of modules for which handled errors will be reported.
+
+  To include a module, you need to specify its full name. For instance, to instrument the module ``security`` in your ``mysite`` app,
+  you need to specify ``mysite.security``. Note that when instrumenting a module, all the submodules are also instrumented.
+
+  You can also use this variable to choose the third-party packages you want to instrument. For instance, providing ``numpy`` will report
+  all the errors from the package.
+
+If you are on Python3.10 or Python3.11, and you want to instrument the ``__main__`` module, you need to add::
+
+  from ddtrace.errortracking._handled_exceptions.bytecode_reporting import instrument_main
+
+  if __name__ == "__main__":
+    instrument_main()
+
+This code should be added after the functions definitions with handled errors.
+
+Manual Instrumentation
+----------------------
+
+.. important::
+
+  This feature is available in ddtrace 3.1.1+.
+
+You can report handled errors manually using ``span.record_exception(e)``::
+
+  from ddtrace import tracer
+
+  try:
+    raise ValueError("foo")
+  except ValueError as e:
+    span = tracer.current_span()
+    if span:
+      span.record_exception(e)
+
+You can also provide additional attributes using::
+
+  span.record_exception(e, {"foo": "bar"})

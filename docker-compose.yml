@@ -1,6 +1,4 @@
-version: "3"
 # remember to use this compose file __ONLY__ for development/testing purposes
-
 services:
     elasticsearch:
         image: elasticsearch:7.17.13
@@ -88,7 +86,7 @@ services:
             - "127.0.0.1:7004:7004"
             - "127.0.0.1:7005:7005"
     mongo:
-        image: mongo:3.6
+        image: mongo:4.4
         ports:
             - "127.0.0.1:27017:27017"
     memcached:
@@ -96,17 +94,11 @@ services:
         ports:
             - "127.0.0.1:11211:11211"
     moto:
-        # container that executes mocked AWS services; this is a custom
-        # build that runs all of them in a single container. It is built
-        # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
-        image: datadog/docker-library:moto_1_0_1
+        image: motoserver/moto:5.1.0
+        environment:
+            - MOTO_PORT=3000
         ports:
-            - "127.0.0.1:5000:5000"
-            - "127.0.0.1:5001:5001"
-            - "127.0.0.1:5002:5002"
-            - "127.0.0.1:5003:5003"
-            - "127.0.0.1:5004:5004"
-            - "127.0.0.1:5005:5005"
+            - "127.0.0.1:3000:3000"
     rabbitmq:
         image: rabbitmq:3.7-alpine
         ports:
@@ -129,7 +121,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.17.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.21.0
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -142,6 +134,7 @@ services:
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
             - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
+
     vertica:
         image: vertica/vertica-ce
         environment:
@@ -150,9 +143,19 @@ services:
           - VP_TEST_DATABASE=docker
         ports:
           - "127.0.0.1:5433:5433"
+    azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+            - "127.0.0.1:10000:10000"
+            - "127.0.0.1:10001:10001"
+            - "127.0.0.1:10002:10002"
 
     testrunner:
-        image: ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
+        # DEV uncomment to test local changes to the Dockerfile
+        # build:
+        #  context: ./docker
+        #  dockerfile: Dockerfile
+        image: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
         command: bash
         environment:
             - TOX_SKIP_DIST=True
@@ -186,21 +189,23 @@ services:
       ports:
         - "127.0.0.1:8001:80"
 
-    pygoat:
-        build:
-            context: .
-            dockerfile: tests/appsec/integrations/pygoat_tests/Dockerfile.pygoat.2.0.1
+    valkey:
+        image: valkey/valkey:8.0-alpine
         ports:
-            - "127.0.0.1:8321:8321"
+            - "127.0.0.1:6379:6379"
+
+    valkeycluster:
+        platform: linux/amd64
+        image: grokzen/redis-cluster:6.2.0
         environment:
-            - DD_APPSEC_ENABLED=true
-            - DD_IAST_ENABLED=true
-            - DD_IAST_REQUEST_SAMPLING=100
-            - DD_IAST_VULNERABILITIES_PER_REQUEST=100
-            - DD_REMOTE_CONFIGURATION_ENABLED=true
-            - DD_AGENT_PORT=8126
-            - DD_TRACE_AGENT_URL=http://testagent:8126
-            - _DD_APPSEC_DEDUPLICATION_ENABLED=false
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
 
 volumes:
     ddagent:

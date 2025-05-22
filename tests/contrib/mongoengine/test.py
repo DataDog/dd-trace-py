@@ -3,11 +3,11 @@ import time
 import mongoengine
 import pymongo
 
-from ddtrace import Pin
-from ddtrace.contrib.mongoengine.patch import patch
-from ddtrace.contrib.mongoengine.patch import unpatch
+from ddtrace.contrib.internal.mongoengine.patch import patch
+from ddtrace.contrib.internal.mongoengine.patch import unpatch
 from ddtrace.ext import mongo as mongox
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -186,7 +186,7 @@ class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
     def get_tracer_and_connect(self):
         tracer = DummyTracer()
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
         return tracer
 
 
@@ -315,7 +315,9 @@ class TestMongoEnginePatchConnect(TestMongoEnginePatchConnectDefault):
 
     def get_tracer_and_connect(self):
         tracer = TestMongoEnginePatchConnectDefault.get_tracer_and_connect(self)
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(mongoengine.connect)
+        pin = Pin(service=self.TEST_SERVICE)
+        pin._tracer = tracer
+        pin.onto(mongoengine.connect)
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
         return tracer
@@ -337,7 +339,7 @@ class TestMongoEnginePatchClientDefault(TracerTestCase, MongoEngineCore):
     def get_tracer_and_connect(self):
         tracer = DummyTracer()
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
 
         return tracer
 
@@ -352,7 +354,9 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         # Set a connect-level service, to check that we properly override it
         Pin(service="not-%s" % self.TEST_SERVICE).onto(mongoengine.connect)
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        pin = Pin(service=self.TEST_SERVICE)
+        pin._tracer = tracer
+        pin.onto(client)
 
         return tracer
 
@@ -364,7 +368,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         patch()
 
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
         spans = tracer.pop()
@@ -389,7 +393,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         # Test patch again
         patch()
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
+        Pin.get_from(client)._clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
         spans = tracer.pop()

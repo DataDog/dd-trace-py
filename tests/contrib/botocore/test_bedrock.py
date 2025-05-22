@@ -4,16 +4,20 @@ import os
 import mock
 import pytest
 
-from ddtrace import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
+from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
+from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -42,7 +46,7 @@ def aws_credentials():
 def mock_tracer(ddtrace_global_config, bedrock_client):
     pin = Pin.get_from(bedrock_client)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin.override(bedrock_client, tracer=mock_tracer)
+    pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
 
 
@@ -102,7 +106,7 @@ class TestBedrockConfig(SubprocessTestCase):
         self.bedrock_client = self.session.client("bedrock-runtime")
         self.mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin = Pin.get_from(self.bedrock_client)
-        pin.override(self.bedrock_client, tracer=self.mock_tracer)
+        pin._override(self.bedrock_client, tracer=self.mock_tracer)
 
         super(TestBedrockConfig, self).setUp()
 
@@ -137,18 +141,22 @@ class TestBedrockConfig(SubprocessTestCase):
                     sampled += 1
         assert (rate * num_completions - 30) < sampled < (rate * num_completions + 30)
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.0"))
     def test_span_sampling_0(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.25"))
     def test_span_sampling_25(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.75"))
     def test_span_sampling_75(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="1.0"))
     def test_span_sampling_100(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
@@ -218,6 +226,15 @@ def test_cohere_invoke_multi_output(bedrock_client, request_vcr):
 def test_meta_invoke(bedrock_client, request_vcr):
     body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
     with get_request_vcr().use_cassette("meta_invoke.yaml"):
+        response = bedrock_client.invoke_model(body=body, modelId=model)
+        json.loads(response.get("body").read())
+
+
+@pytest.mark.snapshot
+def test_invoke_model_using_aws_arn_model_id(bedrock_client, request_vcr):
+    body = json.dumps(_REQUEST_BODIES["amazon"])
+    model = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
+    with request_vcr.use_cassette("amazon_invoke_model_arn.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
 
@@ -352,6 +369,24 @@ def test_cohere_embedding(bedrock_client, request_vcr):
     with request_vcr.use_cassette("cohere_embedding.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+@pytest.mark.snapshot
+def test_converse(bedrock_client, request_vcr):
+    with request_vcr.use_cassette("bedrock_converse.yaml"):
+        bedrock_client.converse(**create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool))
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+@pytest.mark.snapshot
+def test_converse_stream(bedrock_client, request_vcr):
+    with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
+        response = bedrock_client.converse_stream(
+            **create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
+        )
+        for chunk in response["stream"]:
+            pass
 
 
 def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tracer):

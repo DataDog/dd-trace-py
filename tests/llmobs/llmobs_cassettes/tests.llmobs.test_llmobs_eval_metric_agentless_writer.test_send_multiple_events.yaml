@@ -1,0 +1,39 @@
+interactions:
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678902", "trace_id": "98765432102"}}, "metric_type":
+      "score", "label": "sentiment", "score_value": 0.9, "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1732568728793}, {"join_on": {"span": {"span_id": "12345678901",
+      "trace_id": "98765432101"}}, "metric_type": "categorical", "categorical_value":
+      "very", "label": "toxicity", "ml_app": "dummy-ml-app", "timestamp_ms": 1732568728793}]}}}'
+    headers:
+      Content-Type:
+      - application/json
+      DD-API-KEY:
+      - XXXXXX
+    method: POST
+    uri: https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"844be0cd-9dd4-45d3-9763-8ccb20f4e7c8","type":"evaluation_metric","attributes":{"metrics":[{"id":"IZhAbBsXBJ","join_on":{"span":{"trace_id":"98765432102","span_id":"12345678902"}},"timestamp_ms":1732568728793,"ml_app":"dummy-ml-app","metric_type":"score","label":"sentiment","score_value":0.9},{"id":"ME868fTl0T","join_on":{"span":{"trace_id":"98765432101","span_id":"12345678901"}},"timestamp_ms":1732568728793,"ml_app":"dummy-ml-app","metric_type":"categorical","label":"toxicity","categorical_value":"very"}]}}}'
+    headers:
+      content-length:
+      - '528'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pub293163a918901030b79492fe1ab424cf&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatad0g.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Mon, 25 Nov 2024 21:05:29 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1

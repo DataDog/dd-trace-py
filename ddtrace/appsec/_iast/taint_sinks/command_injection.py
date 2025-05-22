@@ -1,19 +1,19 @@
-import os
-import subprocess  # nosec
 from typing import List
 from typing import Union
 
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
+from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
+from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
+from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+from ddtrace.appsec._iast.constants import VULN_CMDI
+import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
-from ..._common_module_patches import try_unwrap
-from ..._constants import IAST_SPAN_TAGS
-from .. import oce
-from .._iast_request_context import is_iast_request_enabled
-from .._metrics import _set_metric_iast_instrumented_sink
-from .._metrics import increment_iast_span_metric
-from .._patch import try_wrap_function_wrapper
-from ..constants import VULN_CMDI
+from .._logs import iast_error
+from .._logs import iast_propagation_sink_point_debug_log
+from .._overhead_control_engine import oce
 from ._base import VulnerabilityBase
 
 
@@ -24,73 +24,52 @@ def get_version() -> str:
     return ""
 
 
+_IAST_CMDI = "iast_cmdi"
+
+
 def patch():
-    if not asm_config._iast_enabled:
-        return
-
-    if not getattr(os, "_datadog_cmdi_patch", False):
-        # all os.spawn* variants eventually use this one:
-        try_wrap_function_wrapper("os", "_spawnvef", _iast_cmdi_osspawn)
-
-    if not getattr(subprocess, "_datadog_cmdi_patch", False):
-        try_wrap_function_wrapper("subprocess", "Popen.__init__", _iast_cmdi_subprocess_init)
-
-        os._datadog_cmdi_patch = True
-        subprocess._datadog_cmdi_patch = True
-
-    _set_metric_iast_instrumented_sink(VULN_CMDI)
+    if asm_config._iast_enabled:
+        subprocess_patch.patch()
+        subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
+        subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
+        _set_metric_iast_instrumented_sink(VULN_CMDI)
 
 
 def unpatch() -> None:
-    try_unwrap("os", "system")
-    try_unwrap("os", "_spawnvef")
-    try_unwrap("subprocess", "Popen.__init__")
-
-    os._datadog_cmdi_patch = False  # type: ignore[attr-defined]
-    subprocess._datadog_cmdi_patch = False  # type: ignore[attr-defined]
-
-
-def _iast_cmdi_osspawn(wrapped, instance, args, kwargs):
-    mode, file, func_args, _, _ = args
-    _iast_report_cmdi(func_args)
-
-    if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
-    return wrapped(*args, **kwargs)
-
-
-def _iast_cmdi_subprocess_init(wrapped, instance, args, kwargs):
-    cmd_args = args[0] if len(args) else kwargs["args"]
-    _iast_report_cmdi(cmd_args)
-
-    if hasattr(wrapped, "__func__"):
-        return wrapped.__func__(instance, *args, **kwargs)
-    return wrapped(*args, **kwargs)
+    subprocess_patch.del_str_callback(_IAST_CMDI)
+    subprocess_patch.del_lst_callback(_IAST_CMDI)
 
 
 @oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
+    secure_mark = VulnerabilityType.COMMAND_INJECTION
 
 
 def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
     report_cmdi = ""
-    from .._metrics import _set_metric_iast_executed_sink
 
-    increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
-    _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
+    try:
+        if asm_config.is_iast_request_enabled:
+            if CommandInjection.has_quota():
+                iast_propagation_sink_point_debug_log("Check command injection sink point")
+                from .._taint_tracking.aspects import join_aspect
 
-    if is_iast_request_enabled() and CommandInjection.has_quota():
-        from .._taint_tracking import is_pyobject_tainted
-        from .._taint_tracking.aspects import join_aspect
+                if isinstance(shell_args, (list, tuple)):
+                    for arg in shell_args:
+                        if CommandInjection.is_tainted_pyobject(arg):
+                            report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
+                            break
+                elif CommandInjection.is_tainted_pyobject(shell_args):
+                    report_cmdi = shell_args
 
-        if isinstance(shell_args, (list, tuple)):
-            for arg in shell_args:
-                if is_pyobject_tainted(arg):
-                    report_cmdi = join_aspect(" ".join, 1, " ", shell_args)
-                    break
-        elif is_pyobject_tainted(shell_args):
-            report_cmdi = shell_args
+                if report_cmdi:
+                    iast_propagation_sink_point_debug_log("Reporting command injection")
+                    CommandInjection.report(evidence_value=report_cmdi)
 
-        if report_cmdi:
-            CommandInjection.report(evidence_value=report_cmdi)
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
+    except Exception as e:
+        iast_error(f"propagation::sink_point::Error in _iast_report_cmdi. {e}")

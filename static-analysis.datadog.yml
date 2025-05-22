@@ -1,12 +1,15 @@
 rulesets:
   - python-best-practices:
     rules:
-      comment-fixme-todo-ownership:
+      any-type-disallow:
         ignore:
-          - "**"
-      max-function-lines:
+          - "ddtrace/appsec/_iast/secure_marks/sanitizers.py"
+      no-silent-exception:
         ignore:
-          - "tests/ci_visibility/api/fake_runner_*.py"
-      nested-blocks:
+          - "tests/appsec/integrations/fixtures/sql_injection_sqlalchemy.py"
+  - python-security:
+    rules:
+      os-system:
         ignore:
-          - "**"
+          - "tests/appsec/integrations/*"
+          - "benchmarks/*"

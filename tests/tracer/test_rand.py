@@ -9,13 +9,13 @@ try:
 except ImportError:
     from multiprocessing.queues import SimpleQueue as MPQueue
 
+from queue import Queue
 import threading
 import time
 
-from ddtrace import tracer
 from ddtrace.internal import _rand
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import Queue
+from ddtrace.trace import tracer
 
 
 def test_random():
@@ -285,7 +285,7 @@ def test_span_api_fork():
     from itertools import chain
     import os
 
-    from ddtrace._trace.span import Span
+    from ddtrace.trace import Span
     from tests.tracer.test_rand import MPQueue
 
     q = MPQueue()

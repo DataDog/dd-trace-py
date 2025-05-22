@@ -3,11 +3,13 @@ import webtest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.contrib.bottle import TracePlugin
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.ext import http
 from ddtrace.internal import compat
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -542,3 +544,69 @@ class TraceBottleTest(TracerTestCase):
         s = spans[0]
 
         assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_inferred_spans_api_gateway(self):
+        @self.app.route("/")
+        def default_endpoint():
+            return bottle.HTTPResponse("", status=200)
+
+        @self.app.route("/exception")
+        def error_endpoint():
+            raise Exception("oh no")
+
+        @self.app.route("/handled")
+        def handled_error_endpoint():
+            return bottle.HTTPResponse("", status=503)
+
+        self._trace_app()
+
+        test_headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        for setting_enabled in [False, True]:
+            ddtrace.config._inferred_proxy_services_enabled = setting_enabled
+            for test_endpoint in [
+                {"endpoint": "/", "status": 200, "url": "http://localhost:80/"},
+                {"endpoint": "/exception", "status": 500, "url": "http://localhost:80/exception"},
+                {"endpoint": "/handled", "status": 503, "url": "http://localhost:80/handled"},
+            ]:
+                try:
+                    self.app.get(test_endpoint["endpoint"], headers=test_headers)
+                except webtest.AppError:
+                    pass
+
+                traces = self.pop_traces()
+                aws_gateway_span = traces[0][0]
+
+                if setting_enabled:
+                    web_span = traces[0][1]
+
+                    assert_web_and_inferred_aws_api_gateway_span_data(
+                        aws_gateway_span,
+                        web_span,
+                        web_span_name="bottle.request",
+                        web_span_component="bottle",
+                        web_span_service_name=SERVICE,
+                        web_span_resource="GET " + test_endpoint["endpoint"],
+                        api_gateway_service_name="local",
+                        api_gateway_resource="GET /",
+                        method="GET",
+                        status_code=str(test_endpoint["status"]),
+                        url="local/",
+                        start=1736973768,
+                        is_distributed=False,
+                        distributed_trace_id=1,
+                        distributed_parent_id=2,
+                        distributed_sampling_priority=USER_KEEP,
+                    )
+
+                else:
+                    web_span = traces[0][0]
+                    assert web_span.name == "bottle.request"
+                    assert web_span._parent is None

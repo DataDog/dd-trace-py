@@ -1,15 +1,23 @@
-#!/usr/bin/env python3
-# -*- encoding: utf-8 -*-
 from copy import copy
 
+from hypothesis import given
+from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
+from tests.appsec.iast.iast_utils import string_strategies
+
+
+@given(one_of(string_strategies))
+def test_add_inplace_aspect(text):
+    obj3 = copy(text)
+    obj3 += text
+    assert ddtrace_aspects.add_inplace_aspect(copy(text), text) == obj3
 
 
 @pytest.mark.parametrize(

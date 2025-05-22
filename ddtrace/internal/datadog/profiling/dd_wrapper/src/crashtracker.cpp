@@ -105,15 +105,22 @@ Datadog::Crashtracker::set_tag(std::string_view key, std::string_view value)
 bool
 Datadog::Crashtracker::set_receiver_binary_path(std::string_view _path)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     // First, check that the path is valid and executable
     // We can't use C++ filesystem here because of limitations in manylinux, so we'll use the C API
     struct stat sa;
     if (stat(_path.data(), &sa) != 0) {
-        std::cerr << "Receiver binary path does not exist: " << _path << std::endl;
+        if (!already_warned) {
+            std::cerr << "stat() failed on receiver binary path: " << _path << std::endl;
+            already_warned = true;
+        }
         return false;
     }
     if (!(sa.st_mode & S_IXUSR)) {
-        std::cerr << "Receiver binary path is not executable: " << _path << std::endl;
+        if (!already_warned) {
+            std::cerr << "receiver binary path is not executable: " << _path << std::endl;
+            already_warned = true;
+        }
         return false;
     }
     path_to_receiver_binary = std::string(_path);
@@ -200,6 +207,7 @@ Datadog::Crashtracker::get_metadata(ddog_Vec_Tag& tags)
 bool
 Datadog::Crashtracker::start()
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto config = get_config();
     auto receiver_config = get_receiver_config();
     auto tags = get_tags();
@@ -207,10 +215,13 @@ Datadog::Crashtracker::start()
 
     auto result = ddog_crasht_init(config, receiver_config, metadata);
     ddog_Vec_Tag_drop(tags);
-    if (result.tag != DDOG_CRASHT_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = result.err;                 // NOLINT (cppcoreguidelines-pro-type-union-access)
-        std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
-        std::cerr << errmsg << std::endl;
+    if (result.tag != DDOG_VOID_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = result.err;               // NOLINT (cppcoreguidelines-pro-type-union-access)
+        if (!already_warned) {
+            std::string errmsg = err_to_msg(&err, "Error initializing crash tracker");
+            std::cerr << errmsg << std::endl;
+            already_warned = true;
+        }
         ddog_Error_drop(&err);
         return false;
     }
@@ -221,18 +232,16 @@ Datadog::Crashtracker::start()
 void
 Datadog::Crashtracker::sampling_stop()
 {
-    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
     // If this was the last sampling operation, then emit that fact to crashtracker
     auto old_val = profiling_state.is_sampling.fetch_sub(1);
     if (old_val == 1) {
         auto res = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_COLLECTING_SAMPLE);
         (void)res; // ignore for now
-    } else if (old_val == 0 && !has_errored) {
-        // This is an error condition.  We only emit the error once, since the bug in the state machine
-        // may jitter around 0 at high frequency.
+    } else if (old_val == 0 && !already_warned) {
+        already_warned = true;
         std::cerr << "Profiling sampling state underflow" << std::endl;
-        has_errored = true;
     }
 }
 
@@ -251,14 +260,14 @@ Datadog::Crashtracker::sampling_start()
 void
 Datadog::Crashtracker::unwinding_start()
 {
-    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto old_val = profiling_state.is_unwinding.fetch_sub(1);
     if (old_val == 1) {
         auto res = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_UNWINDING);
         (void)res;
-    } else if (old_val == 0 && !has_errored) {
+    } else if (old_val == 0 && !already_warned) {
+        already_warned = true;
         std::cerr << "Profiling unwinding state underflow" << std::endl;
-        has_errored = true;
     }
 }
 
@@ -275,14 +284,14 @@ Datadog::Crashtracker::unwinding_stop()
 void
 Datadog::Crashtracker::serializing_start()
 {
-    static bool has_errored = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto old_val = profiling_state.is_serializing.fetch_sub(1);
     if (old_val == 1) {
         auto res = ddog_crasht_end_op(DDOG_CRASHT_OP_TYPES_PROFILER_SERIALIZING);
         (void)res;
-    } else if (old_val == 0 && !has_errored) {
+    } else if (old_val == 0 && !already_warned) {
+        already_warned = true;
         std::cerr << "Profiling serializing state underflow" << std::endl;
-        has_errored = true;
     }
 }
 

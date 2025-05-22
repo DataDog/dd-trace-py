@@ -1,33 +1,48 @@
 stages:
   - package
-  - tests-gen
-  - tests-trigger
+  - tests
   - shared-pipeline
   - benchmarks
-  - macrobenchmarks
   - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  DD_DISABLE_VPA: true
   # CI_DEBUG_SERVICES: "true"
 
 default:
   interruptible: true
 
+# trigger new commit cancel
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+      auto_cancel:
+        on_new_commit: none
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      auto_cancel:
+        on_new_commit: none
+    - when: always
+
 include:
-  - remote: https://gitlab-templates.ddbuild.io/libdatadog/include/one-pipeline.yml
+  - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/benchmarks.yml"
   - local: ".gitlab/package.yml"
-  - local: ".gitlab/macrobenchmarks.yml"
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/benchmarks/serverless.yml"
 
 tests-gen:
-  stage: tests-gen
+  stage: tests
   extends: .testrunner
   script:
     - pip install riot==0.20.1
+    - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -35,13 +50,61 @@ tests-gen:
       - .gitlab/tests-gen.yml
 
 run-tests-trigger:
- stage: tests-trigger
+ stage: tests
  needs: [ tests-gen ]
+ # Allow the child job to fail if explicitly asked
+ rules:
+   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+     allow_failure: true
+   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+
+microbenchmarks:
+  stage: benchmarks
+  needs: [ "download_ddtrace_artifacts" ]
+  rules:
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include: .gitlab/benchmarks/microbenchmarks.yml
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    # Disable VPA for benchmarks
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+
+macrobenchmarks:
+  stage: benchmarks
+  needs: [ ]
+  trigger:
+    include: .gitlab/benchmarks/macrobenchmarks.yml
+  variables:
+    # Disable VPA for benchmarks
+    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
+
+check_new_flaky_tests:
+  stage: tests
+  needs: ["run-tests-trigger"]
+  extends: .testrunner
+  script:
+    - export DD_SITE=datadoghq.com
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
+    - datadog-ci gate evaluate
+  except:
+    - main
+    - '[0-9].[0-9]*'
+    - 'mq-working-branch**'
 
 requirements_json_test:
   rules:
@@ -53,23 +116,63 @@ requirements_json_test:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
-onboarding_tests_installer:
-  parallel:
-    matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
+promote-oci-to-prod:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
+promote-oci-to-prod-beta:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
-onboarding_tests_k8s_injection:
-  parallel:
-    matrix:
-      - WEBLOG_VARIANT:
-          - dd-lib-python-init-test-django
-          - dd-lib-python-init-test-django-gunicorn
-          - dd-lib-python-init-test-django-gunicorn-alpine
-          - dd-lib-python-init-test-django-preinstalled
-          - dd-lib-python-init-test-django-unsupported-package-force
-          - dd-lib-python-init-test-django-uvicorn
-          - dd-lib-python-init-test-protobuf-old
+promote-oci-to-staging:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+publish-lib-init-ghcr-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+
+publish-lib-init-pinned-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+    - job: generate-lib-init-pinned-tag-values
+      artifacts: true
+
+configure_system_tests:
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,docker-ssi,lib-injection"
+
+deploy_to_reliability_env:
+  needs: []
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline

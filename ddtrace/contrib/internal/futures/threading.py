@@ -1,7 +1,9 @@
 from typing import Optional
+from typing import Tuple
 
 import ddtrace
-from ddtrace._trace.context import Context
+from ddtrace.internal import core
+from ddtrace.trace import Context
 
 
 def _wrap_submit(func, args, kwargs):
@@ -12,6 +14,7 @@ def _wrap_submit(func, args, kwargs):
     """
     # DEV: Be sure to propagate a Context and not a Span since we are crossing thread boundaries
     current_ctx: Optional[Context] = ddtrace.tracer.current_trace_context()
+    llmobs_ctx: Optional[Context] = core.dispatch_with_results("threading.submit", ()).llmobs_ctx.value
 
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]
@@ -20,10 +23,10 @@ def _wrap_submit(func, args, kwargs):
         fn_args = args[1:]
     else:
         fn, fn_args = args[1], args[2:]
-    return func(self, _wrap_execution, current_ctx, fn, fn_args, kwargs)
+    return func(self, _wrap_execution, (current_ctx, llmobs_ctx), fn, fn_args, kwargs)
 
 
-def _wrap_execution(ctx: Optional[Context], fn, args, kwargs):
+def _wrap_execution(ctx: Tuple[Optional[Context], Optional[Context]], fn, args, kwargs):
     """
     Intermediate target function that is executed in a new thread;
     it receives the original function with arguments and keyword
@@ -31,6 +34,9 @@ def _wrap_execution(ctx: Optional[Context], fn, args, kwargs):
     provider sets the Active context in a thread local storage
     variable because it's outside the asynchronous loop.
     """
-    if ctx is not None:
-        ddtrace.tracer.context_provider.activate(ctx)
+    if ctx[1] is not None:
+        core.dispatch("threading.execution", (ctx[1],))
+    if ctx[0] is not None:
+        with ddtrace.tracer._activate_context(ctx[0]):
+            return fn(*args, **kwargs)
     return fn(*args, **kwargs)

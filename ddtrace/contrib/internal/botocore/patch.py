@@ -17,9 +17,9 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -33,8 +33,8 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
-from ddtrace.pin import Pin
-from ddtrace.settings.config import Config
+from ddtrace.settings._config import Config
+from ddtrace.trace import Pin
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -53,10 +53,16 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
-PATCHING_FUNCTIONS = {
-    "kinesis": patched_kinesis_api_call,
-    "sqs": patched_sqs_api_call,
-    "states": patched_stepfunction_api_call,
+PATCHING_FN_KEY = "PATCHING_FN"
+SUPPORTED_OPS_KEY = "SUPPORTED_OPERATIONS"
+ENDPOINTS_TO_PATCH_FUNCTIONS = {
+    "bedrock-runtime": {
+        PATCHING_FN_KEY: patched_bedrock_api_call,
+        SUPPORTED_OPS_KEY: ["Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"],
+    },
+    "kinesis": {PATCHING_FN_KEY: patched_kinesis_api_call, SUPPORTED_OPS_KEY: None},
+    "sqs": {PATCHING_FN_KEY: patched_sqs_api_call, SUPPORTED_OPS_KEY: None},
+    "states": {PATCHING_FN_KEY: patched_stepfunction_api_call, SUPPORTED_OPS_KEY: None},
 }
 
 log = get_logger(__name__)
@@ -113,7 +119,10 @@ config._add(
             os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})
+            service.strip()
+            for service in os.getenv(
+                "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
+            ).split(",")
         ),
     },
 )
@@ -192,10 +201,12 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "integration": botocore._datadog_integration,
     }
 
-    if endpoint_name == "bedrock-runtime" and operation.startswith("InvokeModel"):
-        patching_fn = patched_bedrock_api_call
-    else:
-        patching_fn = PATCHING_FUNCTIONS.get(endpoint_name, patched_api_call_fallback)
+    patching_fn = patched_api_call_fallback
+    patched_endpoint = ENDPOINTS_TO_PATCH_FUNCTIONS.get(endpoint_name)
+    if patched_endpoint:
+        supported_operations = patched_endpoint.get(SUPPORTED_OPS_KEY)
+        if supported_operations is None or operation in supported_operations:
+            patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
     return patching_fn(
         original_func=original_func,

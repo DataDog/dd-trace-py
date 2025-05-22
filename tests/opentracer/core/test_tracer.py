@@ -9,14 +9,12 @@ from opentracing import child_of
 import pytest
 
 import ddtrace
-from ddtrace import Tracer as DDTracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import ConfigException
-from tests.utils import override_global_config
 
 
 class TestTracerConfig(object):
@@ -68,12 +66,6 @@ class TestTracerConfig(object):
             tracer = Tracer(service_name="mysvc", config=config)
             assert ["enabeld", "setttings"] in str(ce_info)  # codespell:ignore
             assert tracer is not None
-
-    def test_ddtrace_fallback_config(self):
-        """Ensure datadog configuration is used by default."""
-        with override_global_config(dict(_tracing_enabled=False)):
-            tracer = Tracer(dd_tracer=DDTracer())
-            assert tracer._dd_tracer.enabled is False
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""

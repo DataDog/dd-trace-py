@@ -7,29 +7,38 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
-    - ddtrace/contrib/pytest/*
-    - ddtrace/contrib/pytest_bdd/*
-    - ddtrace/contrib/pytest_benchmark/*
+    - ddtrace/contrib/_pytest.py
+    - ddtrace/contrib/_pytest_bdd.py
+    - ddtrace/contrib/_pytest_benchmark.py
+    - ddtrace/contrib/internal/pytest/*
+    - ddtrace/contrib/internal/pytest_bdd/*
+    - ddtrace/contrib/internal/pytest_benchmark/*
   selenium:
-    - ddtrace/contrib/selenium/*
+    - ddtrace/contrib/_selenium.py
     - ddtrace/contrib/internal/selenium/*
   unittest:
-    - ddtrace/contrib/unittest/*
+    - ddtrace/contrib/_unittest.py
+    - ddtrace/contrib/internal/unittest/*
+  freezegun:
+    - ddtrace/contrib/internal/freezegun/*
 suites:
   ci_visibility:
     parallelism: 4
     paths:
       - '@ci_visibility'
       - '@ci'
+      - '@core'
       - '@coverage'
       - '@git'
       - '@pytest'
       - '@codeowners'
+      - '@unittest'
+      - '@freezegun'
       - tests/ci_visibility/*
     runner: riot
     snapshot: true
   dd_coverage:
-    parallelism: 6
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -49,6 +58,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -56,7 +66,7 @@ suites:
     runner: riot
     snapshot: true
   pytest_v2:
-    parallelism: 10
+    parallelism: 7
     paths:
       - '@bootstrap'
       - '@core'
@@ -66,6 +76,7 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
+      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -89,11 +100,13 @@ suites:
     runner: hatch
     snapshot: true
   unittest:
+    parallelism: 2
     paths:
       - '@contrib'
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
+      - '@freezegun'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

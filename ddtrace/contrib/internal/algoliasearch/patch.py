@@ -1,8 +1,8 @@
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -10,7 +10,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -129,7 +129,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 

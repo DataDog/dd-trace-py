@@ -13,8 +13,8 @@ from pydantic_core import SchemaValidator
 import requests
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 
 
 v = SchemaValidator(
@@ -258,6 +258,7 @@ def sink_points(string_tainted):
     except Exception:
         pass
 
+    _ = eval(f"'a' + '{string_tainted}'")
     # Weak Randomness vulnerability
     _ = random.randint(1, 10)
 
@@ -307,14 +308,16 @@ async def test_doit():
     string12 = string11 + "_notainted"
     string13 = string12.rsplit("_", 1)[0]
     string13_2 = string13 + " " + string13
+    string13_3 = string13_2.strip()
+    string13_4 = string13_3.rstrip()
+    string13_5 = string13_4.lstrip()
     try:
-        string13_3, string13_5, string13_5 = string13_2.split(" ")
+        string13_5_1, string13_5_2, string13_5_3 = string13_5.split(" ")
     except ValueError:
         pass
-    sink_points(string13_2)
-
+    sink_points(string13_5)
     # os path propagation
-    string14 = os.path.join(string13_2, "a")
+    string14 = os.path.join(string13_5, "a")
     string15 = os.path.split(string14)[0]
     string16 = os.path.dirname(string15 + "/" + "foobar")
     string17 = os.path.basename("/foobar/" + string16)

@@ -1,5 +1,6 @@
 name: 'Close stale issues and PRs'
 on:
+  workflow_dispatch:
   schedule:
     # 00:00:000 UTC
     - cron: '0 0 * * *'
@@ -12,12 +13,15 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v8
+      - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
         with:
           # DEV: GitHub Actions have an API rate limit of 1000 operations per hour per repository
           #      This limit is shared across all actions
           operations-per-run: 200
-          days-before-pr-close: 30
+          # DEV: Mark PR as stale after 30 days
+          days-before-pr-stale: 30
+          # DEV: Close stale PR after 1 day of no activity
+          days-before-pr-close: 1
           days-before-issue-close: 90
           exempt-issue-labels: 'proposal'
           exempt-pr-labels: 'proposal'

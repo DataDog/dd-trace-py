@@ -1,36 +1,31 @@
 stages:
-  - tests
+  - setup
+  - riot
+  - hatch
 
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  DD_PYTEST_USE_NEW_PLUGIN_BETA: "true"
   PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
 
-.testrunner:
-  image: registry.ddbuild.io/images/mirror/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
-  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
-  tags: [ "arch:amd64" ]
-  timeout: 20m
-  before_script:
-    - pyenv global 3.12 3.7 3.8 3.9 3.10 3.11 3.13-dev
-    - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
-
-
-{{services.yml}}
+include:
+  - local: ".gitlab/services.yml"
+  - local: ".gitlab/testrunner.yml"
 
 .test_base_hatch:
   extends: .testrunner
-  stage: tests
+  stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
-  needs: []
+  needs: [ prechecks ]
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
+  before_script:
+    - !reference [.testrunner, before_script]
   script:
     - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
     - export _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=true
+    - export DD_FAST_BUILD="1"
     - |
       envs=( $(hatch env show --json | jq -r --arg suite_name "$SUITE_NAME" 'keys[] | select(. | contains($suite_name))' | sort | ./.gitlab/ci-split-input.sh) )
       if [[ ${#envs[@]} -eq 0 ]]; then
@@ -42,6 +37,11 @@ variables:
         echo "Running hatch env: ${env}:test"
         hatch run ${env}:test
       done
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL = "12"
+    CARGO_BUILD_JOBS = "12"
+    DD_FAST_BUILD = "1"
+
 
 
 .test_base_hatch_snapshot:
@@ -49,50 +49,30 @@ variables:
   services:
     - !reference [.services, testagent]
   before_script:
-    - !reference [.testrunner, before_script]
+    - !reference [.test_base_hatch, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
-
-build_base_venvs:
-  extends: .testrunner
-  stage: tests
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: 12
-    PIP_VERBOSE: 1
-    DD_PROFILING_NATIVE_TESTS: 1
-  script:
-    - pip install riot==0.20.1
-    - riot -P -v generate --python=$PYTHON_VERSION
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-      - ddtrace/internal/datadog/profiling/test/test_*
-
+# Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
   extends: .testrunner
-  stage: tests
-  needs: [ build_base_venvs ]
+  stage: riot
+  needs: [ build_base_venvs, prechecks ]
   parallel: 4
   services:
     - !reference [.services, ddagent]
   # DEV: This is the max retries that GitLab currently allows for
-  retry: 2
-  script:
+  before_script:
+    - !reference [.testrunner, before_script]
     - pip install riot==0.20.1
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+  script:
     - |
-      hashes=( $(riot list --hash-only "${SUITE_NAME}" | sort | ./.gitlab/ci-split-input.sh) )
+      hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
         exit 1
@@ -105,6 +85,8 @@ build_base_venvs:
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
+      ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
+        "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 
 
 .test_base_riot_snapshot:
@@ -113,7 +95,7 @@ build_base_venvs:
     - !reference [.test_base_riot, services]
     - !reference [.services, testagent]
   before_script:
-    - !reference [.testrunner, before_script]
+    - !reference [.test_base_riot, before_script]
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"

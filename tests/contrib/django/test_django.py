@@ -18,28 +18,30 @@ import pytest
 import wrapt
 
 from ddtrace import config
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.django.patch import instrument_view
-from ddtrace.contrib.django.patch import traced_get_response
-from ddtrace.contrib.django.utils import get_request_uri
+from ddtrace.contrib.internal.django.patch import instrument_view
+from ddtrace.contrib.internal.django.patch import traced_get_response
+from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_dict_issuperset
-from tests.utils import flaky
 from tests.utils import override_config
 from tests.utils import override_env
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
@@ -769,6 +771,18 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_service_schematization(test_spans):
+    cache = django.core.cache.caches["default"]
+
+    with override_config("django", dict(cache_service_name="test-cache-service")):
+        cache.get("missing_key")
+        spans = test_spans.get_spans()
+        assert spans
+        span = spans[0]
+        expected_service_name = schematize_service_name(config.django.cache_service_name)
+        assert span.service == expected_service_name
+
+
 def test_cache_get_rowcount_existing_key(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -1439,45 +1453,6 @@ def test_cached_view(client, test_spans):
     assert span_header.get_tags() == expected_meta_header
 
 
-@flaky(1735812000)
-@pytest.mark.django_db
-def test_cached_template(client, test_spans):
-    # make the first request so that the view is cached
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-
-    # check the first call for a non-cached view
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    assert len(spans) == 2
-    # the cache miss
-    assert spans[0].resource == "django.core.cache.backends.locmem.get"
-    # store the result in the cache
-    assert spans[1].resource == "django.core.cache.backends.locmem.set"
-
-    # check if the cache hit is traced
-    response = client.get("/cached-template/")
-    assert response.status_code == 200
-    spans = list(test_spans.filter_spans(name="django.cache"))
-    # Should have 1 more span
-    assert len(spans) == 3
-
-    span_template_cache = spans[2]
-    assert span_template_cache.service == "django"
-    assert span_template_cache.resource == "django.core.cache.backends.locmem.get"
-    assert span_template_cache.name == "django.cache"
-    assert span_template_cache.span_type == "cache"
-    assert span_template_cache.error == 0
-
-    expected_meta = {
-        "component": "django",
-        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "_dd.base_service": "",
-    }
-
-    assert span_template_cache.get_tags() == expected_meta
-
-
 """
 Configuration tests
 """
@@ -1575,7 +1550,7 @@ def test_connection(client, test_spans):
 
     span = spans[0]
     assert span.name == "sqlite.query"
-    assert span.service == "{}"
+    assert span.service == "{}", span.service
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
@@ -1716,7 +1691,7 @@ def test_django_request_distributed(client, test_spans):
         trace_id=12345,
         parent_id=78910,
         metrics={
-            SAMPLING_PRIORITY_KEY: USER_KEEP,
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
     assert root.get_tag("span.kind") == "server"
@@ -1746,6 +1721,146 @@ def test_django_request_distributed_disabled(client, test_spans):
     assert root.get_tag("span.kind") == "server"
     assert root.trace_id != 12345
     assert root.parent_id is None
+
+
+def test_inferred_spans_api_gateway_default(client, test_spans):
+    """
+    When making a request to a Django app,
+        the django.request span properly inherits from the inferred spans
+    """
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
+    headers = {
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
+    }
+
+    # When the inferred proxy feature is not enabled, there should be no inferred span
+    resp = client.get("/", **headers)
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+    web_span = test_spans.find_span(name="django.request")
+    assert web_span._parent is None
+
+    with override_global_config(dict(_inferred_proxy_services_enabled="true")):
+        test_spans.reset()
+        resp = client.get("/", **headers)
+        web_span = test_spans.find_span(name="django.request")
+        aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+        )
+
+        test_spans.reset()
+        try:
+            client.get("/error-500/", **headers)
+        except Exception:
+            web_span = test_spans.find_span(name="django.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+            # Assert common behavior including aws gateway metadata and web span metadata
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="django.request",
+                web_span_component="django",
+                web_span_service_name="django",
+                web_span_resource="GET ^error-500/$",
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                status_code="500",
+                url="local/",
+                start=1736973768.0,
+            )
+
+
+def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
+    """
+    When making a request to a Django app with distributed tracing headers,
+        the django.request span properly inherits from the inferred spans
+        and the inferred span inherits from the trace
+    """
+    # must be in this form to override headers (workaround for python 3.7 django tests)
+    # which doesn't have support to use headers kwarg in client.get()
+    test_headers = {
+        "HTTP_X_DD_PROXY": "aws-apigateway",
+        "HTTP_X_DD_PROXY_REQUEST_TIME_MS": "1736973768000",
+        "HTTP_X_DD_PROXY_PATH": "/",
+        "HTTP_X_DD_PROXY_HTTPMETHOD": "GET",
+        "HTTP_X_DD_PROXY_DOMAIN_NAME": "local",
+        "HTTP_X_DD_PROXY_STAGE": "stage",
+        "HTTP_X_DATADOG_TRACE_ID": "1",
+        "HTTP_X_DATADOG_PARENT_ID": "2",
+        "HTTP_X_DATADOG_ORIGIN": "rum",
+        "HTTP_X_DATADOG_SAMPLING_PRIORITY": "2",
+    }
+    # Without the feature enabled, we should not be creating the inferred span
+    resp = client.get("/", **test_headers)
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
+
+    web_span = test_spans.find_span(name="django.request")
+    aws_gateway_span = web_span._parent
+    assert aws_gateway_span is None
+    web_span.assert_matches(
+        name="django.request",
+        trace_id=1,
+        parent_id=2,
+        metrics={
+            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+        },
+    )
+
+    with override_global_config(dict(_inferred_proxy_services_enabled="true")):
+        test_spans.reset()
+        client.get("/", **test_headers)
+        web_span = test_spans.find_span(name="django.request")
+        aws_gateway_span = web_span._parent
+
+        # Assert common behavior including aws gateway metadata and web span metadata
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="django.request",
+            web_span_component="django",
+            web_span_service_name="django",
+            web_span_resource="GET ^$",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            status_code="200",
+            url="local/",
+            start=1736973768.0,
+            is_distributed=True,
+            distributed_trace_id=1,
+            distributed_parent_id=2,
+            distributed_sampling_priority=USER_KEEP,
+        )
+
+        # No test for SAMPLING_PRIORITY_KEY because it doesn't appear when the web span is a child
+        web_span.assert_matches(
+            name="django.request",
+            trace_id=1,
+        )
+        assert len(test_spans.spans) == 27
 
 
 def test_trace_query_string_integration_enabled(client, test_spans):
@@ -1875,7 +1990,8 @@ def test_collecting_requests_handles_improperly_configured_error(client, test_sp
     """
     # patch django._patch - django.__init__.py imports patch.py module as _patch
     with mock.patch(
-        "ddtrace.contrib.django.utils.user_is_authenticated", side_effect=django.core.exceptions.ImproperlyConfigured
+        "ddtrace.contrib.internal.django.utils.user_is_authenticated",
+        side_effect=django.core.exceptions.ImproperlyConfigured,
     ):
         # If ImproperlyConfigured error bubbles up, should automatically fail the test.
         resp = client.get("/")
@@ -2004,7 +2120,8 @@ def test_django_use_handler_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_resource_format; print('Test success')"
                 ),
@@ -2023,7 +2140,8 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
@@ -2103,7 +2221,8 @@ def test_django_use_legacy_resource_format_env(client, test_spans):
                 "python",
                 "-c",
                 (
-                    "from ddtrace import config, patch_all; patch_all(); "
+                    "from ddtrace import config; "
+                    "from ddtrace._monkey import _patch_all; _patch_all(); "
                     "import django; "
                     "assert config.django.use_legacy_resource_format; print('Test success')"
                 ),

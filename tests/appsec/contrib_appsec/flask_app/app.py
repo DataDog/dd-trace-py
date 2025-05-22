@@ -1,22 +1,19 @@
+import json
 import os
 import sqlite3
+import subprocess
 from typing import Optional
 
 from flask import Flask
 from flask import request
 
-from ddtrace import tracer
-
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 import ddtrace.constants
+from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer.configure(
-    settings={
-        "FILTERS": [PingFilter()],
-    }
-)
+tracer.configure(trace_processors=[PingFilter()])
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -59,7 +56,7 @@ def multi_view(param_int=0, param_str=""):
 def new_service(service_name: str):
     import ddtrace
 
-    ddtrace.Pin.override(Flask, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.trace.Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
     return service_name
 
 
@@ -126,13 +123,33 @@ def rasp(endpoint: str):
                 res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
-    elif endpoint == "command_injection":
-        res = ["command_injection endpoint"]
+    elif endpoint == "shell_injection":
+        res = ["shell_injection endpoint"]
         for param in query_params:
             if param.startswith("cmd"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    if param.startswith("cmdsys"):
+                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                    else:
+                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        return "<\\br>\n".join(res)
+    elif endpoint == "command_injection":
+        res = ["command_injection endpoint"]
+        for param in query_params:
+            if param.startswith("cmda"):
+                cmd = query_params[param]
+                try:
+                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                except Exception as e:
+                    res.append(f"Error: {e}")
+            elif param.startswith("cmds"):
+                cmd = query_params[param]
+                try:
+                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
@@ -167,22 +184,69 @@ def login_user():
                 return USERS[username]["id"]
             else:
                 appsec_trace_utils.track_user_login_failure_event(
-                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto"
+                    tracer, user_id=USERS[username]["id"], exists=True, login_events_mode="auto", login=username
                 )
                 return None
         appsec_trace_utils.track_user_login_failure_event(
-            tracer, user_id=username, exists=False, login_events_mode="auto"
+            tracer, user_id=username, exists=False, login_events_mode="auto", login=username
         )
         return None
 
-    def login(user_id: str) -> None:
+    def login(user_id: str, login: str) -> None:
         """login user"""
-        appsec_trace_utils.track_user_login_success_event(tracer, user_id=user_id, login_events_mode="auto")
+        appsec_trace_utils.track_user_login_success_event(
+            tracer, user_id=user_id, login_events_mode="auto", login=login
+        )
 
-    username = request.args.get("username")
-    password = request.args.get("password")
+    username = request.args.get("username", "")
+    password = request.args.get("password", "")
     user_id = authenticate(username=username, password=password)
     if user_id is not None:
-        login(user_id)
+        login(user_id, username)
+        return "OK"
+    return "login failure", 401
+
+
+@app.route("/login_sdk/", methods=["GET"])
+@app.route("/login_sdk", methods=["GET"])
+def login_user_sdk():
+    """manual instrumentation login endpoint using SDK V2"""
+    try:
+        from ddtrace.appsec import track_user_sdk
+    except ImportError:
+        return "SDK V2 not available", 422
+
+    USERS = {
+        "test": {"email": "testuser@ddog.com", "password": "1234", "name": "test", "id": "social-security-id"},
+        "testuuid": {
+            "email": "testuseruuid@ddog.com",
+            "password": "1234",
+            "name": "testuuid",
+            "id": "591dc126-8431-4d0f-9509-b23318d3dce4",
+        },
+    }
+    metadata = json.loads(request.args.get("metadata", "{}"))
+
+    def authenticate(username: str, password: str) -> Optional[str]:
+        """authenticate user"""
+        if username in USERS:
+            if USERS[username]["password"] == password:
+                return USERS[username]["id"]
+            track_user_sdk.track_login_failure(
+                login=username, user_id=USERS[username]["id"], exists=True, metadata=metadata
+            )
+            return None
+        track_user_sdk.track_login_failure(login=username, exists=False, metadata=metadata)
+        return None
+
+    def login(user_id: str, login: str) -> None:
+        """login user"""
+        track_user_sdk.track_login_success(login=login, user_id=user_id, metadata=metadata)
+
+    username = request.args.get("username", "")
+    password = request.args.get("password", "")
+    user_id = authenticate(username=username, password=password)
+    if user_id is not None:
+        login(user_id, username)
         return "OK"
     return "login failure", 401

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 import logging
-import sys
+from unittest import mock
 
 import astunparse
-import mock
 import pytest
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._ast.ast_patching import _in_python_stdlib
-from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+from ddtrace.appsec._iast._ast import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import visit_ast
 from ddtrace.internal.utils.formats import asbool
@@ -59,13 +57,15 @@ def test_visit_ast_changed(source_text, module_path, module_name):
     [
         ("tests.appsec.iast.fixtures.ast.str.class_str"),
         ("tests.appsec.iast.fixtures.ast.str.function_str"),
+        ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
     ],
 )
 def test_astpatch_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -79,10 +79,11 @@ def test_astpatch_module_changed(module_name):
     ],
 )
 def test_astpatch_module_changed_add_operator(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -96,10 +97,11 @@ def test_astpatch_module_changed_add_operator(module_name):
     ],
 )
 def test_astpatch_module_changed_add_inplace_operator(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -114,7 +116,7 @@ def test_astpatch_module_changed_add_inplace_operator(module_name):
     ],
 )
 def test_astpatch_source_changed_with_future_imports(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
@@ -124,6 +126,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+import ddtrace.appsec._iast.sources as {_PREFIX}sources
 import ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks
 import ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects
 import html"""
@@ -137,50 +140,284 @@ import html"""
         ("tests.appsec.iast.fixtures.ast.str.class_no_str"),
         ("tests.appsec.iast.fixtures.ast.str.function_no_str"),
         ("tests.appsec.iast.fixtures.ast.str.__init__"),  # Empty __init__.py
-        ("tests.appsec.iast.fixtures.ast.str.non_utf8_content"),  # EUC-JP file content
         ("tests.appsec.iast.fixtures.ast.str.empty_file"),
         ("tests.appsec.iast.fixtures.ast.subscript.store_context"),
     ],
 )
 def test_astpatch_source_unchanged(module_name):
-    assert ("", None) == astpatch_module(__import__(module_name, fromlist=[None]))
+    assert ("", None) == astpatch_module(__import__(module_name, fromlist=["*"]))
 
 
-def test_module_should_iast_patch():
-    assert not _should_iast_patch("ddtrace.internal.module")
-    assert not _should_iast_patch("ddtrace.appsec._iast")
-    assert not _should_iast_patch("base64")
-    assert not _should_iast_patch("envier")
-    assert not _should_iast_patch("itertools")
-    assert not _should_iast_patch("http")
-    assert _should_iast_patch("tests.appsec.iast.integration.main")
-    assert _should_iast_patch("tests.appsec.iast.integration.print_str")
+def test_should_iast_patch_allow_first_party():
+    assert iastpatch.should_iast_patch("file_in_my_project.main") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("file_in_my_project.print_str") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+    assert iastpatch.should_iast_patch("html") == iastpatch.ALLOWED_FIRST_PARTY_ALLOWLIST
+
+
+def test_should_iast_patch_allow_user_allowlist():
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.main") == iastpatch.ALLOWED_USER_ALLOWLIST
+    assert iastpatch.should_iast_patch("tests.appsec.iast.integration.print_str") == iastpatch.ALLOWED_USER_ALLOWLIST
+
+
+def test_should_not_iast_patch_if_vendored():
+    assert iastpatch.should_iast_patch("foobar.vendor.requests") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("vendored.foobar.requests") == iastpatch.DENIED_NOT_FOUND
+
+
+def test_should_iast_patch_deny_by_default_if_third_party():
+    # note that modules here must be in the ones returned by get_package_distributions()
+    # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
+    assert (
+        iastpatch.should_iast_patch("astunparse.foo.bar.not.in.deny.or.allow.list")
+        == iastpatch.DENIED_BUILTINS_DENYLIST
+    )
+
+
+def test_should_iast_patch_allow_by_default_if_third_party():
+    # note that modules here must be in the ones returned by get_package_distributions()
+    # but not in ALLOWLIST or DENYLIST. So please don't put astunparse there :)
+    assert iastpatch.should_iast_patch("pygments") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+    assert iastpatch.should_iast_patch("pygments.submodule.submodule2") == iastpatch.ALLOWED_STATIC_ALLOWLIST
+
+
+def test_should_not_iast_patch_if_not_in_static_allowlist():
+    assert iastpatch.should_iast_patch("ddtrace.internal.module") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("ddtrace.appsec._iast") == iastpatch.DENIED_NOT_FOUND
+    assert iastpatch.should_iast_patch("pip.foo.bar") == iastpatch.DENIED_NOT_FOUND
 
 
 @pytest.mark.parametrize(
-    "module_name, result",
-    [
-        ("Envier", False),
-        ("iterTools", True),
-        ("functooLs", True),
-        ("astunparse", False),
-        ("pytest.warns", False),
-        ("datetime", True),
-        ("posiX", True),
-        ("app", False),
-        ("my_app", False),
-    ],
+    "module_name",
+    {
+        "__future__",
+        "_ast",
+        "_compression",
+        "_thread",
+        "abc",
+        "aifc",
+        "argparse",
+        "array",
+        "ast",
+        "asynchat",
+        "asyncio",
+        "asyncore",
+        "atexit",
+        "audioop",
+        "base64",
+        "bdb",
+        "binascii",
+        "bisect",
+        "builtins",
+        "bz2",
+        "cProfile",
+        "calendar",
+        "cgi",
+        "cgitb",
+        "chunk",
+        "cmath",
+        "cmd",
+        "code",
+        "codecs",
+        "codeop",
+        "collections",
+        "colorsys",
+        "compileall",
+        "concurrent",
+        "configparser",
+        "contextlib",
+        "contextvars",
+        "copy",
+        "copyreg",
+        "crypt",
+        "csv",
+        "ctypes",
+        "curses",
+        "dataclasses",
+        "datetime",
+        "dbm",
+        "decimal",
+        "difflib",
+        "dis",
+        "distutils",
+        "doctest",
+        "email",
+        "encodings",
+        "ensurepip",
+        "enum",
+        "errno",
+        "faulthandler",
+        "fcntl",
+        "filecmp",
+        "fileinput",
+        "fnmatch",
+        "fractions",
+        "ftplib",
+        "functools",
+        "gc",
+        "getopt",
+        "getpass",
+        "gettext",
+        "glob",
+        "graphlib",
+        "grp",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "hmac",
+        "http",
+        "idlelib",
+        "imaplib",
+        "imghdr",
+        "imp",
+        "importlib",
+        "inspect",
+        "io",
+        "_io",
+        "ipaddress",
+        "itertools",
+        "json",
+        "keyword",
+        "lib2to3",
+        "linecache",
+        "locale",
+        "logging",
+        "lzma",
+        "mailbox",
+        "mailcap",
+        "marshal",
+        "math",
+        "mimetypes",
+        "mmap",
+        "modulefinder",
+        "msilib",
+        "msvcrt",
+        "multiprocessing",
+        "netrc",
+        "nis",
+        "nntplib",
+        "ntpath",
+        "numbers",
+        "opcode",
+        "operator",
+        "optparse",
+        "os",
+        "os.path",
+        "ossaudiodev",
+        "pathlib",
+        "pdb",
+        "pickle",
+        "pickletools",
+        "pipes",
+        "pkgutil",
+        "platform",
+        "plistlib",
+        "poplib",
+        "posix",
+        "posixpath",
+        "pprint",
+        "profile",
+        "pstats",
+        "pty",
+        "pwd",
+        "py_compile",
+        "pyclbr",
+        "pydoc",
+        "queue",
+        "quopri",
+        "random",
+        "re",
+        "readline",
+        "reprlib",
+        "resource",
+        "rlcompleter",
+        "runpy",
+        "sched",
+        "secrets",
+        "select",
+        "selectors",
+        "shelve",
+        "shutil",
+        "signal",
+        "site",
+        "smtpd",
+        "smtplib",
+        "sndhdr",
+        "socket",
+        "socketserver",
+        "spwd",
+        "sqlite3",
+        "sre",
+        "sre_compile",
+        "sre_constants",
+        "sre_parse",
+        "ssl",
+        "stat",
+        "statistics",
+        "string",
+        "stringprep",
+        "struct",
+        "subprocess",
+        "sunau",
+        "symtable",
+        "sys",
+        "sysconfig",
+        "syslog",
+        "tabnanny",
+        "tarfile",
+        "telnetlib",
+        "tempfile",
+        "termios",
+        "test",
+        "textwrap",
+        "threading",
+        "time",
+        "timeit",
+        "tkinter",
+        "token",
+        "tokenize",
+        "tomllib",
+        "trace",
+        "traceback",
+        "tracemalloc",
+        "tty",
+        "turtle",
+        "turtledemo",
+        "types",
+        "typing",
+        "unicodedata",
+        "unittest",
+        "uu",
+        "uuid",
+        "venv",
+        "warnings",
+        "wave",
+        "weakref",
+        "webbrowser",
+        "winreg",
+        "winsound",
+        "wsgiref",
+        "xdrlib",
+        "xml",
+        "xmlrpc",
+        "zipapp",
+        "zipfile",
+        "zipimport",
+        "zlib",
+        "zoneinfo",
+    },
 )
-def test_module_in_python_stdlib(module_name, result):
-    assert _in_python_stdlib(module_name) == result
+def test_should_not_iast_patch_if_stdlib(module_name):
+    assert iastpatch.should_iast_patch(module_name) == iastpatch.DENIED_BUILTINS_DENYLIST
 
 
 def test_module_path_none(caplog):
     with caplog.at_level(logging.DEBUG), mock.patch("ddtrace.internal.module.Path.resolve", side_effect=AttributeError):
-        assert ("", None) == astpatch_module(
-            __import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=[None])
+        assert ("", None) == astpatch_module(__import__("tests.appsec.iast.fixtures.ast.str.class_str", fromlist=["*"]))
+        assert (
+            "iast::instrumentation::ast_patching::compiling::"
+            "could not find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
         )
-        assert "astpatch_source couldn't find the module: tests.appsec.iast.fixtures.ast.str.class_str" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -191,10 +428,11 @@ def test_module_path_none(caplog):
     ],
 )
 def test_astpatch_stringio_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -209,10 +447,11 @@ def test_astpatch_stringio_module_changed(module_name):
     ],
 )
 def test_astpatch_bytesio_module_changed(module_name):
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) != (module_path, new_ast)
     new_code = astunparse.unparse(new_ast)
     assert new_code.startswith(
+        f"\nimport ddtrace.appsec._iast.sources as {_PREFIX}sources"
         f"\nimport ddtrace.appsec._iast.taint_sinks as {_PREFIX}taint_sinks"
         f"\nimport ddtrace.appsec._iast._taint_tracking.aspects as {_PREFIX}aspects"
     )
@@ -230,7 +469,7 @@ def test_astpatch_globals_module_unchanged(module_name):
     This is a regression test for partially matching function names:
     ``globals()`` was being incorrectly patched with the aspect for ``glob()``
     """
-    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+    module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
     assert ("", None) == (module_path, new_ast)
 
 
@@ -249,7 +488,7 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
     the env var is False and not added otherwise
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: env_var}):
-        module_path, new_ast = astpatch_module(__import__(module_name, fromlist=[None]))
+        module_path, new_ast = astpatch_module(__import__(module_name, fromlist=["*"]))
         assert ("", None) != (module_path, new_ast)
         new_code = astunparse.unparse(new_ast)
 
@@ -276,14 +515,13 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
         ),
     ],
 )
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="the dir wrappers enters and infinite loop in 3.7")
 def test_astpatch_dir_patched_with_or_without_custom_dir(module_name, expected_names):
     """
     Check that the patched dir doesn't have any __ddtrace symbols and match the original
     unpatched dir() output, both with or without a previous custom __dir__ implementation
     """
     with override_env({IAST.ENV_NO_DIR_PATCH: "false"}):
-        imported_mod = __import__(module_name, fromlist=[None])
+        imported_mod = __import__(module_name, fromlist=["*"])
         orig_dir = set(dir(imported_mod))
 
         for name in expected_names:

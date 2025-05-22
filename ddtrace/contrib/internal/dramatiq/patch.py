@@ -6,12 +6,12 @@ from typing import Tuple
 import dramatiq
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.settings.config import Config
+from ddtrace.settings._config import Config
+from ddtrace.trace import tracer
 
 
 def get_version() -> str:

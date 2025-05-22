@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from contextlib import contextmanager
 import random
 
@@ -8,15 +9,14 @@ from wrapt import ObjectProxy
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
-from ddtrace.internal.compat import Iterable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
@@ -41,7 +41,7 @@ class TracedClient(ObjectProxy):
         if not isinstance(client, _Client):
             # We are in the patched situation, just pass down all arguments to the pylibmc.Client
             # Note that, in that case, client isn't a real client (just the first argument)
-            client = _Client(client, *args, **kwargs)
+            client = _Client(kwargs.get("servers", client), **{k: v for k, v in kwargs.items() if k != "servers"})
         else:
             log.warning(
                 "TracedClient instantiation is deprecated and will be remove "
@@ -51,7 +51,8 @@ class TracedClient(ObjectProxy):
         super(TracedClient, self).__init__(client)
 
         schematized_service = schematize_service_name(service)
-        pin = ddtrace.Pin(service=schematized_service, tracer=tracer)
+        pin = ddtrace.trace.Pin(service=schematized_service)
+        pin._tracer = tracer
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -64,7 +65,7 @@ class TracedClient(ObjectProxy):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         traced_client = TracedClient(cloned)
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.trace.Pin.get_from(self)
         if pin:
             pin.clone().onto(traced_client)
         return traced_client
@@ -155,7 +156,7 @@ class TracedClient(ObjectProxy):
 
     def _span(self, cmd_name):
         """Return a span timing the given command."""
-        pin = ddtrace.Pin.get_from(self)
+        pin = ddtrace.trace.Pin.get_from(self)
         if not pin or not pin.enabled():
             return self._no_span()
 
@@ -172,7 +173,7 @@ class TracedClient(ObjectProxy):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
 
         try:
             self._tag_span(span)

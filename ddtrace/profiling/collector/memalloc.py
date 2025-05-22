@@ -3,6 +3,7 @@ import logging
 from math import ceil
 import os
 import threading
+import time
 import typing  # noqa:F401
 from typing import Optional
 
@@ -10,9 +11,9 @@ from typing import Optional
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
+    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
-from ddtrace.internal import compat
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
@@ -189,7 +190,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 if thread_id in thread_id_ignore_set:
                     continue
                 handle = ddup.SampleHandle()
-                handle.push_monotonic_ns(compat.monotonic_ns())
+                handle.push_monotonic_ns(time.monotonic_ns())
                 handle.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)

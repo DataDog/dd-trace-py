@@ -1,0 +1,30 @@
+[package]
+name = "ddtrace-native"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+strip = "debuginfo"
+opt-level = 3
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["extension-module"] }
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0" }
+
+[build-dependencies]
+pyo3-build-config = "0.24"
+
+
+[lib]
+name = "_native"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+
+[net]
+# Use git binary from the system instead of the built-in git client
+# "Setting this to true can be helpful if you have special authentication requirements that Cargo does not support."
+git-fetch-with-cli = true

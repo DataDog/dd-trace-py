@@ -12,12 +12,12 @@ jobs:
     name: Add milestone to merged pull requests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         name: Install Python
         with:
           python-version: '3.8'
@@ -29,7 +29,7 @@ jobs:
           scripts/get-target-milestone.py
       - name: Update Pull Request
         if: steps.milestones.outputs.milestone != null
-        uses: actions/github-script@v6.4.1
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |

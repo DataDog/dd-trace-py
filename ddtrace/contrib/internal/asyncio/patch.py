@@ -1,10 +1,10 @@
 import asyncio
 
-from ddtrace import Pin
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.trace import Pin
 
 
 def get_version():
@@ -20,7 +20,7 @@ def patch():
         return
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
-    wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task_py37)
+    wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
 
 
 def unpatch():
@@ -29,10 +29,10 @@ def unpatch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     asyncio._datadog_patch = False
-    unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task_py37)
+    unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
 
 
-def _wrapped_create_task_py37(wrapped, args, kwargs):
+def _wrapped_create_task(wrapped, args, kwargs):
     """This function ensures the current active trace context is propagated to scheduled tasks.
     By default the trace context is propagated when a task is executed and NOT when it is created.
     """
@@ -40,14 +40,27 @@ def _wrapped_create_task_py37(wrapped, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    # override existing co-rountine to ensure the current trace context is propagated
-    coro = get_argument_value(args, kwargs, 1, "coro")
+    # Get current trace context
     dd_active = pin.tracer.current_trace_context()
+    # Only wrap the coroutine if we have an active trace context
+    if not dd_active:
+        return wrapped(*args, **kwargs)
 
+    # Get the coroutine
+    coro = get_argument_value(args, kwargs, 1, "coro")
+
+    # Wrap the coroutine and ensure the current trace context is propagated
     async def traced_coro(*args_c, **kwargs_c):
-        if dd_active and dd_active != pin.tracer.current_trace_context():
+        if dd_active != pin.tracer.current_trace_context():
             pin.tracer.context_provider.activate(dd_active)
         return await coro
 
-    args, kwargs = set_argument_value(args, kwargs, 1, "coro", traced_coro())
+    # DEV: try to persist the original function name (useful for debugging)
+    tc = traced_coro()
+    if hasattr(coro, "__name__"):
+        tc.__name__ = coro.__name__
+    if hasattr(coro, "__qualname__"):
+        tc.__qualname__ = coro.__qualname__
+    args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
+
     return wrapped(*args, **kwargs)

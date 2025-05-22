@@ -3,7 +3,7 @@ set -e
 
 DDTEST_CMD=scripts/ddtest
 
-pkgs=$(python scripts/freshvenvs.py | cut -d':' -f1)
+pkgs=$(python scripts/freshvenvs.py output)
 echo $pkgs
 
 if ! $DDTEST_CMD; then
@@ -20,7 +20,8 @@ for pkg in ${pkgs[*]}; do
         echo "No riot hashes found for pattern: $VENV_NAME"
     else
         echo "VENV_NAME=$VENV_NAME" >> $GITHUB_ENV
-        for h in ${RIOT_HASHES[@]}; do 
+        for h in ${RIOT_HASHES[@]}; do
+            echo "Removing riot lockfiles"
             rm ".riot/requirements/${h}.txt"
         done
         scripts/compile-and-prune-test-requirements

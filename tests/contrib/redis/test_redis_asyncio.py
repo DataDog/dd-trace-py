@@ -7,10 +7,10 @@ import redis
 import redis.asyncio
 from wrapt import ObjectProxy
 
-from ddtrace import Pin
-from ddtrace import tracer
-from ddtrace.contrib.redis.patch import patch
-from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.contrib.internal.redis.patch import patch
+from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.trace import Pin
+from ddtrace.trace import tracer
 from tests.utils import override_config
 
 from ..config import REDIS_CONFIG
@@ -130,7 +130,7 @@ async def test_override_service_name(redis_client):
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pin(redis_client):
-    Pin.override(redis_client, service="my-redis")
+    Pin._override(redis_client, service="my-redis")
     val = await redis_client.get("cheese")
     assert val is None
 

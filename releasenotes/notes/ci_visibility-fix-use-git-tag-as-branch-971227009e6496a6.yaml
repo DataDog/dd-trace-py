@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where running from a GitHub action triggered on a tag push would cause the
+    branch name to be null, causing errors when fetching Test Optimization settings from the backend.

@@ -6,13 +6,15 @@ from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from ddtrace.contrib.starlette.patch import patch as patch_starlette
-from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
+from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
+from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
-from tests.utils import flaky
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -556,7 +558,6 @@ def test_dont_trace_websocket_by_default(client, test_spans):
         assert len(spans) <= initial_event_count
 
 
-@flaky(1735812000)
 # Ignoring span link attributes until values are
 # normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
 @snapshot(ignores=["meta._dd.span_links"])
@@ -650,3 +651,142 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
     assert err == b"", err.decode()
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        {
+            "endpoint": "/items/foo",
+            "status_code": "200",
+            "resource_suffix": "/items/{item_id}",
+        },
+        {"endpoint": "/500", "status_code": "500", "resource_suffix": "/500"},
+    ],
+)
+@pytest.mark.parametrize(
+    "test_headers",
+    [
+        {
+            "type": "default",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "X-Token": "DataDog",
+            },
+        },
+        {
+            "type": "distributed",
+            "headers": {
+                "x-dd-proxy": "aws-apigateway",
+                "x-dd-proxy-request-time-ms": "1736973768000",
+                "x-dd-proxy-path": "/",
+                "x-dd-proxy-httpmethod": "GET",
+                "x-dd-proxy-domain-name": "local",
+                "x-dd-proxy-stage": "stage",
+                "x-datadog-trace-id": "1",
+                "x-datadog-parent-id": "2",
+                "x-datadog-origin": "rum",
+                "x-datadog-sampling-priority": "2",
+                "X-Token": "DataDog",
+            },
+        },
+    ],
+)
+@pytest.mark.parametrize("inferred_proxy_enabled", [True])
+def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_proxy_enabled, test_headers):
+    # When the inferred proxy feature is enabled, there should be an inferred span
+    with override_global_config(dict(_inferred_proxy_services_enabled=inferred_proxy_enabled)):
+        if test["status_code"] == "500":
+            with pytest.raises(RuntimeError):
+                client.get(test["endpoint"], headers=test_headers["headers"])
+        else:
+            client.get(test["endpoint"], headers=test_headers["headers"])
+
+        if inferred_proxy_enabled:
+            web_span = test_spans.find_span(name="fastapi.request")
+            aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+            assert_web_and_inferred_aws_api_gateway_span_data(
+                aws_gateway_span,
+                web_span,
+                web_span_name="fastapi.request",
+                web_span_component="fastapi",
+                web_span_service_name="fastapi",
+                web_span_resource="GET " + test["resource_suffix"],
+                api_gateway_service_name="local",
+                api_gateway_resource="GET /",
+                method="GET",
+                status_code=test["status_code"],
+                url="local/",
+                start=1736973768,
+                is_distributed=test_headers["type"] == "distributed",
+                distributed_trace_id=1,
+                distributed_parent_id=2,
+                distributed_sampling_priority=USER_KEEP,
+            )
+
+        else:
+            web_span = test_spans.find_span(name="fastapi.request")
+            assert web_span._parent is None
+
+            if test_headers["type"] == "distributed":
+                assert web_span.trace_id == 1
+
+
+def test_baggage_span_tagging_default(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": "user.id=123,account.id=456,region=us-west"})
+
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    # Assume the request span is the first span in the first trace.
+    request_span = spans[0][0]
+
+    assert request_span.get_tag("baggage.user.id") == "123"
+    assert request_span.get_tag("baggage.account.id") == "456"
+    # Since "region" is not in the default list, its baggage tag should not be present.
+    assert request_span.get_tag("baggage.region") is None
+
+
+def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
+    response = client.get("/", headers={})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    request_span.context.set_baggage_item("user.id", "123")
+    # None of the baggage tags should be present since we only tag baggage during extraction from headers
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.session.id") is None

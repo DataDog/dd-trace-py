@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Removes code and tests related to Python 3.7, breaking the library's compatibility with this Python version.

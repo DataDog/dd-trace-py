@@ -1,0 +1,63 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_core.runnables.base.RunnableSequence",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "679bca4500000000",
+      "langchain.request.inputs.0.input": "how can langsmith help with testing?",
+      "langchain.request.stream": "True",
+      "langchain.request.type": "chain",
+      "langchain.response.outputs": "Python is\\n\\nthe best!",
+      "language": "python",
+      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 82010
+    },
+    "duration": 18877000,
+    "start": 1738263109393591000
+  },
+     {
+       "name": "langchain.request",
+       "service": "tests.contrib.langchain",
+       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "langchain.request.api_key": "...key>",
+         "langchain.request.messages.0.content": "You are world class technical documentation writer.",
+         "langchain.request.messages.0.message_type": "SystemMessage",
+         "langchain.request.messages.1.content": "how can langsmith help with testing?",
+         "langchain.request.messages.1.message_type": "HumanMessage",
+         "langchain.request.model": "gpt-3.5-turbo",
+         "langchain.request.openai-chat.parameters.model": "gpt-3.5-turbo",
+         "langchain.request.openai-chat.parameters.model_name": "gpt-3.5-turbo",
+         "langchain.request.openai-chat.parameters.n": "1",
+         "langchain.request.openai-chat.parameters.stream": "False",
+         "langchain.request.openai-chat.parameters.temperature": "0.7",
+         "langchain.request.provider": "openai-chat",
+         "langchain.request.stream": "True",
+         "langchain.request.type": "chat_model",
+         "langchain.response.content": "Python is\\n\\nthe best!",
+         "langchain.response.message_type": "AIMessage"
+       },
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 6074000,
+       "start": 1738263109406147000
+     }]]

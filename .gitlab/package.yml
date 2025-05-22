@@ -2,11 +2,17 @@ download_ddtrace_artifacts:
   image: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
   tags: [ "arch:amd64" ]
   stage: package
-  script:
-    - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
-    - gh auth login --with-token < token
-    - rm token
-    - .gitlab/download-wheels-from-gh-actions.sh
+  script: |
+    if [ -z ${GH_TOKEN} ]
+    then
+      aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+      gh auth login --with-token < token
+      rm token
+    fi
+    # Prevent git operation errors:
+    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
+    git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:
       - "pywheels/*.whl"
@@ -19,8 +25,6 @@ download_dependency_wheels:
   needs: [ download_ddtrace_artifacts ]
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
-      - PYTHON_IMAGE_TAG: "3.7"
-        PYTHON_VERSION: "3.7"
       - PYTHON_IMAGE_TAG: "3.8"
         PYTHON_VERSION: "3.8"
       - PYTHON_IMAGE_TAG: "3.9.13"
@@ -31,6 +35,8 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.11"
       - PYTHON_IMAGE_TAG: "3.12.0"
         PYTHON_VERSION: "3.12"
+      - PYTHON_IMAGE_TAG: "3.13.0"
+        PYTHON_VERSION: "3.13"
   script:
     - .gitlab/download-dependency-wheels.sh
   artifacts:

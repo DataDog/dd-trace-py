@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 import ddtrace
-from ddtrace.contrib.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -46,7 +46,8 @@ class TestPytest(TracerTestCase):
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
         with override_env(dict(DD_API_KEY="foobar.baz")):
-            self.tracer.configure(writer=DummyCIVisibilityWriter("https://citestcycle-intake.banana"))
+            self.tracer._span_aggregator.writer = DummyCIVisibilityWriter("https://citestcycle-intake.banana")
+            self.tracer._recreate()
             return self.testdir.inline_run(*args, plugins=[CIVisibilityPlugin()])
 
     @pytest.mark.skipif(

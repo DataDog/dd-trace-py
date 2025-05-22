@@ -6,11 +6,11 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.utils import override_global_config
 
 

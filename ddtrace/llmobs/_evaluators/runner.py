@@ -1,15 +1,20 @@
 from concurrent import futures
 import os
-from typing import Dict
+from typing import List
+from typing import Tuple
 
-from ddtrace import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
+from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.llmobs._writer import LLMObsSpanEvent
+from ddtrace.trace import Span
 
 
 logger = get_logger(__name__)
@@ -17,6 +22,8 @@ logger = get_logger(__name__)
 
 SUPPORTED_EVALUATORS = {
     RagasFaithfulnessEvaluator.LABEL: RagasFaithfulnessEvaluator,
+    RagasAnswerRelevancyEvaluator.LABEL: RagasAnswerRelevancyEvaluator,
+    RagasContextPrecisionEvaluator.LABEL: RagasContextPrecisionEvaluator,
 }
 
 
@@ -27,10 +34,12 @@ class EvaluatorRunner(PeriodicService):
     2. triggers evaluator runs over buffered finished spans on each `periodic` call
     """
 
+    EVALUATORS_ENV_VAR = "DD_LLMOBS_EVALUATORS"
+
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: list[tuple[Dict, Span]]
+        self._buffer: List[Tuple[LLMObsSpanEvent, Span]] = []
         self._buffer_limit = 1000
 
         self.llmobs_service = llmobs_service
@@ -41,7 +50,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv("_DD_LLMOBS_EVALUATORS")
+        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 
@@ -56,7 +65,7 @@ class EvaluatorRunner(PeriodicService):
                     raise e
                 finally:
                     telemetry_writer.add_count_metric(
-                        namespace=TELEMETRY_APM_PRODUCT.LLMOBS,
+                        namespace=TELEMETRY_NAMESPACE.MLOBS,
                         name="evaluators.init",
                         value=1,
                         tags=(
@@ -64,13 +73,15 @@ class EvaluatorRunner(PeriodicService):
                             ("state", evaluator_init_state),
                         ),
                     )
+            else:
+                raise ValueError("Parsed unsupported evaluator: {}".format(evaluator))
 
     def start(self, *args, **kwargs):
         if not self.evaluators:
             logger.debug("no evaluators configured, not starting %r", self.__class__.__name__)
             return
         super(EvaluatorRunner, self).start()
-        logger.debug("started %r to %r", self.__class__.__name__)
+        logger.debug("started %r", self.__class__.__name__)
 
     def _stop_service(self) -> None:
         """
@@ -87,7 +98,9 @@ class EvaluatorRunner(PeriodicService):
             evaluators=self.evaluators,
         )
 
-    def enqueue(self, span_event: Dict, span: Span) -> None:
+    def enqueue(self, span_event: LLMObsSpanEvent, span: Span) -> None:
+        if self.status == ServiceStatus.STOPPED:
+            return
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning(
@@ -96,7 +109,7 @@ class EvaluatorRunner(PeriodicService):
                 return
             self._buffer.append((span_event, span))
 
-    def periodic(self, _wait_sync=False) -> None:
+    def periodic(self, _wait_sync: bool = False) -> None:
         """
         :param bool _wait_sync: if `True`, each evaluator is run for each span in the buffer
         synchronously. This param is only set to `True` for when the evaluator runner is stopped by the LLM Obs
@@ -105,24 +118,16 @@ class EvaluatorRunner(PeriodicService):
         with self._lock:
             if not self._buffer:
                 return
-            span_events_and_spans = self._buffer  # type: list[tuple[Dict, Span]]
+            span_events_and_spans = self._buffer
             self._buffer = []
 
         try:
-            if not _wait_sync:
-                for evaluator in self.evaluators:
-                    self.executor.map(
-                        lambda span_event: evaluator.run_and_submit_evaluation(span_event),
-                        [
-                            span_event
-                            for span_event, span in span_events_and_spans
-                            if self.sampler.sample(evaluator.LABEL, span)
-                        ],
-                    )
-            else:
-                for evaluator in self.evaluators:
-                    for span_event, span in span_events_and_spans:
-                        if self.sampler.sample(evaluator.LABEL, span):
+            for evaluator in self.evaluators:
+                for span_event, span in span_events_and_spans:
+                    if self.sampler.sample(evaluator.LABEL, span):
+                        if not _wait_sync:
+                            self.executor.submit(evaluator.run_and_submit_evaluation, span_event)
+                        else:
                             evaluator.run_and_submit_evaluation(span_event)
         except RuntimeError as e:
             logger.debug("failed to run evaluation: %s", e)

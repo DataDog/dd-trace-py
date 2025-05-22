@@ -8,7 +8,6 @@ import string
 
 from ddtrace import __version__ as ddtrace_version
 from ddtrace._trace.span import Span
-from ddtrace.filters import TraceFilter
 from ddtrace.internal import telemetry
 
 
@@ -59,13 +58,13 @@ if ddtrace_version.split(".")[0] == "0":
     _Span = partial(_Span, None)
 
 
-class _DropTraces(TraceFilter):
-    def process_trace(self, trace):
-        return
-
-
 def drop_traces(tracer):
-    tracer.configure(settings={"FILTERS": [_DropTraces()]})
+    if hasattr(tracer, "_span_aggregator"):
+        writer = tracer._span_aggregator.writer
+    else:
+        writer = tracer._writer
+    # Avoids sending traces to the agent
+    writer.write = lambda x: None
 
 
 def drop_telemetry_events():

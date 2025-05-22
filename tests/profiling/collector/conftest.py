@@ -2,12 +2,13 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import Profiler
+from tests.utils import override_global_config
 
 
 @pytest.fixture
-def tracer(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_STARTUP_LOGS", "0")
-    return ddtrace.Tracer()
+def tracer():
+    with override_global_config(dict(_startup_logs_enabled=False)):
+        yield ddtrace.trace.tracer
 
 
 @pytest.fixture

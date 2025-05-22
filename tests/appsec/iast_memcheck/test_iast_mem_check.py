@@ -7,15 +7,14 @@ from pytest_memray import Stack
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking import create_context
-from ddtrace.appsec._iast._taint_tracking import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking import initializer_size
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import reset_context
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
-from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 
 
@@ -171,79 +170,22 @@ def test_stacktrace_memory_check():
         if not frame_info:
             pytest.fail("No stacktrace")
 
-        file_name, line_number = frame_info
+        file_name, line_number, method, class_ = frame_info
         assert file_name
         assert line_number > 0
+        assert method == "func_20"
+        assert not class_
 
 
 @pytest.mark.limit_leaks("460 B", filter_fn=IASTFilter())
 def test_stacktrace_memory_check_direct_call():
     for _ in range(LOOPS):
-        frame_info = get_info_frame(CWD)
+        frame_info = get_info_frame()
         if not frame_info:
             pytest.fail("No stacktrace")
 
-        file_name, line_number = frame_info
+        file_name, line_number, method, class_ = frame_info
         assert file_name
         assert line_number > 0
-
-
-@pytest.mark.limit_leaks("460 KB", filter_fn=IASTFilter())
-def test_stacktrace_memory_check_no_native():
-    for _ in range(LOOPS):
-        frame_info = func_1("", "py", "3")
-        if not frame_info:
-            pytest.fail("No stacktrace")
-
-        file_name, line_number = frame_info
-        assert file_name
-        assert line_number > 0
-
-
-@pytest.mark.limit_leaks("24 KB", filter_fn=IASTFilter())
-def test_stacktrace_memory_check_no_native_direct_call():
-    for _ in range(2):
-        frame_info = get_info_frame_py(CWD)
-        if not frame_info:
-            pytest.fail("No stacktrace")
-
-        file_name, line_number = frame_info
-        assert file_name
-        assert line_number > 0
-
-
-@pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
-def test_stacktrace_memory_empty_byte_check():
-    for _ in range(LOOPS):
-        frame_info = func_1("empty_byte", "2", "3")
-        if not frame_info:
-            pytest.fail("No stacktrace")
-
-        file_name, line_number = frame_info
-        assert file_name
-        assert line_number > 0
-
-
-@pytest.mark.limit_leaks("440 B", filter_fn=IASTFilter())
-def test_stacktrace_memory_empty_string_check():
-    for _ in range(LOOPS):
-        frame_info = func_1("empty_string", "2", "3")
-        if not frame_info:
-            pytest.fail("No stacktrace")
-
-        file_name, line_number = frame_info
-        assert file_name
-        assert line_number > 0
-
-
-@pytest.mark.limit_leaks("10 KB", filter_fn=IASTFilter())
-def test_stacktrace_memory_random_string_check():
-    """2.1 KB is enough but CI allocates 1.0 MB bytes"""
-    for _ in range(LOOPS):
-        frame_info = func_1("random_string", "2", "3")
-        if not frame_info:
-            pytest.fail("No stacktrace")
-
-        file_name, line_number = frame_info
-        assert file_name == ""
-        assert line_number == -1
+        assert method == "test_stacktrace_memory_check_direct_call"
+        assert not class_

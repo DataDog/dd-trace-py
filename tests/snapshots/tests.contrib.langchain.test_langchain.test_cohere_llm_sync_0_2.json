@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_cohere.llms.Cohere",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67aba3a200000000",
+      "langchain.request.api_key": "...key>",
+      "langchain.request.prompts.0": "What is the secret Krabby Patty recipe?",
+      "langchain.request.provider": "cohere",
+      "langchain.request.type": "llm",
+      "langchain.response.completions.0.text": " The secret Krabby Patty recipe has been kept hidden throughout all the Spongebob Squarepants episodes and movies, and it is not...",
+      "language": "python",
+      "runtime-id": "04758c93703a4496bde390db727d983d"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 89808
+    },
+    "duration": 4524000,
+    "start": 1739301794296314000
+  }]]

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    datastreams: Logs at warning level for Kinesis errors that break the Data Streams Monitoring map.

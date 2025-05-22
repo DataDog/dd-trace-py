@@ -1,5 +1,4 @@
-from typing import Any
-from typing import Dict
+import re
 
 
 VULN_INSECURE_HASHING_TYPE = "WEAK_HASH"
@@ -12,9 +11,10 @@ VULN_NO_HTTPONLY_COOKIE = "NO_HTTPONLY_COOKIE"
 VULN_NO_SAMESITE_COOKIE = "NO_SAMESITE_COOKIE"
 VULN_CMDI = "COMMAND_INJECTION"
 VULN_HEADER_INJECTION = "HEADER_INJECTION"
+VULN_CODE_INJECTION = "CODE_INJECTION"
+VULN_XSS = "XSS"
 VULN_SSRF = "SSRF"
-
-VULNERABILITY_TOKEN_TYPE = Dict[int, Dict[str, Any]]
+VULN_STACKTRACE_LEAK = "STACKTRACE_LEAK"
 
 HEADER_NAME_VALUE_SEPARATOR = ": "
 
@@ -26,6 +26,12 @@ BLOWFISH_DEF = "blowfish"
 RC2_DEF = "rc2"
 RC4_DEF = "rc4"
 IDEA_DEF = "idea"
+STACKTRACE_RE_DETECT = re.compile(r"Traceback \(most recent call last\):")
+HTML_TAGS_REMOVE = re.compile(r"<!--[\s\S]*?-->|<[^>]*>|&#\w+;")
+STACKTRACE_FILE_LINE = re.compile(r"File (.*?), line (\d+), in (.+)")
+STACKTRACE_EXCEPTION_REGEX = re.compile(
+    r"^(?P<exc>[A-Za-z_]\w*(?:Error|Exception|Interrupt|Fault|Warning))" r"(?:\s*:\s*(?P<msg>.*))?$"
+)
 
 DEFAULT_WEAK_HASH_ALGORITHMS = {MD5_DEF, SHA1_DEF}
 
@@ -54,6 +60,8 @@ DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
 }
 
 DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
+    "_io": {"open"},
+    "io": {"open"},
     "glob": {"glob"},
     "os": {
         "mkdir",
@@ -83,5 +91,11 @@ DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
 DBAPI_SQLITE = "sqlite"
 DBAPI_PSYCOPG = "psycopg"
 DBAPI_MYSQL = "mysql"
+DBAPI_MYSQLDB = "mysqldb"
+DBAPI_PYMYSQL = "pymysql"
 DBAPI_MARIADB = "mariadb"
-DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MARIADB)
+DBAPI_INTEGRATIONS = (DBAPI_SQLITE, DBAPI_PSYCOPG, DBAPI_MYSQL, DBAPI_MYSQLDB, DBAPI_MARIADB, DBAPI_PYMYSQL)
+
+DEFAULT_SOURCE_IO_FUNCTIONS = {
+    "_io": {"read"},
+}

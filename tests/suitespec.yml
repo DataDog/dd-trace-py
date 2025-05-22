@@ -13,7 +13,6 @@ components:
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
-    - .circleci/*
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
@@ -58,13 +57,15 @@ components:
     - ddtrace/internal/logger.py
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
-    - ddtrace/internal/injection.py
+    - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
+    - ddtrace/internal/native/*
     - ddtrace/internal/packages.py
     - ddtrace/internal/third-party.tar.gz
     - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
@@ -75,8 +76,8 @@ components:
     - ddtrace/__init__.py
     - ddtrace/py.typed
     - ddtrace/version.py
-    - ddtrace/settings/config.py
-    - src/core/*
+    - ddtrace/settings/_config.py
+    - src/native/*
   datastreams:
     - ddtrace/internal/datastreams/*
     - ddtrace/data_streams.py
@@ -115,17 +116,8 @@ components:
     - ddtrace/_trace/*
     - ddtrace/trace/*
     - ddtrace/constants.py
-    - ddtrace/context.py
-    - ddtrace/filters.py
-    - ddtrace/pin.py
-    - ddtrace/provider.py
-    - ddtrace/sampler.py
-    - ddtrace/sampling_rule.py
-    - ddtrace/span.py
-    - ddtrace/tracer.py
-    - ddtrace/tracing/*
     - ddtrace/settings/__init__.py
-    - ddtrace/settings/config.py
+    - ddtrace/settings/_config.py
     - ddtrace/settings/http.py
     - ddtrace/settings/exceptions.py
     - ddtrace/settings/integration.py
@@ -151,8 +143,16 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  conftest:
+    parallelism: 1
+    paths:
+      - 'conftest.py'
+      - '**/conftest.py'
+    pattern: meta-testing
+    runner: hatch
+    snapshot: false
   ddtracerun:
-    parallelism: 6
+    parallelism: 3
     paths:
       - '@contrib'
       - '@bootstrap'
@@ -163,6 +163,7 @@ suites:
     services:
       - redis
   integration_agent:
+    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -173,6 +174,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
+    parallelism: 1
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -183,7 +185,14 @@ suites:
     pattern: integration-snapshot*
     runner: riot
     snapshot: true
+  integration_registry:
+    parallelism: 1
+    paths:
+      - '@contrib'
+      - ddtrace/contrib/integration_registry/*
+    runner: riot
   internal:
+    parallelism: 2
     paths:
       - '@core'
       - '@remoteconfig'
@@ -195,6 +204,12 @@ suites:
       - tests/cache/*
     runner: riot
     snapshot: true
+  slotscheck:
+    parallelism: 1
+    paths:
+      - 'ddtrace/**/*.py'
+    runner: hatch
+    snapshot: false
   profile:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -217,7 +232,7 @@ suites:
     runner: riot
     skip: true
   telemetry:
-    parallelism: 6
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -249,6 +264,7 @@ suites:
     retry: 2
     runner: riot
   vendor:
+    parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*

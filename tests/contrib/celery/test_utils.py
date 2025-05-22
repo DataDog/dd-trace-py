@@ -3,12 +3,12 @@ import gc
 from mock import Mock
 import pytest
 
-from ddtrace._trace.span import Span
-from ddtrace.contrib.celery.utils import attach_span
-from ddtrace.contrib.celery.utils import detach_span
-from ddtrace.contrib.celery.utils import retrieve_span
-from ddtrace.contrib.celery.utils import retrieve_task_id
-from ddtrace.contrib.celery.utils import set_tags_from_context
+from ddtrace.contrib.internal.celery.utils import attach_span
+from ddtrace.contrib.internal.celery.utils import detach_span
+from ddtrace.contrib.internal.celery.utils import retrieve_span
+from ddtrace.contrib.internal.celery.utils import retrieve_task_id
+from ddtrace.contrib.internal.celery.utils import set_tags_from_context
+from ddtrace.trace import Span
 
 
 @pytest.fixture

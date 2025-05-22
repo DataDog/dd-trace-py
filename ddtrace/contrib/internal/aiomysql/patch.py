@@ -1,13 +1,13 @@
 import aiomysql
 import wrapt
 
-from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -18,6 +18,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import Pin
 
 
 config._add(
@@ -48,7 +49,7 @@ async def patched_connect(connect_func, _, args, kwargs):
     tags = {}
     for tag, attr in CONN_ATTR_BY_TAG.items():
         if hasattr(conn, attr):
-            tags[tag] = trace_utils._convert_to_string(getattr(conn, attr, None))
+            tags[tag] = _convert_to_string(getattr(conn, attr, None))
     tags[db.SYSTEM] = "mysql"
 
     c = AIOTracedConnection(conn)
@@ -81,7 +82,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tag(SPAN_MEASURED_KEY)
+            s.set_tag(_SPAN_MEASURED_KEY)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

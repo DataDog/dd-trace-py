@@ -1,4 +1,5 @@
 from collections import Counter
+from decimal import Decimal
 import os.path
 import sys
 from threading import Thread
@@ -8,7 +9,7 @@ from mock.mock import call
 import pytest
 
 import ddtrace
-from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._debugger import DebuggerWrappingContext
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
@@ -39,8 +40,6 @@ from tests.debugging.utils import create_span_function_probe
 from tests.debugging.utils import ddexpr
 from tests.debugging.utils import ddstrtempl
 from tests.internal.remoteconfig import rcm_endpoint
-from tests.submod.stuff import Stuff
-from tests.submod.stuff import modulestuff as imported_modulestuff
 from tests.utils import TracerTestCase
 from tests.utils import call_program
 
@@ -60,6 +59,9 @@ def simple_debugger_test(probe, func):
 
         d.add_probes(probe)
 
+        # Check that we can still hash the code object
+        assert hash(func.__code__)
+
         try:
             func()
         except Exception:
@@ -71,7 +73,7 @@ def simple_debugger_test(probe, func):
         return snapshots
 
 
-def test_debugger_line_probe_on_instance_method():
+def test_debugger_line_probe_on_instance_method(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="probe-instance-method",
@@ -79,7 +81,7 @@ def test_debugger_line_probe_on_instance_method():
             line=36,
             condition=None,
         ),
-        lambda: Stuff().instancestuff(),
+        stuff.Stuff().instancestuff,
     )
 
     (snapshot,) = snapshots
@@ -89,15 +91,15 @@ def test_debugger_line_probe_on_instance_method():
     assert snapshot["debugger"]["snapshot"]["duration"] is None
 
 
-def test_debugger_line_probe_on_imported_module_function():
-    lineno = min(linenos(imported_modulestuff))
+def test_debugger_line_probe_on_imported_module_function(stuff):
+    lineno = min(linenos(stuff.modulestuff))
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="probe-instance-method",
             source_file="tests/submod/stuff.py",
             line=lineno,
         ),
-        lambda: imported_modulestuff(42),
+        lambda: stuff.modulestuff(42),
     )
 
     (snapshot,) = snapshots
@@ -107,7 +109,7 @@ def test_debugger_line_probe_on_imported_module_function():
 
 
 @pytest.mark.parametrize(
-    "probe, trigger",
+    "probe",
     [
         (
             create_snapshot_function_probe(
@@ -115,8 +117,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
                 rate=1000,
-            ),
-            lambda: Stuff().instancestuff(42),
+            )
         ),
         (
             create_snapshot_line_probe(
@@ -124,14 +125,11 @@ def test_debugger_line_probe_on_imported_module_function():
                 source_file="tests/submod/stuff.py",
                 line=36,
                 rate=1000,
-            ),
-            lambda: Stuff().instancestuff(42),
+            )
         ),
     ],
 )
-def test_debugger_probe_new_delete(probe, trigger):
-    global Stuff
-
+def test_debugger_probe_new_delete(probe, stuff):
     with debugger() as d:
         probe_id = probe.probe_id
         d.add_probes(probe)
@@ -139,7 +137,7 @@ def test_debugger_probe_new_delete(probe, trigger):
         assert probe in d._probe_registry
         assert _get_probe_location(probe) in d.__watchdog__._instance._locations
 
-        trigger()
+        stuff.Stuff().instancestuff(42)
 
         d.remove_probes(probe)
 
@@ -148,7 +146,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         assert _get_probe_location(probe) not in d.__watchdog__._instance._locations
 
-        trigger()
+        stuff.Stuff().instancestuff(42)
 
         # Unload and reload the module to ensure that the injection hook
         # has actually been removed.
@@ -158,15 +156,15 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         __import__("tests.submod.stuff")
         # Make Stuff refer to the reloaded class
-        Stuff = sys.modules["tests.submod.stuff"].Stuff
+        stuff.Stuff = sys.modules["tests.submod.stuff"].Stuff
 
-        trigger()
+        stuff.Stuff().instancestuff(42)
 
         (snapshot,) = d.uploader.wait_for_payloads()
         assert snapshot["debugger"]["snapshot"]["probe"]["id"] == probe_id
 
 
-def test_debugger_function_probe_on_instance_method():
+def test_debugger_function_probe_on_instance_method(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_function_probe(
             probe_id="probe-instance-method",
@@ -174,7 +172,7 @@ def test_debugger_function_probe_on_instance_method():
             func_qname="Stuff.instancestuff",
             condition=None,
         ),
-        lambda: Stuff().instancestuff(42),
+        lambda: stuff.Stuff().instancestuff(42),
     )
 
     (snapshot,) = snapshots
@@ -216,12 +214,30 @@ def test_debugger_function_probe_on_function_with_exception():
 
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["arguments"] == {}
-    assert return_capture["locals"] == {"@exception": {"fields": {}, "type": "Exception"}}
+    assert return_capture["locals"] == {
+        "@exception": {
+            "type": "Exception",
+            "fields": {
+                "args": {
+                    "type": "tuple",
+                    "elements": [
+                        {"type": "str", "value": "'Hello'"},
+                        {"type": "str", "value": "'world!'"},
+                        {"type": "int", "value": "42"},
+                    ],
+                    "size": 3,
+                },
+                "__cause__": {"type": "NoneType", "isNull": True},
+                "__context__": {"type": "NoneType", "isNull": True},
+                "__suppress_context__": {"type": "bool", "value": "False"},
+            },
+        }
+    }
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
 
-def test_debugger_invalid_condition():
+def test_debugger_invalid_condition(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -232,12 +248,12 @@ def test_debugger_invalid_condition():
             ),
             good_probe(),
         )
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         assert all(s["debugger"]["snapshot"]["probe"]["id"] != "foo" for s in d.uploader.wait_for_payloads())
 
 
-def test_debugger_conditional_line_probe_on_instance_method():
+def test_debugger_conditional_line_probe_on_instance_method(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="probe-instance-method",
@@ -245,7 +261,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
             line=36,
             condition=DDExpression(dsl="True", callable=dd_compile(True)),
         ),
-        lambda: Stuff().instancestuff(),
+        lambda: stuff.Stuff().instancestuff(),
     )
 
     (snapshot,) = snapshots
@@ -258,7 +274,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
     assert captures["locals"] == {}
 
 
-def test_debugger_invalid_line():
+def test_debugger_invalid_line(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -268,13 +284,13 @@ def test_debugger_invalid_line():
             ),
             good_probe(),
         )
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         assert all(s["debugger"]["snapshot"]["probe"]["id"] != "invalidline" for s in d.uploader.wait_for_payloads())
 
 
 @mock.patch("ddtrace.debugging._debugger.log")
-def test_debugger_invalid_source_file(log):
+def test_debugger_invalid_source_file(log, stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -284,7 +300,7 @@ def test_debugger_invalid_source_file(log):
             ),
             good_probe(),
         )
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         log.error.assert_called_once_with(
             "Cannot inject probe %s: source file %s cannot be resolved", "invalidsource", "tests/submod/bonkers.py"
@@ -293,7 +309,7 @@ def test_debugger_invalid_source_file(log):
         assert all(s["debugger"]["snapshot"]["probe"]["id"] != "invalidsource" for s in d.uploader.wait_for_payloads())
 
 
-def test_debugger_decorated_method():
+def test_debugger_decorated_method(stuff):
     simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="probe-decorated-method",
@@ -301,7 +317,7 @@ def test_debugger_decorated_method():
             line=48,
             condition=None,
         ),
-        Stuff().decoratedstuff,
+        stuff.Stuff().decoratedstuff,
     )
 
 
@@ -324,7 +340,7 @@ def test_debugger_max_probes(mock_log):
         mock_log.warning.assert_called_once_with("Too many active probes. Ignoring new ones.")
 
 
-def test_debugger_tracer_correlation():
+def test_debugger_tracer_correlation(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -338,16 +354,14 @@ def test_debugger_tracer_correlation():
         with d._tracer.trace("test-span") as span:
             trace_id = format_trace_id(span.trace_id)
             span_id = str(span.span_id)
-            Stuff().instancestuff()
+            stuff.Stuff().instancestuff()
 
         snapshots = d.uploader.wait_for_payloads()
         assert all(snapshot["dd"]["trace_id"] == trace_id for snapshot in snapshots)
         assert all(snapshot["dd"]["span_id"] == span_id for snapshot in snapshots)
 
 
-def test_debugger_captured_exception():
-    from tests.submod import stuff
-
+def test_debugger_captured_exception(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="captured-exception-test",
@@ -364,7 +378,7 @@ def test_debugger_captured_exception():
     assert captures["throwable"]["type"] == "Exception"
 
 
-def test_debugger_multiple_threads():
+def test_debugger_multiple_threads(stuff):
     with debugger() as d:
         probes = [
             good_probe(),
@@ -372,7 +386,7 @@ def test_debugger_multiple_threads():
         ]
         d.add_probes(*probes)
 
-        callables = [Stuff().instancestuff, lambda: Stuff().propertystuff]
+        callables = [stuff.Stuff().instancestuff, lambda: stuff.Stuff().propertystuff]
         threads = [Thread(target=callables[_ % len(callables)]) for _ in range(10)]
 
         for t in threads:
@@ -409,59 +423,67 @@ def create_stuff_line_metric_probe(kind, value=None):
     )
 
 
-def test_debugger_metric_probe_simple_count(mock_metrics):
+def test_debugger_metric_probe_simple_count(mock_metrics, stuff):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
         assert (
             call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.increment.mock_calls
         )
 
 
-def test_debugger_metric_probe_count_value(mock_metrics):
+def test_debugger_metric_probe_decimal(mock_metrics, stuff):
+    with debugger() as d:
+        d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, value=Decimal(value := 3.14)))
+        stuff.Stuff().instancestuff()
+        assert (
+            call("probe.test.counter", value, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            in mock_metrics.increment.mock_calls
+        )
+
+
+def test_debugger_metric_probe_count_value(mock_metrics, stuff):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
-        Stuff().instancestuff(40)
+        stuff.Stuff().instancestuff(40)
         assert (
             call("probe.test.counter", 40.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.increment.mock_calls
         )
 
 
-def test_debugger_metric_probe_guage_value(mock_metrics):
+def test_debugger_metric_probe_guage_value(mock_metrics, stuff):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
-        Stuff().instancestuff(41)
+        stuff.Stuff().instancestuff(41)
         assert (
             call("probe.test.counter", 41.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.gauge.mock_calls
         )
 
 
-def test_debugger_metric_probe_histogram_value(mock_metrics):
+def test_debugger_metric_probe_histogram_value(mock_metrics, stuff):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
-        Stuff().instancestuff(42)
+        stuff.Stuff().instancestuff(42)
         assert (
             call("probe.test.counter", 42.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.histogram.mock_calls
         )
 
 
-def test_debugger_metric_probe_distribution_value(mock_metrics):
+def test_debugger_metric_probe_distribution_value(mock_metrics, stuff):
     with debugger() as d:
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
-        Stuff().instancestuff(43)
+        stuff.Stuff().instancestuff(43)
         assert (
             call("probe.test.counter", 43.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
             in mock_metrics.distribution.mock_calls
         )
 
 
-def test_debugger_multiple_function_probes_on_same_function():
-    global Stuff
-
+def test_debugger_multiple_function_probes_on_same_function(stuff):
     probes = [
         create_snapshot_function_probe(
             probe_id="probe-instance-method-%d" % i,
@@ -475,9 +497,9 @@ def test_debugger_multiple_function_probes_on_same_function():
     with debugger() as d:
         d.add_probes(*probes)
 
-        wrapping_context = DebuggerWrappingContext.extract(Stuff.instancestuff)
+        wrapping_context = DebuggerWrappingContext.extract(stuff.Stuff.instancestuff)
         assert wrapping_context.probes == {probe.probe_id: probe for probe in probes}
-        Stuff().instancestuff(42)
+        stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
             lambda q: Counter(s.probe.probe_id for s in q)
@@ -492,7 +514,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
         assert "probe-instance-method-1" not in wrapping_context.probes
 
-        Stuff().instancestuff(42)
+        stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
             lambda q: Counter(s.probe.probe_id for s in q)
@@ -505,7 +527,7 @@ def test_debugger_multiple_function_probes_on_same_function():
 
         d.remove_probes(probes[0], probes[2])
 
-        Stuff().instancestuff(42)
+        stuff.Stuff().instancestuff(42)
 
         assert Counter(s.probe.probe_id for s in d.test_queue) == {
             "probe-instance-method-0": 2,
@@ -514,12 +536,10 @@ def test_debugger_multiple_function_probes_on_same_function():
         }
 
         with pytest.raises(AttributeError):
-            Stuff.instancestuff.__dd_wrappers__
+            stuff.Stuff.instancestuff.__dd_wrappers__
 
 
 def test_debugger_multiple_function_probes_on_same_lazy_module():
-    sys.modules.pop("tests.submod.stuff", None)
-
     probes = [
         create_snapshot_function_probe(
             probe_id="probe-instance-method-%d" % i,
@@ -716,9 +736,7 @@ def test_debugger_function_probe_duration(duration):
             assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
-def test_debugger_condition_eval_then_rate_limit():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_condition_eval_then_rate_limit(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -733,7 +751,7 @@ def test_debugger_condition_eval_then_rate_limit():
         # before 42 won't use any of the probe quota. However, all the calls
         # after 42 won't be snapshotted because of the rate limiter.
         for i in range(100):
-            Stuff().instancestuff(i)
+            stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
@@ -746,9 +764,7 @@ def test_debugger_condition_eval_then_rate_limit():
         ), snapshot
 
 
-def test_debugger_condition_eval_error_get_reported_once():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_condition_eval_error_get_reported_once(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_snapshot_line_probe(
@@ -761,7 +777,7 @@ def test_debugger_condition_eval_error_get_reported_once():
 
         # all condition eval would fail
         for i in range(100):
-            Stuff().instancestuff(i)
+            stuff.Stuff().instancestuff(i)
 
         (snapshot,) = d.uploader.wait_for_payloads()
 
@@ -775,9 +791,7 @@ def test_debugger_condition_eval_error_get_reported_once():
         assert "No such local variable: 'foo'" == evaluationErrors[0]["message"]
 
 
-def test_debugger_function_probe_eval_on_entry():
-    from tests.submod.stuff import mutator
-
+def test_debugger_function_probe_eval_on_entry(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -791,7 +805,7 @@ def test_debugger_function_probe_eval_on_entry():
             )
         )
 
-        mutator(arg=[])
+        stuff.mutator(arg=[])
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
@@ -814,9 +828,7 @@ def test_debugger_run_module():
     assert status == 0
 
 
-def test_debugger_function_probe_eval_on_exit():
-    from tests.submod.stuff import mutator
-
+def test_debugger_function_probe_eval_on_exit(stuff):
     with debugger() as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -828,7 +840,7 @@ def test_debugger_function_probe_eval_on_exit():
             )
         )
 
-        mutator(arg=[])
+        stuff.mutator(arg=[])
 
         with d.assert_single_snapshot() as snapshot:
             assert snapshot, d.test_queue
@@ -836,9 +848,7 @@ def test_debugger_function_probe_eval_on_exit():
             assert 1 == snapshot.return_capture["arguments"]["arg"]["size"]
 
 
-def test_debugger_lambda_fuction_access_locals():
-    from tests.submod.stuff import age_checker
-
+def test_debugger_lambda_fuction_access_locals(stuff):
     class Person(object):
         def __init__(self, age, name):
             self.age = age
@@ -860,10 +870,10 @@ def test_debugger_lambda_fuction_access_locals():
         )
 
         # should capture as alice is in people list
-        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
+        stuff.age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
 
         # should skip as david is not in people list
-        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
+        stuff.age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
         assert d.signal_state_counter[SignalState.SKIP_COND] == 1
         assert d.signal_state_counter[SignalState.DONE] == 1
@@ -872,9 +882,7 @@ def test_debugger_lambda_fuction_access_locals():
             assert snapshot, d.test_queue
 
 
-def test_debugger_log_line_probe_generate_messages():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_log_line_probe_generate_messages(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
@@ -892,8 +900,8 @@ def test_debugger_log_line_probe_generate_messages():
             ),
         )
 
-        Stuff().instancestuff(123)
-        Stuff().instancestuff(456)
+        stuff.Stuff().instancestuff(123)
+        stuff.Stuff().instancestuff(456)
 
         msg1, msg2 = d.uploader.wait_for_payloads(2)
         assert "hello world ERROR 123!" == msg1["message"], msg1
@@ -935,7 +943,7 @@ class SpanProbeTestCase(TracerTestCase):
             tags = span.get_tags()
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
-            assert tags[ORIGIN_KEY] == "di"
+            assert tags[_ORIGIN_KEY] == "di"
 
     def test_debugger_span_not_created_when_condition_was_false(self):
         from tests.submod.stuff import mutator
@@ -1058,9 +1066,7 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.get_tag("test.tag") == "test.value"
 
 
-def test_debugger_modified_probe():
-    from tests.submod.stuff import Stuff
-
+def test_debugger_modified_probe(stuff):
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_log_line_probe(
@@ -1072,7 +1078,7 @@ def test_debugger_modified_probe():
             )
         )
 
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         (msg,) = d.uploader.wait_for_payloads()
         assert "hello world" == msg["message"], msg
@@ -1088,7 +1094,7 @@ def test_debugger_modified_probe():
             )
         )
 
-        Stuff().instancestuff()
+        stuff.Stuff().instancestuff()
 
         _, msg = d.uploader.wait_for_payloads(2)
         assert "hello brave new world" == msg["message"], msg

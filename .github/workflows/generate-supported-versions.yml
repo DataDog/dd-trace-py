@@ -1,0 +1,116 @@
+name: Generate Supported Integration Versions
+
+on:
+  workflow_dispatch: # can be triggered manually
+
+jobs:
+  generate-supported-versions:
+    name: Generate supported integration versions
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python 3.8
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.8"
+
+      - name: Setup Python 3.9
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.9"
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.10"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.11"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.12"
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmariadb-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install packaging
+          pip install requests
+          pip install riot==0.20.1
+          pip install wrapt==1.16.0
+
+      - name: Install ddtrace
+        run: |
+          pip install -e .
+
+      - run: python scripts/freshvenvs.py generate
+
+      - name: Generate table
+        run: python scripts/generate_table.py
+
+      - run: git diff
+
+      - name: Create Pull Request
+        id: pr
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: "update-supported-versions"
+          commit-message: "Update supported versions table"
+          delete-branch: true
+          base: main
+          title: "chore: update supported versions"
+          labels: changelog/no-changelog
+          body: |
+            Generates / updates the supported versions table for integrations.
+            This should be tied to releases, or triggered manually.
+            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)
+
+            ## Checklist
+            - [x] PR author has checked that all the criteria below are met
+            - The PR description includes an overview of the change
+            - The PR description articulates the motivation for the change
+            - The change includes tests OR the PR description describes a testing strategy
+            - The PR description notes risks associated with the change, if any
+            - Newly-added code is easy to change
+            - The change follows the [library release note guidelines](https://ddtrace.readthedocs.io/en/stable/releasenotes.html)
+            - The change includes or references documentation updates if necessary
+            - Backport labels are set (if [applicable](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting))
+
+            ## Reviewer Checklist
+            - [ ] Reviewer has checked that all the criteria below are met
+            - Title is accurate
+            - All changes are related to the pull request's stated goal
+            - Avoids breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes
+            - Testing strategy adequately addresses listed risks
+            - Newly-added code is easy to change
+            - Release note makes sense to a user of the library
+            - If necessary, author has acknowledged and discussed the performance implications of this PR as reported in the benchmarks PR comment
+            - Backport labels are set in a manner that is consistent with the [release branch maintenance policy](https://ddtrace.readthedocs.io/en/latest/contributing.html#backporting)

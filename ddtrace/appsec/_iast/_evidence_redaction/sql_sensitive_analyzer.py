@@ -2,7 +2,9 @@ import re
 
 from ddtrace.appsec._iast.constants import DBAPI_MARIADB
 from ddtrace.appsec._iast.constants import DBAPI_MYSQL
+from ddtrace.appsec._iast.constants import DBAPI_MYSQLDB
 from ddtrace.appsec._iast.constants import DBAPI_PSYCOPG
+from ddtrace.appsec._iast.constants import DBAPI_PYMYSQL
 from ddtrace.appsec._iast.constants import DBAPI_SQLITE
 from ddtrace.internal.logger import get_logger
 
@@ -35,6 +37,8 @@ patterns = {
 }
 patterns[DBAPI_SQLITE] = patterns[DBAPI_MYSQL]
 patterns[DBAPI_MARIADB] = patterns[DBAPI_MYSQL]
+patterns[DBAPI_PYMYSQL] = patterns[DBAPI_MYSQL]
+patterns[DBAPI_MYSQLDB] = patterns[DBAPI_MYSQL]
 
 
 def sql_sensitive_analyzer(evidence, name_pattern, value_pattern):

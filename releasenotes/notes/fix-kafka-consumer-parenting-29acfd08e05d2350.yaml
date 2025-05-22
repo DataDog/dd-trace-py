@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: Fixes an issue with Kafka consumer spans not using the active trace context when distributed 
+    tracing was enabled and no valid distributed context found was found within a consumed message.

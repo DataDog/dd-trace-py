@@ -2,11 +2,11 @@ import atexit
 from collections import Counter
 from contextlib import contextmanager
 import json
+from time import monotonic
 from time import sleep
 from typing import Any
 from typing import Generator
-
-from envier import En
+from typing import List
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._debugger import Debugger
@@ -15,8 +15,9 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
-from ddtrace.internal.compat import monotonic
+from ddtrace.settings._core import DDConfig
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
 
@@ -115,6 +116,10 @@ class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
     def payloads(self):
         return [_ for data in self.queue for _ in json.loads(data)]
 
+    @property
+    def snapshots(self) -> List[Snapshot]:
+        return self.collector.queue
+
 
 class TestDebugger(Debugger):
     __logger__ = MockProbeStatusLogger
@@ -146,6 +151,10 @@ class TestDebugger(Debugger):
         return self.__uploader__.get_collector()
 
     @property
+    def snapshots(self) -> List[Snapshot]:
+        return self.uploader.snapshots
+
+    @property
     def probe_status_logger(self):
         return self._probe_registry.logger
 
@@ -165,7 +174,7 @@ class TestDebugger(Debugger):
 
 
 @contextmanager
-def _debugger(config_to_override: En, config_overrides: Any) -> Generator[TestDebugger, None, None]:
+def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     atexit_register = atexit.register
     try:

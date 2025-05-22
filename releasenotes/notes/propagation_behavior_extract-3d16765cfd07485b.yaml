@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    propagation: Introduces the environment variable ``DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT`` 
+    to control the behavior of the extraction of distributed tracing headers. The values, ``continue`` (default),
+    ``ignore``, and ``restart``, are supported. The default value is ``continue`` which has no change from the current behavior of always propagating valid headers.
+    ``ignore`` ignores all incoming headers, never propagating the incoming trace information
+    and ``restart`` turns the first extracted propagation style into a span link and propagates baggage if extracted.
+
+fixes:
+  - |
+    propagation: Fixes an issue where the baggage header was not being propagated when the baggage header was the only header extracted.
+    With this fix, the baggage header is now propagated when it is the only header extracted.

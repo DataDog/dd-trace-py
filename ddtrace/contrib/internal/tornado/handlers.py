@@ -3,14 +3,8 @@ from collections import deque
 from tornado.web import HTTPError
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
@@ -34,35 +28,33 @@ def execute(func, handler, args, kwargs):
     distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
-        trace_utils.activate_distributed_headers(
-            tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing
-        )
-
-        # store the request span in the request so that it can be used later
-        request_span = tracer.trace(
-            schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
-            service=service,
+        with core.context_with_data(
+            "tornado.request",
+            span_name=schematize_url_operation("tornado.request", protocol="http", direction=SpanDirection.INBOUND),
             span_type=SpanTypes.WEB,
-        )
+            service=service,
+            tags={},
+            tracer=tracer,
+            distributed_headers=handler.request.headers,
+            integration_config=config.tornado,
+            activate_distributed_headers=True,
+            distributed_headers_config_override=distributed_tracing,
+            headers_case_sensitive=True,
+            # DEV: tornado is special case maintains separate configuration from config api
+            analytics_enabled=settings["analytics_enabled"],
+            analytics_sample_rate=settings.get("analytics_sample_rate", True),
+        ) as ctx:
+            req_span = ctx.span
 
-        request_span.set_tag_str(COMPONENT, config.tornado.integration_name)
+            ctx.set_item("req_span", req_span)
+            core.dispatch("web.request.start", (ctx, config.tornado))
 
-        # set span.kind to the type of operation being performed
-        request_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+            http_route = _find_route(handler.application.default_router.rules, handler.request)
+            if http_route is not None and isinstance(http_route, str):
+                req_span.set_tag_str("http.route", http_route)
+            setattr(handler.request, REQUEST_SPAN_KEY, req_span)
 
-        request_span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate
-        # DEV: tornado is special case maintains separate configuration from config api
-        analytics_enabled = settings["analytics_enabled"]
-        if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
-
-        http_route = _find_route(handler.application.default_router.rules, handler.request)
-        if http_route is not None and isinstance(http_route, str):
-            request_span.set_tag_str("http.route", http_route)
-        setattr(handler.request, REQUEST_SPAN_KEY, request_span)
-
-        return func(*args, **kwargs)
+            return func(*args, **kwargs)
 
 
 def _find_route(initial_rule_set, request):
@@ -99,15 +91,21 @@ def on_finish(func, handler, args, kwargs):
         # space here
         klass = handler.__class__
         request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
-        set_http_meta(
-            request_span,
-            config.tornado,
-            method=request.method,
-            url=request.full_url().rsplit("?", 1)[0],
-            status_code=handler.get_status(),
-            query=request.query,
+        core.dispatch(
+            "web.request.finish",
+            (
+                request_span,
+                config.tornado,
+                request.method,
+                request.full_url().rsplit("?", 1)[0],
+                handler.get_status(),
+                request.query,
+                None,
+                None,
+                None,
+                True,
+            ),
         )
-        request_span.finish()
 
     return func(*args, **kwargs)
 
@@ -140,7 +138,7 @@ def log_exception(func, handler, args, kwargs):
         # is not a 2xx. In this case we want to check the status code to be sure that
         # only 5xx are traced as errors, while any other HTTPError exception is handled as
         # usual.
-        if config.http_server.is_error_code(value.status_code):
+        if config._http_server.is_error_code(value.status_code):
             current_span.set_exc_info(*args)
     else:
         # any other uncaught exception should be reported as error

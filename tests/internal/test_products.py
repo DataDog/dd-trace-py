@@ -5,9 +5,10 @@ from ddtrace.internal.products import ProductManager
 
 
 class ProductManagerTest(ProductManager):
-    def __init__(self, products) -> None:
+    def __init__(self, products, failed=set()) -> None:
         self._products = None
         self.__products__ = products
+        self._failed = failed
 
 
 class BaseProduct(Product):
@@ -55,6 +56,17 @@ def test_product_manager_cycles():
 
     # c and d don't have cycles so they will start
     assert c.started and d.started
+
+
+def test_product_manager_load_fail():
+    class C(BaseProduct):
+        requires = ["b"]
+
+    a = BaseProduct()
+    c = C()
+
+    manager = ProductManagerTest({"a": a, "c": c}, failed={"b"})
+    assert manager.products == [("a", a), ("c", c)]
 
 
 def test_product_manager_start_fail():

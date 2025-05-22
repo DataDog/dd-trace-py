@@ -3,7 +3,6 @@ from functools import lru_cache as cached
 from functools import singledispatch
 import inspect
 import logging
-from os import fspath  # noqa:F401
 import sys
 import sysconfig
 from types import ModuleType
@@ -17,71 +16,79 @@ from ddtrace.settings.third_party import config as tp_config
 
 LOG = logging.getLogger(__name__)
 
+Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
-Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str), ("path", t.Optional[str])])
+
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
 @callonce
-def get_distributions():
-    # type: () -> t.Set[Distribution]
-    """returns the name and version of all distributions in a python path"""
+def get_distributions() -> t.Mapping[str, str]:
+    """returns the mapping from distribution name to version for all distributions in a python path"""
     try:
         import importlib.metadata as importlib_metadata
     except ImportError:
         import importlib_metadata  # type: ignore[no-redef]
 
-    pkgs = set()
+    pkgs = {}
     for dist in importlib_metadata.distributions():
-        # Get the root path of all files in a distribution
-        path = str(dist.locate_file(""))
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
-        name = metadata["name"]
+        name = metadata["name"].lower()
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(path=path, name=name.lower(), version=version))
+            pkgs[name] = version
 
     return pkgs
 
 
-@callonce
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+    global _PACKAGE_DISTRIBUTIONS
+    if _PACKAGE_DISTRIBUTIONS is None:
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
 
-    # Prefer the official API if available, otherwise fallback to the vendored version
-    if hasattr(importlib_metadata, "packages_distributions"):
-        return importlib_metadata.packages_distributions()
-    return _packages_distributions()
+        # Prefer the official API if available, otherwise fallback to the vendored version
+        if hasattr(importlib_metadata, "packages_distributions"):
+            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+        else:
+            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+    return _PACKAGE_DISTRIBUTIONS
 
 
-@cached(maxsize=256)
-def get_module_distribution_versions(module_name: str) -> t.Dict[str, str]:
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+@cached(maxsize=1024)
+def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
+    if not module_name:
+        return None
 
-    try:
-        return {
-            module_name: importlib_metadata.distribution(module_name).version,
-        }
-    except importlib_metadata.PackageNotFoundError:
-        pass
-
+    names: t.List[str] = []
     pkgs = get_package_distributions()
-    names = pkgs.get(module_name)
-    if not names:
-        return {}
+    dist_map = get_distributions()
+    while names == []:
+        # First try to resolve the module name from package distributions
+        version = dist_map.get(module_name)
+        if version:
+            return (module_name, version)
+        # Since we've failed to resolve, try to resolve the parent package
+        names = pkgs.get(module_name, [])
+        if not names:
+            p = module_name.rfind(".")
+            if p > 0:
+                module_name = module_name[:p]
+            else:
+                break
+    if len(names) != 1:
+        # either it was not resolved due to multiple packages with the same name
+        # or it's a multipurpose package (like '__pycache__')
+        return None
+    return (names[0], get_version_for_package(names[0]))
 
-    return {name: get_version_for_package(name) for name in names}
 
-
-@cached(maxsize=256)
+@cached(maxsize=1024)
 def get_version_for_package(name):
     # type: (str) -> str
     """returns the version of a package"""
@@ -128,6 +135,13 @@ def _root_module(path: Path) -> str:
         except IndexError:
             pass
 
+    # Bazel runfiles support: we assume that these paths look like
+    # /some/path.runfiles/.../site-packages/<root_module>/...
+    if any(p.suffix == ".runfiles" for p in path.parents):
+        for s in path.parents:
+            if s.parent.name == "site-packages":
+                return s.name
+
     msg = f"Could not find root module for path {path}"
     raise ValueError(msg)
 
@@ -135,13 +149,13 @@ def _root_module(path: Path) -> str:
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
-        import importlib.metadata as metadata
+        import importlib.metadata as importlib_metadata
     except ImportError:
-        import importlib_metadata as metadata  # type: ignore[no-redef]
+        import importlib_metadata as importlib_metadata  # type: ignore[no-redef]
 
     namespaces: t.Dict[str, bool] = {}
 
-    def is_namespace(f: metadata.PackagePath):
+    def is_namespace(f: importlib_metadata.PackagePath):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -164,17 +178,19 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in metadata.distributions():
-            if dist is not None and dist.files is not None:
-                d = Distribution(name=dist.metadata["name"], version=dist.version, path=None)
-                for f in dist.files:
-                    root = f.parts[0]
-                    if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
-                        continue
-                    if is_namespace(f):
-                        root = "/".join(f.parts[:2])
-                    if root not in mapping:
-                        mapping[root] = d
+        for dist in importlib_metadata.distributions():
+            if not (files := dist.files):
+                continue
+            metadata = dist.metadata
+            d = Distribution(name=metadata["name"], version=metadata["version"])
+            for f in files:
+                root = f.parts[0]
+                if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
+                    continue
+                if is_namespace(f):
+                    root = "/".join(f.parts[:2])
+                if root not in mapping:
+                    mapping[root] = d
 
         return mapping
 

@@ -2,9 +2,9 @@ import flask
 from flask.testing import FlaskClient
 import wrapt
 
-from ddtrace import Pin
-from ddtrace.contrib.flask import patch
-from ddtrace.contrib.flask import unpatch
+from ddtrace.contrib.internal.flask.patch import patch
+from ddtrace.contrib.internal.flask.patch import unpatch
+from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 
@@ -36,7 +36,7 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = flask.Flask(__name__, template_folder="test_templates/")
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin.override(self.app, tracer=self.tracer)
+        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()

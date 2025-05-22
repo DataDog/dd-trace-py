@@ -1,7 +1,8 @@
 from contextlib import contextmanager
+import os
 import sys
+from unittest import mock
 
-from mock import mock
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
@@ -95,8 +96,10 @@ def test_weak_hash_hashlib(iast_context_defaults, hash_func, method):
     ],
 )
 def test_ensure_line_reported_is_minus_one_for_edge_cases(iast_context_defaults, hash_func, method, fake_line):
+    absolute_path = os.path.abspath(WEAK_ALGOS_FIXTURES_PATH)
     with mock.patch(
-        "ddtrace.appsec._iast.taint_sinks._base.get_info_frame", return_value=(WEAK_ALGOS_FIXTURES_PATH, fake_line)
+        "ddtrace.appsec._iast.taint_sinks._base.get_info_frame",
+        return_value=(absolute_path, fake_line, "", ""),
     ):
         parametrized_weak_hash(hash_func, method)
 

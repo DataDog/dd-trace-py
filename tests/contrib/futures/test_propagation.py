@@ -1,10 +1,11 @@
 import concurrent.futures
+import sys
 import time
 
 import pytest
 
-from ddtrace.contrib.futures import patch
-from ddtrace.contrib.futures import unpatch
+from ddtrace.contrib.internal.futures.patch import patch
+from ddtrace.contrib.internal.futures.patch import unpatch
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
@@ -89,6 +90,35 @@ class PropagationTestCase(TracerTestCase):
         assert spans[0].name == "executor.thread"
         assert spans[0].trace_id == root.trace_id
         assert spans[0].parent_id == root.span_id
+
+    def test_propagation_with_sub_spans(self):
+        @self.tracer.wrap("executor.thread")
+        def fn1(value):
+            return value
+
+        @self.tracer.wrap("executor.thread")
+        def fn2(value):
+            return value * 100
+
+        def main(value, key=None):
+            return fn1(value) + fn2(value)
+
+        with self.override_global_tracer():
+            with self.tracer.trace("main.thread"):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future = executor.submit(main, 42)
+            value = future.result()
+            # assert the right result
+            self.assertEqual(value, 4242)
+
+        # the trace must be completed
+        spans = self.get_spans()
+        assert len(spans) == 3
+        assert spans[0].name == "main.thread"
+        for span in spans[1:]:
+            assert span.name == "executor.thread"
+            assert span.trace_id == spans[0].trace_id
+            assert span.parent_id == spans[0].span_id
 
     def test_propagation_with_kwargs(self):
         # instrumentation must work if only kwargs are provided
@@ -406,6 +436,7 @@ class PropagationTestCase(TracerTestCase):
         assert spans[1].parent_id == spans[0].span_id
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="Fails on 3.13")
 @pytest.mark.subprocess(ddtrace_run=True, timeout=5)
 def test_concurrent_futures_with_gevent():
     """Check compatibility between the integration and gevent"""

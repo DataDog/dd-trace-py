@@ -1,3 +1,4 @@
+from abc import ABC
 from contextvars import ContextVar
 from inspect import iscoroutinefunction
 import sys
@@ -30,8 +31,9 @@ T = t.TypeVar("T")
 #
 # Because we also want to capture the return value, our context manager extends
 # the Python one by implementing a __return__ method that will be called with
-# the return value of the function. The __exit__ method is only called if the
-# function raises an exception.
+# the return value of the function. Contrary to ordinary context managers,
+# though, the __exit__ method is only called if the function raises an
+# exception.
 #
 # Because CPython 3.11 introduced zero-cost exceptions, we cannot nest try
 # blocks in the function's bytecode. In this case, we call the context manager
@@ -68,7 +70,55 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 12):
+if sys.version_info >= (3, 14):
+    raise NotImplementedError("Python >= 3.14 is not supported yet")
+elif sys.version_info >= (3, 13):
+    CONTEXT_HEAD.parse(
+        r"""
+            load_const                  {context_enter}
+            push_null
+            call                        0
+            pop_top
+        """
+    )
+    CONTEXT_RETURN.parse(
+        r"""
+            push_null
+            load_const                  {context_return}
+            swap                        3
+            call                        1
+        """
+    )
+
+    CONTEXT_RETURN_CONST = Assembly()
+    CONTEXT_RETURN_CONST.parse(
+        r"""
+            load_const                  {context_return}
+            push_null
+            load_const                  {value}
+            call                        1
+        """
+    )
+
+    CONTEXT_FOOT.parse(
+        r"""
+        try                             @_except lasti
+            push_exc_info
+            load_const                  {context_exit}
+            push_null
+            call                        0
+            pop_top
+            reraise                     2
+        tried
+
+        _except:
+            copy                        3
+            pop_except
+            reraise                     1
+        """
+    )
+
+elif sys.version_info >= (3, 12):
     CONTEXT_HEAD.parse(
         r"""
             push_null
@@ -224,7 +274,7 @@ elif sys.version_info >= (3, 9):
     )
 
 
-elif sys.version_info >= (3, 7):
+elif sys.version_info >= (3, 8):
     CONTEXT_HEAD.parse(
         r"""
             load_const                  {context}
@@ -256,7 +306,7 @@ elif sys.version_info >= (3, 7):
 
 
 # This is abstract and should not be used directly
-class BaseWrappingContext(t.ContextManager):
+class BaseWrappingContext(ABC):
     __priority__: int = 0
 
     def __init__(self, f: FunctionType):
@@ -412,8 +462,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     def __exit__(self, *exc) -> None:
         if exc == (None, None, None):
-            # In Python 3.7 this gets called when the context manager is exited
-            # normally
             return
 
         for context in self._contexts[::-1]:

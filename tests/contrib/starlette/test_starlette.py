@@ -8,16 +8,18 @@ import starlette
 from starlette.testclient import TestClient
 
 import ddtrace
-from ddtrace import Pin
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.sqlalchemy import patch as sql_patch
-from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
-from ddtrace.contrib.starlette import patch as starlette_patch
-from ddtrace.contrib.starlette import unpatch as starlette_unpatch
+from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
+from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
+from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
+from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
+from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
+from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -38,7 +40,7 @@ def engine():
 def tracer(engine):
     original_tracer = ddtrace.tracer
     tracer = DummyTracer()
-    Pin.override(engine, tracer=tracer)
+    Pin._override(engine, tracer=tracer)
     ddtrace.tracer = tracer
     starlette_patch()
     yield tracer
@@ -497,7 +499,7 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 import sqlalchemy
 
-from ddtrace import patch_all
+from ddtrace._monkey import _patch_all
 
 
 from tests.contrib.starlette.app import get_app
@@ -505,9 +507,9 @@ from tests.contrib.starlette.app import get_app
 engine = sqlalchemy.create_engine("sqlite:///test.db")
 app = get_app(engine)
 
-# Calling patch_all late
+# Calling _patch_all late
 # DEV: The test client uses `requests` so we want to ignore them for this scenario
-patch_all(requests=False, http=False)
+_patch_all(requests=False, http=False)
 with TestClient(app) as test_client:
     r = test_client.get("/200")
 
@@ -596,3 +598,34 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+def test_inferred_spans_api_gateway(client, test_spans):
+    with override_global_config(dict(_inferred_proxy_services_enabled=True)):
+        headers = {
+            "x-dd-proxy": "aws-apigateway",
+            "x-dd-proxy-request-time-ms": "1736973768000",
+            "x-dd-proxy-path": "/",
+            "x-dd-proxy-httpmethod": "GET",
+            "x-dd-proxy-domain-name": "local",
+            "x-dd-proxy-stage": "stage",
+        }
+
+        client.get("/200", headers=headers)
+        web_span = test_spans.find_span(name="starlette.request")
+        aws_gateway_span = test_spans.find_span(name="aws.apigateway")
+
+        assert_web_and_inferred_aws_api_gateway_span_data(
+            aws_gateway_span,
+            web_span,
+            web_span_name="starlette.request",
+            web_span_component="starlette",
+            web_span_service_name="starlette",
+            web_span_resource="GET /200",
+            api_gateway_service_name="local",
+            api_gateway_resource="GET /",
+            method="GET",
+            status_code="200",
+            url="local/",
+            start=1736973768,
+        )

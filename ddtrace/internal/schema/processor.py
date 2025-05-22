@@ -1,6 +1,6 @@
-from ddtrace import config
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace.constants import BASE_SERVICE_KEY
+from ddtrace.constants import _BASE_SERVICE_KEY
+from ddtrace.settings._config import config
 
 from . import schematize_service_name
 
@@ -22,4 +22,4 @@ class BaseServiceProcessor(TraceProcessor):
         return trace
 
     def _update_dd_base_service(self, span):
-        span.set_tag_str(key=BASE_SERVICE_KEY, value=self._global_service)
+        span.set_tag_str(key=_BASE_SERVICE_KEY, value=self._global_service)

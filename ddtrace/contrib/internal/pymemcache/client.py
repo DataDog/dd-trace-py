@@ -18,8 +18,8 @@ from ddtrace import config
 
 # project
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -29,7 +29,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.pin import Pin
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -319,7 +319,7 @@ def _trace(func, p, method_name, *args, **kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(SPAN_MEASURED_KEY)
+        span.set_tag(_SPAN_MEASURED_KEY)
         # set analytics sample rate
         span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymemcache.get_analytics_sample_rate())
 

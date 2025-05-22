@@ -10,7 +10,12 @@
 
 #include <cstdlib>
 #include <iostream>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
+#include <unordered_map>
 
 // State
 bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
@@ -23,7 +28,7 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
-    Datadog::CodeProvenance::postfork_child();
+    Datadog::UploaderBuilder::postfork_child();
 }
 
 void
@@ -140,9 +145,13 @@ ddup_start() // cppcheck-suppress unusedFunction
         // Perform any one-time startup operations
         Datadog::SampleManager::init();
 
+#ifdef _WIN32
+        // NOTE: Windows does not have fork(), leaving this empty for now
+#else
         // install the ddup_fork_handler for pthread_atfork
         // Right now, only do things in the child _after_ fork
         pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
+#endif
 
         // Set the global initialization flag
         is_ddup_initialized = true;
@@ -191,6 +200,24 @@ void
 ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unusedFunction
 {
     sample->push_heap(size);
+}
+
+void
+ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_gputime(time, count);
+}
+
+void
+ddup_push_gpu_memory(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_memory(size, count);
+}
+
+void
+ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_flops(flops, count);
 }
 
 void
@@ -253,6 +280,12 @@ ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cp
 }
 
 void
+ddup_push_gpu_device_name(Datadog::Sample* sample, std::string_view gpu_device_name) // cppcheck-suppress unusedFunction
+{
+    sample->push_gpu_device_name(gpu_device_name);
+}
+
+void
 ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 std::string_view _name,
                 std::string_view _filename,
@@ -260,6 +293,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
+{
+    sample->push_absolute_ns(timestamp_ns);
 }
 
 void
@@ -289,46 +328,54 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
-        std::cerr << "ddup_upload() called before ddup_init()" << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
+        }
         return false;
     }
 
-    bool success = false;
-    {
-        // There are a few things going on here.
-        //   * profile_borrow takes a reference in a way that locks the areas where the profile might
-        //     be modified.  It gets released and cleared after uploading.
-        //   * Uploading cancels inflight uploads. There are better ways to do this, but this is what
-        //     we have for now.
-        auto uploader = Datadog::UploaderBuilder::build();
-        struct
-        {
-            void operator()(Datadog::Uploader& uploader)
-            {
-                uploader.upload(Datadog::Sample::profile_borrow());
-                Datadog::Sample::profile_release();
-                Datadog::Sample::profile_clear_state();
-            }
-            void operator()(const std::string& err) { std::cerr << "Failed to create uploader: " << err << std::endl; }
-        } visitor;
-        std::visit(visitor, uploader);
+    auto uploader_or_err = Datadog::UploaderBuilder::build();
+
+    if (std::holds_alternative<std::string>(uploader_or_err)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+        }
+        return false;
     }
-    return success;
+
+    // Get the reference to the uploader
+    auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
+    // There are a few things going on here.
+    // * profile_borrow() takes a reference in a way that locks the areas where the profile might
+    //  be modified.  It gets released and cleared after uploading.
+    // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
+    //   we have for now.
+    uploader.upload(Datadog::Sample::profile_borrow());
+    Datadog::Sample::profile_release();
+    Datadog::Sample::profile_clear_state();
+    return true;
 }
 
 void
 ddup_profile_set_endpoints(
-  std::map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
+  std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_set_endpoint(&profile, span_id, trace_endpoint_slice);
         if (!res.ok) {
             auto err = res.err;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }
@@ -336,16 +383,20 @@ ddup_profile_set_endpoints(
 }
 
 void
-ddup_profile_add_endpoint_counts(std::map<std::string_view, int64_t> trace_endpoints_to_counts)
+ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     ddog_prof_Profile& profile = Datadog::Sample::profile_borrow();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
         auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
         if (!res.ok) {
             auto err = res.err;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
-            std::cerr << errmsg << std::endl;
+            if (!already_warned) {
+                already_warned = true;
+                const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
+                std::cerr << errmsg << std::endl;
+            }
             ddog_Error_drop(&err);
         }
     }

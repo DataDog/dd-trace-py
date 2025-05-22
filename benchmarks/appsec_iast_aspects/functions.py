@@ -26,36 +26,18 @@ symbols = [
     "ljust_aspect",
     "lower_aspect",
     "modulo_aspect",
-    "ospathbasename_aspect",
-    "ospathdirname_aspect",
-    "ospathjoin_aspect",
-    "ospathnormcase_aspect",
-    "ospathsplit_aspect",
-    "ospathsplitdrive_aspect",
-    "ospathsplitext_aspect",
-    "re_expand_aspect",
-    "re_findall_aspect",
-    "re_finditer_aspect",
-    "re_fullmatch_aspect",
-    "re_group_aspect",
-    "re_groups_aspect",
-    "re_match_aspect",
-    "re_search_aspect",
-    "re_sub_aspect",
-    "re_subn_aspect",
     "replace_aspect",
     "repr_aspect",
-    "rsplit_aspect",
     "slice_aspect",
-    "split_aspect",
-    "split_aspect",
-    "splitlines_aspect",
     "str_aspect",
     "stringio_aspect",
     "swapcase_aspect",
     "title_aspect",
     "translate_aspect",
     "upper_aspect",
+    "rstrip_aspect",
+    "lstrip_aspect",
+    "strip_aspect",
 ]
 
 notfound_symbols = []
@@ -471,3 +453,27 @@ def iast_split_aspect():
 
 def split_noaspect():
     return "foo bar baz".split()
+
+
+def iast_strip_aspect():
+    return strip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def strip_noaspect():
+    return "    foo bar baz    ".strip()
+
+
+def iast_rstrip_aspect():
+    return rstrip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def rstrip_noaspect():
+    return "    foo bar baz    ".rstrip()
+
+
+def iast_lstrip_aspect():
+    return lstrip_aspect(None, 1, "    foo bar baz    ")  # noqa: F821
+
+
+def lstrip_noaspect():
+    return "    foo bar baz    ".lstrip()

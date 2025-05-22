@@ -12,6 +12,7 @@ class FlaskSQLi(bm.Scenario, FlaskScenarioMixin):
     iast_enabled: bool
     post_request: bool
     telemetry_metrics_enabled: bool
+    errortracking_enabled: str
 
     def run(self):
         app = self.create_app()

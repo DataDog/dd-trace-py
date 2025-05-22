@@ -1,25 +1,24 @@
 # distutils: language = c++
 # cython: language_level=3
 
-import sysconfig
+import platform
 from typing import Dict
 from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
-from libcpp.map cimport map
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
 import ddtrace
-import platform
-from .._types import StringType
-from ..util import sanitize_string
-from ddtrace.internal import agent
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_distributions
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace._trace.span import Span
+from ddtrace._trace.tracer import Tracer
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.datadog.profiling._types import StringType
+from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+from ddtrace.internal.datadog.profiling.util import sanitize_string
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.settings._agent import config as agent_config
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -56,8 +55,8 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
-    void ddup_profile_set_endpoints(map[int64_t, string_view] span_ids_to_endpoints)
-    void ddup_profile_add_endpoint_counts(map[string_view, int64_t] trace_endpoints_to_counts)
+    void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
+    void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
 
     Sample *ddup_start_sample()
@@ -67,6 +66,9 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
     void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
+    void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
+    void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -76,16 +78,17 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
     void ddup_push_class_name(Sample *sample, string_view class_name)
+    void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
+    void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
+
 cdef extern from "code_provenance_interface.hpp":
-    void code_provenance_enable(bint enable)
-    void code_provenance_set_runtime_version(string_view runtime_version)
-    void code_provenance_set_stdlib_path(string_view stdlib_path)
-    void code_provenance_add_packages(unordered_map[string_view, string_view] packages)
+    void code_provenance_set_json_str(string_view json_str)
+
 
 # Create wrappers for cython
 cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
@@ -118,41 +121,12 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
             string_view(val_utf8_data, val_utf8_size)
         )
 
-cdef call_code_provenance_add_packages(distributions):
-    dist_names = []
-    dist_versions = []
-    cdef unordered_map[string_view, string_view] names_and_versions = unordered_map[string_view, string_view]()
-
-    cdef const char* dist_name_utf8_data
-    cdef Py_ssize_t dist_name_utf8_size
-    cdef const char* dist_version_utf8_data
-    cdef Py_ssize_t dist_version_utf8_size
-
-    for dist in distributions:
-        dist_name = dist.name
-        dist_version = dist.version
-        if not dist_name or not dist_version:
-            continue
-        dist_names.append(dist_name)
-        dist_versions.append(dist_version)
-        if isinstance(dist_name, bytes) and isinstance(dist_version, bytes):
-            names_and_versions.insert(
-                pair[string_view, string_view](
-                    string_view(<const char*>dist_name, len(dist_name)),
-                    string_view(<const char*>dist_version, len(dist_version))
-                )
-            )
-            continue
-        dist_name_utf8_data = PyUnicode_AsUTF8AndSize(dist_name, &dist_name_utf8_size)
-        dist_version_utf8_data = PyUnicode_AsUTF8AndSize(dist_version, &dist_version_utf8_size)
-        if dist_name_utf8_data != NULL and dist_version_utf8_data != NULL:
-            names_and_versions.insert(
-                pair[string_view, string_view](
-                    string_view(dist_name_utf8_data, dist_name_utf8_size),
-                    string_view(dist_version_utf8_data, dist_version_utf8_size)
-                )
-            )
-    code_provenance_add_packages(names_and_versions)
+cdef call_code_provenance_set_json_str(str json_str):
+    cdef const char* json_str_data
+    cdef Py_ssize_t json_str_size
+    json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
+    if json_str_data != NULL:
+        code_provenance_set_json_str(string_view(json_str_data, json_str_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
@@ -161,7 +135,7 @@ cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[int64_t, string_view] span_ids_to_endpoints = map[int64_t, string_view]()
+    cdef unordered_map[int64_t, string_view] span_ids_to_endpoints = unordered_map[int64_t, string_view]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, span_ids in endpoint_to_span_ids.items():
@@ -195,7 +169,7 @@ cdef call_ddup_profile_add_endpoint_counts(endpoint_counts):
     # a view into the original string. If the original string is GC'ed, the view
     # will point to garbage.
     endpoint_list = []
-    cdef map[string_view, int64_t] trace_endpoints_to_counts = map[string_view, int64_t]()
+    cdef unordered_map[string_view, int64_t] trace_endpoints_to_counts = unordered_map[string_view, int64_t]()
     cdef const char* utf8_data
     cdef Py_ssize_t utf8_size
     for endpoint, count in endpoint_counts.items():
@@ -301,6 +275,18 @@ cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if utf8_data != NULL:
         ddup_push_class_name(sample, string_view(utf8_data, utf8_size))
 
+cdef call_ddup_push_gpu_device_name(Sample* sample, device_name: StringType):
+    if not device_name:
+        return
+    if isinstance(device_name, bytes):
+        ddup_push_gpu_device_name(sample, string_view(<const char*>device_name, len(device_name)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(device_name, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_gpu_device_name(sample, string_view(utf8_data, utf8_size))
+
 cdef call_ddup_push_trace_type(Sample* sample, trace_type: StringType):
     if not trace_type:
         return
@@ -323,7 +309,6 @@ cdef uint64_t clamp_to_uint64_unsigned(value):
         return UINT64_MAX
     return value
 
-
 cdef int64_t clamp_to_int64_unsigned(value):
     # This clamps a Python int to the nonnegative range of a signed 64-bit integer.
     if value < 0:
@@ -333,7 +318,10 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
-# Public API
+# Module-level flag to track if code provenance has been set
+cdef bint _code_provenance_set = False
+
+
 def config(
         service: StringType = None,
         env: StringType = None,
@@ -342,8 +330,7 @@ def config(
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
-        sample_pool_capacity: Optional[int] = None,
-        enable_code_provenance: bool = None) -> None:
+        sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -374,13 +361,6 @@ def config(
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
-    if enable_code_provenance:
-        code_provenance_enable(enable_code_provenance)
-        call_func_with_str(code_provenance_set_runtime_version, platform.python_version())
-        # DEV: Do we also have to pass platsdlib_path, purelib_path, platlib_path?
-        call_func_with_str(code_provenance_set_stdlib_path, sysconfig.get_path("stdlib"))
-        call_code_provenance_add_packages(get_distributions())
-
 
 def start() -> None:
     ddup_start()
@@ -392,21 +372,27 @@ def _get_endpoint(tracer)-> str:
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
     tracer_agent_url = tracer.agent_trace_url
-    endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+    endpoint = tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
     return endpoint
 
 
-def upload() -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+    global _code_provenance_set
+
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    processor = ddtrace.tracer._endpoint_call_counter_span_processor
+    processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint(ddtrace.tracer)
+    endpoint = _get_endpoint(tracer)
     call_func_with_str(ddup_config_url, endpoint)
+
+    if enable_code_provenance and not _code_provenance_set:
+        call_code_provenance_set_json_str(json_str_to_export())
+        _code_provenance_set = True
 
     with nogil:
         ddup_upload()
@@ -446,6 +432,18 @@ cdef class SampleHandle:
     def push_heap(self, value: int) -> None:
         if self.ptr is not NULL:
             ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+
+    def push_gpu_gputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_gputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_memory(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_memory(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gpu_flops(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
@@ -493,6 +491,10 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             call_ddup_push_class_name(self.ptr, class_name)
 
+    def push_gpu_device_name(self, device_name: StringType) -> None:
+        if self.ptr is not NULL:
+            call_ddup_push_gpu_device_name(self.ptr, device_name)
+
     def push_span(self, span: Optional[Span]) -> None:
         if self.ptr is NULL:
             return
@@ -510,6 +512,10 @@ cdef class SampleHandle:
     def push_monotonic_ns(self, monotonic_ns: int) -> None:
         if self.ptr is not NULL:
             ddup_push_monotonic_ns(self.ptr, <int64_t>monotonic_ns)
+
+    def push_absolute_ns(self, timestamp_ns: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_absolute_ns(self.ptr, <int64_t>timestamp_ns)
 
     def flush_sample(self) -> None:
         # Flushing the sample consumes it.  The user will no longer be able to use

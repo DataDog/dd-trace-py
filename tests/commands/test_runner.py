@@ -144,7 +144,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_patch_modules_from_env(self):
         """
-        DD_PATCH_MODULES overrides the defaults for patch_all()
+        DD_PATCH_MODULES overrides the defaults for _patch_all()
         """
         with self.override_env(
             env=dict(
@@ -229,6 +229,7 @@ class DdtraceRunTest(BaseTestCase):
         assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
 
 
+@pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""
     # Off by default
@@ -521,3 +522,44 @@ def test_ddtrace_run_and_auto_sitecustomize():
     # no additional modules imported / side-effects
     final_modules = set(sys.modules.keys())
     assert final_modules - starting_modules == set(["ddtrace.auto"])
+
+
+@pytest.mark.subprocess(ddtrace_run=False, err="")
+def test_ddtrace_auto_atexit():
+    """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
+    import sys
+
+    from mock import patch
+
+    registered_funcs = set()
+    unregistered_funcs = set()
+
+    def mock_register(func):
+        if func in registered_funcs:
+            raise AssertionError("Duplicate registered function: %s" % func)
+        registered_funcs.add(func)
+
+    def mock_unregister(func):
+        if func in unregistered_funcs:
+            raise AssertionError("Duplicate unregistered function: %s" % func)
+        unregistered_funcs.add(func)
+
+    with patch("ddtrace.internal.atexit.register", side_effect=mock_register), patch(
+        "ddtrace.internal.atexit.unregister", side_effect=mock_unregister
+    ), patch("ddtrace.internal.atexit.register_on_exit_signal", side_effect=mock_register), patch(
+        "atexit.register", side_effect=mock_register
+    ), patch(
+        "atexit.unregister", side_effect=mock_unregister
+    ):
+        # Create and shutdown a tracer
+        import ddtrace.auto  # noqa: F401
+        from ddtrace.trace import tracer
+
+        assert "ddtrace.bootstrap.sitecustomize" in sys.modules
+        assert sys.modules["ddtrace.bootstrap.sitecustomize"].loaded
+        tracer.shutdown()
+        tracer.shutdown()
+        tracer.shutdown()
+
+    assert registered_funcs, "No registered functions"
+    assert unregistered_funcs, "No unregistered functions"

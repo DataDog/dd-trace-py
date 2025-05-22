@@ -11,9 +11,9 @@ jobs:
   validate:
     name: Check requirements lockfiles
     runs-on: ubuntu-latest
-    container: ghcr.io/datadog/dd-trace-py/testrunner:47c7b5287da25643e46652e6d222a40a52f2382a@sha256:3a02dafeff9cd72966978816d1b39b54f5517af4049396923b95c8452f604269
+    container: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -23,7 +23,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set python interpreters
-        run: pyenv global 3.10 3.7 3.8 3.9 3.11 3.12
+        run: pyenv global 3.10 3.8 3.9 3.11 3.12 3.13
 
       - name: Install Dependencies
         run: pip install --upgrade pip && pip install riot==0.20.1
@@ -31,5 +31,14 @@ jobs:
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements
 
-      - name: Check git diff
+      - name: Check locks diff
         run: scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+
+      - name: Generate min_compatible_versions
+        run: python scripts/min_compatible_versions.py
+
+      - name: Check min_compatible_versions diff
+        run: scripts/check-diff 'min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'
+
+      - name: Check lib-injection min_compatible_versions diff
+        run: scripts/check-diff 'lib-injection/sources/min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'

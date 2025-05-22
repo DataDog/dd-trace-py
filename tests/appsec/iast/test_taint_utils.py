@@ -1,12 +1,10 @@
-import mock
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
-from ddtrace.appsec._iast._taint_utils import check_tainted_dbapi_args
 
 
 @pytest.fixture
@@ -182,61 +180,6 @@ def test_recursivity(iast_context_defaults):
                 check_taint(ev)
 
     check_taint(tainted_dict)
-
-
-def test_checked_tainted_args(iast_context_defaults):
-    cursor = mock.Mock()
-    cursor.execute.__name__ = "execute"
-    cursor.executemany.__name__ = "executemany"
-
-    arg = "nobody expects the spanish inquisition"
-
-    tainted_arg = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
-
-    untainted_arg = "gallahad the pure"
-
-    # Returns False: Untainted first argument
-    assert not check_tainted_dbapi_args(
-        args=(untainted_arg,), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
-    )
-
-    # Returns False: Untainted first argument
-    assert not check_tainted_dbapi_args(
-        args=(untainted_arg, tainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
-    )
-
-    # Returns False: Integration name not in list
-    assert not check_tainted_dbapi_args(
-        args=(tainted_arg,),
-        kwargs=None,
-        tracer=None,
-        integration_name="nosqlite",
-        method=cursor.execute,
-    )
-
-    # Returns False: Wrong function name
-    assert not check_tainted_dbapi_args(
-        args=(tainted_arg,),
-        kwargs=None,
-        tracer=None,
-        integration_name="sqlite",
-        method=cursor.executemany,
-    )
-
-    # Returns True:
-    assert check_tainted_dbapi_args(
-        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="sqlite", method=cursor.execute
-    )
-
-    # Returns True:
-    assert check_tainted_dbapi_args(
-        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="mysql", method=cursor.execute
-    )
-
-    # Returns True:
-    assert check_tainted_dbapi_args(
-        args=(tainted_arg, untainted_arg), kwargs=None, tracer=None, integration_name="psycopg", method=cursor.execute
-    )
 
 
 @pytest.mark.usefixtures("lazy_taint_json_patch")
