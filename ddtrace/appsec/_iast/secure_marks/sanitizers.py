@@ -9,7 +9,7 @@ from typing import Callable
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
 
 def create_sanitizer(
@@ -86,3 +86,7 @@ def cmdi_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         The quoted shell command
     """
     return create_sanitizer(VulnerabilityType.COMMAND_INJECTION, wrapped, instance, args, kwargs)
+
+
+def header_injection_sanitizer(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> Any:
+    return create_sanitizer(VulnerabilityType.HEADER_INJECTION, wrapped, instance, args, kwargs)

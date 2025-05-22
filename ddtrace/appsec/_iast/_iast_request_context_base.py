@@ -28,10 +28,10 @@ def _set_span_tag_iast_request_tainted(span):
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
 
 
-def start_iast_context():
+def start_iast_context(span: Optional["Span"] = None):
     if asm_config._iast_enabled:
         create_propagation_context()
-        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment())
+        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
 
 
 def end_iast_context(span: Optional["Span"] = None):
@@ -58,14 +58,6 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def get_iast_stacktrace_id() -> int:
-    env = _get_iast_env()
-    if env:
-        env.iast_stack_trace_id += 1
-        return env.iast_stack_trace_id
-    return 0
-
-
 def set_iast_request_enabled(request_enabled) -> None:
     env = _get_iast_env()
     if env:
@@ -81,7 +73,7 @@ def _move_iast_data_to_root_span():
 def _iast_start_request(span=None, *args, **kwargs):
     try:
         if asm_config._iast_enabled:
-            start_iast_context()
+            start_iast_context(span)
             request_iast_enabled = False
             if oce.acquire_request(span):
                 request_iast_enabled = True
