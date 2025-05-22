@@ -18,6 +18,7 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -25,7 +26,6 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 HEADER_INJECTION_EXCLUSIONS = {
-    "location",
     "pragma",
     "content-type",
     "content-length",
@@ -126,6 +126,9 @@ def _process_header(headers_args):
     try:
         for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
             header_name_lower = header_name.lower()
+            if header_name_lower == "location":
+                _iast_report_unvalidated_redirect(header_value)
+                return
             if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
                 return
 

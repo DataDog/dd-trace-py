@@ -383,6 +383,14 @@ def unvalidated_redirect_path_multiple_sources(request):
     return redirect(value1 + value2)
 
 
+def unvalidated_redirect_url_header(request):
+    value = request.GET.get("url")
+    response = HttpResponse("OK", status=200)
+    # label unvalidated_redirect_url_header
+    response.headers["Location"] = value
+    return response
+
+
 def validate_querydict(request):
     qd = request.GET
     res = qd.getlist("x")
