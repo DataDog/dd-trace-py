@@ -3,6 +3,7 @@ beautifulsoup4==4.12.3
 
 https://pypi.org/project/beautifulsoup4/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -30,7 +31,7 @@ def pkg_beautifulsoup4_view():
 def pkg_beautifulsoup4_propagation_view():
     from bs4 import BeautifulSoup
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):
