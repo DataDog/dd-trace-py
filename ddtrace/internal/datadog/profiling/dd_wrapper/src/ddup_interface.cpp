@@ -320,7 +320,7 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 }
 
 bool
-ddup_upload(std::string&& output_filename) // cppcheck-suppress unusedFunction
+ddup_upload(std::unique_ptr<std::string> output_filename) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
@@ -331,7 +331,7 @@ ddup_upload(std::string&& output_filename) // cppcheck-suppress unusedFunction
         return false;
     }
 
-    if (!output_filename.empty()) {
+    if (output_filename != nullptr && !output_filename->empty()) {
         bool ret = Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
         Datadog::Sample::profile_release();
         Datadog::Sample::profile_clear_state();

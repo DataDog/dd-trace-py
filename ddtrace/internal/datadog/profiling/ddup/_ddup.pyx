@@ -7,6 +7,8 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
+from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport make_unique
 from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport move
@@ -58,7 +60,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    bint ddup_upload(string output_filename) nogil
+    bint ddup_upload(unique_ptr[string] output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -379,7 +381,16 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
            output_filename: Optional[str] = None) -> None:
     global _code_provenance_set
 
-    cdef string output_filename_cstr
+    # Previously, we used to configure output_filename similar to what we do
+    # for other strings as in ddup_config. And output_filename was stored as a
+    # static field in UploaderBuilder class. For uwsgi tests, this resulted in
+    # output_filename destructed before it was used which led to a crash. To
+    # avoid this, we explicitly create a unique_ptr[string] here to pass. The
+    # actual allocation happens with make_unique[string] below, and only happens
+    # if output_filenmae is not None and not empty.
+    # This is a workaround for testing mostly and doesn't solve the problem
+    # that uwsgi doesn't work well with our native components.
+    cdef unique_ptr[string] output_filename_cstr
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
@@ -396,8 +407,8 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
         call_code_provenance_set_json_str(json_str_to_export())
         _code_provenance_set = True
 
-    if output_filename:
-        output_filename_cstr = output_filename
+    if output_filename and len(output_filename) > 0:
+        output_filename_cstr = make_unique[string](output_filename)
 
     with nogil:
         ddup_upload(move(output_filename_cstr))
