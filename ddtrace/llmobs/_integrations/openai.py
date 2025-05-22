@@ -129,7 +129,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         update_input_output_value(span, span_kind)
-        metrics = self._extract_llmobs_metrics_tags(span, response)
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
@@ -160,10 +160,10 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _extract_llmobs_metrics_tags(span: Span, resp: Any) -> Dict[str, Any]:
+    def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = _get_attr(resp, "usage", None)
-        if token_usage is not None:
+        if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
             return {
