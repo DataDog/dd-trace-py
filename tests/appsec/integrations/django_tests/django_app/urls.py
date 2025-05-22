@@ -42,6 +42,23 @@ urlpatterns = [
         name="xss_secure_mark",
     ),
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
+    handler("appsec/unvalidated_redirect_url/$", views.unvalidated_redirect_url, name="unvalidated_redirect_url"),
+    handler("appsec/unvalidated_redirect_path/$", views.unvalidated_redirect_path, name="unvalidated_redirect_path"),
+    handler(
+        "appsec/unvalidated_redirect_safe_source_cookie/$",
+        views.unvalidated_redirect_safe_source_cookie,
+        name="unvalidated_redirect_safe_source_cookie",
+    ),
+    handler(
+        "appsec/unvalidated_redirect_safe_source_header/$",
+        views.unvalidated_redirect_safe_source_header,
+        name="unvalidated_redirect_safe_source_header",
+    ),
+    handler(
+        "appsec/unvalidated_redirect_path_multiple_sources/$",
+        views.unvalidated_redirect_path_multiple_sources,
+        name="unvalidated_redirect_path_multiple_sources",
+    ),
     handler("appsec/taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler(
         "appsec/taint-checking-disabled/$", views.taint_checking_disabled_view, name="taint_checking_disabled_view"

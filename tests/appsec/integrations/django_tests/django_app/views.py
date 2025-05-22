@@ -14,6 +14,7 @@ from typing import Any
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.shortcuts import render
 from django.utils.safestring import mark_safe
 
@@ -349,6 +350,37 @@ def header_injection(request):
     # label iast_header_injection
     response.headers["Header-Injection"] = value
     return response
+
+
+def unvalidated_redirect_url(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_url
+    return redirect(value)
+
+
+def unvalidated_redirect_path(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_path
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_safe_source_cookie(request):
+    value = request.COOKIES["url"]
+    # label unvalidated_redirect_safe_source_cookie
+    return redirect(value)
+
+
+def unvalidated_redirect_safe_source_header(request):
+    value = request.META["url"]
+    # label unvalidated_redirect_safe_source_header
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_path_multiple_sources(request):
+    value1 = request.GET.get("url")
+    value2 = request.META["url"]
+    # label unvalidated_redirect_path_multiple_sources
+    return redirect(value1 + value2)
 
 
 def validate_querydict(request):

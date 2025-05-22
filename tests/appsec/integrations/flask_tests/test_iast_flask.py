@@ -16,9 +16,11 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
+from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as patch_unvalidated_redirect
 from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
@@ -51,6 +53,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             patch_insecure_cookie()
             patch_header_injection()
             patch_xss_injection()
+            patch_unvalidated_redirect()
             patch_json()
             super(FlaskAppSecIASTEnabledTestCase, self).setUp()
             self.tracer.configure(iast_enabled=True)
@@ -1694,7 +1697,7 @@ Lorem Ipsum Foobar
                 {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
             ]
 
-            line, hash_value = get_line_and_hash("test_flask_xss", VULN_SQL_INJECTION, filename=TEST_FILE_PATH)
+            line, hash_value = get_line_and_hash("test_flask_xss", VULN_XSS, filename=TEST_FILE_PATH)
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_XSS
             assert vulnerability["evidence"] == {
@@ -1705,6 +1708,50 @@ Lorem Ipsum Foobar
             assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
             assert vulnerability["location"]["method"] == "xss_view"
+            assert "class" not in vulnerability["location"]
+
+    def test_flask_unvalidated_redirect(self):
+        @self.app.route("/unvalidated_redirect/", methods=["GET"])
+        def unvalidated_redirect_view():
+            from flask import redirect
+            from flask import request
+
+            url = request.args.get("url", "")
+
+            # label test_flask_unvalidated_redirect
+            return redirect(location=url)
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/unvalidated_redirect/?url=http://localhost:8080/malicious")
+            assert resp.status_code == 302
+            assert b"Redirecting..." in resp.data
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+            ]
+
+            line, hash_value = get_line_and_hash(
+                "test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH
+            )
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
+            assert vulnerability["evidence"] == {
+                "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
+            }
+            assert vulnerability["location"]["line"] == line
+            assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["method"] == "unvalidated_redirect_view"
+            assert vulnerability["location"]["stackId"] == "1"
             assert "class" not in vulnerability["location"]
 
     def test_flask_xss_concat(self):
