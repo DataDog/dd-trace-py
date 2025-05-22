@@ -41,10 +41,7 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 def _create_and_attach_iast_report_to_span(req_span: "Span", existing_data: Optional[str], merge: bool = False):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
-        previous_data = IastSpanReporter()
-        previous_data._from_json(existing_data)
-
-        report_data._merge(previous_data)
+        report_data._merge_json(existing_data)
 
     if report_data is not None:
         data = report_data.build_and_scrub_value_parts()

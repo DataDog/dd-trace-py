@@ -3,7 +3,7 @@ import sys
 from flask import Flask
 from flask import request
 
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.trace import tracer
 
 
