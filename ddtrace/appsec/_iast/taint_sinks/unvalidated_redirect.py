@@ -4,6 +4,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -27,7 +28,6 @@ UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS = {
     OriginType.HEADER_NAME,
     OriginType.COOKIE,
     OriginType.COOKIE_NAME,
-    OriginType.BODY,
     OriginType.GRPC_BODY,
 }
 
@@ -96,17 +96,20 @@ def _unvalidated_redirect_forfastapi(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
+@oce.register
 class UnvalidatedRedirect(VulnerabilityBase):
     vulnerability_type = VULN_UNVALIDATED_REDIRECT
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
 
 
 def _iast_report_unvalidated_redirect(headers):
-    if len(headers) > 0:
+    if headers:
         try:
-            if UnvalidatedRedirect.has_quota() and UnvalidatedRedirect.is_tainted_pyobject(
+            is_tainted = UnvalidatedRedirect.is_tainted_pyobject(
                 headers, origins_to_exclude=UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS
-            ):
+            )
+
+            if UnvalidatedRedirect.has_quota() and is_tainted:
                 UnvalidatedRedirect.report(evidence_value=headers)
 
             # Reports Span Metrics
