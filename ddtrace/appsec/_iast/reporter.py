@@ -285,7 +285,7 @@ class IastSpanReporter(NotNoneDictable):
         Returns:
         - Tuple[Set[Source], List[Dict]]: Set of Source objects and list of tainted ranges as dictionaries.
         """
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         sources = list()
         tainted_ranges = get_tainted_ranges(pyobject)
