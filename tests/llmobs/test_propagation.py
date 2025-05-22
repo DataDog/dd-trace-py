@@ -257,6 +257,71 @@ print(json.dumps(headers))
             assert llm_span._get_ctx_item(ML_APP) == "test-app"  # should be the one set by `llmobs` fixture
 
 
+def test_activate_distributed_headers_for_local_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
+    """
+    Tests that the local ML app is used when injecting distributed headers from service A, and that
+    service B's span uses that ML app from the propagated headers.
+    """
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="LLMObs span", ml_app="local-ml-app") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert llm_span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_activate_distributed_headers_for_twice_propagated_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
+    """
+    Tests that if there is a propagate ML app in service A from some other unknown service, that
+    the value of that propagated ML app is used when injecting distributed headers from service A.
+    Service B's span should use the ML app from the propagated headers.
+    """
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with tracer.trace("Non-LLMObs span") as root_span:
+    root_span.context._meta["_dd.p.llmobs_ml_app"] = "twice-propagated-ml-app"
+    with LLMObs.workflow(name="LLMObs span") as llmobs_span:
+        headers = LLMObs.inject_distributed_headers({}, span=root_span)
+
+print(json.dumps(headers))
+"""
+
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert llm_span._get_ctx_item(ML_APP) == "twice-propagated-ml-app"
+
+
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
     ddtrace_run_python_code_in_subprocess, llmobs
 ):

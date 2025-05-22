@@ -18,11 +18,13 @@ from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -221,6 +223,33 @@ def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
     with pytest.raises(ValueError):
         with llmobs_no_ml_app.task():
             pass
+
+
+def test_ml_app_local_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app") as span:
+            assert span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_parent_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app"):
+            with llmobs.workflow() as child_workflow_span:
+                assert child_workflow_span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_propagated_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow() as span:
+            assert span._get_ctx_item(ML_APP) == "propagated-ml-app"
+
+
+def test_ml_app_uses_global_as_default(llmobs):
+    with llmobs.workflow() as span:
+        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
