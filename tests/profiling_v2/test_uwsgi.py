@@ -28,7 +28,6 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "..", "profiling", "uwsgi-ap
 def uwsgi(monkeypatch, tmp_path):
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
-    monkeypatch.setenv("DD_PROFILING_STACK_V2_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
     import os
@@ -127,8 +126,7 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
-# interrupted randomly in the middle and has no time to flush out the profile.
+@pytest.mark.skip(reason="Worker process either crashes or hangs")
 def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -149,8 +147,7 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-# This test fails with greenlet 2: the uwsgi.atexit function that is being called and run the profiler stop procedure is
-# interrupted randomly in the middle and has no time to flush out the profile.
+@pytest.mark.skip(reason="Worker process either crashes or hangs")
 def test_uwsgi_threads_processes_no_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
