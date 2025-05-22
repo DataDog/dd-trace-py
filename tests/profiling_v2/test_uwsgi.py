@@ -94,8 +94,6 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     started = 0
     while True:
         line = stdout.readline()
-        if line != b"":
-            print(line)
         if line == b"":
             break
         elif b"WSGI app 0 (mountpoint='') ready" in line:
@@ -133,15 +131,10 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     # Give some time to child to actually startup
-    print(worker_pids)
     time.sleep(3)
     proc.terminate()
-    outs, _ = proc.communicate()
-    for line in outs.splitlines():
-        print(line)
     assert proc.wait() == 0
     for pid in worker_pids:
-        print("Check profile for child pid: %d" % pid)
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
