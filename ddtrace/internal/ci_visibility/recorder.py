@@ -1380,7 +1380,7 @@ def _register_test_handlers():
 
 
 @_requires_civisibility_enabled
-def _on_item_get_span(item_id: TestVisibilityItemId) -> Optional[Span]:
+def _on_item_get_span(item_id: TestVisibilityItemId) -> None:
     log.debug("Handing get_span for item %s", item_id)
     item = CIVisibility.get_item_by_id(item_id)
     core.set_item(f"test_visibility.item.get_span.{item_id}", item.get_span())
