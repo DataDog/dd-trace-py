@@ -19,7 +19,7 @@ from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
@@ -257,7 +257,7 @@ def test_header_value_source_typing_param(fastapi_application, client, tracer, t
     @fastapi_application.get("/index.html")
     async def test_route(iast_header: typing.Annotated[str, Header()] = None):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(iast_header)
 
@@ -291,7 +291,7 @@ def test_cookies_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.cookies.get("iast_cookie")
         ranges_result = get_tainted_ranges(query_params)
@@ -327,7 +327,7 @@ def test_cookies_source_typing_param(fastapi_application, client, tracer, test_s
     @fastapi_application.get("/index.html")
     async def test_route(iast_cookie: typing.Annotated[str, Cookie()] = "ddd"):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(iast_cookie)
 
@@ -361,7 +361,7 @@ def test_path_param_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/index.html/{item_id}")
     async def test_route(item_id):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(item_id)
 
@@ -394,7 +394,7 @@ def test_path_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/path_source/")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         path = request.url.path
         ranges_result = get_tainted_ranges(path)
@@ -428,7 +428,7 @@ def test_path_body_receive_source(fastapi_application, client, tracer, test_span
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         body = await request.receive()
         result = body["body"]
@@ -465,7 +465,7 @@ def test_path_body_body_source(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/index.html")
     async def test_route(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         body = await request.body()
         ranges_result = get_tainted_ranges(body)
@@ -503,7 +503,7 @@ def test_path_body_body_source_formdata_latest(fastapi_application, client, trac
     @fastapi_application.post("/index.html")
     async def test_route(path: typing.Annotated[str, Form()]):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(path)
 
@@ -534,7 +534,7 @@ def test_path_body_body_source_formdata_90(fastapi_application, client, tracer, 
     @fastapi_application.post("/index.html")
     async def test_route(path: str = Form(...)):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(path)
 
@@ -574,7 +574,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
     @fastapi_application.post("/index")
     async def test_route(item: Item):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(item.name)
 
@@ -607,7 +607,7 @@ def test_path_body_source_pydantic(fastapi_application, client, tracer, test_spa
 def test_path_body_body_upload(fastapi_application, client, tracer, test_spans):
     @fastapi_application.post("/uploadfile/")
     async def create_upload_file(files: typing.List[UploadFile]):
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         ranges_result = get_tainted_ranges(files[0])
         return JSONResponse(
@@ -639,7 +639,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
     async def test_route(param_str):
         import sqlite3
 
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
         from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 
         assert is_pyobject_tainted(param_str)
@@ -692,7 +692,7 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
@@ -740,7 +740,7 @@ def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
@@ -777,7 +777,7 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
@@ -825,7 +825,7 @@ def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, 
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
@@ -860,7 +860,7 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
     @fastapi_application.route("/insecure_cookie/", methods=["GET"])
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
         query_params = request.query_params.get("iast_queryparam")
         ranges_result = get_tainted_ranges(query_params)
@@ -907,7 +907,7 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
 def test_fastapi_header_injection(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/header_injection/")
     async def header_injection(request: Request):
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
         tainted_string = request.headers.get("test")
         assert is_pyobject_tainted(tainted_string)
@@ -953,7 +953,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
 def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/header_injection_inline_response/", response_class=PlainTextResponse)
     async def header_injection_inline_response(request: Request):
-        from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+        from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
         tainted_string = request.headers.get("test")
         assert is_pyobject_tainted(tainted_string)
