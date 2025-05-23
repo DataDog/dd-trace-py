@@ -2,6 +2,7 @@
 cryptography==42.0.7
 https://pypi.org/project/cryptography/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -41,7 +42,7 @@ def pkg_cryptography_view():
 def pkg_cryptography_propagation_view():
     from cryptography.fernet import Fernet
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

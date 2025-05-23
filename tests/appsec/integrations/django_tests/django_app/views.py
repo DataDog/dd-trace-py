@@ -19,7 +19,7 @@ from django.utils.safestring import mark_safe
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
