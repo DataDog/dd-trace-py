@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: introduces ``DD_PROFILING_STACK_V2_MAX_FRAMES` with default 256
+    which increases the number of frames that are exported from the profiler.
+    Lock and memory profilers will continue use ``DD_PROFILING_MAX_FRAMES`` with
+    default value 64.
