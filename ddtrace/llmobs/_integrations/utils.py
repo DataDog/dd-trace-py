@@ -534,6 +534,26 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
     return processed
 
 
+def openai_get_metadata_from_response(response: Optional[Any]) -> Dict[str, Any]:
+    if not response:
+        return {}
+
+    metadata = {}
+    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation"]:
+        if hasattr(response, field):
+            value = getattr(response, field)
+            if value is not None:
+                metadata[field] = load_oai_span_data_value(value)
+
+    if hasattr(response, "text") and response.text:
+        metadata["text"] = load_oai_span_data_value(response.text)
+
+    if hasattr(response, "usage") and hasattr(response.usage, "output_tokens_details"):
+        metadata["reasoning_tokens"] = response.usage.output_tokens_details.reasoning_tokens
+
+    return metadata
+
+
 def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -541,8 +561,8 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
 
     if "instructions" in kwargs:
         input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
-    parameters = {k: v for k, v in kwargs.items() if k not in ("model", "input")}
-    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: openai_get_metadata_from_response(response)})
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
