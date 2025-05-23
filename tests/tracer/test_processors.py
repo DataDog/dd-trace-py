@@ -23,6 +23,7 @@ from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
@@ -328,7 +329,7 @@ def test_trace_128bit_processor(trace_id):
 
 
 def test_span_creation_metrics():
-    """Test that telemetry metrics are always sent"""
+    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
     writer = DummyWriter()
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
@@ -344,36 +345,37 @@ def test_span_creation_metrics():
             span.set_tag("component", "custom")
             span.finish()
 
-            spans_created_metric_calls = [call for call in mock_tm.call_args_list if call[0][1] == "spans_created"]
-            spans_finished_metric_calls = [call for call in mock_tm.call_args_list if call[0][1] == "spans_finished"]
-            # note: span starts and finishes under different names
-            sum_created = 0
-            for datapoint in spans_created_metric_calls:
-                if datapoint[1] == {"tags": (("integration_name", "datadog"),)}:
-                    sum_created += datapoint[0][2]
-            sum_finished = 0
-            for datapoint in spans_finished_metric_calls:
-                if datapoint[1] == {"tags": (("integration_name", "datadog"),)}:
-                    sum_finished += datapoint[0][2]
-
-            assert sum_created == 301
-            assert sum_finished == 300
-
-            sum_created = 0
-            for datapoint in spans_created_metric_calls:
-                if datapoint[1] == {"tags": (("integration_name", "custom"),)}:
-                    sum_created += datapoint[0][2]
-
-            sum_finished = 0
-            for datapoint in spans_finished_metric_calls:
-                if datapoint[1] == {"tags": (("integration_name", "custom"),)}:
-                    sum_finished += datapoint[0][2]
-
-            assert sum_created == 0
-            assert sum_finished == 1
+            mock_tm.assert_has_calls(
+                [
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                    mock.call(
+                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)
+                    ),
+                ]
+            )
             mock_tm.reset_mock()
             aggr.shutdown(None)
-            mock_tm.assert_has_calls([])
+            # On span finished the span has a different integration name:
+            mock_tm.assert_has_calls(
+                [
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
+                ]
+            )
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler():

@@ -90,7 +90,7 @@ def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
                 rules.Config(),
             )
     metrics_data = telemetry_writer._namespace.flush()
-    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS]) == 1
+    assert len(metrics_data[TELEMETRY_TYPE_GENERATE_METRICS]) == 0
     assert len(metrics_data[TELEMETRY_TYPE_DISTRIBUTION]) == 0
 
 
