@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.

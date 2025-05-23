@@ -58,14 +58,6 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def get_iast_stacktrace_id() -> int:
-    env = _get_iast_env()
-    if env:
-        env.iast_stack_trace_id += 1
-        return env.iast_stack_trace_id
-    return 0
-
-
 def set_iast_request_enabled(request_enabled) -> None:
     env = _get_iast_env()
     if env:
