@@ -9,8 +9,6 @@ def f():
 
     profiler = ddtrace.profiling.bootstrap.profiler
     for _ in range(50):
-        if any(map(len, profiler._recorder.events.values())):
-            break
         time.sleep(0.1)
     # Manually stop the profiler: atexit hooks are not called in subprocesses launched by multiprocessing and we want to
     # be sure the profile are flushed out

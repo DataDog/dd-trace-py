@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 
 import mock
@@ -7,14 +6,12 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import collector
-from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.profiling.exporter import http
 
 
 def test_status():
@@ -40,36 +37,6 @@ def test_multiple_stop():
     p.start()
     p.stop(flush=False)
     p.stop(flush=False)
-
-
-@pytest.mark.subprocess(
-    env=dict(DD_API_KEY="foobar", DD_SERVICE="foobar"),
-)
-def test_default_from_env():
-    import pytest
-
-    from ddtrace.profiling import profiler
-    from ddtrace.profiling.exporter import http
-
-    prof = profiler.Profiler()
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.service == "foobar"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
-
-
-def test_service_api(monkeypatch):
-    monkeypatch.setenv("DD_API_KEY", "foobar")
-    prof = profiler.Profiler(service="foobar")
-    assert prof.service == "foobar"
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.service == "foobar"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
 
 
 def test_tracer_api(monkeypatch):
@@ -111,55 +78,6 @@ prof._recorder.push_event(stack_event.StackExceptionSampleEvent())
     assert err == b""
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_API_KEY="foobar", DD_ENV="staging", DD_VERSION="123"),
-)
-def test_env_default():
-    import pytest
-
-    from ddtrace.profiling import profiler
-    from ddtrace.profiling.exporter import http
-
-    prof = profiler.Profiler()
-    assert prof.env == "staging"
-    assert prof.version == "123"
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.env == "staging"
-            assert exp.version == "123"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
-
-
-def test_env_api():
-    prof = profiler.Profiler(env="staging", version="123")
-    assert prof.env == "staging"
-    assert prof.version == "123"
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.env == "staging"
-            assert exp.version == "123"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
-
-
-def test_tags_api():
-    prof = profiler.Profiler(env="staging", version="123", tags={"foo": "bar"})
-    assert prof.env == "staging"
-    assert prof.version == "123"
-    assert prof.tags["foo"] == "bar"
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.env == "staging"
-            assert exp.version == "123"
-            assert exp.tags["foo"] == "bar"
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
-
-
 @pytest.mark.subprocess()
 def test_default_memory():
     from ddtrace.profiling import profiler
@@ -184,79 +102,6 @@ def test_disable_memory():
     assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE=None),
-    err=None,
-)
-def test_env_agentless():
-    from ddtrace.profiling import profiler
-    from tests.profiling.test_profiler import _check_url
-
-    prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/api/v2/profile")
-
-
-@pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="true", DD_API_KEY="foobar", DD_SITE="datadoghq.eu"),
-    err=None,
-)
-def test_env_agentless_site():
-    from ddtrace.profiling import profiler
-    from tests.profiling.test_profiler import _check_url
-
-    prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/api/v2/profile")
-
-
-@pytest.mark.subprocess(
-    env=dict(DD_PROFILING_AGENTLESS="false", DD_API_KEY="foobar"),
-    err=None,
-)
-def test_env_no_agentless():
-    from ddtrace.profiling import profiler
-    from tests.profiling.test_profiler import _check_url
-
-    prof = profiler.Profiler()
-    _check_url(prof, "http://localhost:8126", "foobar")
-
-
-def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
-    for exp in prof._profiler._scheduler.exporters:
-        if isinstance(exp, http.PprofHTTPExporter):
-            assert exp.api_key == api_key
-            assert exp.endpoint == url
-            assert exp.endpoint_path == endpoint_path
-            break
-    else:
-        pytest.fail("Unable to find HTTP exporter")
-
-
-def test_env_no_api_key():
-    prof = profiler.Profiler()
-    _check_url(prof, "http://localhost:8126", os.environ.get("DD_API_KEY"))
-
-
-@pytest.mark.subprocess(env={"DD_AGENT_HOST": "foobar", "DD_TRACE_AGENT_PORT": "123", "DD_TRACE_AGENT_URL": None})
-def test_env_endpoint_url():
-    import os
-
-    from ddtrace.profiling import profiler
-    from ddtrace.trace import tracer as t
-    from tests.profiling.test_profiler import _check_url
-
-    prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
-
-
-@pytest.mark.subprocess(env=dict(DD_SITE="datadoghq.eu", DD_API_KEY="123"))
-def test_env_endpoint_url_no_agent():
-    from ddtrace.profiling import profiler
-    from tests.profiling.test_profiler import _check_url
-
-    prof = profiler.Profiler()
-    _check_url(prof, "http://localhost:8126", "123")
-
-
 def test_copy():
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()
@@ -266,41 +111,6 @@ def test_copy():
     assert p.service == c.service
     assert p.tracer == c.tracer
     assert p.tags == c.tags
-
-
-def test_snapshot(monkeypatch):
-    class SnapCollect(collector.Collector):
-        @staticmethod
-        def collect():
-            pass
-
-        @staticmethod
-        def snapshot():
-            return [[event.Event()]]
-
-        def _start_service(self):
-            pass
-
-        def _stop_service(self):
-            pass
-
-    all_events = {}
-
-    class Exporter(exporter.Exporter):
-        def export(self, events, *args, **kwargs):
-            all_events["EVENTS"] = events
-
-    class TestProfiler(profiler._ProfilerInstance):
-        def _build_default_exporters(self, *args, **kargs):
-            return [Exporter()]
-
-    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-    p = TestProfiler()
-    p._collectors = [SnapCollect(p._recorder)]
-    p.start()
-    time.sleep(2)
-    p.stop()
-    assert len(all_events["EVENTS"][event.Event]) == 1
 
 
 def test_failed_start_collector(caplog, monkeypatch):
