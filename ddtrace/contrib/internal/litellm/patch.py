@@ -49,9 +49,7 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation=operation
-                )
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
@@ -82,9 +80,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation=operation
-                )
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 

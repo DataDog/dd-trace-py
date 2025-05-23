@@ -308,11 +308,7 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {
-        k: v
-        for k, v in kwargs.items()
-        if k not in OPENAI_SKIPPED_COMPLETION_TAGS
-    }
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -334,12 +330,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-    parameters = {
-        k: v
-        for k, v in kwargs.items()
-        if k
-        not in OPENAI_SKIPPED_CHAT_TAGS
-    }
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:

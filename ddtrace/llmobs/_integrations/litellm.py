@@ -25,7 +25,12 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
 
-TEXT_COMPLETION_OPERATIONS = ("text_completion", "atext_completion", "router.text_completion", "router.atext_completion")
+TEXT_COMPLETION_OPERATIONS = (
+    "text_completion",
+    "atext_completion",
+    "router.text_completion",
+    "router.atext_completion",
+)
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -89,7 +94,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             return
 
         metadata["router_settings"] = {
-            "router_general_settings":getattr(llm_router, "router_general_settings", None),
+            "router_general_settings": getattr(llm_router, "router_general_settings", None),
             "routing_strategy": getattr(llm_router, "routing_strategy", None),
             "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
             "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
@@ -98,7 +103,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         }
         if hasattr(llm_router, "get_model_list"):
             metadata["router_settings"]["model_list"] = self._scrub_litellm_model_list(llm_router.get_model_list())
-        
+
         span._set_ctx_items({METADATA: metadata})
 
     def _scrub_litellm_model_list(self, model_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -130,11 +135,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_lower = model.lower() if model else ""
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
-        return (
-            is_openai_model
-            and not stream
-            and LLMObs._integration_is_enabled("openai")
-        )
+        return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
     def _get_span_kind(
         self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
@@ -153,10 +154,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
     def is_completion_operation(self, operation: str) -> bool:
         return operation in TEXT_COMPLETION_OPERATIONS
-    
+
     def is_router_operation(self, operation: Optional[str]) -> bool:
         return "router" in operation if operation else False
-    
+
     @staticmethod
     def _extract_llmobs_metrics(resp: Any, span_kind: str) -> Dict[str, Any]:
         if not resp or span_kind != "llm":
