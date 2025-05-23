@@ -1,5 +1,5 @@
 # distutils: language = c++
-# cython: language_level=3, c_string_type=unicode, c_string_encoding=utf8
+# cython: language_level=3
 
 import platform
 from typing import Dict
@@ -397,9 +397,13 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     # This is a workaround for testing mostly and doesn't solve the problem
     # that uwsgi doesn't work well with our native components.
     cdef unique_ptr[string] output_filename_cstr
+    cdef const char* c_str_data
+    cdef Py_ssize_t c_str_size
 
     if output_filename and len(output_filename) > 0:
-        output_filename_cstr = make_unique[string](output_filename)
+        c_str_data = PyUnicode_AsUTF8AndSize(output_filename, &c_str_size)
+        if c_str_data != NULL:
+            output_filename_cstr = make_unique[string](c_str_data, c_str_size)
         with nogil:
             ddup_export_to_file(move(output_filename_cstr))
     else:
