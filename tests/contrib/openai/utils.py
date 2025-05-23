@@ -131,12 +131,11 @@ response_tool_function = [
 ]
 response_tool_function_expected_output = [
     {
-        "content": "",
         "tool_calls": [
             {
                 "name": "get_current_weather",
                 "type": "function_call",
-                "tool_id": "fc_682f80f647c48191b7fbc7f71049db4a03d0b2fd90d3afa9",
+                "tool_id": "call_tjEzTywkXuBUO42ugPFnQYqi",
                 "arguments": {"location": "Boston, MA", "unit": "celsius"},
             }
         ],

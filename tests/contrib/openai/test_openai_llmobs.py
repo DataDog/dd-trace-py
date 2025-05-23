@@ -741,7 +741,16 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={"top_p": 0.9, "max_output_tokens": 100, "user": "ddtrace-test"},
+                metadata={
+                    "temperature": 1.0,
+                    "max_output_tokens": 100,
+                    "top_p": 0.9,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
+                },
                 token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -770,8 +779,17 @@ class TestLLMObsOpenaiV1:
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"content": input_messages, "role": "user"}],
-                output_messages=[{"content": expected_completion, "tool_calls": [], "role": "assistant"}],
-                metadata={"stream": True},
+                output_messages=[{"role": "assistant", "content": expected_completion}],
+                metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
+                    # "stream": True
+                },
                 token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -799,9 +817,11 @@ class TestLLMObsOpenaiV1:
                 span,
                 model_name=resp.model,
                 model_provider="openai",
-                input_messages=[{"content": input_messages, "role": "user"}],
+                input_messages=[{"role": "user", "content": input_messages}],
                 output_messages=response_tool_function_expected_output,
                 metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
                     "tools": [
                         {
                             "type": "function",
@@ -818,9 +838,13 @@ class TestLLMObsOpenaiV1:
                                 },
                                 "required": ["location", "unit"],
                             },
+                            "strict": True,
                         }
                     ],
                     "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
                 },
                 token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
@@ -848,17 +872,17 @@ class TestLLMObsOpenaiV1:
                     resp_model = chunk.response.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        response_tool_function_expected_output[0]["tool_calls"][0][
-            "tool_id"
-        ] = "fc_682c94223680819192287a2f84ee1bb20b603284be451166"
+        response_tool_function_expected_output[0]["tool_calls"][0]["tool_id"] = "call_lGe2JKQEBSP15opZ3KfxtEUC"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp_model,
                 model_provider="openai",
-                input_messages=[{"content": input_messages, "role": "user"}],
+                input_messages=[{"role": "user", "content": input_messages}],
                 output_messages=response_tool_function_expected_output,
                 metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
                     "tools": [
                         {
                             "type": "function",
@@ -875,10 +899,15 @@ class TestLLMObsOpenaiV1:
                                 },
                                 "required": ["location", "unit"],
                             },
+                            "strict": True,
                         }
                     ],
-                    "user": "ddtrace-test",
-                    "stream": True,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
+                    # "user": "ddtrace-test",
+                    # "stream": True,
                 },
                 token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
@@ -924,7 +953,7 @@ class TestLLMObsOpenaiV1:
             input_messages = multi_message_input
             client = openai.AsyncOpenAI()
             resp = await client.responses.create(
-                model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
+                model=model, input=input_messages, top_p=0.9, max_output_tokens=100
             )
 
         span = mock_tracer.pop_traces()[0][0]
@@ -936,7 +965,16 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={"top_p": 0.9, "max_output_tokens": 100, "user": "ddtrace-test"},
+                metadata={
+                    "temperature": 1.0,
+                    "max_output_tokens": 100,
+                    "top_p": 0.9,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
+                },
                 token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
