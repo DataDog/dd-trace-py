@@ -6,7 +6,6 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -49,33 +48,6 @@ def test_tracer_api(monkeypatch):
             break
     else:
         pytest.fail("Unable to find stack collector")
-
-
-def test_profiler_init_float_division_regression(run_python_code_in_subprocess):
-    """
-    Regression test for https://github.com/DataDog/dd-trace-py/pull/3751
-      When float division is enabled, the value of `max_events` can be a `float`,
-        this is then passed as `deque(maxlen=float)` which is a type error
-
-    File "/var/task/ddtrace/profiling/recorder.py", line 80, in _get_deque_for_event_type
-    return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
-    TypeError: an integer is required
-    """
-    code = """
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack_event
-
-prof = profiler.Profiler()
-
-# The error only happened for this specific kind of event
-# DEV: Yes, this is likely a brittle way to test, but quickest/easiest way to trigger the error
-prof._recorder.push_event(stack_event.StackExceptionSampleEvent())
-    """
-
-    out, err, status, _ = run_python_code_in_subprocess(code)
-    assert status == 0, err
-    assert out == b"", err
-    assert err == b""
 
 
 @pytest.mark.subprocess()
@@ -131,16 +103,12 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    class Exporter(exporter.Exporter):
-        def export(self, events, *args, **kwargs):
-            pass
-
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return [Exporter()]
+            return []
 
     p = TestProfiler()
-    err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
+    err_collector = mock.MagicMock(wraps=ErrCollect())
     p._collectors = [err_collector]
     p.start()
 
@@ -192,11 +160,9 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling import _threading  # noqa:F401
         from ddtrace.profiling import event  # noqa:F401
         from ddtrace.profiling import profiler  # noqa:F401
-        from ddtrace.profiling import recorder  # noqa:F401
         from ddtrace.profiling import scheduler  # noqa:F401
         from ddtrace.profiling.collector import _lock  # noqa:F401
         from ddtrace.profiling.collector import _task  # noqa:F401
         from ddtrace.profiling.collector import _traceback  # noqa:F401
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
-        from ddtrace.profiling.collector import stack_event  # noqa:F401
