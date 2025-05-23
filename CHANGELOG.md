@@ -4,6 +4,17 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.7.2
+
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+
+---
+
 ## 3.7.1
 
 

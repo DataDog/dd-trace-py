@@ -9,7 +9,7 @@ from typing import Callable
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
 
 def create_validator(
