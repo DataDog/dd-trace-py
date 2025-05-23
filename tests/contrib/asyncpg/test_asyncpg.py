@@ -526,3 +526,28 @@ class AsyncPgTestCase(AsyncioTestCase):
             assert (
                 patched.call_args_list[0][0][4] == dbm_comment + create_table_query
             ), f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
+
+@pytest.mark.asyncio
+async def test_custom_connect_raises_interface_error():
+    """
+    If you pass the patched asyncpg.connect into create_pool,
+    Pool.acquire() should raise InterfaceError.
+    """
+    # Create a pool that uses our (patched) asyncpg.connect as its connect-callback
+    pool = await asyncpg.create_pool(
+        host     = POSTGRES_CONFIG["host"],
+        port     = POSTGRES_CONFIG["port"],
+        user     = POSTGRES_CONFIG["user"],
+        password = POSTGRES_CONFIG["password"],
+        database = POSTGRES_CONFIG["dbname"],
+        min_size = 0,
+        max_size = 1,
+        connect  = asyncpg.connect,  # this is the patched function returning a proxy
+    )
+
+    with pytest.raises(asyncpg.exceptions.InterfaceError) as excinfo:
+        await pool.acquire()
+
+    assert "expected pool connect callback to return an instance of 'asyncpg.connection.Connection'" in str(excinfo.value)
+
+    await pool.close()
