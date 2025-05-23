@@ -355,7 +355,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
 }
 
 bool
-ddup_export_to_file(std::unique_ptr<std::string> output_filename)
+ddup_export_to_file(std::string_view output_filename)
 {
     static bool already_warned = false;
     if (!is_ddup_initialized) {
@@ -365,7 +365,7 @@ ddup_export_to_file(std::unique_ptr<std::string> output_filename)
         }
         return false;
     }
-    Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
+    Datadog::Uploader::export_to_file(output_filename, Datadog::Sample::profile_borrow());
     Datadog::Sample::profile_release();
     Datadog::Sample::profile_clear_state();
     return true;

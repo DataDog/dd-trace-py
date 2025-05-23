@@ -7,11 +7,7 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
-from libcpp.memory cimport unique_ptr
-from libcpp.memory cimport make_unique
-from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
-from libcpp.utility cimport move
 from libcpp.utility cimport pair
 
 import ddtrace
@@ -61,7 +57,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
-    bint ddup_export_to_file(unique_ptr[string] output_filename) nogil
+    bint ddup_export_to_file(string_view output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -391,12 +387,10 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     # static field in UploaderBuilder class. For uwsgi tests, this resulted in
     # output_filename destructed before it was used which led to a crash,
     # especially in uwsgi tests with --lazy-apps.
-    # To avoid this, we explicitly create a unique_ptr[string] here to pass.
-    # The actual allocation happens with make_unique[string] below, and only
-    # happens if output_filenmae is not None and not empty.
-    # This is a workaround for testing mostly and doesn't solve the problem
-    # that uwsgi doesn't work well with our native components.
-    cdef unique_ptr[string] output_filename_cstr
+    # We pass a Python str backed string_view to the C++ code to work around
+    # the issue with uwsgi tests.
+    # TODO(taegyunkim): consider doing the same for the rest of string objects
+    # that are used to building the uploader and uploading the profile.
     cdef const char* c_str_data
     cdef Py_ssize_t c_str_size
 
@@ -409,9 +403,8 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     if output_filename and len(output_filename) > 0:
         c_str_data = PyUnicode_AsUTF8AndSize(output_filename, &c_str_size)
         if c_str_data != NULL:
-            output_filename_cstr = make_unique[string](c_str_data, c_str_size)
-        with nogil:
-            ddup_export_to_file(move(output_filename_cstr))
+            with nogil:
+                ddup_export_to_file(string_view(c_str_data, c_str_size))
     else:
         call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 

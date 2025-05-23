@@ -26,13 +26,8 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 }
 
 bool
-Datadog::Uploader::export_to_file(std::unique_ptr<std::string> output_filename, ddog_prof_Profile& profile)
+Datadog::Uploader::export_to_file(std::string_view output_filename, ddog_prof_Profile& profile)
 {
-    if (!output_filename) {
-        std::cerr << "Error: output_filename is null" << std::endl;
-        return false;
-    }
-
     // Serialize the profile
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
     if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
@@ -46,7 +41,7 @@ Datadog::Uploader::export_to_file(std::unique_ptr<std::string> output_filename, 
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
-    oss << *(output_filename.get()) << "." << getpid() << "." << upload_seq;
+    oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
