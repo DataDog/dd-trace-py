@@ -131,6 +131,12 @@ def test_third_party_packages_symlinks(tmp_path):
 
     assert is_user_code(code_file)
     # Symlinks with `.runfiles` in the path should not be considered user code.
+    from ddtrace.internal.compat import Path
+
+    p = Path(symlink_file)
+    p2 = Path(symlink_file).resolve()
+    print(symlink_file, p, p2)
+
     assert not is_user_code(symlink_file)
 
     code_file_2 = runfiles_path / "test2.py"

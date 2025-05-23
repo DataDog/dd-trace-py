@@ -138,7 +138,7 @@ def _root_module(path: Path) -> str:
 
     # Bazel runfiles support: we assume that these paths look like
     # /some/path.runfiles/.../site-packages/<root_module>/...
-    if any(p.suffix == ".runfiles" for p in path.parents):
+    if any(".runfiles" in segment for segment in path.parts):
         for s in path.parents:
             if s.parent.name == "site-packages":
                 return s.name
