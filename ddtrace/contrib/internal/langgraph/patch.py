@@ -8,6 +8,8 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import Pin
 
@@ -128,7 +130,7 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
 
-    span._set_ctx_item("langgraph.from_astream", True)
+    span._set_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM, True)
 
     result = None
 
@@ -173,11 +175,13 @@ async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance,
 
     if integration.llmobs_enabled:
         span = pin.tracer.current_span()
+        if not span:
+            return output
 
         # safeguard against other functions that we don't trace using this function
-        from_astream = span._get_ctx_item("langgraph.from_astream") or False
-        if span and from_astream:
-            span._set_ctx_item("langgraph.astream.output", output)
+        from_astream = span._get_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM) or False
+        if from_astream:
+            span._set_ctx_item(LANGGRAPH_ASTREAM_OUTPUT, output)
 
     return output
 
