@@ -73,31 +73,32 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA) or {}
         base_url = kwargs.get("api_base", None)
-        # only add model to metadata if it's a litellm client request
-        if base_url:
-            if "model" in kwargs:
-                metadata["model"] = kwargs["model"]
-        # add router information to metadata if it's a span from the router
-        elif "router" in operation:
-            if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
-                del metadata["metadata"]["user_api_key"]
+        if base_url and "model" in kwargs:
+            metadata["model"] = kwargs["model"]
+            span._set_ctx_items({METADATA: metadata})
+            return
+        if base_url or "router" not in operation:
+            span._set_ctx_items({METADATA: metadata})
+            return
+        if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
+            del metadata["metadata"]["user_api_key"]
 
-            if not kwargs.get("router_instance", None):
-                span._set_ctx_items({METADATA: metadata})
-                return
+        llm_router = kwargs.get("router_instance")
+        if not llm_router:
+            span._set_ctx_items({METADATA: metadata})
+            return
 
-            routing_info = {}
-            llm_router = kwargs["router_instance"]
-            routing_info["router_general_settings"] = getattr(llm_router, "router_general_settings", None)
-            routing_info["routing_strategy"] = getattr(llm_router, "routing_strategy", None)
-            routing_info["routing_strategy_args"] = getattr(llm_router, "routing_strategy_args", None)
-            routing_info["provider_budget_config"] = getattr(llm_router, "provider_budget_config", None)
-            routing_info["retry_policy"] = getattr(llm_router, "retry_policy", None)
-            routing_info["enable_tag_filtering"] = getattr(llm_router, "enable_tag_filtering", None)
-            model_list = llm_router.get_model_list() if hasattr(llm_router, "get_model_list") else []
-            routing_info["model_list"] = self._scrub_litellm_model_list(model_list)
-            metadata["router_settings"] = routing_info
-
+        metadata["router_settings"] = {
+            "router_general_settings":getattr(llm_router, "router_general_settings", None),
+            "routing_strategy": getattr(llm_router, "routing_strategy", None),
+            "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
+            "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
+            "retry_policy": getattr(llm_router, "retry_policy", None),
+            "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
+        }
+        if hasattr(llm_router, "get_model_list"):
+            metadata["router_settings"]["model_list"] = self._scrub_litellm_model_list(llm_router.get_model_list())
+        
         span._set_ctx_items({METADATA: metadata})
 
     def _scrub_litellm_model_list(self, model_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
