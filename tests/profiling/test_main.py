@@ -68,7 +68,7 @@ def test_fork(tmp_path, monkeypatch):
     assert exitcode == 0
     child_pid = stdout.decode().strip()
     utils.check_pprof_file(filename + "." + str(pid))
-    utils.check_pprof_file(filename + "." + str(child_pid))
+    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="lock-release")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -101,7 +101,7 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid))
-    utils.check_pprof_file(filename + "." + str(child_pid))
+    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="wall-time")
 
 
 @pytest.mark.subprocess(
