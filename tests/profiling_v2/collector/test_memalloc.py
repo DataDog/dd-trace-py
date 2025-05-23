@@ -134,7 +134,6 @@ def test_memory_collector_ignore_profiler(tmp_path):
         assert "No samples found" in str(e)
 
 
-@pytest.mark.skip(reason="too slow")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )

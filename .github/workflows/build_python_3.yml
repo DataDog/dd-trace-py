@@ -34,7 +34,7 @@ jobs:
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux-ubuntu24.04"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
             } | jq -sc
