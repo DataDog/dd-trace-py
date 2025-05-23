@@ -253,7 +253,7 @@ def is_stdlib(path: Path) -> bool:
 
 @cached(maxsize=256)
 def is_third_party(path: Path) -> bool:
-    package = filename_to_package(str(path))
+    package = filename_to_package(path)
     if package is None:
         return False
 
