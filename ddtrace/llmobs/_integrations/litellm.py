@@ -141,14 +141,13 @@ class LiteLLMIntegration(BaseLLMIntegration):
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
-            - span represents a router operation
-            - base_url is set (indicates a request to the proxy) OR
-            - base_url is not set AND an LLM span will be submitted elsewhere
+            - span represents a router operation OR
+            - base_url is set (indicates a request to the proxy)
         LLM spans should be submitted to LLMObs if:
             - base_url is not set AND an LLM span will not be submitted elsewhere
         """
         base_url = kwargs.get("api_base")
-        if self.is_router_operation(operation) or base_url or self._skip_llm_span(kwargs, model):
+        if self.is_router_operation(operation) or base_url:
             return "workflow"
         return "llm"
 
