@@ -192,7 +192,6 @@ class DDWaf(WAF):
         ddwaf_object_free(result_obj)
         return main_res
 
-
     @property
     def initialized(self) -> bool:
         return bool(self._handle)

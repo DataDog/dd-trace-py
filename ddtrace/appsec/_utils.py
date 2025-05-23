@@ -52,7 +52,17 @@ class _observator:
 
 
 class DDWaf_result:
-    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives", "keep"]
+    __slots__ = [
+        "return_code",
+        "data",
+        "actions",
+        "runtime",
+        "total_runtime",
+        "timeout",
+        "truncation",
+        "derivatives",
+        "keep",
+    ]
 
     def __init__(
         self,
