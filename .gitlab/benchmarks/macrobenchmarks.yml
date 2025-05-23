@@ -1,8 +1,10 @@
 stages:
   - test
+  - gate
+  - notify
 
 variables:
-  MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
+  MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks-pre-release-gate-prototype
 
 .macrobenchmarks:
   stage: test
@@ -362,3 +364,47 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
     DD_APPSEC_RASP_ENABLED: "true"
     IAST_WORST: "true"
     DD_SERVICE: "ddtrace-mb-attack-appsec-enabled-iast-enabled-ep-enabled"
+
+.check-threshold-breaches:
+  stage: gate
+  when: on_success
+  needs:  # List of benchmarks whose artifacts are used to check for threshold breaches
+    - "tracing-profiling-enabled"
+    - "vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled"
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - platform/artifacts/
+    expire_in: 3 months
+
+check-proximity-monitor-breaches:
+  extends: .check-threshold-breaches
+  script:
+    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    # Currently identical to slos.fail.yml in order to trigger
+    # "notify-proximity-monitor-breaches"
+    - bp-runner bp-runner.fail-on-breach.proximity-thresholds.yml
+
+check-slo-breaches_fail:
+  stage: gate
+  script:
+    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - bp-runner bp-runner.fail-on-breach.slos.fail.yml
+
+check-slo-breaches_pass:
+  stage: gate
+  script:
+    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - bp-runner bp-runner.fail-on-breach.slos.pass.yml
+
+notify-proximity-monitor-breaches:
+  stage: notify
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  needs: ["check-proximity-monitor-breaches"]
+  when: on_failure
+  script:
+    echo "notifying..."
