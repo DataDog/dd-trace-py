@@ -133,8 +133,7 @@ def _loop_handler(chunk, streamed_chunks):
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation):
     try:
         formatted_completions = None
-        is_completion = "text" in operation
-        if is_completion:
+        if integration.is_completion_operation(operation):
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
@@ -142,12 +141,10 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        operation = operation if "router" in operation else "completion" if is_completion else "chat"
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(
                 span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation
             )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
-    finally:
-        return formatted_completions
+    return formatted_completions

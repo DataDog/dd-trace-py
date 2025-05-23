@@ -24,13 +24,13 @@ def get_version() -> str:
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
-    is_completion = "text" in func.__name__
+    operation = func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
-        func.__name__,
+        operation,
         model=model,
         host=host,
         submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
@@ -50,20 +50,20 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                    span, args=args, kwargs=kwargs, response=resp, operation=operation
                 )
             span.finish()
 
 
 @with_traced_module
 async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
-    is_completion = "text" in func.__name__
+    operation = func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
-        func.__name__,
+        operation,
         model=model,
         host=host,
         submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
@@ -83,7 +83,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
+                    span, args=args, kwargs=kwargs, response=resp, operation=operation
                 )
             span.finish()
 
