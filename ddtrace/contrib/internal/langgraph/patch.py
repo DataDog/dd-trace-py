@@ -32,6 +32,24 @@ def _get_node_name(instance):
     return getattr(first_step, "name", None)
 
 
+def _should_trace_node(instance, args: tuple, kwargs: dict) -> tuple[bool, str]:
+    """
+    Determines if a node should be traced. If the first step is a writing or routing step, or
+    the node represents a subgraph, we should not trace it. If the node is a subgraph, mark it
+    as such in the config metadata for use in `traced_pregel_loop_tick`.
+
+    Returns a tuple of (should_trace, node_name)
+    """
+    node_name = _get_node_name(instance)
+    if node_name in ("_write", "_route"):
+        return False, node_name
+    if node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["_dd.subgraph"] = True
+        return False, node_name
+    return True, node_name
+
+
 @with_traced_module
 def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
@@ -46,13 +64,8 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    node_name = _get_node_name(instance)
-
-    if node_name in ("_write", "_route"):
-        return func(*args, **kwargs)
-    if node_name == "LangGraph":
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["_dd.subgraph"] = True
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
         return func(*args, **kwargs)
 
     span = integration.trace(
@@ -77,13 +90,8 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
     """Async version of traced_runnable_seq_invoke."""
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    node_name = _get_node_name(instance)
-
-    if node_name in ("_write", "_route"):
-        return await func(*args, **kwargs)
-    if node_name == "LangGraph":
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["_dd.subgraph"] = True
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
         return await func(*args, **kwargs)
 
     span = integration.trace(
@@ -111,13 +119,8 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    node_name = _get_node_name(instance)
-
-    if node_name in ("_write", "_route"):
-        return func(*args, **kwargs)
-    if node_name == "LangGraph":
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["_dd.subgraph"] = True
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
         return func(*args, **kwargs)
 
     span = integration.trace(
