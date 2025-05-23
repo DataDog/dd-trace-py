@@ -17,7 +17,6 @@ from ddtrace.internal.schema import schematize_service_name
 
 log = get_logger(__name__)
 
-
 _AI21 = "ai21"
 _AMAZON = "amazon"
 _ANTHROPIC = "anthropic"
