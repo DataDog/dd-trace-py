@@ -165,9 +165,9 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance, args, kwargs):
     """
-    Traces the execution of the async iterator consumed by RunnableSeq.astream(), as that iterator
-    does not yield the final output. Instead, the final output is aggregated and returned as a single
-    value by _consume_aiter().
+    Modifies the span tracing RunnableSeq.astream() to internally include its final output, as that iterator
+    does not yield the final output in versions >=0.3.29. Instead, the final output is aggregated
+    and returned as a single value by _consume_aiter().
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
     output = await func(*args, **kwargs)
@@ -177,7 +177,6 @@ async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance,
         if not span:
             return output
 
-        # safeguard against other functions that we don't trace using this function
         from_astream = span._get_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM) or False
         if from_astream:
             span._set_ctx_item(LANGGRAPH_ASTREAM_OUTPUT, output)
