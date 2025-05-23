@@ -1,3 +1,3 @@
 features:
   - |
-    Add support for excluding identifiers from redaction when using Dynamic Instrumentation.
+    dynamic instrumentation: Add support for excluding identifiers from redaction with `DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS`
