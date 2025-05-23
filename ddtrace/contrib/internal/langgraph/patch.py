@@ -106,10 +106,6 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
 @with_traced_module
 def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
     """
-    Typically, RunnableSeq.ainvoke() is called when being run as a task for its parent Pregel (CompiledGraph).
-    However, when using Pregel.astream_events() (inherited from langchain's Runnable), it calls RunnableSeq.astream()
-    instead.
-
     This function returns a generator wrapper that yields the results of RunnableSeq.astream(),
     ending the span after the stream is consumed, otherwise following the logic of traced_runnable_seq_ainvoke().
     """
