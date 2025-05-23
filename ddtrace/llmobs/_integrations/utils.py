@@ -425,7 +425,6 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     else:
         input_messages.append({"content": "[Unsupported content type of {}]".format(type(input_data))})
 
-    # Add instructions to as an input system messages
     if "instructions" in kwargs:
         input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
     parameters = {
@@ -444,7 +443,6 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
                 item.pop("usage")
         span._set_ctx_item(OUTPUT_MESSAGES, response)
     # For non-streamed responses
-    # else:
     output_data = _get_attr(response, "output", [])
     output_messages = []
     for output in output_data:
@@ -458,12 +456,14 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
                 message = {"content": "", "role": role}
                 for c in content:
                     text = _get_attr(c, "text", "")
-                    message["content"] += text
+                    message["content"] += str(text)
                 output_messages.append(message)
             if summary:
+                summary_message = {"content": "", "role": "reasoning"}
                 for s in summary:
                     text = _get_attr(s, "text", "")
-                    output_messages.append({"content": text, "role": "reasoning"})
+                    summary_message["content"] += str(text)
+                output_messages.append(summary_message)
             if encrypted_content:  # TODO: handle encrypted content
                 pass
 
@@ -533,23 +533,20 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
     {"output": [{"role": "...", "content": [{"text": "..."}]}]}
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
-
+    if not streamed_chunks:
+        return message
     for chunk in streamed_chunks:
-        if not isinstance(chunk, tuple) or len(chunk) != 2:
-            continue
-
-        chunk_type, chunk_value = chunk
-        # print(f"Processing chunk type: {chunk_type}, value: {chunk_value}")
-        if chunk_type == "usage":
+        if getattr(chunk, "usage", None):
             """
             TODO: currently chunk_value is a ResponseUsage object.
             We want to convert it to a dict that looks like 
             {"input_tokens": ..., "output_tokens": ..., "total_tokens": ...}
             """
-            message["usage"] = chunk_value
+            message["usage"] = chunk.usage
 
-        if chunk_type == "output" and isinstance(chunk_value, list):
-            for output in chunk_value:
+        if getattr(chunk, "output", None):
+            chunk_output = chunk.output
+            for output in chunk_output:
                 if hasattr(output, "content"):
                     # content is a list of ResponseOutputText objects
                     for content in output.content:
@@ -563,40 +560,40 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
                         message["content"] += summary.text
                         message["role"] = "reasoning"
 
-                elif hasattr(output, "type"):
-                    if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
-                        tool_name = output.name if hasattr(output, "name") else ""
-                        tool_type = output.type if hasattr(output, "type") else ""
-                        tool_id = output.id if hasattr(output, "id") else ""
-                        tool_arguments = output.arguments if hasattr(output, "arguments") else {}
-                        # file search
-                        tool_queries_raw = output.queries if hasattr(output, "queries") else []
-                        tool_query = ""
-                        if tool_queries_raw:
-                            tool_query = json.dumps({"queries": tool_queries_raw})
+                if hasattr(output, "type") and output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
+                    tool_name = output.name if hasattr(output, "name") else ""
+                    tool_type = output.type if hasattr(output, "type") else ""
+                    tool_id = output.id if hasattr(output, "id") else ""
+                    tool_arguments = output.arguments if hasattr(output, "arguments") else {}
+                    # file search
+                    tool_queries_raw = output.queries if hasattr(output, "queries") else []
+                    tool_query = ""
+                    if tool_queries_raw:
+                        tool_query = json.dumps({"queries": tool_queries_raw})
 
-                        # computer use
-                        tool_action = ""
-                        action_raw = output.action if hasattr(output, "action") else ""
-                        if action_raw:
-                            action_json_str = action_raw.json()
-                            tool_action = json.loads(f'{{"action": {action_json_str}}}')
+                    # computer use
+                    tool_action = ""
+                    action_raw = output.action if hasattr(output, "action") else ""
+                    if action_raw:
+                        action_json_str = action_raw.json()
+                        tool_action = json.loads(f'{{"action": {action_json_str}}}')
 
-                        tool_call = {
-                            "name": tool_name,
-                            "type": tool_type,
-                            "tool_id": tool_id,
-                        }
-                        if tool_arguments:
-                            tool_call["arguments"] = json.loads(tool_arguments)
-                        if tool_queries_raw:
-                            tool_call["arguments"] = json.loads(tool_query)
-                        if tool_action:
-                            tool_call["arguments"] = tool_action
-                        message["tool_calls"] = [tool_call]
+                    tool_call = {
+                        "name": tool_name,
+                        "type": tool_type,
+                        "tool_id": tool_id,
+                    }
+                    if tool_arguments:
+                        tool_call["arguments"] = json.loads(tool_arguments)
+                    if tool_queries_raw:
+                        tool_call["arguments"] = json.loads(tool_query)
+                    if tool_action:
+                        tool_call["arguments"] = tool_action
+                    message["tool_calls"] = [tool_call]
 
 
     message["content"] = message["content"].strip()
+    print(f"construct response message: {message}")
     return message
 
 
