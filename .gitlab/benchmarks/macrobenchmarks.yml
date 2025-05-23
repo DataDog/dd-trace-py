@@ -21,13 +21,13 @@ variables:
       - api_failure
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
-  script: |
-    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
-    if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
-      bp-runner bp-runner.flask-realworld.yml --debug
-    else
-      bp-runner bp-runner.simple.yml --debug
-    fi
+  # script: |
+  #   git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+  #   if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
+  #     bp-runner bp-runner.flask-realworld.yml --debug
+  #   else
+  #     bp-runner bp-runner.simple.yml --debug
+  #   fi
   artifacts:
     name: "artifacts"
     when: always
@@ -152,6 +152,10 @@ tracing-profiling-enabled:
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "true"
     DD_SERVICE: "ddtrace-mb-tracing-profiling-enabled"
+  script:
+    - mkdir -p platform/artifacts/
+    - cp .gitlab/benchmarks/mock-artifacts/* platform/artifacts/
+    - ls -la platform/artifacts/
 
 # appsec-enabled-iast-disabled-ep-disabled:
 #   extends: .macrobenchmarks
@@ -291,6 +295,10 @@ vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled:
     DD_APPSEC_RASP_ENABLED: "false"
     IAST_WORST: "true"
     DD_SERVICE: "ddtrace-mb-vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled"
+  script:
+    - mkdir -p platform/artifacts/
+    - cp .gitlab/benchmarks/mock-artifacts/* platform/artifacts/
+    - ls -la platform/artifacts/
 
 # vuln-appsec-enabled-iast-enabled-ep-disabled:
 #   extends: .macrobenchmarks
