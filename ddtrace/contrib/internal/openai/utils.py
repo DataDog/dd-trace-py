@@ -34,6 +34,7 @@ class BaseTracedOpenAIStream(wrapt.ObjectProxy):
             n *= len(prompts)
         self._dd_span = span
         self._streamed_chunks = [[] for _ in range(n)]
+        self._response_created_chunk = None
         self._dd_integration = integration
         self._operation_type = operation_type
         self._kwargs = kwargs
@@ -279,7 +280,11 @@ def _loop_handler(span, chunk, streamed_chunks):
 
     response = getattr(chunk, "response", None)
     if hasattr(chunk, "type") and chunk.type == "response.completed":
-        streamed_chunks[0].append(response)
+        """
+        For the response api case, we only care about a single
+        `response.completed` chunk type.
+        """
+        span._set_ctx_item("llmobs.response_created_chunk", chunk)
 
     # Completions/chat completions are returned as `choices`
     for choice in getattr(chunk, "choices", []):
@@ -290,12 +295,9 @@ def _loop_handler(span, chunk, streamed_chunks):
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
+    formatted_completions = []
     try:
-        if operation_type == "response":
-            formatted_completions = [
-                openai_construct_response_from_streamed_chunks(choice) for choice in streamed_chunks
-            ]
-        elif operation_type == "completion":
+        if operation_type == "completion":
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]

@@ -435,13 +435,24 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
+
+    supported_tool_types = ["function_call", "file_search_call", "web_search_call", "computer_call"]
+
+    def _parse_response_completed_stream_chunk(chunk: Any) -> Dict[str, Any]:
+        pass
+
+    def _parse_response_completed_object(response: Any) -> Dict[str, Any]:
+        pass
+
     # For streamed responses
     if kwargs.get("stream"):
+        response_created_chunk = span._get_ctx_item("llmobs.response_created_chunk")
+        formatted_message = openai_construct_response_from_streamed_chunks(response_created_chunk)
         # To discuss: should I remove usage from streamed output message?
         for item in response:
             if "usage" in item:
                 item.pop("usage")
-        span._set_ctx_item(OUTPUT_MESSAGES, response)
+        span._set_ctx_item(OUTPUT_MESSAGES, [formatted_message])
     # For non-streamed responses
     output_data = _get_attr(response, "output", [])
     output_messages = []
@@ -509,18 +520,18 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             arguments = tool_call.get("arguments", {})
             # Convert arguments to string before dispatching
             arguments_str = json.dumps(arguments) if isinstance(arguments, (dict, list)) else str(arguments)
-            core.dispatch(
-                DISPATCH_ON_LLM_TOOL_CHOICE,
-                (
-                    tool_id,
-                    tool_name,
-                    arguments_str,
-                    {
-                        "trace_id": format_trace_id(span.trace_id),
-                        "span_id": str(span.span_id),
-                    },
-                ),
-            )
+            # core.dispatch(
+            #     DISPATCH_ON_LLM_TOOL_CHOICE,
+            #     (
+            #         tool_id,
+            #         tool_name,
+            #         arguments_str,
+            #         {
+            #             "trace_id": format_trace_id(span.trace_id),
+            #             "span_id": str(span.span_id),
+            #         },
+            #     ),
+            # )
             if tool_call_info:
                 output_messages.append({"content": "", "tool_calls": tool_call_info})
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
