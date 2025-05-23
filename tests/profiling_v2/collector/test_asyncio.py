@@ -50,7 +50,7 @@ class TestAsyncioLockCollector:
                 print("Error while deleting file: ", e)
 
     async def test_asyncio_lock_events(self):
-        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_asyncio.AsyncioLockCollector(capture_pct=100, export_libdd_enabled=True):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events
             await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events
             assert lock.locked()
@@ -88,7 +88,7 @@ class TestAsyncioLockCollector:
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
 
-        with collector_asyncio.AsyncioLockCollector(None, capture_pct=100, export_libdd_enabled=True, tracer=tracer):
+        with collector_asyncio.AsyncioLockCollector(capture_pct=100, export_libdd_enabled=True, tracer=tracer):
             lock = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_1
             await lock.acquire()  # !ACQUIRE! test_asyncio_lock_events_tracer_1
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
