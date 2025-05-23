@@ -10,7 +10,6 @@ from ddtrace.settings.asm import config as asm_config
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
-from .._overhead_control_engine import oce
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
@@ -31,7 +30,6 @@ def get_weak_hash_algorithms() -> Set:
     return CONFIGURED_WEAK_HASH_ALGORITHMS or DEFAULT_WEAK_HASH_ALGORITHMS
 
 
-@oce.register
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
 
@@ -144,6 +142,10 @@ def wrapped_new_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
             WeakHash.report(
                 evidence_value=args[0].lower(),
             )
+        # Reports Span Metrics
+        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakHash.vulnerability_type)
+        # Report Telemetry Metrics
+        _set_metric_iast_executed_sink(WeakHash.vulnerability_type)
 
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)

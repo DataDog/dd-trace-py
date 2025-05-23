@@ -9,7 +9,6 @@ from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
@@ -100,18 +99,17 @@ def unpatch():
     set_module_unpatched("fastapi", default_attr="_datadog_header_injection_patch")
 
 
+class HeaderInjection(VulnerabilityBase):
+    vulnerability_type = VULN_HEADER_INJECTION
+    secure_mark = VulnerabilityType.HEADER_INJECTION
+
+
 def _iast_h(wrapped, instance, args, kwargs):
     if asm_config.is_iast_request_enabled:
         _iast_report_header_injection(args)
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
-
-
-@oce.register
-class HeaderInjection(VulnerabilityBase):
-    vulnerability_type = VULN_HEADER_INJECTION
-    secure_mark = VulnerabilityType.HEADER_INJECTION
 
 
 def _process_header(headers_args):

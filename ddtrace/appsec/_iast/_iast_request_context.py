@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
 from ddtrace.appsec._iast.reporter import IastSpanReporter
+from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -88,5 +89,6 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
                 # Data exists from a previous request, we will merge both reports
                 _create_and_attach_iast_report_to_span(req_span, existing_data, merge=True)
 
+            reset_request_vulnerabilities()
     except Exception:
         log.debug("iast::propagation::context::Error finishing IAST context", exc_info=True)
