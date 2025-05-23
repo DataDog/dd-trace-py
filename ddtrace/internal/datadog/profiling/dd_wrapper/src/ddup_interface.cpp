@@ -365,7 +365,10 @@ ddup_export_to_file(std::unique_ptr<std::string> output_filename)
         }
         return false;
     }
-    return Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
+    Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
+    Datadog::Sample::profile_release();
+    Datadog::Sample::profile_clear_state();
+    return true;
 }
 
 void
