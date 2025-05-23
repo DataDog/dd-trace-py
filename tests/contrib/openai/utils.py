@@ -3,6 +3,7 @@ import os
 import openai
 import vcr
 
+
 mock_openai_completions_response = openai.types.Completion(
     id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
     choices=[
