@@ -117,7 +117,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if output_messages:
             span._set_ctx_item(OUTPUT_VALUE, output_messages)
 
-    def _skip_llm_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
+    def _has_downstream_openai_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
 
@@ -182,6 +182,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
         """
         base_url = kwargs.get("api_base")
-        if not base_url and self._skip_llm_span(kwargs, model):
+        if not base_url and self._has_downstream_openai_span(kwargs, model):
             return False
         return True
