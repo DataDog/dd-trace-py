@@ -391,7 +391,7 @@ vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled:
 check-proximity-monitor-breaches:
   extends: .check-threshold-breaches
   script:
-    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
     # Currently identical to slos.fail.yml in order to trigger
     # "notify-proximity-monitor-breaches"
     - bp-runner bp-runner.fail-on-breach.proximity-thresholds.yml
@@ -399,13 +399,13 @@ check-proximity-monitor-breaches:
 check-slo-breaches_fail:
   stage: gate
   script:
-    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
     - bp-runner bp-runner.fail-on-breach.slos.fail.yml
 
 check-slo-breaches_pass:
   stage: gate
   script:
-    - git clone --branch igoragoli/add-pre-release-gates https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
     - bp-runner bp-runner.fail-on-breach.slos.pass.yml
 
 notify-proximity-monitor-breaches:
