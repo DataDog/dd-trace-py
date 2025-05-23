@@ -2,6 +2,7 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 
+from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 from ddtrace.contrib.internal.langgraph.patch import get_version
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
@@ -23,9 +24,13 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_wrapped(RunnableSeq.invoke)
         self.assert_wrapped(RunnableSeq.ainvoke)
+        self.assert_wrapped(RunnableSeq.astream)
         self.assert_wrapped(Pregel.stream)
         self.assert_wrapped(Pregel.astream)
         self.assert_wrapped(PregelLoop.tick)
+
+        if LANGGRAPH_VERSION >= (0, 3, 29):
+            self.assert_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def assert_not_module_patched(self, langgraph):
         from langgraph.pregel import Pregel
@@ -34,9 +39,12 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_wrapped(RunnableSeq.invoke)
         self.assert_not_wrapped(RunnableSeq.ainvoke)
+        self.assert_not_wrapped(RunnableSeq.astream)
         self.assert_not_wrapped(Pregel.stream)
         self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
+        if LANGGRAPH_VERSION >= (0, 3, 29):
+            self.assert_not_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def assert_not_module_double_patched(self, langgraph):
         from langgraph.pregel import Pregel
@@ -45,9 +53,12 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
         self.assert_not_double_wrapped(RunnableSeq.invoke)
         self.assert_not_double_wrapped(RunnableSeq.ainvoke)
+        self.assert_not_double_wrapped(RunnableSeq.astream)
         self.assert_not_double_wrapped(Pregel.stream)
         self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
+        if LANGGRAPH_VERSION >= (0, 3, 29):
+            self.assert_not_double_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def test_ddtrace_run_patch_on_import(self):
         # Overriding the base test case due to langgraph's code structure not allowing

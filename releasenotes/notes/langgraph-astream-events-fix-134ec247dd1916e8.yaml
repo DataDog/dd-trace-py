@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    langgraph: Fixes an issue where using ``astream_events`` on a compiled graph would cause missing spans.
+  - |
+    LLM Observability: Fixes an issue where using ``astream_events`` on a compiled graph would raise a ``KeyError``.

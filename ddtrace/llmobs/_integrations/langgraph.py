@@ -14,6 +14,8 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -52,7 +54,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs),
-                OUTPUT_VALUE: format_langchain_io(response),
+                OUTPUT_VALUE: format_langchain_io(self._get_response(span, response)),
                 NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }
@@ -78,6 +80,15 @@ class LangGraphIntegration(BaseLLMIntegration):
         finished_task_names_to_ids = {task.name: task_id for task_id, task in finished_tasks.items()}
         for task_id, task in next_tasks.items():
             self._link_task_to_parent(task_id, task, finished_task_names_to_ids)
+
+    def _get_response(self, span: Span, response):
+        if response is not None:
+            return response
+
+        from_astream = span._get_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM) or False
+        if from_astream:
+            return span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)
+        return None
 
     def _handle_finished_graph(self, graph_span, finished_tasks, is_subgraph_node):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
