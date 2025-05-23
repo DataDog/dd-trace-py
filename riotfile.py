@@ -2514,7 +2514,7 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": latest,
+                "openai-agents": "==0.0.16",
             },
         ),
         Venv(
@@ -2652,7 +2652,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [latest],
+                "crewai": "==0.121.0",
                 "vcrpy": "==7.0.0",
             },
         ),
