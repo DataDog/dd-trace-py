@@ -119,6 +119,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         return
 
     def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
+        """
+        Handle graph ticks that aren't at the end of the graph execution. Link all next tasks to their parent tasks
+        from the dict of finished tasks. Any unused finished tasks (not used as parents for queued tasks) should be
+        linked as output --> output links for the outer graph span.
+        """
         task_trigger_channels_to_finished_tasks = _map_channel_writes_to_finished_tasks_ids(finished_tasks)
 
         used_finished_task_ids: Set[str] = set()
@@ -137,7 +142,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         task,
         task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
     ) -> List[str]:
-        """Create the span links for a queued task from its triggering parent tasks."""
+        """
+        Create the span links for a queued task from its triggering parent tasks.
+
+        Returns the finished task ids used as parent tasks.
+        """
         parent_ids = _get_parent_ids_from_finished_tasks(task, task_trigger_channels_to_finished_tasks)
 
         for node_id in parent_ids:
@@ -216,7 +225,7 @@ def _get_parent_ids_from_finished_tasks(
     task_triggers_from_task_config = task_config.get("metadata", {}).get("langgraph_triggers", [])
     task_triggers = task_triggers_from_task or task_triggers_from_task_config or []
 
-    trigger_ids: List[str] = []
+    parent_ids: List[str] = []
 
     for trigger in task_triggers:
         if trigger == PREGEL_PUSH:
@@ -227,13 +236,13 @@ def _get_parent_ids_from_finished_tasks(
             for _ in range(len(pregel_pushes)):
                 pregel_push_node, trigger_id = pregel_pushes.pop(0)
                 if pregel_push_node == getattr(task, "name", ""):
-                    trigger_ids.append(trigger_id)
+                    parent_ids.append(trigger_id)
                     break
                 pregel_pushes.append((pregel_push_node, trigger_id))
         else:
-            trigger_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
+            parent_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
 
-    return trigger_ids
+    return parent_ids
 
 
 def _map_channel_writes_to_finished_tasks_ids(
