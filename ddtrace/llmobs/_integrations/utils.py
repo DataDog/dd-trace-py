@@ -562,12 +562,22 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     if "instructions" in kwargs:
         input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
 
-    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: openai_get_metadata_from_response(response)})
+    span._set_ctx_items(
+        {
+            INPUT_MESSAGES: input_messages,
+            METADATA: {k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")},
+        }
+    )
 
     if span.error or not response:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
+    """
+    The response object contains enriched metadata such as tool calls which
+    may have not been present in the original request.
+    """
+    span._set_ctx_item(METADATA, openai_get_metadata_from_response(response))
     output_messages = openai_get_output_messages_from_response_object(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
