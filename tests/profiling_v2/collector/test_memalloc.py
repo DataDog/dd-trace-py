@@ -57,7 +57,7 @@ def test_memory_collector(tmp_path):
     )
     ddup.start()
 
-    mc = memalloc.MemoryCollector(None)
+    mc = memalloc.MemoryCollector()
     with mc:
         _allocate_1k()
         mc.periodic()

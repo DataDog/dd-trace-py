@@ -235,8 +235,7 @@ def test_heap_stress():
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
 def test_memalloc_speed(benchmark, heap_sample_size):
     if heap_sample_size:
-        r = recorder.Recorder()
-        with memalloc.MemoryCollector(r, heap_sample_size=heap_sample_size):
+        with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
             benchmark(_allocate_1k)
     else:
         benchmark(_allocate_1k)
