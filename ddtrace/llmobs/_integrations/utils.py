@@ -605,49 +605,6 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     if not tool_call_chunk:
         return
 
-    # Handle response tool calls
-    if hasattr(tool_call_chunk, "type") and tool_call_chunk.type in [
-        "function_call",
-        "file_search_call",
-        "web_search_call",
-        "computer_call",
-    ]:
-        tool_call_info = {
-            "name": getattr(tool_call_chunk, "name", ""),
-            "tool_id": getattr(tool_call_chunk, "id", ""),
-            "type": getattr(tool_call_chunk, "type", ""),
-        }
-
-        # Handle file search queries
-        file_queries_raw = getattr(tool_call_chunk, "queries", None)
-        if file_queries_raw:
-            tool_call_info["arguments"] = {"queries": file_queries_raw}
-            stored_tool_calls.append(tool_call_info)
-            return
-
-        # Handle computer call action
-        action_raw = getattr(tool_call_chunk, "action", "")
-        if action_raw:
-            if isinstance(action_raw, str):
-                action_json_str = action_raw.json()
-                tool_call_info["arguments"] = json.loads(f'{{"action": {action_json_str}}}')
-            stored_tool_calls.append(tool_call_info)
-            return
-
-        # Handle function call arguments
-        arguments = getattr(tool_call_chunk, "arguments", "")
-        if arguments:
-            try:
-                tool_call_info["arguments"] = json.loads(arguments)
-            except json.JSONDecodeError:
-                tool_call_info["arguments"] = arguments
-            stored_tool_calls.append(tool_call_info)
-            return
-
-        # If no arguments were found, add the tool call without arguments
-        stored_tool_calls.append(tool_call_info)
-        return
-
     # Handle chat completion tool calls (original implementation)
     tool_call_idx = getattr(tool_call_chunk, "index", None)
     tool_id = getattr(tool_call_chunk, "id", None)

@@ -952,9 +952,7 @@ class TestLLMObsOpenaiV1:
             model = "gpt-4.1"
             input_messages = multi_message_input
             client = openai.AsyncOpenAI()
-            resp = await client.responses.create(
-                model=model, input=input_messages, top_p=0.9, max_output_tokens=100
-            )
+            resp = await client.responses.create(model=model, input=input_messages, top_p=0.9, max_output_tokens=100)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
