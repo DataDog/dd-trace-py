@@ -275,6 +275,13 @@ venv = Venv(
                 ),
             ],
         ),
+        # Internal coverage (dd_coverage to distinguish from regular coverage)
+        # has version-specific code so tests are run across all supported versions
+        Venv(
+            name="dd_coverage",
+            command="pytest --no-cov {cmdargs} tests/coverage -s",
+            pys=select_pys(max_version="3.12"),
+        ),
         Venv(
             name="internal",
             env={
