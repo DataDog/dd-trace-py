@@ -1,9 +1,12 @@
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -87,41 +90,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
             return
 
-        finished_task_names_to_ids: dict[str, list[str]] = {}
-        for task_id, task in finished_tasks.items():
-            finished_task_name_ids = finished_task_names_to_ids.setdefault(task.name, [])
-            finished_task_name_ids.append(task_id)
-
-        seen_pregel_tasks_writes: set[int] = set()  # set of pregel send object ids
-        used_finished_task_ids: set[str] = set()
-        for task_id, task in next_tasks.items():
-            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
-            queued_node["name"] = getattr(task, "name", "")
-
-            parent_ids = self._link_task_to_parents(
-                task_id, task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
-            )
-            used_finished_task_ids.update(parent_ids)
-
-        unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_task_ids
-        graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
-        for finished_task_id in unused_finished_task_ids:
-            node = self._graph_nodes_by_task_id.get(finished_task_id)
-            if node is None:
-                continue
-
-            span = node.get("span")
-            if span is None:
-                continue
-
-            graph_span_links.append(
-                {
-                    "span_id": span.get("span_id", ""),
-                    "trace_id": span.get("trace_id", ""),
-                    "attributes": {"from": "output", "to": "output"},
-                }
-            )
-        graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
+        self._handle_intermediary_graph_tick(graph_span, next_tasks, finished_tasks)
 
     def _handle_finished_graph(self, graph_span: Span, finished_tasks: dict[str, Any], is_subgraph_node: bool):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
@@ -149,28 +118,36 @@ class LangGraphIntegration(BaseLLMIntegration):
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
         return
 
+    def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
+        task_trigger_channels_to_finished_tasks = _map_channel_writes_to_finished_tasks_ids(finished_tasks)
+
+        used_finished_task_ids: Set[str] = set()
+        for task_id, task in next_tasks.items():
+            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
+            queued_node["name"] = getattr(task, "name", "")
+
+            parent_ids = self._link_task_to_parents(task_id, task, task_trigger_channels_to_finished_tasks)
+            used_finished_task_ids.update(parent_ids)
+
+        self._link_finished_tasks_without_children(graph_span, finished_tasks, used_finished_task_ids)
+
     def _link_task_to_parents(
         self,
         task_id: str,
         task,
-        finished_tasks: dict[str, Any],
-        finished_task_names_to_ids: dict[str, list[str]],
-        seen_pregel_tasks_writes: set[int],
+        task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
     ) -> List[str]:
         """Create the span links for a queued task from its triggering parent tasks."""
-        parent_ids = _get_parent_ids_from_finished_tasks(
-            task, finished_tasks, finished_task_names_to_ids, seen_pregel_tasks_writes
-        )
+        parent_ids = _get_parent_ids_from_finished_tasks(task, task_trigger_channels_to_finished_tasks)
 
         for node_id in parent_ids:
             if node_id is None:
                 continue
 
-            queued_node: dict = self._graph_nodes_by_task_id.setdefault(task_id, {})
+            queued_node: Dict[str, Any] = self._graph_nodes_by_task_id.setdefault(task_id, {})
 
             trigger_node_span = self._graph_nodes_by_task_id.get(node_id, {}).get("span")
             if not trigger_node_span:
-                # Subgraphs that are called at the start of the graph need to be named, but don't need any span links
                 continue
 
             span_link = {
@@ -178,130 +155,124 @@ class LangGraphIntegration(BaseLLMIntegration):
                 "trace_id": trigger_node_span.get("trace_id", ""),
                 "attributes": {"from": "output", "to": "input"},
             }
-            span_links: list[dict] = queued_node.setdefault("span_links", [])
+            span_links: List[Dict[str, Any]] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
         return parent_ids
 
+    def _link_finished_tasks_without_children(
+        self, graph_span: Span, finished_tasks: Dict[str, Any], used_finished_tasks_ids: Set[str]
+    ):
+        """
+        Links any unused finished tasks to the outer graph span with output --> output span links.
+        It's possible some of the finished tasks aren't used as parents to queued tasks, but the
+        current graph tick is not the last tick.
+        """
+        unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
+        graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
+        for finished_task_id in unused_finished_task_ids:
+            node = self._graph_nodes_by_task_id.get(finished_task_id)
+            if node is None:
+                continue
+
+            span = node.get("span")
+            if span is None:
+                continue
+
+            graph_span_links.append(
+                {
+                    "span_id": span.get("span_id", ""),
+                    "trace_id": span.get("trace_id", ""),
+                    "attributes": {"from": "output", "to": "output"},
+                }
+            )
+        graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
+
 
 def _get_parent_ids_from_finished_tasks(
     task,
-    finished_tasks: dict[str, Any],
-    finished_task_names_to_ids: dict[str, list[str]],
-    seen_pregel_tasks_writes: set[int],
+    task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
 ) -> List[str]:
     """
     Get the set of task ids that are responsible for triggering the queued task (parents).
 
-    This logic handles legacy formatting of triggers (pre langgraph 0.3.22), and beyond.
-    Older versions of langgraph would include a list of either task names or task relationships in their task config
-    (ie, task_triggers=["a", "b", ...], task_triggers=["a:b", "c:d", ...], etc.) that provide a possible mapping into
-    the `finished_task_names_to_ids` dictionary.
+    Tasks are queued up by means of writes to ephemeral channels. A given finished task will "write"
+    to one of these channels, and the pregel look creates new tasks by consuming these writes and translating
+    them into triggers for the new tasks.
 
-    Newer versions of langgraph triggers look more like the internal private channel names, ie
-    for task `a`, its one and only trigger might be `("branch:to:a",)`.
-    In this case, we need to look for all the finished tasks whose writes include that channel name.
+    Parentage for span linking is computed by looking at the writes from all of the finished tasks grouped by
+    the channel written to (this is what `task_trigger_channels_to_finished_tasks` represents). Then, for a given
+    task, we can loop over its triggers (which are representative of the channel writes), and extend its parent
+    triggers by the finished task ids that wrote to that trigger channel.
 
-    Since only one instance of each node (aside from PREGEL_PUSH via Send) can be triggered per tick,
-    it is safe to assume all finished nodes that have a given branch trigger in their writes are responsible
-    for triggering the queued task.
-
-    In the case of a pregel push, we assume that all pushed tasks are queued in order of the nodes added in the
-    finished_tasks dictionary. We look for the first PREGEL_TASK write in the finished_tasks that has not already
-    been marked as seen in the `seen_pregel_tasks` set (representing that a node queued via send has
-    already been recorded) with span linkage.
+    The one caveat is nodes queued up via `Send` commands. These nodes will have a `__pregel_push` as their trigger.
+    In this case, finished nodes that queue up these nodes from a `Send` command will write to the `__pregel_tasks`
+    channel. For given tasks/nodes whose triggers include `__pregel_push`, we'll find the first instance of a
+    `__pregel_tasks` write that is for a node with the current task's name. Since each of these writes can only
+    be used for one instance of a node queued by `Send`, we pop it from the list of `__pregel_tasks` writes.
     """
     task_config = getattr(task, "config", {})
-    task_triggers = task_config.get("metadata", {}).get("langgraph_triggers", [])
+    task_triggers_from_task = getattr(task, "triggers", [])
+    task_triggers_from_task_config = task_config.get("metadata", {}).get("langgraph_triggers", [])
+    task_triggers = task_triggers_from_task or task_triggers_from_task_config or []
 
-    # attempt to handle legacy node names
-    trigger_ids = []
+    trigger_ids: List[str] = []
+
     for trigger in task_triggers:
-        if isinstance(trigger, str) and (task_ids := finished_task_names_to_ids.get(_extract_parent(trigger))):
-            trigger_ids.extend(task_ids)
+        if trigger == PREGEL_PUSH:
+            # find the nearest pregel_task that was queued up with this task's (node's) name
+            # since Send's are a one-off to be consumed, remove it from the
+            # branches to finished_tasks dict entry
+            pregel_pushes = cast(List[Tuple[str, str]], task_trigger_channels_to_finished_tasks.get(PREGEL_TASKS, []))
+            for _ in range(len(pregel_pushes)):
+                pregel_push_node, trigger_id = pregel_pushes.pop(0)
+                if pregel_push_node == getattr(task, "name", ""):
+                    trigger_ids.append(trigger_id)
+                    break
+                pregel_pushes.append((pregel_push_node, trigger_id))
+        else:
+            trigger_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
 
-    if trigger_ids:
-        return trigger_ids
+    return trigger_ids
 
-    # try and find triggers from new formatting in writes/triggers
-    trigger_branch = _find_trigger(task_triggers)
-    if trigger_branch is None:
-        return []
-    elif trigger_branch == PREGEL_PUSH:
-        for finished_task_id, finished_task in finished_tasks.items():
-            if _has_pregel_push_for_task(task, finished_task, seen_pregel_tasks_writes):
-                return [finished_task_id]
-        return []
+
+def _map_channel_writes_to_finished_tasks_ids(
+    finished_tasks: Dict[str, Any]
+) -> Dict[str, List[Union[str, Tuple[str, str]]]]:
+    """
+    Maps channel writes for finished tasks to the list of finished tasks ids that wrote to that channel.
+    For `__pregel_tasks` writes, we append both the node name for the `Send` object, and the finished task id
+    to be used in `_get_parent_ids_from_finished_tasks`.
+    """
+    channel_names_to_finished_tasks_ids: Dict[str, List[Union[str, Tuple[str, str]]]] = {}
+    for finished_task_id, finished_task in finished_tasks.items():
+        writes: Iterable[Tuple[str, Any]] = getattr(finished_task, "writes", [])
+        for write in writes:
+            _append_finished_task_to_channel_writes_map(finished_task_id, write, channel_names_to_finished_tasks_ids)
+
+    return channel_names_to_finished_tasks_ids
+
+
+def _append_finished_task_to_channel_writes_map(
+    finished_task_id: str, write, channel_names_to_finished_tasks_ids: Dict[str, List[Union[str, Tuple[str, str]]]]
+):
+    """
+    Appends the finished task id to the map of channel names to finished tasks ids. If the write represents a
+    `__pregel_tasks` write, then append both the node name it's writing to, and the finished task id.
+    Otherwise, just append the finished task id to the list of channel writes that the finished task is writing to.
+    """
+    if not isinstance(write, tuple) or len(write) != 2:
+        return
+    channel_write_name, channel_write_arg = write
+    tasks_for_trigger = channel_names_to_finished_tasks_ids.setdefault(channel_write_name, [])
+
+    if channel_write_name == PREGEL_TASKS:
+        pregel_task_node: Optional[str] = getattr(channel_write_arg, "node", None)
+        if pregel_task_node is None:
+            return
+        tasks_for_trigger.append((pregel_task_node, finished_task_id))
     else:
-        return [
-            finished_task_id
-            for finished_task_id, finished_task in finished_tasks.items()
-            if _has_branch_to(finished_task, trigger_branch)
-        ]
-
-
-def _find_trigger(triggers: Union[Tuple[str, ...], List[str]]) -> Optional[str]:
-    """
-    Finds the trigger branch from a list or tuple of triggers.
-
-    This function is used when there are no conventional triggers, and the only trigger used are
-    branch triggers for channel writes and reads, or pregel pushes.
-
-    If a pregel push is found without finding a branch trigger, we return that it is a
-    pregel push, or otherwise no trigger is found.
-    """
-    has_pregel_push = False
-    for trigger in triggers:
-        if trigger.startswith("branch:to"):
-            return trigger
-        has_pregel_push = trigger == PREGEL_PUSH
-    if has_pregel_push:
-        return PREGEL_PUSH
-    return None
-
-
-def _has_branch_to(finished_task, branch_to: str) -> bool:
-    """
-    Checks if the task writes to the given branch_to.
-    """
-    task_writes: list[tuple[str, ...]] = getattr(finished_task, "writes", [])
-    for write in task_writes:
-        if branch_to in write:
-            return True
-    return False
-
-
-def _has_pregel_push_for_task(task, finished_task, seen_pregel_tasks_writes: set[int]) -> bool:
-    """
-    Checks if the task writes has an unmarked pregel push for a given task name.
-    A pregel push (marked by PREGEL_TASKS from langgraph for task writes) has an arg which is the
-    Send object (something like `Send(node="a", arg=...)`).
-
-    This assumes (referenced in `_get_task_trigger_ids_from_finished_tasks`) that all pregel tasks are queued in order
-    of the nodes added in the finished_tasks dictionary (so that the first task whose trigger is a PREGEL_PUSH
-    is from the first finished task that has a PREGEL_TASK write).
-    """
-    task_writes: list[tuple[str, ...]] = getattr(finished_task, "writes", [])
-    for branch, arg in task_writes:
-        if branch == PREGEL_TASKS and id(arg) not in seen_pregel_tasks_writes:
-            seen_pregel_tasks_writes.add(id(arg))
-            return getattr(arg, "node", "") == getattr(task, "name", "")
-    return False
-
-
-def _extract_parent(trigger: str) -> str:
-    """
-    Extract the parent node name from a trigger string.
-
-    The string could have the format:
-    - `parent:child`
-    - `parent:routing_logic:child`
-    - `branch:parent:routing_logic:child`
-    """
-    split = trigger.split(":")
-    if len(split) < 3:
-        return split[0]
-    return split[1]
+        tasks_for_trigger.append(finished_task_id)
 
 
 def _default_span_link(span: Span) -> dict:
