@@ -8,7 +8,6 @@ import wrapt
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._integrations.utils import openai_construct_response_from_streamed_chunks
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -287,14 +286,13 @@ def _loop_handler(span, chunk, streamed_chunks):
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
+
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
     try:
         if operation_type == "response":
-            formatted_completions = [
-                openai_construct_response_from_streamed_chunks(choice) for choice in streamed_chunks
-            ]
+            formatted_completions = streamed_chunks[0][0]
         elif operation_type == "completion":
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
@@ -303,8 +301,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-
-        if integration.is_pc_sampled_span(span):
+        if integration.is_pc_sampled_span(span) and not operation_type == "response":
             _tag_streamed_response(integration, span, formatted_completions)
         _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
         integration.llmobs_set_tags(
@@ -343,6 +340,13 @@ def _set_token_metrics(span, response, prompts, messages, kwargs):
     estimated = False
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
+        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
+            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
+            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", 0)
+    elif response and getattr(response, "usage", None):
+        usage = response.usage
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
             prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
