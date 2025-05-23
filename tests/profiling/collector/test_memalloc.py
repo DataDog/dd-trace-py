@@ -16,7 +16,6 @@ try:
 except ImportError:
     pytestmark = pytest.mark.skip("_memalloc not available")
 
-from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import memalloc
 
 
