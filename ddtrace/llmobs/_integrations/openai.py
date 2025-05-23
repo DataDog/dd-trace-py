@@ -129,7 +129,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         elif operation == "response":
-            response = span._get_ctx_item("llmobs.response_created_chunk")
             openai_set_meta_tags_from_response(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(

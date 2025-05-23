@@ -435,24 +435,13 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
-    supported_tool_types = ["function_call", "file_search_call", "web_search_call", "computer_call"]
-
-    def _parse_response_completed_stream_chunk(chunk: Any) -> Dict[str, Any]:
-        pass
-
-    def _parse_response_completed_object(response: Any) -> Dict[str, Any]:
-        pass
-
     # For streamed responses
     if kwargs.get("stream"):
-        response_created_chunk = span._get_ctx_item("llmobs.response_created_chunk")
-        formatted_message = openai_construct_response_from_streamed_chunks(response_created_chunk)
-        print(f"formatted_message is: {formatted_message}")
         # To discuss: should I remove usage from streamed output message?
         for item in response:
             if "usage" in item:
                 item.pop("usage")
-        span._set_ctx_item(OUTPUT_MESSAGES, formatted_message)
+        span._set_ctx_item(OUTPUT_MESSAGES, response)
     # For non-streamed responses
     output_data = _get_attr(response, "output", [])
     output_messages = []
@@ -478,7 +467,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             if encrypted_content:  # TODO: handle encrypted content
                 pass
 
-        if output.type in supported_tool_types:
+        if output.type in ["function_call", "file_search_call", "web_search_call", "computer_call"]:
             tool_call_info = []
             output_type = output.type
             # file_search_call
@@ -519,8 +508,19 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
             tool_call_info.append(tool_call)
             arguments = tool_call.get("arguments", {})
             # Convert arguments to string before dispatching
-            # arguments_str = json.dumps(arguments) if isinstance(arguments, (dict, list)) else str(arguments)
-
+            arguments_str = json.dumps(arguments) if isinstance(arguments, (dict, list)) else str(arguments)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    arguments_str,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
             if tool_call_info:
                 output_messages.append({"content": "", "tool_calls": tool_call_info})
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_id, span))
@@ -533,21 +533,19 @@ def openai_construct_response_from_streamed_chunks(streamed_chunks: List[Any]) -
     {"output": [{"role": "...", "content": [{"text": "..."}]}]}
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
-    print(f"streamed_chunks is: {streamed_chunks}")
     if not streamed_chunks:
         return message
-    steamed_response = getattr(streamed_chunks, "response", None)
-    if steamed_response:
-        if getattr(steamed_response, "usage", None):
+    for chunk in streamed_chunks:
+        if getattr(chunk, "usage", None):
             """
             TODO: currently chunk_value is a ResponseUsage object.
             We want to convert it to a dict that looks like 
             {"input_tokens": ..., "output_tokens": ..., "total_tokens": ...}
             """
-            message["usage"] = steamed_response.usage
+            message["usage"] = chunk.usage
 
-        if getattr(steamed_response, "output", None):
-            chunk_output = steamed_response.output
+        if getattr(chunk, "output", None):
+            chunk_output = chunk.output
             for output in chunk_output:
                 if hasattr(output, "content"):
                     # content is a list of ResponseOutputText objects
