@@ -144,14 +144,14 @@ model_list = [
         "model_name": "gpt-3.5-turbo",
         "litellm_params": {
             "model": "gpt-3.5-turbo",
-            "api_key": os.getenv("<not-a-real-key>"),
+            "api_key": "<not-a-real-key>",
         },
     },
     {
         "model_name": "gpt-4",
         "litellm_params": {
             "model": "gpt-4",
-            "api_key": os.getenv("<not-a-real-key>"),
+            "api_key": "<not-a-real-key>",
         },
     },
 ]
@@ -192,7 +192,7 @@ expected_router_settings = {
                 "merge_reasoning_content_in_choices": False,
                 "model": "gpt-3.5-turbo",
             },
-            "model_info": {"id": "c9015295692caff343e5da390cef20930bbeb7bf78be9202763d0cf4ced22351", "db_model": False},
+            "model_info": {"id": "d3fd9892d06620e68be6a5003b9a57fbe34a99b5f0a0d5152dba268433665ff5", "db_model": False},
         },
         {
             "model_name": "gpt-4",
@@ -201,7 +201,7 @@ expected_router_settings = {
                 "merge_reasoning_content_in_choices": False,
                 "model": "gpt-4",
             },
-            "model_info": {"id": "de074d9b469e7072548ae4dbe5758205cc13e9c1934a981d774cc974e83c177b", "db_model": False},
+            "model_info": {"id": "ae9ff51b0bccc07e81179560923cd3002d40d2c707538a4a7b15c8a1b83ad655", "db_model": False},
         },
     ],
 }

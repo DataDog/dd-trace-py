@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    litellm: Adds APM and LLM Observability tracing support for LiteLLM's router methods.
+    litellm: Adds APM and LLM Observability tracing support for LiteLLM's synchronous and asynchronous ``completion`` and ``text_completion`` router methods.
