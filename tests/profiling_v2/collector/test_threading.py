@@ -807,3 +807,42 @@ class TestThreadingLockCollector:
                 ),
             ],
         )
+
+
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
+def test_lock_create_speed_patched(benchmark):
+    with collector_threading.ThreadingLockCollector():
+        benchmark(threading.Lock)
+
+
+@pytest.mark.benchmark(
+    group="threading-lock-create",
+)
+def test_lock_create_speed(benchmark):
+    benchmark(threading.Lock)
+
+
+def _lock_acquire_release(lock):
+    lock.acquire()
+    lock.release()
+
+
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
+@pytest.mark.parametrize(
+    "pct",
+    range(5, 61, 5),
+)
+def test_lock_acquire_release_speed_patched(benchmark, pct):
+    with collector_threading.ThreadingLockCollector(capture_pct=pct):
+        benchmark(_lock_acquire_release, threading.Lock())
+
+
+@pytest.mark.benchmark(
+    group="threading-lock-acquire-release",
+)
+def test_lock_acquire_release_speed(benchmark):
+    benchmark(_lock_acquire_release, threading.Lock())
