@@ -138,7 +138,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_quarantined") == "true"
             assert span.get_tag("test.status") == "fail"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
 
     def test_attempt_to_fix_quarantined_test_flaky(self):
@@ -158,7 +158,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_quarantined") == "true"
             assert span.get_tag("test.status") == ("pass" if i == 10 else "fail")
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
     def test_attempt_to_fix_disabled_test(self):
@@ -221,7 +221,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") is None
             assert span.get_tag("test.status") == "fail"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
 
     def test_attempt_to_fix_active_test_skip(self):
@@ -242,7 +242,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") is None
             assert span.get_tag("test.status") == "skip"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
     def test_pytest_attempt_to_fix_junit_xml_active(self):
@@ -319,5 +319,5 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") == "true"
             assert span.get_tag("test.status") == "fail"
 
-        assert attempt_to_fix_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert attempt_to_fix_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert attempt_to_fix_spans[-1].get_tag("test.has_failed_all_retries") == "true"

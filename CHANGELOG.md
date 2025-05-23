@@ -4,6 +4,46 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.7.2
+
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+
+---
+
+## 3.7.1
+
+
+### Bug Fixes
+
+- CI Visibility
+  - Resolves an issue where pytest-xdist would not exit with the proper status code if ATR was enabled.
+  - Resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
+
+
+---
+
+## 2.21.8
+
+
+### Bug Fixes
+
+  - Code Security:
+    - Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
+    - Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.  
+  - Profiling:
+    - Improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
+  - Other:
+    - Fix a potential circular import with the psycopg2 contrib.
+    - Code origin for spans: fixes a performance issue with exit spans.
+
+
+---
+
 ## 2.21.6
 
 ### Bug Fixes

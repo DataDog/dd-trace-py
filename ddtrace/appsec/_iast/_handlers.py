@@ -14,8 +14,8 @@ from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
@@ -556,3 +556,14 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
     return taint_pyobject(
         result, source_name=origin_to_str(OriginType.PATH), source_value=result, source_origin=OriginType.BODY
     )
+
+
+def _iast_instrument_starlette_scope(scope, route):
+    if scope.get("path_params"):
+        try:
+            for k, v in scope["path_params"].items():
+                scope["path_params"][k] = taint_pyobject(
+                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                )
+        except Exception:
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

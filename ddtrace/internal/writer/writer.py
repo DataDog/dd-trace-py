@@ -48,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from .agent import ConnectionType  # noqa:F401
+    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -479,7 +479,13 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
+        if (
+            is_windows
+            or in_gcp_function()
+            or in_azure_function()
+            or asm_config._asm_enabled
+            or asm_config._iast_enabled
+        ):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version

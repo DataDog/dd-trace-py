@@ -1,5 +1,5 @@
-""" This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
-"""
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
+
 import copy
 import os
 import re
@@ -15,7 +15,7 @@ from wrapt import FunctionWrapper
 import ddtrace.auto  # noqa: F401  # isort: skip
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
@@ -207,6 +207,23 @@ def view_cmdi_secure():
     subp = subprocess.Popen(args=["ls", "-la", shlex.quote(filename)])
     subp.wait()
     return Response("OK")
+
+
+@app.route("/iast-header-injection-vulnerability", methods=["GET"])
+def iast_header_injection_vulnerability():
+    header = request.args.get("header")
+    resp = Response("OK")
+    resp.headers["Header-Injection"] = header
+    return resp
+
+
+@app.route("/iast-code-injection", methods=["GET"])
+def iast_code_injection_vulnerability():
+    filename = request.args.get("filename")
+    a = ""  # noqa: F841
+    c = eval("a + '" + filename + "'")
+    resp = Response(f"OK:{tracer._span_aggregator.writer._api_version}:{c}")
+    return resp
 
 
 @app.route("/shutdown", methods=["GET"])
