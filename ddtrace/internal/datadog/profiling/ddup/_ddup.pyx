@@ -60,7 +60,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    bint ddup_upload(unique_ptr[string] output_filename) nogil
+    bint ddup_upload() nogil
+    bint ddup_export_to_file(unique_ptr[string] output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -322,7 +323,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
 
 
 # Module-level flag to track if code provenance has been set
-cdef bint _code_provenance_set = False
+cdef int _code_provenance_set = 0
 
 
 def config(
@@ -396,26 +397,28 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     # that uwsgi doesn't work well with our native components.
     cdef unique_ptr[string] output_filename_cstr
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
-
-    processor = tracer._endpoint_call_counter_span_processor
-    endpoint_counts, endpoint_to_span_ids = processor.reset()
-
-    call_ddup_profile_set_endpoints(endpoint_to_span_ids)
-    call_ddup_profile_add_endpoint_counts(endpoint_counts)
-
-    endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
-
-    if enable_code_provenance and not _code_provenance_set:
-        call_code_provenance_set_json_str(json_str_to_export())
-        _code_provenance_set = True
-
     if output_filename and len(output_filename) > 0:
         output_filename_cstr = make_unique[string](output_filename)
+        with nogil:
+            ddup_export_to_file(move(output_filename_cstr))
+    else:
+        call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    with nogil:
-        ddup_upload(move(output_filename_cstr))
+        processor = tracer._endpoint_call_counter_span_processor
+        endpoint_counts, endpoint_to_span_ids = processor.reset()
+
+        call_ddup_profile_set_endpoints(endpoint_to_span_ids)
+        call_ddup_profile_add_endpoint_counts(endpoint_counts)
+
+        endpoint = _get_endpoint(tracer)
+        call_func_with_str(ddup_config_url, endpoint)
+
+        if enable_code_provenance and not _code_provenance_set:
+            call_code_provenance_set_json_str(json_str_to_export())
+            _code_provenance_set = 1
+
+        with nogil:
+            ddup_upload()
 
 
 cdef class SampleHandle:

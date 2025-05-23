@@ -320,7 +320,7 @@ ddup_drop_sample(Datadog::Sample* sample) // cppcheck-suppress unusedFunction
 }
 
 bool
-ddup_upload(std::unique_ptr<std::string> output_filename) // cppcheck-suppress unusedFunction
+ddup_upload() // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (!is_ddup_initialized) {
@@ -329,13 +329,6 @@ ddup_upload(std::unique_ptr<std::string> output_filename) // cppcheck-suppress u
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
         }
         return false;
-    }
-
-    if (output_filename != nullptr && !output_filename->empty()) {
-        bool ret = Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
-        Datadog::Sample::profile_release();
-        Datadog::Sample::profile_clear_state();
-        return ret;
     }
 
     auto uploader_or_err = Datadog::UploaderBuilder::build();
@@ -359,6 +352,20 @@ ddup_upload(std::unique_ptr<std::string> output_filename) // cppcheck-suppress u
     Datadog::Sample::profile_release();
     Datadog::Sample::profile_clear_state();
     return true;
+}
+
+bool
+ddup_export_to_file(std::unique_ptr<std::string> output_filename)
+{
+    static bool already_warned = false;
+    if (!is_ddup_initialized) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "ddup_export_to_file() called before ddup_start()" << std::endl;
+        }
+        return false;
+    }
+    return Datadog::Uploader::export_to_file(std::move(output_filename), Datadog::Sample::profile_borrow());
 }
 
 void
