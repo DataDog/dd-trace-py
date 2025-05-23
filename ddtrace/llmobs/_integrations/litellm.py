@@ -72,7 +72,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA) or {}
-        base_url = kwargs.get("api_base", None)
+        base_url = kwargs.get("api_base")
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
             span._set_ctx_items({METADATA: metadata})
@@ -147,14 +147,16 @@ class LiteLLMIntegration(BaseLLMIntegration):
         LLM spans should be submitted to LLMObs if:
             - base_url is not set AND an LLM span will not be submitted elsewhere
         """
-        router_operation = "router" in operation if operation else False
-        base_url = kwargs.get("api_base", None)
-        if router_operation or base_url or self._skip_llm_span(kwargs, model):
+        base_url = kwargs.get("api_base")
+        if self.is_router_operation(operation) or base_url or self._skip_llm_span(kwargs, model):
             return "workflow"
         return "llm"
 
     def is_completion_operation(self, operation: str) -> bool:
         return operation in TEXT_COMPLETION_OPERATIONS
+    
+    def is_router_operation(self, operation: Optional[str]) -> bool:
+        return "router" in operation if operation else False
     
     @staticmethod
     def _extract_llmobs_metrics(resp: Any, span_kind: str) -> Dict[str, Any]:
@@ -180,7 +182,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             - base_url is not set AND
             - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
         """
-        base_url = kwargs.get("api_base", None)
+        base_url = kwargs.get("api_base")
         if not base_url and self._skip_llm_span(kwargs, model):
             return False
         return True
