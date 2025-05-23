@@ -323,7 +323,7 @@ cdef int64_t clamp_to_int64_unsigned(value):
 
 
 # Module-level flag to track if code provenance has been set
-cdef int _code_provenance_set = 0
+cdef bint _code_provenance_set = False
 
 
 def config(
@@ -415,7 +415,7 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
 
         if enable_code_provenance and not _code_provenance_set:
             call_code_provenance_set_json_str(json_str_to_export())
-            _code_provenance_set = 1
+            _code_provenance_set = True
 
         with nogil:
             ddup_upload()
