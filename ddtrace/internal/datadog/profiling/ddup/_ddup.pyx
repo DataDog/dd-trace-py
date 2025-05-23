@@ -400,6 +400,12 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     cdef const char* c_str_data
     cdef Py_ssize_t c_str_size
 
+    processor = tracer._endpoint_call_counter_span_processor
+    endpoint_counts, endpoint_to_span_ids = processor.reset()
+
+    call_ddup_profile_set_endpoints(endpoint_to_span_ids)
+    call_ddup_profile_add_endpoint_counts(endpoint_counts)
+
     if output_filename and len(output_filename) > 0:
         c_str_data = PyUnicode_AsUTF8AndSize(output_filename, &c_str_size)
         if c_str_data != NULL:
@@ -408,12 +414,6 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
             ddup_export_to_file(move(output_filename_cstr))
     else:
         call_func_with_str(ddup_set_runtime_id, get_runtime_id())
-
-        processor = tracer._endpoint_call_counter_span_processor
-        endpoint_counts, endpoint_to_span_ids = processor.reset()
-
-        call_ddup_profile_set_endpoints(endpoint_to_span_ids)
-        call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
         endpoint = _get_endpoint(tracer)
         call_func_with_str(ddup_config_url, endpoint)
