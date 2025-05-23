@@ -124,7 +124,6 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-@pytest.mark.skip(reason="Worker process either crashes or hangs")
 def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
@@ -140,7 +139,6 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
         assert len(samples) > 0
 
 
-@pytest.mark.skip(reason="Worker process either crashes or hangs")
 def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
