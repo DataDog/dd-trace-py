@@ -31,7 +31,7 @@ class Uploader
     static void prefork();
     static void postfork_parent();
     static void postfork_child();
-    static bool export_to_file(std::unique_ptr<std::string> output_filename, ddog_prof_Profile& profile);
+    static bool export_to_file(std::string_view output_filename, ddog_prof_Profile& profile);
 
     Uploader(ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()
