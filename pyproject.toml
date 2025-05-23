@@ -198,7 +198,6 @@ exclude_dirs = [
   "ddtrace/internal/module.py",
   "ddtrace/internal/processor/stats.py",
   "ddtrace/internal/rate_limiter.py",
-  "ddtrace/internal/serverless/mini_agent.py",
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
 ]
