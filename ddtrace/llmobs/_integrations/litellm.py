@@ -128,10 +128,10 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
-        # model provider is unknown until request completes; therefore, this is a best effort attempt to check
-        # if model provider is Open AI or Azure
+        # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
+        is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return (
-            any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
+            is_openai_model
             and not stream
             and LLMObs._integration_is_enabled("openai")
         )
