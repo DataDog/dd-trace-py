@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This introduces tracing for the content of tool call outputs passed to LLM spans for the OpenAI Agents integration.

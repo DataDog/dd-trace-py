@@ -735,12 +735,9 @@ class OaiSpanAdapter:
                     except json.JSONDecodeError:
                         output = {"output": output}
                 tool_call_ids.append(item["call_id"])
-                processed_item["tool_calls"] = [
-                    {
-                        "tool_id": item["call_id"],
-                        "type": item.get("type", "function_call_output"),
-                    }
-                ]
+                processed_item["role"] = "tool"
+                processed_item["content"] = item["output"]
+                processed_item["tool_id"] = item["call_id"]
             if processed_item:
                 processed.append(processed_item)
 
