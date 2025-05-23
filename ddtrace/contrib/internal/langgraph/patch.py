@@ -7,6 +7,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import Pin
 
@@ -16,6 +17,8 @@ def get_version():
 
     return getattr(version, "__version__", "")
 
+
+LANGGRAPH_VERSION = parse_version(get_version())
 
 config._add("langgraph", {})
 
@@ -308,7 +311,7 @@ def patch():
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
-    if get_version() >= "0.3.29":
+    if LANGGRAPH_VERSION >= (0, 3, 29):
         wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
 
 
@@ -329,7 +332,7 @@ def unpatch():
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
 
-    if get_version() >= "0.3.29":
+    if LANGGRAPH_VERSION >= (0, 3, 29):
         unwrap(langgraph.utils.runnable, "_consume_aiter")
 
     delattr(langgraph, "_datadog_integration")

@@ -2,6 +2,7 @@ import os
 import sys
 from tempfile import NamedTemporaryFile
 
+from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 from ddtrace.contrib.internal.langgraph.patch import get_version
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
@@ -28,7 +29,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_wrapped(Pregel.astream)
         self.assert_wrapped(PregelLoop.tick)
 
-        if get_version() >= "0.3.29":
+        if LANGGRAPH_VERSION >= (0, 3, 29):
             self.assert_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def assert_not_module_patched(self, langgraph):
@@ -42,7 +43,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_wrapped(Pregel.stream)
         self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
-        if get_version() >= "0.3.29":
+        if LANGGRAPH_VERSION >= (0, 3, 29):
             self.assert_not_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def assert_not_module_double_patched(self, langgraph):
@@ -56,7 +57,7 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(Pregel.stream)
         self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
-        if get_version() >= "0.3.29":
+        if LANGGRAPH_VERSION >= (0, 3, 29):
             self.assert_not_double_wrapped(langgraph.utils.runnable._consume_aiter)
 
     def test_ddtrace_run_patch_on_import(self):
