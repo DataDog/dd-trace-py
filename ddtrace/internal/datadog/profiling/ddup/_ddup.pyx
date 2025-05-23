@@ -389,10 +389,11 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer,
     # Previously, we used to configure output_filename similar to what we do
     # for other strings as in ddup_config. And output_filename was stored as a
     # static field in UploaderBuilder class. For uwsgi tests, this resulted in
-    # output_filename destructed before it was used which led to a crash. To
-    # avoid this, we explicitly create a unique_ptr[string] here to pass. The
-    # actual allocation happens with make_unique[string] below, and only happens
-    # if output_filenmae is not None and not empty.
+    # output_filename destructed before it was used which led to a crash,
+    # especially in uwsgi tests with --lazy-apps.
+    # To avoid this, we explicitly create a unique_ptr[string] here to pass.
+    # The actual allocation happens with make_unique[string] below, and only
+    # happens if output_filenmae is not None and not empty.
     # This is a workaround for testing mostly and doesn't solve the problem
     # that uwsgi doesn't work well with our native components.
     cdef unique_ptr[string] output_filename_cstr
