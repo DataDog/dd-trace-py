@@ -29,6 +29,7 @@ def _set_span_tag_iast_request_tainted(span):
 
 
 def start_iast_context(span: Optional["Span"] = None):
+    log.debug(f"start_iast_context: span={span}")
     if asm_config._iast_enabled:
         create_propagation_context()
         core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
@@ -36,6 +37,7 @@ def start_iast_context(span: Optional["Span"] = None):
 
 def end_iast_context(span: Optional["Span"] = None):
     env = _get_iast_env()
+    log.debug(f"end_iast_context: span={span}, env={env}")
     if env is not None and env.span is span:
         finalize_iast_env(env)
     reset_propagation_context()
