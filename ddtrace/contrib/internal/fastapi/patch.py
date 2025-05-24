@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
@@ -26,7 +27,11 @@ config._add(
         request_span_name="fastapi.request",
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
-        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _trace_asgi_websocket=asbool(os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False)),
+        _trace_asgi_websocket_messages=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=True)),
+        _asgi_websockets_inherit_sampling=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+        ),
     ),
 )
 
