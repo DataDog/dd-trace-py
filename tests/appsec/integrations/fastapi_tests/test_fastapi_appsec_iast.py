@@ -26,6 +26,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
@@ -1040,3 +1041,34 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_XSS
+
+
+def test_fastapi_unvalidated_redirect(fastapi_application, client, tracer, test_spans):
+    @fastapi_application.get("/index.html")
+    async def test_route(request: Request):
+        from fastapi.responses import RedirectResponse
+
+        query_params = request.query_params.get("url")
+        return RedirectResponse(url=query_params)
+
+    with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
+        patch_iast({"unvalidated_redirect": True})
+        _aux_appsec_prepare_tracer(tracer)
+        client.get(
+            "/index.html?url=http://localhost:8080/malicious",
+        )
+
+        root_span = test_spans.pop_traces()[0][0]
+        assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        assert loaded["sources"] == [
+            {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+        ]
+
+        vulnerability = loaded["vulnerabilities"][0]
+        assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
+        assert vulnerability["evidence"] == {"valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]}
+        assert vulnerability["location"]["method"] == "test_route"
+        assert vulnerability["location"]["stackId"] == "1"
+        assert "class" not in vulnerability["location"]

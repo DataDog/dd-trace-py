@@ -13,6 +13,7 @@ IAST_PATCH = {
     "command_injection": True,
     "header_injection": True,
     "insecure_cookie": True,
+    "unvalidated_redirect": True,
     "weak_cipher": True,
     "weak_hash": True,
     "xss": True,
