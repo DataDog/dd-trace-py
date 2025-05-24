@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 import platform
 import re
@@ -10,12 +9,14 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.settings.crashtracker import config as crashtracker_config
 
 from .logger import get_logger
 
@@ -52,8 +53,6 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
@@ -71,7 +70,7 @@ def collect(tracer):
         agent_url = "CUSTOM"
         agent_error = None
 
-    sampler_rules = [str(rule) for rule in tracer._sampler.rules]
+    sampling_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
@@ -99,19 +98,13 @@ def collect(tracer):
             integration_configs[module] = dict(
                 enabled=enabled,
                 instrumented=module_instrumented,
-                module_available=module_available,
                 module_version=packages_available[module],
                 module_imported=module_imported,
                 config=config,
             )
-        else:
-            # Use N/A here to avoid the additional clutter of an entire
-            # config dictionary for a module that isn't available.
-            integration_configs[module] = "N/A"
 
     pip_version = packages_available.get("pip", "N/A")
-
-    from ddtrace._trace.tracer import log
+    git_repository_url, git_commit_sha, git_main_package = gitmetadata.get_git_tags()
 
     return dict(
         # Timestamp UTC ISO 8601 with the trailing +00:00 removed
@@ -137,14 +130,14 @@ def collect(tracer):
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
         priority_sampler_type="N/A",
-        sampler_rules=sampler_rules,
+        sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
-        debug=log.isEnabledFor(logging.DEBUG),
+        debug=ddtrace.config._debug_mode,
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config._analytics_enabled,
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
-        runtime_metrics_enabled=RuntimeWorker.enabled,
+        runtime_metrics_enabled=ddtrace.config._runtime_metrics_enabled,
         dd_version=ddtrace.config.version or "",
         global_tags=tags_to_str(ddtrace.config.tags),
         tracer_tags=tags_to_str(tracer._tags),
@@ -155,6 +148,12 @@ def collect(tracer):
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,
         remote_config_enabled=ddtrace.config._remote_config_enabled,
+        config_endpoint=ddtrace.config._from_endpoint,
+        crashtracking_enabled=crashtracker_config.enabled,
+        gitmetadata_enabled=gitmetadata.config.enabled,
+        git_repository_url=git_repository_url,
+        git_commit_sha=git_commit_sha,
+        git_main_package=git_main_package,
     )
 
 

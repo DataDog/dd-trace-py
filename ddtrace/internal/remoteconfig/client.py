@@ -299,10 +299,6 @@ class RemoteConfigClient:
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
         try:
-            log.debug(
-                "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
-            )  # noqa: G200
-
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
 

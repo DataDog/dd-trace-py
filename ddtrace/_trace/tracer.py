@@ -410,8 +410,6 @@ class Tracer(object):
         if context_provider is not None:
             self.context_provider = context_provider
 
-        self._generate_diagnostic_logs()
-
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
             try:
