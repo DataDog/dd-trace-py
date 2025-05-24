@@ -46,7 +46,7 @@ def get_distributions() -> t.Mapping[str, str]:
 def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
-    if _PACKAGE_DISTRIBUTIONS is None:
+    if not _PACKAGE_DISTRIBUTIONS:
         try:
             import importlib.metadata as importlib_metadata
         except ImportError:
@@ -54,7 +54,11 @@ def get_package_distributions() -> t.Mapping[str, t.List[str]]:
 
         # Prefer the official API if available, otherwise fallback to the vendored version
         if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+            try:
+                _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
+            except Exception:
+                # Fallback to the vendored version if the official API fails
+                _PACKAGE_DISTRIBUTIONS = _packages_distributions()
         else:
             _PACKAGE_DISTRIBUTIONS = _packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
@@ -307,15 +311,18 @@ def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     True
     """
     try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+        try:
+            import importlib.metadata as importlib_metadata
+        except ImportError:
+            import importlib_metadata  # type: ignore[no-redef]
 
-    pkg_to_dist = collections.defaultdict(list)
-    for dist in importlib_metadata.distributions():
-        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-            pkg_to_dist[pkg].append(dist.metadata["Name"])
-    return dict(pkg_to_dist)
+        pkg_to_dist = collections.defaultdict(list)
+        for dist in importlib_metadata.distributions():
+            for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
+                pkg_to_dist[pkg].append(dist.metadata["Name"])
+        return dict(pkg_to_dist)
+    except Exception:
+        return {}
 
 
 def _top_level_declared(dist):
