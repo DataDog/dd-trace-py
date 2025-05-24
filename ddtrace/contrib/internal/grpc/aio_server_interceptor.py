@@ -14,7 +14,6 @@ from grpc.aio._typing import ResponseType
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -195,10 +194,6 @@ def _create_span(pin, method, invocation_metadata, method_kind):
 
     set_grpc_method_meta(span, method, method_kind)
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
-
-    sample_rate = config.grpc_aio_server.get_analytics_sample_rate()
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     if pin.tags:
         span.set_tags(pin.tags)
