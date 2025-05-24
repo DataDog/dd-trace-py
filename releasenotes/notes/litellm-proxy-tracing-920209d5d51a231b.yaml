@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    litellm: Adds tracing support for LiteLLM's ``route_request`` proxy method.

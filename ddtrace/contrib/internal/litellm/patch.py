@@ -117,7 +117,29 @@ def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     return model, custom_llm_provider, dynamic_api_key, api_base
 
 
+@with_traced_module
+async def traced_proxy_route_request(litellm, pin, func, instance, args, kwargs):
+    integration = litellm._datadog_integration
+    model, host = None, None
+    data = get_argument_value(args, kwargs, 0, "data", None)
+    if data:
+        model = data.get("model", None)
+        proxy_server_request = data.get("proxy_server_request", {})
+        headers = proxy_server_request.get("headers", {})
+        host = headers.get("host", None)
+    with integration.trace(
+        pin,
+        func.__name__,
+        model=model,
+        host=host,
+        submit_to_llmobs=False,
+    ):
+        return await func(*args, **kwargs)
+
+
 def patch():
+    from litellm.proxy.route_llm_request import route_request
+
     if getattr(litellm, "_datadog_patch", False):
         return
 
@@ -133,6 +155,7 @@ def patch():
     wrap("litellm", "atext_completion", traced_atext_completion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "proxy.route_llm_request.route_request", traced_proxy_route_request(litellm))
 
 
 def unpatch():
@@ -147,5 +170,6 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.main, "get_llm_provider")
+    unwrap(litellm.proxy.route_llm_request, "route_request")
 
     delattr(litellm, "_datadog_integration")
