@@ -3,6 +3,7 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
@@ -11,7 +12,7 @@ from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 @pytest.mark.parametrize(
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
@@ -35,7 +36,25 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+                output_value=safe_json([{"content": "Hello! How can I assist you today?"}, {"content": "Hello! How can I assist you today?"}], ensure_ascii=False),
+                metadata={
+                    "temperature": 0.8,
+                    "n": 2,
+                    "stop": ".",
+                    "max_tokens": 10,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
 
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -87,7 +106,23 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+                output_value=safe_json([{"content": "Hello! How can I assist you today?"}, {"content": "Hello! How can I assist you today?"}], ensure_ascii=False),
+                metadata={
+                    "temperature": 0,
+                    "n": 1,
+                    "max_tokens": 20,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -194,7 +229,22 @@ class TestLLMObsOpenaiV1:
         input_messages = multi_message_input
         client = openai.OpenAI(base_url="http://0.0.0.0:4000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json(input_messages, ensure_ascii=False),
+                output_value=safe_json([{"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}, {"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}], ensure_ascii=False),
+                metadata={
+                    "top_p": 0.9,
+                    "n": 2,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
@@ -232,7 +282,7 @@ class TestLLMObsOpenaiV1:
         self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         input_messages = [
-            {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
+            {"content": "Where did the Los Angeles Dodgers play to win the world series in 2020?", "role": "user"}
         ]
         mock_completions_post.return_value = mock_openai_chat_completions_response
         azure_client = openai.AzureOpenAI(
@@ -243,7 +293,22 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        expected_event = _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json(input_messages, ensure_ascii=False),
+                output_value=safe_json([{"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}, {"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}], ensure_ascii=False),
+                metadata={
+                    "temperature": 0,
+                    "n": 1,
+                    "max_tokens": 20,
+                    "user": "ddtrace-test",
+                },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected_event)
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
