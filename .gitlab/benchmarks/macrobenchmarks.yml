@@ -425,4 +425,5 @@ notify-proximity-monitor-breaches:
   when: on_failure
   script:
     - 'MESSAGE_TEXT=":host-red: $CI_PROJECT_NAME <@$SLACK_AUTHOR> $CI_COMMIT_REF_NAME a proximity monitor in <$BUILD_URL|$CI_PIPELINE_ID> was breached - please look into it."'
+    - echo $MESSAGE_TEXT
     - postmessage "pre-release-gate-prototype" "$MESSAGE_TEXT"
