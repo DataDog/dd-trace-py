@@ -6,6 +6,7 @@ import typing as t
 from _pytest.runner import runtestprotocol
 import pytest
 
+from ddtrace.internal.core.event_hub import DDCoreServer
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace._monkey import patch
@@ -272,6 +273,8 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         return
 
     log.debug("CI Visibility enabled - starting test session")
+
+    DDCoreServer.start()
 
     try:
         command = _get_session_command(session)
@@ -734,6 +737,9 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         ModuleCodeCollector.uninstall()
 
     InternalTestSession.finish(force_finish_children=True)
+
+    DDCoreServer.stop()
+
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)

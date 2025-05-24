@@ -365,7 +365,7 @@ class Test(TestBase):
         )
         core.dispatch(
             "test_visibility.test.finish",
-            (Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info),),
+            (Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=None),), # can't pickle exc_info :(
         )
 
     @staticmethod
