@@ -717,6 +717,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         response_metadata = getattr(ai_message, "response_metadata", {}) or {}
         usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        if usage is None or not isinstance(usage, dict):  # in case it is explicitly set to None
+            return 0, 0, 0
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
