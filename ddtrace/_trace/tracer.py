@@ -7,12 +7,12 @@ import os
 from os import getpid
 from threading import RLock
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TypeVar
 from typing import Union
 
 from ddtrace._hooks import Hooks
@@ -30,7 +30,6 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -61,7 +60,7 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-AnyCallable = TypeVar("AnyCallable", bound=Callable)
+AnyCallable = Callable[..., Any]
 
 if TYPE_CHECKING:
     from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -828,18 +827,12 @@ class Tracer(object):
             # right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
             if iscoroutinefunction(f):
-                # call the async factory that creates a tracing decorator capable
-                # to await the coroutine execution before finishing the span. This
-                # code is used for compatibility reasons to prevent Syntax errors
-                # in Python 2
-                func_wrapper = compat.make_async_decorator(
-                    self,
-                    f,
-                    span_name,
-                    service=service,
-                    resource=resource,
-                    span_type=span_type,
-                )
+                # create an async wrapper that awaits the coroutine and traces it
+                @functools.wraps(f)
+                async def func_wrapper(*args, **kwargs):
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return await f(*args, **kwargs)
+
             else:
 
                 @functools.wraps(f)
