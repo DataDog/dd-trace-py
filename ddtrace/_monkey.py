@@ -1,7 +1,8 @@
 import importlib
 import os
+from packaging.requirements import Requirement
 import threading
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict, TYPE_CHECKING  # noqa:F401
 
 from wrapt.importer import when_imported
 
@@ -178,6 +179,54 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
+def is_version_compatible(
+    package_name: str, version: str, supported_versions: Dict[str, str]
+) -> bool:
+    """Check if a given package version is compatible with the instrumented versions.
+    
+    Args:
+        package_name: The name of the package to check
+        version: The version string to check against
+        supported_versions: Dictionary mapping module names to their version requirements
+        
+    Returns:
+        bool: True if the version is compatible, False otherwise 
+    """
+    if package_name not in supported_versions:
+        return False
+    
+    spec = supported_versions[package_name]
+    req = Requirement(f"{package_name}{spec}")
+    if not req.specifier.contains(version):
+        return False
+    return True
+
+
+def should_patch_module(imported_module, module):
+    if not hasattr(imported_module, "_supported_versions"):
+        return True
+
+    supported_versions = imported_module._supported_versions()
+
+    installed_version = None
+    if hasattr(imported_module, "get_version"):
+        installed_version = imported_module.get_version()
+    elif hasattr(imported_module, "get_versions"):
+        installed_version = imported_module.get_versions().get(module, None)
+
+    if not installed_version:
+        return True
+
+    if not is_version_compatible(module, installed_version, supported_versions):
+        log.debug(
+            "Skipped patching %s integration, installed version: %s is not compatible with integration support spec of %s",
+            module,
+            installed_version,
+            supported_versions[module],
+        )
+        return False
+    return True
+
 def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
@@ -186,9 +235,12 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         # Import and patch module
         try:
             imported_module = importlib.import_module(path_f % (module,))
-            imported_module.patch()
-            if hasattr(imported_module, "patch_submodules"):
-                imported_module.patch_submodules(patch_indicator)
+            # compare installed version with versions we instrument
+            should_patch = should_patch_module(imported_module, module)
+            if should_patch:
+                imported_module.patch()
+                if hasattr(imported_module, "patch_submodules"):
+                    imported_module.patch_submodules(patch_indicator)
         except Exception as e:
             if raise_errors:
                 raise
@@ -209,13 +261,13 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
                     telemetry.telemetry_writer.add_integration(
-                        name, True, PATCH_MODULES.get(module) is True, "", version=v
+                        name, should_patch, PATCH_MODULES.get(module) is True, "", version=v
                     )
             elif hasattr(imported_module, "get_version"):
                 # Some integrations/iast patchers do not define get_version
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
-                    module, True, PATCH_MODULES.get(module) is True, "", version=version
+                    module, should_patch, PATCH_MODULES.get(module) is True, "", version=version
                 )
 
     return on_import
