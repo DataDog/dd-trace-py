@@ -10,6 +10,7 @@ from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
@@ -60,16 +61,16 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     with override_global_config(dict(_remote_config_enabled=True)):
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
         _appsec_callback([rc_config], tracer)
-        assert tracer._appsec_processor
+        assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
         rc_config = build_payload("ASM_FEATURES", None, "config")
         _appsec_callback([rc_config], tracer)
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
-        assert tracer._appsec_processor is None
+        assert AppSecSpanProcessor._instance is None
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
         _appsec_callback([rc_config], tracer)
-        assert tracer._appsec_processor
+        assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
 
 
