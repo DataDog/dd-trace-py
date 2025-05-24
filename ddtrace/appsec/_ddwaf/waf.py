@@ -13,7 +13,6 @@ from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_result
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
@@ -167,26 +166,31 @@ class DDWaf(WAF):
             LOGGER.debug("DDWaf.run: dry run. no context created.")
             return DDWaf_result(0, [], {}, 0, (time.time() - start) * 1e6, False, self.empty_observator, {})
 
-        result = ddwaf_result()
+        result_obj = ddwaf_object()
         observator = _observator()
         wrapper = ddwaf_object(data, observator=observator)
         wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
-        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result), int(timeout_ms * 1000))
+        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result_obj), int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
-        if error == DDWAF_ERR_INTERNAL:
+        result = result_obj.struct
+        if error == DDWAF_ERR_INTERNAL or not isinstance(result, dict):
             # result is not valid
+            ddwaf_object_free(result_obj)
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
-        return DDWaf_result(
+        main_res = DDWaf_result(
             error,
-            result.events.struct,
-            result.actions.struct,
-            result.total_runtime / 1e3,
+            result["events"],
+            result["actions"],
+            result["duration"] / 1e3,
             (time.monotonic() - start) * 1e6,
-            result.timeout,
+            result["timeout"],
             observator,
-            result.derivatives.struct,
+            result["attributes"],
+            result["keep"],
         )
+        ddwaf_object_free(result_obj)
+        return main_res
 
     @property
     def initialized(self) -> bool:

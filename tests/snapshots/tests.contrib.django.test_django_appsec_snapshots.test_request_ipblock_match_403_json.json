@@ -11,7 +11,7 @@
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"blk-001-001\",\"name\":\"Block IP addresses\",\"on_match\":[\"block\"],\"tags\":{\"category\":\"blocking\",\"type\":\"ip_addresses\"}},\"rule_matches\":[{\"operator\":\"ip_match\",\"operator_value\":\"\",\"parameters\":[{\"address\":\"http.client_ip\",\"key_path\":[],\"value\":\"8.8.4.4\",\"highlight\":[\"8.8.4.4\"]}]}],\"span_id\":865087550764298227}]}",
-      "_dd.appsec.waf.version": "1.24.1",
+      "_dd.appsec.waf.version": "1.25.0",
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
