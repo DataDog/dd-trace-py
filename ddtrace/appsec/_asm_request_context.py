@@ -126,7 +126,9 @@ def get_blocked() -> Dict[str, Any]:
     env = _get_asm_context()
     if env is None:
         return {}
-    return env.blocked or {}
+    blocked = env.blocked or {}
+    core.set_item("asm.get_blocked", blocked)
+    return blocked
 
 
 def get_framework() -> str:
@@ -547,6 +549,7 @@ def _on_wrapped_view(kwargs):
         call_waf_callback()
         if is_blocked():
             callback_block = get_value(_CALLBACKS, "flask_block")
+    core.set_item("flask.wrapped_view.callback_block", callback_block)
     return callback_block
 
 
@@ -603,7 +606,9 @@ def _on_block_decided(callback):
 
 def _get_headers_if_appsec():
     if asm_config._asm_enabled:
-        return get_headers()
+        headers = get_headers()
+        core.set_item("django.extract_body", headers)
+        return headers
 
 
 ## headers tags
