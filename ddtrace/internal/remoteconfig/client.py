@@ -101,7 +101,7 @@ class Root:
     expires: datetime
     keys: Mapping[str, Key]
     roles: Mapping[str, Role]
-    version: int
+    version: int = 0  # JJJ
 
     def __post_init__(self):
         if self._type != "root":
@@ -125,8 +125,12 @@ class SignedRoot:
         for i in range(len(self.signatures)):
             if isinstance(self.signatures[i], dict):
                 self.signatures[i] = Signature(**self.signatures[i])
-        if isinstance(self.signed, dict):
-            self.signed = Root(**self.signed)
+        # if isinstance(self.signed, dict):
+            # JJJ
+            # Filter out version field if present
+            # signed_data = self.signed.copy()
+            # signed_data.pop('version', None)
+            # self.signed = Root(**signed_data)
 
 
 @dataclasses.dataclass
@@ -143,7 +147,7 @@ class Targets:
     expires: datetime
     spec_version: str
     targets: Mapping[str, TargetDesc]
-    version: int
+    version: int = 0  # JJJ
 
     def __post_init__(self):
         if self._type != "targets":
@@ -161,6 +165,7 @@ class Targets:
 class SignedTargets:
     signatures: List[Signature]
     signed: Targets
+    version: int = 0  # JJJ
 
     def __post_init__(self):
         for i in range(len(self.signatures)):
