@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes support for wrapping generator and async generator functions with `tracer.wrap()`. Previously, calling `tracer.current_span()` inside a wrapped generator function would return `None`, leading to `AttributeError` when interacting with the span. Additionally, traces reported to Datadog showed incorrect durations, as span context was not maintained across generator iteration. This change ensures that `tracer.wrap()` now correctly handles both sync and async generators by preserving the tracing context throughout their execution and finalizing spans correctly. Users can now safely use `tracer.current_span()` within generator functions and expect accurate trace reporting.
