@@ -1,6 +1,7 @@
 import json
 import os
 
+from litellm import RouterGeneralSettings
 import vcr
 
 
@@ -138,6 +139,23 @@ def parse_response(resp, is_completion=False):
     return output_messages, token_metrics
 
 
+model_list = [
+    {
+        "model_name": "gpt-3.5-turbo",
+        "litellm_params": {
+            "model": "gpt-3.5-turbo",
+            "api_key": "<not-a-real-key>",
+        },
+    },
+    {
+        "model_name": "gpt-4",
+        "litellm_params": {
+            "model": "gpt-4",
+            "api_key": "<not-a-real-key>",
+        },
+    },
+]
+
 tools = [
     {
         "type": "function",
@@ -158,3 +176,32 @@ tools = [
         },
     }
 ]
+
+expected_router_settings = {
+    "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False),
+    "routing_strategy": "simple-shuffle",
+    "routing_strategy_args": {},
+    "provider_budget_config": None,
+    "retry_policy": None,
+    "enable_tag_filtering": False,
+    "model_list": [
+        {
+            "model_name": "gpt-3.5-turbo",
+            "litellm_params": {
+                "use_in_pass_through": False,
+                "merge_reasoning_content_in_choices": False,
+                "model": "gpt-3.5-turbo",
+            },
+            "model_info": {"id": "d3fd9892d06620e68be6a5003b9a57fbe34a99b5f0a0d5152dba268433665ff5", "db_model": False},
+        },
+        {
+            "model_name": "gpt-4",
+            "litellm_params": {
+                "use_in_pass_through": False,
+                "merge_reasoning_content_in_choices": False,
+                "model": "gpt-4",
+            },
+            "model_info": {"id": "ae9ff51b0bccc07e81179560923cd3002d40d2c707538a4a7b15c8a1b83ad655", "db_model": False},
+        },
+    ],
+}
