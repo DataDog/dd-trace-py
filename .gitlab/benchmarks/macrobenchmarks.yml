@@ -367,7 +367,7 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
 
 .check-threshold-breaches:
   stage: gate
-  when: on_success
+  when: always
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
