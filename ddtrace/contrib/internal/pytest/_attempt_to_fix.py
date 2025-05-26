@@ -70,6 +70,8 @@ def attempt_to_fix_handle_retries(
     if call_report:
         if test_outcome.status == TestStatus.FAIL:
             call_report.outcome = outcomes.FAILED
+        elif test_outcome.status == TestStatus.PASS:
+            call_report.outcome = outcomes.PASSED
         elif test_outcome.status == TestStatus.SKIP:
             call_report.outcome = outcomes.SKIPPED
 
@@ -84,8 +86,12 @@ def attempt_to_fix_handle_retries(
         keywords={k: 1 for k in item.keywords},
         when=TestPhase.CALL,
         longrepr=longrepr,
-        outcome=final_outcomes[retries_outcome],
-        user_properties=item.user_properties + [(UserProperty.RETRY_REASON, RetryReason.ATTEMPT_TO_FIX)],
+        outcome=final_outcomes[retries_outcome] if not is_quarantined else PYTEST_STATUS.PASSED,
+        user_properties=item.user_properties
+        + [
+            (UserProperty.RETRY_REASON, RetryReason.ATTEMPT_TO_FIX),
+            (UserProperty.RETRY_FINAL_OUTCOME, retries_outcome.value),
+        ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -128,32 +134,30 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
             (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
     if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.ATTEMPT_TO_FIX:
-        if report.passed:
+        final_outcome = get_user_property(report, UserProperty.RETRY_FINAL_OUTCOME)
+        if final_outcome == TestStatus.PASS.value:
             return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
-        if report.failed:
+        if final_outcome == TestStatus.FAIL.value:
             return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
-        if report.skipped:
+        if final_outcome == TestStatus.SKIP.value:
             return (_RETRY_OUTCOMES.FINAL_SKIPPED, "s", ("ATTEMPT TO FIX FINAL STATUS: SKIPPED", {"yellow": True}))
     return None
 
 
 def attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.TerminalReporter):
-    # Flaky tests could have passed their initial attempt, so they need to be removed from the passed stats to avoid
-    # overcounting:
-    flaky_node_ids = {report.nodeid for report in terminalreporter.stats.get(_RETRY_OUTCOMES.FINAL_FAILED, [])}
-    passed_reports = terminalreporter.stats.get("passed")
-    if passed_reports:
-        terminalreporter.stats["passed"] = [report for report in passed_reports if report.nodeid not in flaky_node_ids]
-
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_PASSED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_FAILED, None)
     terminalreporter.stats.pop(_RETRY_OUTCOMES.ATTEMPT_SKIPPED, None)
-    terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, None)
 
     failed_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_FAILED, [])
     for report in failed_tests:
         if USER_PROPERTY_QUARANTINED not in report.user_properties:
             terminalreporter.stats.setdefault("failed", []).append(report)
+
+    passed_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_PASSED, [])
+    for report in passed_tests:
+        if USER_PROPERTY_QUARANTINED not in report.user_properties:
+            terminalreporter.stats.setdefault("passed", []).append(report)
 
     skipped_tests = terminalreporter.stats.pop(_RETRY_OUTCOMES.FINAL_SKIPPED, [])
     for report in skipped_tests:
