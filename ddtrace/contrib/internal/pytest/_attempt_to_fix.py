@@ -4,15 +4,18 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
 from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
 from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
@@ -33,9 +36,9 @@ class _RETRY_OUTCOMES:
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
-    TestStatus.PASS: _RETRY_OUTCOMES.FINAL_PASSED,
-    TestStatus.FAIL: _RETRY_OUTCOMES.FINAL_FAILED,
-    TestStatus.SKIP: _RETRY_OUTCOMES.FINAL_SKIPPED,
+    TestStatus.PASS: PYTEST_STATUS.PASSED,
+    TestStatus.FAIL: PYTEST_STATUS.FAILED,
+    TestStatus.SKIP: PYTEST_STATUS.SKIPPED,
 }
 
 
@@ -75,14 +78,14 @@ def attempt_to_fix_handle_retries(
     retries_outcome = _do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
         keywords={k: 1 for k in item.keywords},
         when=TestPhase.CALL,
         longrepr=longrepr,
         outcome=final_outcomes[retries_outcome],
-        user_properties=item.user_properties,
+        user_properties=item.user_properties + [(UserProperty.RETRY_REASON, RetryReason.ATTEMPT_TO_FIX)],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 
@@ -124,12 +127,13 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
             "s",
             (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _RETRY_OUTCOMES.FINAL_PASSED:
-        return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _RETRY_OUTCOMES.FINAL_FAILED:
-        return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
-    if report.outcome == _RETRY_OUTCOMES.FINAL_SKIPPED:
-        return (_RETRY_OUTCOMES.FINAL_SKIPPED, "s", ("ATTEMPT TO FIX FINAL STATUS: SKIPPED", {"yellow": True}))
+    if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.ATTEMPT_TO_FIX:
+        if report.passed:
+            return (_RETRY_OUTCOMES.FINAL_PASSED, ".", ("ATTEMPT TO FIX FINAL STATUS: PASSED", {"green": True}))
+        if report.failed:
+            return (_RETRY_OUTCOMES.FINAL_FAILED, "F", ("ATTEMPT TO FIX FINAL STATUS: FAILED", {"red": True}))
+        if report.skipped:
+            return (_RETRY_OUTCOMES.FINAL_SKIPPED, "s", ("ATTEMPT TO FIX FINAL STATUS: SKIPPED", {"yellow": True}))
     return None
 
 
