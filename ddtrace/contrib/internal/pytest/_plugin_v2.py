@@ -5,6 +5,7 @@ import typing as t
 
 from _pytest.runner import runtestprotocol
 import pytest
+from ddtrace._trace.span import Span
 
 from ddtrace.internal.core.event_hub import DDCoreServer
 from ddtrace import DDTraceDeprecationWarning
@@ -589,7 +590,8 @@ def _process_result(item, result) -> _TestOutcome:
     elif result.when == TestPhase.TEARDOWN and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
-    exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb) if report_excinfo else None
+    tb = Span._get_traceback(report_excinfo.type, report_excinfo.value, report_excinfo.tb) if report_excinfo else None
+    exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, tb) if report_excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 

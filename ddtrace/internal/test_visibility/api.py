@@ -174,7 +174,7 @@ class InternalTest(
         log.debug("Finishing test with status: %s, reason: %s", status, reason)
         core.dispatch(
             "test_visibility.test.finish",
-            (InternalTest.FinishArgs(item_id, status, reason, None, override_finish_time),), # can't pickle exc_info :(
+            (InternalTest.FinishArgs(item_id, status, reason, exc_info, override_finish_time),),
         )
 
     @staticmethod

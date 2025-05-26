@@ -531,11 +531,12 @@ class Span(object):
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+    @classmethod
     def _get_traceback(
-        self,
+        cls,
         exc_type: Type[BaseException],
         exc_val: BaseException,
-        exc_tb: Optional[TracebackType],
+        exc_tb: Optional[TracebackType | str],
         limit: Optional[int] = None,
     ) -> str:
         """
@@ -553,6 +554,9 @@ class Span(object):
         :param limit: the maximum number of frames to keep
         :return: the formatted traceback as a string
         """
+        if isinstance(exc_tb, str):
+            return exc_tb # ꙮ
+
         # If limit is None, use the default value from the configuration
         if limit is None:
             limit = config._span_traceback_max_size

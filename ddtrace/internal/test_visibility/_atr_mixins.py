@@ -93,7 +93,7 @@ class ATRTestMixin:
             "test_visibility.atr.finish_retry",
             (
                 ATRTestMixin.ATRRetryFinishArgs(
-                    item_id, retry_number, status, skip_reason=skip_reason, exc_info=None # can't pickle exc_info :(
+                    item_id, retry_number, status, skip_reason=skip_reason, exc_info=exc_info
                 ),
             ),
         )

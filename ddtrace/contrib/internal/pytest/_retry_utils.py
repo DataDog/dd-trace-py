@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
+from ddtrace._trace.span import Span
 
 
 class UserProperty:
@@ -73,7 +74,8 @@ def _get_outcome_from_retry(
         if report.failed:
             report.outcome = outcomes.FAILED
             report_excinfo = excinfo_by_report.get(report)
-            _outcome_exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb)
+            tb = Span._get_traceback(report_excinfo.type, report_excinfo.value, report_excinfo.tb)
+            _outcome_exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, tb)
         elif report.skipped:
             report.outcome = outcomes.SKIPPED
         else:
