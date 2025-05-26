@@ -500,7 +500,7 @@ def _pytest_run_one_test(item, nextitem):
             item=item,
             test_reports=reports_dict,
             test_outcome=test_outcome,
-            is_quarantined=is_quarantined or is_disabled,
+            is_quarantined=is_quarantined,
         )
     else:
         # If no retry handler, we log the reports ourselves.

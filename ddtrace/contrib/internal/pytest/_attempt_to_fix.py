@@ -79,6 +79,7 @@ def attempt_to_fix_handle_retries(
 
     retries_outcome = _do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
+    is_active = USER_PROPERTY_QUARANTINED not in item.user_properties
 
     final_report = pytest_TestReport(
         nodeid=item.nodeid,
@@ -86,7 +87,7 @@ def attempt_to_fix_handle_retries(
         keywords={k: 1 for k in item.keywords},
         when=TestPhase.CALL,
         longrepr=longrepr,
-        outcome=final_outcomes[retries_outcome] if not is_quarantined else PYTEST_STATUS.PASSED,
+        outcome=final_outcomes[retries_outcome] if is_active else PYTEST_STATUS.PASSED,
         user_properties=item.user_properties
         + [
             (UserProperty.RETRY_REASON, RetryReason.ATTEMPT_TO_FIX),
