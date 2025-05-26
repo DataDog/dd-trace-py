@@ -383,7 +383,7 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
 check-warning-breaches:
   extends: .check-threshold-breaches
   script:
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin python/macrobenchmarks)
     # Currently identical to slos.fail.yml in order to trigger
     # "notify-warning-breaches"
     - bp-runner bp-runner.fail-on-breach.warning.yml
@@ -391,7 +391,7 @@ check-warning-breaches:
 check-slo-breaches:
   extends: .check-threshold-breaches
   script:
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin python/macrobenchmarks)
     - bp-runner bp-runner.fail-on-breach.slos.yml
 
 # Taken from https://github.com/DataDog/slack-notifier/blob/master/gitlab-pipeline-templates/v3-sdm/template.yml
