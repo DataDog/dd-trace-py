@@ -5,7 +5,6 @@ import typing as t
 from _pytest.runner import runtestprotocol
 import pytest
 
-from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
