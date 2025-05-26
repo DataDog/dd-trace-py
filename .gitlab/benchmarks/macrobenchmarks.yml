@@ -388,17 +388,11 @@ check-warning-breaches:
     # "notify-warning-breaches"
     - bp-runner bp-runner.fail-on-breach.warning.yml
 
-check-slo-breaches_fail:
+check-slo-breaches:
   extends: .check-threshold-breaches
   script:
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
-    - bp-runner bp-runner.fail-on-breach.slos.fail.yml
-
-check-slo-breaches_pass:
-  extends: .check-threshold-breaches
-  script:
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/add-pre-release-gates)
-    - bp-runner bp-runner.fail-on-breach.slos.pass.yml
+    - bp-runner bp-runner.fail-on-breach.slos.yml
 
 # Taken from https://github.com/DataDog/slack-notifier/blob/master/gitlab-pipeline-templates/v3-sdm/template.yml
 .slack-notifier-base:
@@ -413,7 +407,7 @@ check-slo-breaches_pass:
 
 notify-slo-breaches:
   extends: .slack-notifier-base
-  needs: ["check-slo-breaches_fail"]
+  needs: ["check-slo-breaches"]
   when: on_failure
   script:
     # Ideally add the SLACK_AUTHOR once dd-trace-py can access SDS: https://datadoghq.atlassian.net/wiki/spaces/SDA/pages/3175317505/Accessing+SDS+data+externally+via+Graphql
