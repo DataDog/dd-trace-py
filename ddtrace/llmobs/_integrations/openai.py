@@ -148,7 +148,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
-        if span.error:
+        if span.error or not resp:
             return
         if encoding_format == "float":
             embedding_dim = len(resp.data[0].embedding)
