@@ -368,9 +368,6 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
 .check-threshold-breaches:
   stage: gate
   when: on_success
-  needs:  # List of benchmarks whose artifacts are used to check for threshold breaches
-    - "tracing-profiling-enabled"
-    - "vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled"
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
@@ -384,8 +381,6 @@ check-warning-breaches:
   extends: .check-threshold-breaches
   script:
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin python/macrobenchmarks)
-    # Currently identical to slos.fail.yml in order to trigger
-    # "notify-warning-breaches"
     - bp-runner bp-runner.fail-on-breach.warning.yml
 
 check-slo-breaches:
