@@ -323,7 +323,7 @@ ddwaf_known_addresses = ctypes.CFUNCTYPE(
 
 def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
-    obj = ddwaf_known_addresses(handle.handle, ctypes.byref(size))
+    obj = ddwaf_known_addresses(handle.handle, size)
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
