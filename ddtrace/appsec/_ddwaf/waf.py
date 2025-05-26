@@ -1,4 +1,3 @@
-import ctypes
 import json
 import time
 from typing import Any
