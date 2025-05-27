@@ -832,6 +832,8 @@ def _expected_span_link(span_event, link_from, link_to):
 
 
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    __test__ = False
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.events = []
