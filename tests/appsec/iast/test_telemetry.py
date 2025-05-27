@@ -62,8 +62,23 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+@pytest.mark.parametrize(
+    "deduplication_enabled, expected_num_metrics",
+    [
+        (True, 10),
+        (False, 10),
+    ],
+)
+def test_metric_executed_sink(
+    deduplication_enabled, expected_num_metrics, no_request_sampling, telemetry_writer, caplog
+):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_deduplication_enabled=deduplication_enabled,
+            _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME,
+        )
+    ):
         patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
@@ -87,7 +102,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
     # the agent)
     filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
     assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 10
+    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
