@@ -434,7 +434,7 @@ def test_module_watchdog_namespace_import_no_warnings():
     import namespace_test.ns_module  # noqa:F401
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)), stderr=None)
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)), err=None)
 def test_module_watchdog_pkg_resources_support():
     # Test that we can access resource files with pkg_resources without raising
     # an exception.
