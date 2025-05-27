@@ -4,7 +4,6 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
@@ -16,7 +15,6 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-@oce.register
 class PathTraversal(VulnerabilityBase):
     vulnerability_type = VULN_PATH_TRAVERSAL
     secure_mark = VulnerabilityType.PATH_TRAVERSAL
