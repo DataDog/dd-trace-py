@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
@@ -22,6 +23,7 @@ from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -219,6 +221,21 @@ class TestLLMObsBedrock:
             token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
+    
+    @staticmethod
+    def expected_llmobs_span_event_proxy(span, n_output, message=False):
+        if span.get_tag("bedrock.request.temperature"):
+            expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
+        if span.get_tag("bedrock.request.max_tokens"):
+            expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
+        return _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="workflow",
+            input_value=mock.ANY,
+            output_value=mock.ANY,
+            metadata=expected_parameters,
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+        )
 
     @classmethod
     def _test_llmobs_invoke_proxy(
@@ -250,8 +267,9 @@ class TestLLMObsBedrock:
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
 
-        assert len(mock_tracer.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(span, n_output, message="message" in provider)
         LLMObs.disable()
 
     @classmethod
@@ -285,8 +303,9 @@ class TestLLMObsBedrock:
             for _ in response.get("body"):
                 pass
 
-        assert len(mock_tracer.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(span, n_output, message="message" in provider)
         LLMObs.disable()
 
     @classmethod

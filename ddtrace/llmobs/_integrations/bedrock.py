@@ -17,6 +17,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import update_input_output_value
 from ddtrace.trace import Span
 
 
@@ -51,6 +52,8 @@ class BedrockIntegration(BaseLLMIntegration):
             "llmobs.stop_reason": Optional[str],
         }
         """
+        span_kind = "workflow" if "proxy" in span.name else "llm"
+
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
@@ -96,15 +99,17 @@ class BedrockIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: ctx.get_item("model_name") or "",
                 MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
                 METADATA: metadata,
-                METRICS: usage_metrics,
+                METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+        update_input_output_value(span, span_kind)
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):
