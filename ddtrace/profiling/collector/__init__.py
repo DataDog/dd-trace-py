@@ -20,7 +20,7 @@ class CollectorUnavailable(CollectorError):
 class Collector(service.Service):
     """A profile collector."""
 
-    def __init__(self, recorder: Recorder, *args, **kwargs):
+    def __init__(self, recorder: typing.Optional[Recorder] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.recorder = recorder
 
@@ -77,7 +77,7 @@ class CaptureSampler(object):
 
 
 class CaptureSamplerCollector(Collector):
-    def __init__(self, recorder, capture_pct=config.capture_pct, *args, **kwargs):
+    def __init__(self, recorder: typing.Optional[Recorder] = None, capture_pct=config.capture_pct, *args, **kwargs):
         super().__init__(recorder, *args, **kwargs)
         self.capture_pct = capture_pct
         self._capture_sampler = CaptureSampler(self.capture_pct)

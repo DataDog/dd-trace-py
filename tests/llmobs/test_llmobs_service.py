@@ -18,11 +18,13 @@ from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -144,17 +146,6 @@ def test_service_enable_no_api_key():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_no_ml_app_specified():
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is False
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
-
-
 def test_service_enable_already_enabled(mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -226,6 +217,39 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
                 continue
             assert kwargs[module] is True
         llmobs_service.disable()
+
+
+def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
+    with pytest.raises(ValueError):
+        with llmobs_no_ml_app.task():
+            pass
+
+
+def test_ml_app_local_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app") as span:
+            assert span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_parent_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app"):
+            with llmobs.workflow() as child_workflow_span:
+                assert child_workflow_span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_propagated_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow() as span:
+            assert span._get_ctx_item(ML_APP) == "propagated-ml-app"
+
+
+def test_ml_app_uses_global_as_default(llmobs):
+    with llmobs.workflow() as span:
+        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
