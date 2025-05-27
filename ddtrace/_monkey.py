@@ -222,13 +222,11 @@ def should_patch_module(imported_module, module):
         return True
 
     if not is_version_compatible(module, installed_version, supported_versions):
-        log.debug(
-            "Skipped patching %s integration, installed version: %s is not compatible with integration \
-                support spec of %s",
-            module,
-            installed_version,
-            supported_versions[module],
+        message = (
+            f"Skipped patching '{module}' integration, installed version: {installed_version} is not compatible with "
+            f"integration support spec: {supported_versions[module]}"
         )
+        log.debug(message)
         return False
     return True
 
@@ -268,9 +266,8 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 supported_versions = imported_module._supported_versions()
                 installed_version = _get_installed_version(imported_module, module)
                 error_message = (
-                    "Unable to patch integration: %s, installed version: %s is not compatible with integration support \
-                    spec of %s"
-                    % (module, installed_version, supported_versions[module])
+                    f"Unable to patch integration: {module}, installed version: {installed_version} is not "
+                    f"compatible with integration support spec of {supported_versions[module]}"
                 )
 
             if hasattr(imported_module, "get_versions"):

@@ -2,7 +2,7 @@
     {
         "dependency": "aiobotocore",
         "integration": "aiobotocore",
-        "minimum_tracer_supported": "1.4.2",
+        "minimum_tracer_supported": "1.0.7",
         "max_tracer_supported": "2.16.0",
         "auto-instrumented": false
     },
@@ -267,7 +267,7 @@
     {
         "dependency": "fastapi",
         "integration": "fastapi",
-        "minimum_tracer_supported": "0.64.0",
+        "minimum_tracer_supported": "0.51.0",
         "max_tracer_supported": "0.115.12",
         "auto-instrumented": true
     },
@@ -524,7 +524,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.1.1",
+        "max_tracer_supported": "8.3.5",
         "auto-instrumented": false
     },
     {

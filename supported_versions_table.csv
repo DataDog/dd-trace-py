@@ -1,5 +1,5 @@
 dependency,integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
-aiobotocore,aiobotocore,1.4.2,2.16.0,False
+aiobotocore,aiobotocore,1.0.7,2.16.0,False
 aiohttp,aiohttp,3.10.5,3.10.9,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
@@ -36,7 +36,7 @@ elasticsearch6,elasticsearch,6.8.2,6.8.2,True
 elasticsearch7,elasticsearch,7.13.4,7.17.12,True
 opensearch-py,elasticsearch,1.1.0,2.8.0,True
 falcon,falcon,3.0.1,4.0.2,True
-fastapi,fastapi,0.64.0,0.115.12,True
+fastapi,fastapi,0.51.0,0.115.12,True
 flask,flask,1.1.4,3.1.0,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False
@@ -72,7 +72,7 @@ pymysql,pymysql,0.10.1,1.1.1,True
 pynamodb,pynamodb *,5.5.1,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.2.0,True
 pyramid,pyramid,1.10.8,2.0.2,True
-pytest,pytest,6.2.5,8.1.1,False
+pytest,pytest,6.2.5,8.3.5,False
 pytest-bdd,pytest_bdd *,4.1.0,6.0.1,False
 redis,redis,4.6.0,5.2.0,True
 redis-py-cluster,rediscluster,2.0.0,2.1.3,True
