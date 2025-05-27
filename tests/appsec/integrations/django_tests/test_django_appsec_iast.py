@@ -1014,6 +1014,16 @@ def test_django_unvalidated_redirect_url(client, iast_span, tracer):
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_url_validator(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/unvalidated_redirect_url_validator/?url={tainted_value}"
+    )
+
+    assert root_span.get_tag(IAST.JSON) is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_unvalidated_redirect_url_header(client, iast_span, tracer):
     tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
     root_span, _ = _aux_appsec_get_root_span(

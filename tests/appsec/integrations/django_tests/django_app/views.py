@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
 
 from ddtrace.appsec import _asm_request_context
@@ -392,6 +393,13 @@ def header_injection(request):
 def unvalidated_redirect_url(request):
     value = request.GET.get("url")
     # label unvalidated_redirect_url
+    return redirect(value)
+
+
+def unvalidated_redirect_url_validator(request):
+    value = request.GET.get("url")
+    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+        return redirect(value)
     return redirect(value)
 
 

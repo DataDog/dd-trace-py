@@ -44,6 +44,11 @@ urlpatterns = [
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
     handler("appsec/unvalidated_redirect_url/$", views.unvalidated_redirect_url, name="unvalidated_redirect_url"),
     handler(
+        "appsec/unvalidated_redirect_url_validator/$",
+        views.unvalidated_redirect_url_validator,
+        name="unvalidated_redirect_url_validator",
+    ),
+    handler(
         "appsec/unvalidated_redirect_url_header/$",
         views.unvalidated_redirect_url_header,
         name="unvalidated_redirect_url_header",
