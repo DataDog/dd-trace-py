@@ -33,6 +33,7 @@ class HTTPConnectionMixin:
         _headers = headers.copy()
 
         container.update_headers(_headers)
+        print("EXPLOSM")
 
         return super().request(method, url, body=body, headers=_headers, encode_chunked=encode_chunked)
 

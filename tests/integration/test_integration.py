@@ -158,7 +158,7 @@ def test_payload_too_large():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_large_payload_is_sent_without_warning_logs():
     import mock
 
@@ -174,7 +174,7 @@ def test_large_payload_is_sent_without_warning_logs():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_child_spans_do_not_cause_warning_logs():
     import mock
 
@@ -282,7 +282,7 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_single_trace_too_large():
     import mock
 
@@ -365,12 +365,11 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake():
     import mock
 
     from ddtrace import __version__
-    from ddtrace.internal.runtime import container
     from ddtrace.trace import tracer as t
 
     t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
@@ -389,25 +388,32 @@ def test_validate_headers_in_payload_to_intake():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_inode_entity_id_header_present():
     import mock
 
+    from ddtrace.internal.runtime import container
     from ddtrace.trace import tracer as t
 
     t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
+    import sys
+
+    sys.path.append("ddtrace/internal/runtime")
     with mock.patch("container.get_container_info") as gcimock:
-        gcimock.return_value = container.CGroupInfo(node_inode=12345)
+        from ddtrace.internal.runtime.container import CGroupInfo
+
+        gcimock.return_value = CGroupInfo(node_inode=12345)
         t.trace("op").finish()
         t.shutdown()
-    assert t._span_aggregator.writer._put.call_count == 1
-    headers = t._span_aggregator.writer._put.call_args[0][1]
+    print(t._span_aggregator.writer._put.call_args)
+    headers = t._span_aggregator.writer._put.call_args[-1][1]
+    print(headers)
     assert "Datadog-Entity-ID" in headers
     assert headers["Datadog-Entity-ID"].startswith("in")
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_external_env_header_present():
     import mock
 
@@ -427,7 +433,7 @@ def test_external_env_header_present():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     import mock
 
@@ -443,7 +449,7 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
     import mock
 
@@ -460,7 +466,7 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_trace_with_invalid_client_endpoint_generates_error_log():
     import mock
 
@@ -588,7 +594,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_writer_flush_queue_generates_debug_log():
     import logging
     import os

@@ -242,6 +242,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
                 log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
+                print(self._conn)
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,

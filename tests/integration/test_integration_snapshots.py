@@ -269,7 +269,7 @@ def test_snapshot_skip():
         pass
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 @mark_snapshot
 def test_setting_span_tags_and_metrics_generates_no_error_logs():
     import ddtrace

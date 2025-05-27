@@ -34,26 +34,28 @@ def _turn_tracer_into_dummy(tracer):
     tracer._span_aggregator.writer.write = monkeypatched_write.__get__(tracer._span_aggregator.writer, AgentWriter)
 
 
-def _prime_tracer_with_priority_sample_rate_from_agent(t, service, env):
+def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
     s = t.trace("operation", service=service)
     s.finish()
     t.flush()
 
-    sampler_key = "service:{},env:{}".format(service, env)
-    while sampler_key not in t._span_aggregator.writer.sampler._by_service_samplers:
+    sampler_key = "service:{},env:".format(service)
+    while sampler_key not in t._span_aggregator.sampling_processor.sampler._by_service_samplers:
         time.sleep(1)
         s = t.trace("operation", service=service)
         s.finish()
         t.flush()
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
+@parametrize_with_all_encodings()
 def test_priority_sampling_rate_honored():
     import time
 
+    from ddtrace.constants import _SAMPLING_PRIORITY_KEY  # noqa
+    from ddtrace.constants import AUTO_KEEP
     from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
@@ -68,11 +70,11 @@ def test_priority_sampling_rate_honored():
         s.finish()
     t.flush()
 
-    _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-    sampler_key = "service:{},env:{}".format(service, env)
-    assert sampler_key in t._span_aggregator.writer.sampler._by_service_samplers
+    _prime_tracer_with_priority_sample_rate_from_agent(t, service)
+    sampler_key = "service:{},env:".format(service)
+    assert sampler_key in t._span_aggregator.sampling_processor.sampler._by_service_samplers
 
-    rate_from_agent = t._span_aggregator.writer.sampler._by_service_samplers[sampler_key].sample_rate
+    rate_from_agent = t._span_aggregator.sampling_processor.sampler._by_service_samplers[sampler_key].sample_rate
     assert 0 < rate_from_agent < 1
 
     _turn_tracer_into_dummy(t)
@@ -92,8 +94,8 @@ def test_priority_sampling_rate_honored():
     t.shutdown()
 
 
-@parametrize_with_all_encodings
 @skip_if_testagent
+@parametrize_with_all_encodings()
 def test_priority_sampling_response():
     import time
 
@@ -101,16 +103,14 @@ def test_priority_sampling_response():
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
 
     _id = time.time()
-    env = "my-env-{}".format(_id)
-    with override_global_config(dict(env=env)):
-        service = "my-svc-{}".format(_id)
-        sampler_key = "service:{},env:{}".format(service, env)
-        assert sampler_key not in t._span_aggregator.writer.sampler._by_service_samplers
-        _prime_tracer_with_priority_sample_rate_from_agent(t, service, env)
-        assert (
-            sampler_key in t._span_aggregator.writer.sampler._by_service_samplers
-        ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
-        t.shutdown()
+    service = "my-svc-{}".format(_id)
+    sampler_key = "service:{},env:".format(service)
+    assert sampler_key not in t._span_aggregator.sampling_processor.sampler._by_service_samplers
+    _prime_tracer_with_priority_sample_rate_from_agent(t, service)
+    assert (
+        sampler_key in t._span_aggregator.sampling_processor.sampler._by_service_samplers
+    ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
+    t.shutdown()
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
