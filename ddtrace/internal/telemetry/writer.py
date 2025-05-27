@@ -511,9 +511,6 @@ class TelemetryWriter(PeriodicService):
             )
 
     def _format_stack_trace(self, exc) -> Union[str, None]:
-        if exc is None:
-            return None
-
         exc_type, exc_value, exc_traceback = type(exc), exc, exc.__traceback__
         if exc_traceback:
             tb = traceback.extract_tb(exc_traceback)

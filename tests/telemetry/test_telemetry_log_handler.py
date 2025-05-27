@@ -23,7 +23,7 @@ def test_add_integration_error_log():
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            '  File "<redacted>/test_telemetry_log_handler.py", line 18, in test_add_integration_error_log',
+            '  File "<redacted>/test_telemetry_log_handler.py", line 13, in test_add_integration_error_log',
             '    raise ValueError("Test exception")',
             "builtins.ValueError: Test exception",
         ]
@@ -47,14 +47,6 @@ def test_add_integration_error_log_with_log_collection_disabled():
 
         # No logs should be added when log collection is disabled
         assert len(writer._logs) == 0
-
-
-def test_format_stack_trace_none():
-    """Test stack trace formatting with no exception"""
-    writer = TelemetryWriter(is_periodic=False)
-
-    stack_trace = writer._format_stack_trace(None)
-    assert stack_trace is None
 
 
 @pytest.mark.parametrize(
