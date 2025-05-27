@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
@@ -98,6 +99,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
             for trace in traces
             for span in trace
+            if (os.getenv("PYTEST_XDIST_WORKER") is None or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
         ]
         if not normalized_spans:
             return None
