@@ -1,6 +1,7 @@
 # this module must not load any other unsafe appsec module directly
 
 import collections
+import contextlib
 import json
 import logging
 import typing
@@ -9,6 +10,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 import uuid
+
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -330,3 +332,21 @@ def get_triggers(span) -> Any:
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"
+
+@contextlib.contextmanager
+def unpatching_popen():
+    """
+    Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
+    This is useful to ensure that the original `Popen` behavior is restored after the context.
+    """
+    from ddtrace.internal._unpatched import unpatched_Popen
+
+    import subprocess
+    original_popen = subprocess.Popen
+    subprocess.Popen = unpatched_Popen
+    asm_config._bypass_instrumentation_for_waf = True
+    try:
+        yield
+    finally:
+        subprocess.Popen = original_popen
+        asm_config._bypass_instrumentation_for_waf = False

@@ -11,8 +11,7 @@ from typing import Union
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
-from ddtrace.appsec._utils import _observator
-from ddtrace.internal._unpatched import unpatched_Popen
+from ddtrace.appsec._utils import _observator, unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -27,23 +26,17 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
-        asm_config._bypass_instrumentation_for_waf = True
-        import subprocess
-
-        current_Popen = subprocess.Popen
-        subprocess.Popen = unpatched_Popen  # type: ignore[misc]
-        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+        with unpatching_popen():
+            ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-    finally:
-        asm_config._bypass_instrumentation_for_waf = False
-        subprocess.Popen = current_Popen  # type: ignore[misc]
 
 ARCHI = machine().lower()
 
 # 32-bit-Python on 64-bit-Windows
 
-ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+with unpatching_popen():
+    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
