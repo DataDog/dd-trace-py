@@ -4,7 +4,7 @@ import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 
-from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -198,8 +198,8 @@ def is_version_compatible(package_name: str, version: str, supported_versions: D
     if not spec:
         return False
 
-    req = Requirement(f"{package_name}{spec}")
-    return req.specifier.contains(version)
+    spec_set = SpecifierSet(spec)
+    return spec_set.contains(version)
 
 
 def _get_installed_version(imported_module, module):
