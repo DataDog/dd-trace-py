@@ -1740,11 +1740,19 @@ Lorem Ipsum Foobar
                 {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
             ]
 
+            get_line_and_hash("test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH)
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
             assert vulnerability["evidence"] == {
                 "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
             }
+            # TODO: This test fails in the CI in some scenarios with with this location:
+            #  {'spanId': 2149503346182698386, 'path': 'tests/contrib/flask/__init__.py', 'line': 21, 'method': 'open'}
+            # assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            # assert vulnerability["location"]["line"] == line
+            # assert vulnerability["location"]["method"] == "unvalidated_redirect_view"
+            # assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
+            # assert "class" not in vulnerability["location"]
 
     def test_flask_xss_concat(self):
         @self.app.route("/xss/concat/", methods=["GET"])
