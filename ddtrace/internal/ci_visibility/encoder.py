@@ -80,21 +80,15 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             return payload, buffer_size
 
     def _get_parent_session(self, traces):
-        new_parent_span_id = 0
-        new_trace_id = 0
         for trace in traces:
             for span in trace:
                 if span.get_tag(EVENT_TYPE) == SESSION_TYPE:
                     if span.parent_id != 0:
-                        new_parent_span_id = span.parent_id
-                        new_trace_id = span.context.trace_id
-                        break
-            if new_parent_span_id != 0:
-                break
-        return new_parent_span_id, new_trace_id
+                        return span.parent_id
+        return 0
 
     def _build_payload(self, traces):
-        new_parent_session_span_id, new_trace_id = self._get_parent_session(traces)
+        new_parent_session_span_id = self._get_parent_session(traces)
         normalized_spans = [
             self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
             for trace in traces
@@ -114,7 +108,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _pack_payload(payload):
         return msgpack_packb(payload)
 
-    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0, new_trace_id=0):
+    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
         # type: (Span, str) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
@@ -124,7 +118,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp["metrics"] = dict(sorted(span._metrics.items()))
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
-        sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id, new_trace_id)
+        sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)
 
         version = CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION
         if span.get_tag(EVENT_TYPE) == "test":
@@ -138,7 +132,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return {"version": version, "type": event_type, "content": sp}
 
     @staticmethod
-    def _filter_ids(sp, new_parent_session_span_id=0, new_trace_id=0):
+    def _filter_ids(sp, new_parent_session_span_id=0):
         """
         Remove trace/span/parent IDs if non-test event, move session/module/suite IDs from meta to outer content layer.
         """
