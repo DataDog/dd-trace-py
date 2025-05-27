@@ -1,6 +1,3 @@
-import sys
-
-from unittest.mock import patch
 import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -9,8 +6,6 @@ from ddtrace.internal.telemetry.writer import TelemetryWriter
 
 def test_add_integration_error_log():
     """Test add_integration_error_log functionality with real stack trace"""
-    from ddtrace.settings._telemetry import config
-
     writer = TelemetryWriter(is_periodic=False)
     writer._logs.clear()
 
@@ -30,7 +25,7 @@ def test_add_integration_error_log():
             "Traceback (most recent call last):",
             '  File "<redacted>/test_telemetry_log_handler.py", line 18, in test_add_integration_error_log',
             '    raise ValueError("Test exception")',
-            "builtins.ValueError: Test exception"
+            "builtins.ValueError: Test exception",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
@@ -39,6 +34,7 @@ def test_add_integration_error_log():
 def test_add_integration_error_log_with_log_collection_disabled():
     """Test that add_integration_error_log respects LOG_COLLECTION_ENABLED setting"""
     from ddtrace.settings._telemetry import config
+
     config.LOG_COLLECTION_ENABLED = False
 
     writer = TelemetryWriter(is_periodic=False)
@@ -60,16 +56,16 @@ def test_format_stack_trace_none():
     stack_trace = writer._format_stack_trace(None)
     assert stack_trace is None
 
+
 @pytest.mark.parametrize(
     "filename,redacted_filename",
     [
         ("/path/to/file.py", "<redacted>/file.py"),
         ("/path/to/ddtrace/contrib/flask/file.py", "<redacted>/ddtrace/contrib/flask/file.py"),
-        ("/path/to/dd-trace-something/file.py", "<redacted>/file.py")
+        ("/path/to/dd-trace-something/file.py", "<redacted>/file.py"),
     ],
 )
 def test_should_redact(filename, redacted_filename):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
     assert writer._redact_filename(filename) == redacted_filename
-

@@ -530,11 +530,10 @@ class TelemetryWriter(PeriodicService):
 
     def _redact_filename(self, filename: str) -> str:
         if self._is_ddtrace(filename):
-            return "<redacted>" + filename[filename.index('/ddtrace/'):]
-        else:
-            # else should never happen as we report only integration logs
-            # but it acts as a safe guard
-            return "<redacted>" + filename[filename.rindex('/'):]
+            return "<redacted>" + filename[filename.index("/ddtrace/") :]
+        # below should never happen as we report only integration logs
+        # but it acts as a safe guard
+        return "<redacted>" + filename[filename.rindex("/") :]
 
     def _is_ddtrace(self, filename: str) -> bool:
         return "/ddtrace/" in filename
