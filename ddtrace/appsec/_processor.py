@@ -339,7 +339,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if not allowed:
             return waf_results
 
-        if waf_results.data or blocked:
+        if waf_results.data:
             _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
@@ -355,7 +355,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            _asm_manual_keep(span)
+            if waf_results.keep:
+                _asm_manual_keep(span)
             if span.get_tag(_ORIGIN_KEY) is None:
                 span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
         return waf_results
