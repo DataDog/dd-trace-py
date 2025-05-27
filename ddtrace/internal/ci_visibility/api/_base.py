@@ -583,7 +583,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         if children_status_counts[TestStatus.FAIL.value] > 0:
             return TestStatus.FAIL
-        if children_status_counts[TestStatus.SKIP.value] == len(self._children):
+        len_children = len(self._children)
+        if len_children > 0 and children_status_counts[TestStatus.SKIP.value] == len_children:
             return TestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[TestStatus.FAIL.value] == 0:

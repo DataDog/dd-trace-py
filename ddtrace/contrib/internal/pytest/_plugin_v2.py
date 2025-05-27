@@ -770,7 +770,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     InternalTestSession.finish(
         force_finish_children=True,
-        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS,
+        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
     )
 
 
