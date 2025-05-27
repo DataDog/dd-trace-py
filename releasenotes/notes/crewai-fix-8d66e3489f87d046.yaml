@@ -1,6 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: This fix resolves an issue where using crewai>=1.120.0 with ddtrace caused a ``TypeError`` to be thrown.
-  - |
     crewai: This fix resolves an issue where using crewai>=1.120.0 with ddtrace caused a ``TypeError`` to be thrown.
