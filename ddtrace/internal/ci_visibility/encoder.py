@@ -109,7 +109,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return msgpack_packb(payload)
 
     def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
-        # type: (Span, str) -> Dict[str, Any]
+        # type: (Span, str, Optional[int]) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
