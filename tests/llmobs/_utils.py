@@ -208,7 +208,7 @@ def _llmobs_base_span_event(
     span_links=False,
 ):
     span_event = {
-        "trace_id": format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+        "trace_id": format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)) if span._get_ctx_item(LLMOBS_TRACE_ID) is not None else format_trace_id(span.trace_id),
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": _get_span_name(span),
@@ -610,7 +610,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -629,7 +629,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -657,7 +657,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -675,7 +675,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -693,7 +693,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -707,7 +707,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -725,7 +725,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -739,7 +739,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -756,7 +756,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -781,7 +781,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -800,7 +800,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -818,7 +818,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
