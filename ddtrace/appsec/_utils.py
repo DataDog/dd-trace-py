@@ -339,7 +339,7 @@ def unpatching_popen():
     Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
     This is useful to ensure that the original `Popen` behavior is restored after the context.
     """
-    import subprocess # nosec B404
+    import subprocess  # nosec B404
 
     from ddtrace.internal._unpatched import unpatched_Popen
 
