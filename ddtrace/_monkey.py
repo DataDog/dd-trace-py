@@ -4,11 +4,11 @@ import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 
-from packaging.specifiers import SpecifierSet
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.version_specifier import VersionSpecifier
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
@@ -198,8 +198,8 @@ def is_version_compatible(package_name: str, version: str, supported_versions: D
     if not spec:
         return False
 
-    spec_set = SpecifierSet(spec)
-    return spec_set.contains(version)
+    version_specifier = VersionSpecifier(spec)
+    return version_specifier.contains(version)
 
 
 def _get_installed_version(imported_module, module):
