@@ -50,6 +50,12 @@ TaintRange::has_secure_mark(VulnerabilityType mark) const
     return (secure_marks & (1ULL << static_cast<uint64_t>(mark))) != 0;
 }
 
+bool
+TaintRange::has_origin(OriginType origin) const
+{
+    return source.origin == origin;
+}
+
 TaintRangePtr
 shift_taint_range(const TaintRangePtr& source_taint_range, const RANGE_START offset, const RANGE_LENGTH new_length = -1)
 {
@@ -495,6 +501,7 @@ pyexport_taintrange(py::module& m)
       .def("get_hash", &TaintRange::get_hash)
       .def("add_secure_mark", &TaintRange::add_secure_mark)
       .def("has_secure_mark", &TaintRange::has_secure_mark)
+      .def("has_origin", &TaintRange::has_origin)
       .def("__eq__",
            [](const TaintRangePtr& self, const TaintRangePtr& other) {
                if (other == nullptr)

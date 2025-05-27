@@ -118,6 +118,13 @@ urlpatterns = [
     handler("appsec/xss/safe/$", views.xss_http_request_parameter_template_safe),
     handler("appsec/xss/autoscape/$", views.xss_http_request_parameter_autoscape),
     handler("appsec/propagation/ospathjoin/$", views.ospathjoin_propagation),
+    handler("appsec/iast_sampling/$", views.iast_sampling),
+    handler("appsec/iast_sampling_2/$", views.iast_sampling_2),
+    path(
+        "appsec/iast_sampling_by_route_method/<str:q_http_path_parameter>/",
+        views.iast_sampling_by_route_method,
+        name="iast_sampling_by_route_method",
+    ),
     path(
         "appsec/sqli_http_path_parameter/<str:q_http_path_parameter>/",
         views.sqli_http_path_parameter,

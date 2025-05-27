@@ -4,6 +4,46 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.8.0
+
+### New Features
+
+- LLM Observability: add processor capability to process span inputs and outputs. See usage documentation \[here\](<https://docs.datadoghq.com/llm_observability/setup/sdk/python/#span-processing>).
+- CI Visibility: This introduces the ability to gzip the payload when using the evp proxy setup, incurring in less network bandwith consumption.
+- Error Tracking: Introduces automatic reporting of handled exceptions. Enabling the feature will report handled exceptions to Error Tracking from the user code, the third party packages code, some specified modules or everything based on configuration. This feature can be controlled using two environment variables: - <span class="title-ref">DD_ERROR_TRACKING_HANDLED_ERRORS</span>=\`allthird_party\` - <span class="title-ref">DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE</span>=\`module1, module2, module3.submodule\`
+- Code Security: IAST support for langchain v0.1.0 and above.
+- openai: This introduces tracing support for the OpenAI Responses endpoint.
+### Bug Fixes
+
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes a bug in distributed tracing where pickling <span class="title-ref">ddtrace.trace.Context</span> fails in coroutines. This regression was introduced in v3.7.0.
+
+- CI Visibility: This fix resolves an issue where pytest-xdist would not exit with the proper status code if ATR was enabled.
+- CI Visibility: This fix resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
+- profiling: fixed an issue in the `SynchronizedSamplePool` where pool could be null when calling into `ddog_ArrayQueue_` functions, leading to segfaults in the uWSGI shutdown
+- Code Security: IAST: Avoid excessive filtering of stacktrace locations when finding vulnerabilities. After this change, vulnerabilities that were previously discarded will now be reported. In particular, if they were found within code in site-packages or outside of the working directory.
+- LLM Observability: Resolves an issue where spans and evaluation metrics were not being sent via Unix sockets.
+- dynamic instrumentation: prevent an exception when trying to remove a probe that did not resolve to a valid source code location.
+- kafka: This fix resolves an issue where message headers were sent to Kafka brokers that do not support them. Message headers are turned off when the Kafka server responds with `UNKNOWN_SERVER_ERROR (-1)`.
+- code origin for spans: fixes a performance issue with exit spans.
+- profiling: improve performance of the memory profiler for large heaps. The memory profiler previously did a linear search of tracked allocations for every free, which scaled very poorly with large heaps. Switch to a fast hash map.
+
+
+---
+
+## 3.7.2
+
+
+### Bug Fixes
+
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+
+---
+
 ## 3.7.1
 
 
