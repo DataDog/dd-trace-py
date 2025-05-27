@@ -37,7 +37,7 @@ def get_version():
 
 
 def _supported_versions():
-    return {"fastapi": ">=0.64.0"}
+    return {"fastapi": ">=0.51.0"}
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):

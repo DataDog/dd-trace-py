@@ -1438,7 +1438,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
-                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},
+                    pkgs={"fastapi": ["~=0.51.0", "~=0.64.0", "~=0.90.0", latest]},
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
