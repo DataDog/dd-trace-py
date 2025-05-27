@@ -19,7 +19,7 @@ from django.utils.safestring import mark_safe
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
@@ -182,6 +182,43 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
         cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def iast_sampling(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_2(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_by_route_method(request, q_http_path_parameter):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '3'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '4'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '5'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '6'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '7'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '8'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '9'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '10'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '11'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '12'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '13'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '14'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '15'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '16'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}:{q_http_path_parameter}", status=200)
 
 
 def taint_checking_enabled_view(request):

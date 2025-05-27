@@ -313,7 +313,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def __init__(
         self,
-        recorder,
+        recorder: typing.Optional[Recorder] = None,
         nframes=config.max_frames,
         endpoint_collection_enabled=config.endpoint_collection,
         export_libdd_enabled=config.export.libdd_enabled,
