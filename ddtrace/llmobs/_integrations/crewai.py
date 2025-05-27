@@ -225,7 +225,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         queued_task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(queued_task_id), {})
         span_links = []
 
-        if isinstance(getattr(queued_task, "context", None), Iterable)):
+        if isinstance(getattr(queued_task, "context", None), Iterable):
             for finished_task in queued_task.context:
                 finished_task_id = getattr(finished_task, "id", "")
                 finished_task_node = self._crews_to_tasks.get(crew_id, {}).get(str(finished_task_id), {})
