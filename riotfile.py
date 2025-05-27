@@ -1415,7 +1415,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "aiobotocore": ["~=1.4.2", "~=2.0.0", latest],
+                        "aiobotocore": ["~=1.0.0", "~=1.4.2", "~=2.0.0", latest],
                     },
                 ),
                 Venv(

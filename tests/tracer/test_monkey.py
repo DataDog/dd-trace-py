@@ -1,3 +1,5 @@
+import unittest.mock
+
 from ddtrace import _monkey
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -69,3 +71,29 @@ class TestPatching(SubprocessTestCase):
         del sqlite3.connect
 
         _monkey.patch(raise_errors=False, sqlite3=True)
+
+    @run_in_subprocess()
+    def test_patch_guardrails_with_unsupported_integration_version(self):
+        # spy on fastapi get_version method and return a fake version we don't support
+        with unittest.mock.patch("ddtrace.contrib.internal.fastapi.patch.get_version", return_value="0.0.0"):
+            # Spy on the telemetry writer to ensure that the integration is reported as not patched.
+            with unittest.mock.patch(
+                "ddtrace.internal.telemetry.telemetry_writer.add_integration"
+            ) as mock_add_integration:
+                _monkey._patch_all()
+
+                mock_add_integration.assert_any_call(
+                    "fastapi",
+                    False,
+                    True,
+                    "Unable to patch integration: fastapi, installed version: 0.0.0 is not compatible with \
+                    integration support spec of >=0.64.0",
+                    version="0.0.0",
+                )
+                mock_add_integration.assert_any_call(
+                    "sqlite3",
+                    True,
+                    True,
+                    "",
+                    version="3.40.1",
+                )
