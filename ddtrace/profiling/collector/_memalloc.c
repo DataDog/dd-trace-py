@@ -103,8 +103,8 @@ memalloc_add_sample_no_cpython(memalloc_context_t* ctx, traceback_t* tb)
         traceback_array_append(&global_alloc_tracker->allocs, tb);
     } else {
         uint64_t r = random_range(ctx->max_events);
-        /* We'll free the old traceback only after modifying the table, in case freeing
-         * releases the GIL */
+        /* The caller will free the old traceback, because traceback_free calls
+         * CPython C APIs which could release the GIL. */
         old = global_alloc_tracker->allocs.tab[r];
         global_alloc_tracker->allocs.tab[r] = tb;
     }
