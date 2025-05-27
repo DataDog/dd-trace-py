@@ -34,7 +34,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID, PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
@@ -653,11 +653,14 @@ class LLMObs(Service):
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
-            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID))
+            if isinstance(llmobs_parent, Span):
+                llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+            else:
+                llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            newId = rand128bits()
-            span._set_ctx_item(LLMOBS_TRACE_ID, newId)
+            span._set_ctx_item(LLMOBS_TRACE_ID, rand128bits())
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1365,9 +1368,12 @@ class LLMObs(Service):
         active_context = cls._instance._current_trace_context()
         if active_context is None:
             parent_id = ROOT_PARENT_ID
+            llmobs_trace_id = rand128bits()
         else:
             parent_id = str(active_context.span_id)
+            llmobs_trace_id = active_context._meta.get(LLMOBS_TRACE_ID) or rand128bits()
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+        span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(llmobs_trace_id)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
@@ -1415,7 +1421,17 @@ class LLMObs(Service):
         except ValueError:
             log.warning("Failed to parse LLMObs parent ID from request headers.")
             return "invalid_parent_id"
+        _llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+        if _llmobs_trace_id is None:
+            log.warning("Failed to extract LLMObs trace ID from request headers.")
+            return "missing_llmobs_trace_id"
+        try:
+            llmobs_trace_id = int(_llmobs_trace_id)
+        except ValueError:
+            log.warning("Failed to parse LLMObs trace ID from request headers.")
+            return "invalid_llmobs_trace_id"
         llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
+        llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = llmobs_trace_id
         cls._instance._llmobs_context_provider.activate(llmobs_context)
         return None
 

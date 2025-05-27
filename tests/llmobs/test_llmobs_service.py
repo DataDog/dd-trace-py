@@ -2218,7 +2218,7 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
     assert llmobs_events[1]["name"] == "llm_span_2"
     assert llmobs_events[1]["parent_id"] == "undefined"
     # document buggy `trace_id` behavior
-    assert llmobs_events[0]["trace_id"] == llmobs_events[1]["trace_id"]
+    assert llmobs_events[0]["_dd"]["apm_trace_id"] == llmobs_events[1]["_dd"]["apm_trace_id"]
 
 
 def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_events):

@@ -79,6 +79,7 @@ print(json.dumps(headers))
 
     headers = json.loads(stdout.decode())
     llmobs.activate_distributed_headers(headers)
+    print("headers", headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
