@@ -1,5 +1,5 @@
-""" This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server
-"""
+"""This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
+
 import copy
 import os
 import re
@@ -15,7 +15,7 @@ from wrapt import FunctionWrapper
 import ddtrace.auto  # noqa: F401  # isort: skip
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.utils.formats import asbool
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
