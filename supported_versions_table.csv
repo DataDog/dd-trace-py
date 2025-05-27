@@ -36,7 +36,7 @@ elasticsearch6,elasticsearch,6.8.2,6.8.2,True
 elasticsearch7,elasticsearch,7.13.4,7.17.12,True
 opensearch-py,elasticsearch,1.1.0,2.8.0,True
 falcon,falcon,3.0.1,4.0.2,True
-fastapi,fastapi,0.51.0,0.115.12,True
+fastapi,fastapi,0.64.0,0.115.12,True
 flask,flask,1.1.4,3.1.0,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False

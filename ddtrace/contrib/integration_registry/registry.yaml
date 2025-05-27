@@ -332,7 +332,7 @@ integrations:
   - fastapi
   tested_versions_by_dependency:
     fastapi:
-      min: 0.51.0
+      min: 0.64.0
       max: 0.115.12
 
 - integration_name: flask
