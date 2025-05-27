@@ -1745,7 +1745,7 @@ Lorem Ipsum Foobar
             assert vulnerability["evidence"] == {
                 "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
             }
-            assert vulnerability["location"]["stackId"] == "1"
+            assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
             assert "class" not in vulnerability["location"]
 
     def test_flask_xss_concat(self):
