@@ -1748,8 +1748,8 @@ Lorem Ipsum Foobar
             assert vulnerability["evidence"] == {
                 "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
             }
-            assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["path"] == TEST_FILE_PATH
+            assert vulnerability["location"]["line"] == line
             assert vulnerability["location"]["method"] == "unvalidated_redirect_view"
             assert vulnerability["location"]["stackId"] == "1"
             assert "class" not in vulnerability["location"]
