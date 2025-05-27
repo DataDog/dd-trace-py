@@ -274,6 +274,29 @@ def test_debugger_conditional_line_probe_on_instance_method(stuff):
     assert captures["locals"] == {}
 
 
+@mock.patch("ddtrace.debugging._debugger.log")
+def test_debugger_line_probe_on_class_method(mock_log, stuff):
+    from tests.debugging.mocking import PayloadWaitTimeout
+
+    raised = False
+    try:
+        simple_debugger_test(
+            create_snapshot_line_probe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=173,
+            ),
+            lambda: stuff.TestClass().fake_get(),
+        )
+    except PayloadWaitTimeout:
+        mock_log.error.assert_called_once()
+        call_args = mock_log.error.call_args[0]
+        assert "Cannot install probe probe-instance-method: function at line 173" in call_args[0]
+        raised = True
+
+    assert not raised
+
+
 def test_debugger_invalid_line(stuff):
     with debugger() as d:
         d.add_probes(

@@ -167,3 +167,8 @@ def sensitive_stuff(pwd):
     token, answer, data = "deadbeef", 42, SensitiveData()  # noqa:F841
     pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
     return pwd
+
+
+class TestClass():
+    def fake_get(self):
+        return 5
