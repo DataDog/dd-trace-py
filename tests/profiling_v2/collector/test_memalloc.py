@@ -58,7 +58,7 @@ def test_memory_collector(tmp_path):
     )
     ddup.start()
 
-    mc = memalloc.MemoryCollector(None)
+    mc = memalloc.MemoryCollector()
     with mc:
         _allocate_1k()
         mc.periodic()
@@ -106,7 +106,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
     )
     ddup.start()
 
-    mc = memalloc.MemoryCollector(None, ignore_profiler=True)
+    mc = memalloc.MemoryCollector(ignore_profiler=True)
     quit_thread = threading.Event()
 
     with mc:
@@ -134,7 +134,6 @@ def test_memory_collector_ignore_profiler(tmp_path):
         assert "No samples found" in str(e)
 
 
-@pytest.mark.skip(reason="too slow")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )

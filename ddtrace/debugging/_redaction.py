@@ -109,7 +109,8 @@ REDACTED_PLACEHOLDER = r"{redacted}"
 
 @cached()
 def redact(ident: str) -> bool:
-    return normalize_ident(ident) in REDACTED_IDENTIFIERS
+    normalized = normalize_ident(ident)
+    return normalized in REDACTED_IDENTIFIERS and normalized not in config.redaction_excluded_identifiers
 
 
 @cached()

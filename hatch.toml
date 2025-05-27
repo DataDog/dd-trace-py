@@ -321,6 +321,7 @@ dependencies = [
 [envs.appsec_iast_native.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
@@ -332,7 +333,6 @@ test = [
 
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-
 
 ## ASM iast_tdd_propagation
 
@@ -356,6 +356,7 @@ dependencies = [
 [envs.iast_tdd_propagation.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.iast_tdd_propagation.scripts]
@@ -389,6 +390,7 @@ dependencies = [
 [envs.appsec_integrations_packages.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 
@@ -461,6 +463,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_flask.scripts]
@@ -518,6 +521,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_fastapi.scripts]
@@ -542,6 +546,47 @@ fastapi = ["==0.94.1"]
 [[envs.appsec_integrations_fastapi.matrix]]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
+
+## ASM appsec_integrations_langchain
+
+[envs.appsec_integrations_langchain]
+template = "appsec_integrations_langchain"
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "hypothesis",
+    "langchain{matrix:langchain:}",
+    "langchain-experimental{matrix:langchain-experimental:}",
+]
+
+[envs.appsec_integrations_langchain.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_integrations_langchain.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest -vvv {args:tests/appsec/integrations/langchain_tests/}",
+]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.1"]
+langchain-experimental = ["~=0.1"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.2"]
+langchain-experimental = ["~=0.2"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.3"]
+langchain-experimental = ["~=0.3"]
 
 ## ASM FastAPI
 

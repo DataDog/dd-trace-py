@@ -67,10 +67,35 @@ def tracer():
 
 @pytest.fixture
 def test_spans(tracer):
+    container = TracerSpanContainer(tracer)
+    yield container
+    container.reset()
+
+
+@pytest.fixture
+def iast_span(tracer):
     with override_global_config(
         dict(
             _iast_enabled=True,
+            _appsec_enabled=False,
             _iast_deduplication_enabled=False,
+            _iast_request_sampling=100.0,
+        )
+    ):
+        container = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        yield container
+        _end_iast_context_and_oce()
+        container.reset()
+
+
+@pytest.fixture
+def test_spans_2_vuln_per_request_deduplication(tracer):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_deduplication_enabled=True,
+            _iast_max_vulnerabilities_per_requests=2,
             _iast_request_sampling=100.0,
         )
     ):

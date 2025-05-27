@@ -8,17 +8,22 @@ concurrency:
 
 jobs:
   all-green:
+    name: all-green  # do not change this name, see https://github.com/DataDog/ensure-ci-success/blob/main/docs/limitations.md
     runs-on: ubuntu-latest
     permissions:
       checks: read
       contents: read
     steps:
-      - uses: wechuli/allcheckspassed@e22f45a4f25f4cf821d1273705ac233355400db1
+      - uses: DataDog/ensure-ci-success@727e7fe39ae2e1ce7ea336ec85a7369ab0731754 # v2.1.1
         with:
-          delay: 10  # wait for this delay before starting
-          polling_interval: 1 # after a failure, how long do it wait before checking again
-          retries: 60  # how many retries before stopping 
-          checks_exclude: 'Bootstrap import analysis,require-checklist,Validate changelog'
+          initial-delay-seconds: 10  # wait for this delay before starting
+          polling-interval-seconds: 1 # after a failure, how long do it wait before checking again
+          max-retries: 60  # how many retries before stopping
+          ignored-name-patterns: |
+            Bootstrap import analysis
+            require-checklist
+            Validate changelog
+            devflow/*
 
 # Why some checks are excluded?
 #
