@@ -138,7 +138,7 @@ def _root_module(path: Path) -> str:
 
     # Bazel runfiles support: we assume that these paths look like
     # /some/path.runfiles/.../site-packages/<root_module>/...
-    if any(".runfiles" in segment for segment in path.parts):
+    if any(p.suffix == ".runfiles" for p in path.parents):
         for s in path.parents:
             if s.parent.name == "site-packages":
                 return s.name
@@ -224,7 +224,17 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     try:
         path = Path(filename) if isinstance(filename, str) else filename
         # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
-        return mapping.get(_root_module(path))
+        root_module_path = _root_module(path)
+        if root_module_path in mapping:
+            return mapping[root_module_path]
+
+        # Loop through mapping and check the distribution name, since the key isn't always the same, for example:
+        #   '__editable__.ddtrace-3.9.0.dev...pth': Distribution(name='ddtrace', version='...')
+        for distribution in mapping.values():
+            if distribution.name == root_module_path:
+                return distribution
+
+        return None
     except (ValueError, OSError):
         return None
 
