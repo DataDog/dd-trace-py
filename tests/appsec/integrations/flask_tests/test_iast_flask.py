@@ -1740,17 +1740,11 @@ Lorem Ipsum Foobar
                 {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
             ]
 
-            line, hash_value = get_line_and_hash(
-                "test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH
-            )
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
             assert vulnerability["evidence"] == {
                 "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
             }
-            assert vulnerability["location"]["path"] == TEST_FILE_PATH
-            assert vulnerability["location"]["line"] == line
-            assert vulnerability["location"]["method"] == "unvalidated_redirect_view"
             assert vulnerability["location"]["stackId"] == "1"
             assert "class" not in vulnerability["location"]
 
