@@ -4,7 +4,6 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -96,7 +95,6 @@ def _unvalidated_redirect_forfastapi(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@oce.register
 class UnvalidatedRedirect(VulnerabilityBase):
     vulnerability_type = VULN_UNVALIDATED_REDIRECT
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
