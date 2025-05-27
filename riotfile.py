@@ -217,7 +217,8 @@ venv = Venv(
             name="integration",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -n auto -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -n auto -vv --no-ddtrace --no-cov --ignore-glob='*civisibility*' {cmdargs} "
+            "tests/integration/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -519,7 +520,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command="pytest -n auto {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                    "tests/contrib/bottle/",
                     venvs=[
                         Venv(
                             pys=select_pys(max_version="3.9"),
@@ -856,7 +858,8 @@ venv = Venv(
         Venv(
             name="elasticsearch:opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
-            command="pytest -n auto {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
+            command="pytest -n auto {cmdargs} tests/contrib/elasticsearch/test_opensearch.py "
+            "-k 'not ElasticsearchPatchTest'",
             pys=select_pys(),
             pkgs={
                 "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
@@ -1116,7 +1119,8 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"
+                    command="pytest -n auto {cmdargs} --ignore=tests/contrib/pymemcache/autopatch "
+                    "tests/contrib/pymemcache"
                 ),
                 Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
