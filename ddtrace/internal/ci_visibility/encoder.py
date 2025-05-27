@@ -236,8 +236,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             return None
         return b"\r\n".join(self._build_body(data))
 
-    def _convert_span(self, span, dd_origin):
-        # type: (Span, str) -> Dict[str, Any]
+    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
+        # type: (Span, str, Optional[int]) -> Dict[str, Any]
         files: Dict[str, Any] = {}
 
         files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
