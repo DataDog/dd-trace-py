@@ -4,6 +4,7 @@ import itertools
 import os
 import sys
 import time
+import traceback
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -38,7 +39,6 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
-from .logging import DDTelemetryLogHandler
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import MetricTagType
 from .metrics_namespaces import MetricType
@@ -204,8 +204,6 @@ class TelemetryWriter(PeriodicService):
             # Force app started for unit tests
             if config.FORCE_START:
                 self._app_started()
-            if config.LOG_COLLECTION_ENABLED:
-                get_logger("ddtrace").addHandler(DDTelemetryLogHandler(self))
 
     def enable(self):
         # type: () -> bool
@@ -502,6 +500,44 @@ class TelemetryWriter(PeriodicService):
                 data["stack_trace"] = stack_trace
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
+
+    def add_integration_error_log(self, msg, exc):
+        if config.LOG_COLLECTION_ENABLED:
+            stack_trace = self._format_stack_trace(exc)
+            self.add_log(
+                TELEMETRY_LOG_LEVEL.ERROR,
+                msg,
+                stack_trace=stack_trace if stack_trace is not None else "",
+            )
+
+    def _format_stack_trace(self, exc) -> Union[str, None]:
+        if exc is None:
+            return None
+
+        exc_type, exc_value, exc_traceback = type(exc), exc, exc.__traceback__
+        if exc_traceback:
+            tb = traceback.extract_tb(exc_traceback)
+            formatted_tb = ["Traceback (most recent call last):"]
+            for filename, lineno, funcname, srcline in tb:
+                redacted_filename = self._redact_filename(filename)
+                formatted_line = f'  File "{redacted_filename}", line {lineno}, in {funcname}\n    {srcline}'
+                formatted_tb.append(formatted_line)
+            if exc_type:
+                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
+            return "\n".join(formatted_tb)
+
+        return None
+
+    def _redact_filename(self, filename: str) -> str:
+        if self._is_ddtrace(filename):
+            return "<redacted>" + filename[filename.index('/ddtrace/'):]
+        else:
+            # else should never happen as we report only integration logs
+            # but it acts as a safe guard
+            return "<redacted>" + filename[filename.rindex('/'):]
+
+    def _is_ddtrace(self, filename: str) -> bool:
+        return "/ddtrace/" in filename
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
         """

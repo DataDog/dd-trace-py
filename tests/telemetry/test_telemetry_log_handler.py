@@ -1,152 +1,75 @@
-import logging
 import sys
-from unittest.mock import ANY
-from unittest.mock import Mock
-from unittest.mock import patch
 
+from unittest.mock import patch
 import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.telemetry.logging import DDTelemetryLogHandler
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 
 
-@pytest.fixture
-def telemetry_writer():
-    return Mock()
+def test_add_integration_error_log():
+    """Test add_integration_error_log functionality with real stack trace"""
+    from ddtrace.settings._telemetry import config
 
+    writer = TelemetryWriter(is_periodic=False)
+    writer._logs.clear()
 
-@pytest.fixture
-def handler(telemetry_writer):
-    return DDTelemetryLogHandler(telemetry_writer)
-
-
-@pytest.fixture
-def error_record():
-    return logging.LogRecord(
-        name="test_logger",
-        level=logging.ERROR,
-        pathname="/path/to",
-        lineno=42,
-        msg="Test error message %s",
-        args=("arg1",),
-        exc_info=None,
-        filename="test.py",
-    )
-
-
-@pytest.fixture
-def exc_info():
     try:
         raise ValueError("Test exception")
-    except ValueError:
-        return sys.exc_info()
+    except ValueError as e:
+        writer.add_integration_error_log("Test error message", e)
+
+        assert len(writer._logs) == 1
+
+        log_entry = list(writer._logs)[0]
+        assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
+        assert log_entry["message"] == "Test error message"
+
+        stack_trace = log_entry["stack_trace"]
+        expected_lines = [
+            "Traceback (most recent call last):",
+            '  File "<redacted>/test_telemetry_log_handler.py", line 18, in test_add_integration_error_log',
+            '    raise ValueError("Test exception")',
+            "builtins.ValueError: Test exception"
+        ]
+        for expected_line in expected_lines:
+            assert expected_line in stack_trace
 
 
-def test_handler_initialization(handler, telemetry_writer):
-    """Test handler initialization"""
-    assert isinstance(handler, logging.Handler)
-    assert handler.telemetry_writer == telemetry_writer
+def test_add_integration_error_log_with_log_collection_disabled():
+    """Test that add_integration_error_log respects LOG_COLLECTION_ENABLED setting"""
+    from ddtrace.settings._telemetry import config
+    config.LOG_COLLECTION_ENABLED = False
+
+    writer = TelemetryWriter(is_periodic=False)
+    writer._logs.clear()
+
+    try:
+        raise ValueError("Test exception")
+    except ValueError as e:
+        writer.add_integration_error_log("Test error message", e)
+
+        # No logs should be added when log collection is disabled
+        assert len(writer._logs) == 0
 
 
-def test_emit_error_level(handler, error_record):
-    """Test handling of ERROR level logs"""
-    handler.emit(error_record)
+def test_format_stack_trace_none():
+    """Test stack trace formatting with no exception"""
+    writer = TelemetryWriter(is_periodic=False)
 
-    handler.telemetry_writer.add_error.assert_called_once_with(1, "Test error message arg1", ANY, 42)
-
-
-def test_emit_ddtrace_contrib_error(handler, exc_info):
-    """Test handling of ddtrace.contrib errors with stack trace"""
-    record = logging.LogRecord(
-        name="ddtrace.contrib.test",
-        level=logging.ERROR,
-        pathname="/path/to",
-        lineno=42,
-        msg="Test error message",
-        args=(),
-        exc_info=exc_info,
-        filename="test.py",
-    )
-
-    handler.emit(record)
-
-    handler.telemetry_writer.add_log.assert_called_once()
-    args = handler.telemetry_writer.add_log.call_args.args
-    assert args[0] == TELEMETRY_LOG_LEVEL.ERROR
-    assert args[1] == "Test error message"
-
-
-@pytest.mark.parametrize(
-    "level,expected_telemetry_level",
-    [
-        (logging.WARNING, TELEMETRY_LOG_LEVEL.WARNING),
-        (logging.INFO, TELEMETRY_LOG_LEVEL.DEBUG),
-        (logging.DEBUG, TELEMETRY_LOG_LEVEL.DEBUG),
-    ],
-)
-def test_emit_ddtrace_contrib_levels(handler, level, expected_telemetry_level, exc_info):
-    """Test handling of ddtrace.contrib logs at different levels"""
-    record = logging.LogRecord(
-        name="ddtrace.contrib.test",
-        level=level,
-        pathname="/path/to",
-        lineno=42,
-        msg="Test message",
-        args=(),
-        exc_info=exc_info,
-        filename="test.py",
-    )
-
-    handler.emit(record)
-
-    args = handler.telemetry_writer.add_log.call_args.args
-    assert args[0] == expected_telemetry_level
-
-
-def test_emit_ddtrace_contrib_no_stack_trace(handler):
-    """Test handling of ddtrace.contrib logs without stack trace"""
-    record = logging.LogRecord(
-        name="ddtrace.contrib.test",
-        level=logging.WARNING,
-        pathname="/path/to",
-        lineno=42,
-        msg="Test warning message",
-        args=(),
-        exc_info=None,
-        filename="test.py",
-    )
-
-    handler.emit(record)
-    handler.telemetry_writer.add_log.assert_not_called()
-
-
-def test_format_stack_trace_none(handler):
-    """Test stack trace formatting with no exception info"""
-    assert handler._format_stack_trace(None) is None
-
-
-def test_format_stack_trace_redaction(handler, exc_info):
-    """Test stack trace redaction for non-ddtrace files"""
-    formatted_trace = handler._format_stack_trace(exc_info)
-    assert "<REDACTED>" in formatted_trace
-
+    stack_trace = writer._format_stack_trace(None)
+    assert stack_trace is None
 
 @pytest.mark.parametrize(
-    "filename,should_redact",
+    "filename,redacted_filename",
     [
-        ("/path/to/file.py", True),
-        ("/path/to/ddtrace/file.py", False),
-        ("/usr/local/lib/python3.8/site-packages/ddtrace/core.py", False),
-        ("/random/path/test.py", True),
+        ("/path/to/file.py", "<redacted>/file.py"),
+        ("/path/to/ddtrace/contrib/flask/file.py", "<redacted>/ddtrace/contrib/flask/file.py"),
+        ("/path/to/dd-trace-something/file.py", "<redacted>/file.py")
     ],
 )
-def test_should_redact(handler, filename, should_redact):
+def test_should_redact(filename, redacted_filename):
     """Test file redaction logic"""
-    assert handler._should_redact(filename) == should_redact
+    writer = TelemetryWriter(is_periodic=False)
+    assert writer._redact_filename(filename) == redacted_filename
 
-
-def test_format_file_path_value_error(handler):
-    """Test file path formatting when relpath raises ValueError"""
-    with patch("os.path.relpath", side_effect=ValueError):
-        filename = "/some/path/file.py"
-        assert handler._format_file_path(filename) == filename
