@@ -80,14 +80,18 @@ class TestPatching(SubprocessTestCase):
             with unittest.mock.patch(
                 "ddtrace.internal.telemetry.telemetry_writer.add_integration"
             ) as mock_add_integration:
+                import ddtrace
+
                 _monkey._patch_all()
+
+                fastapi_supported_version = ddtrace.contrib.internal.fastapi.patch._supported_versions().get("fastapi")
 
                 mock_add_integration.assert_any_call(
                     "fastapi",
                     False,
                     True,
                     "Unable to patch integration: fastapi, installed version: 0.0.0 is not compatible with \
-                    integration support spec of >=0.64.0",
+                    integration support spec of %s" % fastapi_supported_version,
                     version="0.0.0",
                 )
                 mock_add_integration.assert_any_call(

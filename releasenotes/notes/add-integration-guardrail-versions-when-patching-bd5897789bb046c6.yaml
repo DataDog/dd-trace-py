@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Adds guardrail versions to integrations which prevent patching of incompatible versions via a new `_supported_versions` function.
+    Adds an error message to integration telemetry when an incompatible version is detected.
