@@ -63,7 +63,8 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            for span in self._dd_spans:
+            if self._dd_spans:
+                span = self._dd_spans[0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
@@ -77,7 +78,8 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
         except StopIteration:
             raise
         except Exception:
-            for span in self._dd_spans:
+            if self._dd_spans:
+                span = self._dd_spans[0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
@@ -98,7 +100,8 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            for span in self._dd_spans:
+            if self._dd_spans:
+                span = self._dd_spans[0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
@@ -112,7 +115,8 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
         except StopAsyncIteration:
             raise
         except Exception:
-            for span in self._dd_spans:
+            if self._dd_spans:
+                span = self._dd_spans[0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
