@@ -730,7 +730,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
-    InternalTestSession.finish(force_finish_children=True, override_status = TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS)
+    InternalTestSession.finish(
+        force_finish_children=True,
+        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS,
+    )
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
