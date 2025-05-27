@@ -257,6 +257,10 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["name"] == "completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
             span_kind="workflow",
@@ -292,6 +296,10 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["name"] == "acompletion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
             span_kind="workflow",
@@ -327,6 +335,10 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["name"] == "text_completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
             span_kind="workflow",
@@ -341,7 +353,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_router_text_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+    async def test_router_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await router.atext_completion(
@@ -362,6 +374,10 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span.kind"] == "llm"
+        assert llm_event["name"] == "atext_completion"
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
             span_kind="workflow",
