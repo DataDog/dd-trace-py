@@ -14,12 +14,14 @@ from typing import Any
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
@@ -182,6 +184,43 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
         cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def iast_sampling(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_2(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_by_route_method(request, q_http_path_parameter):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '3'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '4'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '5'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '6'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '7'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '8'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '9'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '10'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '11'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '12'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '13'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '14'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '15'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '16'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}:{q_http_path_parameter}", status=200)
 
 
 def taint_checking_enabled_view(request):
@@ -348,6 +387,52 @@ def header_injection(request):
     response = HttpResponse("OK", status=200)
     # label iast_header_injection
     response.headers["Header-Injection"] = value
+    return response
+
+
+def unvalidated_redirect_url(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_url
+    return redirect(value)
+
+
+def unvalidated_redirect_url_validator(request):
+    value = request.GET.get("url")
+    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+        return redirect(value)
+    return redirect(value)
+
+
+def unvalidated_redirect_path(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_path
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_safe_source_cookie(request):
+    value = request.COOKIES["url"]
+    # label unvalidated_redirect_safe_source_cookie
+    return redirect(value)
+
+
+def unvalidated_redirect_safe_source_header(request):
+    value = request.META["url"]
+    # label unvalidated_redirect_safe_source_header
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_path_multiple_sources(request):
+    value1 = request.GET.get("url")
+    value2 = request.META["url"]
+    # label unvalidated_redirect_path_multiple_sources
+    return redirect(value1 + value2)
+
+
+def unvalidated_redirect_url_header(request):
+    value = request.GET.get("url")
+    response = HttpResponse("OK", status=200)
+    # label unvalidated_redirect_url_header
+    response.headers["Location"] = value
     return response
 
 

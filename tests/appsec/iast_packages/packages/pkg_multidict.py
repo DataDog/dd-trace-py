@@ -3,6 +3,7 @@ multidict==6.0.5
 
 https://pypi.org/project/multidict/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -36,7 +37,7 @@ def pkg_multidict_view():
 def pkg_multidict_propagation_view():
     from multidict import MultiDict
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

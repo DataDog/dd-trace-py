@@ -2,8 +2,8 @@ from psycopg2.errors import DuplicateTable
 from psycopg2.errors import InFailedSqlTransaction
 from psycopg2.errors import QueryCanceled
 
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from tests.appsec.integrations.packages_tests.db_utils import get_psycopg2_connection
 
 
