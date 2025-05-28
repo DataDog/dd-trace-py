@@ -15,6 +15,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
+from ddtrace import DDTraceDeprecationWarning
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
@@ -53,6 +54,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import config
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class SpanEvent:
@@ -608,38 +610,38 @@ class Span(object):
     ) -> None:
         """
         Records an exception as span event.
-        If the exception is uncaught, :obj:`escaped` should be set :obj:`True`. It
-        will tag the span with an error tuple.
 
         :param Exception exception: the exception to record
         :param dict attributes: optional attributes to add to the span event. It will override
             the base attributes if :obj:`attributes` contains existing keys.
-        :param int timestamp: the timestamp of the span event. Will be set to now() if timestamp is :obj:`None`.
-        :param bool escaped: sets to :obj:`False` for a handled exception and :obj:`True` for a uncaught exception.
         """
-        if timestamp is None:
-            timestamp = time_ns()
-
+        if escaped is False:
+            deprecate(
+                prefix="The escaped argument is deprecated for record_exception",
+                message="escaped argument has no effect",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+        if timestamp:
+            deprecate(
+                prefix="The timestamp argument is deprecated for record_exception",
+                message="timestamp argument has no effect",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
         exc_type, exc_val, exc_tb = type(exception), exception, exception.__traceback__
-
-        if escaped:
-            self.set_exc_info(exc_type, exc_val, exc_tb)
-
         tb = self._get_traceback(exc_type, exc_val, exc_tb)
 
-        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
-        attrs = {
+        attrs: Dict[str, _AttributeValueType] = {
             "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
             "exception.message": str(exception),
-            "exception.escaped": escaped,
             "exception.stacktrace": tb,
         }
         if attributes:
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="exception", attributes=attrs, timestamp=timestamp)
+        self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
