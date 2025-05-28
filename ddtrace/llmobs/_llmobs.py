@@ -59,6 +59,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
@@ -103,6 +104,15 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    # requests frameworks for distributed injection/extraction
+    "requests": "requests",
+    "httpx": "httpx",
+    "urllib3": "urllib3",
+    "grpc": "grpc",
+    "flask": "flask",
+    "starlette": "starlette",
+    "fastapi": "fastapi",
+    "aiohttp": "aiohttp",
 }
 
 
@@ -191,7 +201,7 @@ class LLMObs(Service):
         try:
             span_event = self._llmobs_span_event(span)
             self._llmobs_span_writer.enqueue(span_event)
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span", span, exc_info=True
             )
@@ -291,6 +301,12 @@ class LLMObs(Service):
             meta.pop("output")
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
+
+        if ml_app is None:
+            raise ValueError(
+                "ML app is required for sending LLM Observability data. "
+                "Ensure this configuration is set before running your application."
+            )
 
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
@@ -453,14 +469,6 @@ class LLMObs(Service):
         error = None
         start_ns = time.time_ns()
         try:
-            # validate required values for LLMObs
-            if not config._llmobs_ml_app:
-                error = "missing_ml_app"
-                raise ValueError(
-                    "DD_LLMOBS_ML_APP is required for sending LLMObs data. "
-                    "Ensure this configuration is set before running your application."
-                )
-
             config._llmobs_agentless_enabled = should_use_agentless(
                 user_defined_agentless_enabled=(
                     agentless_enabled if agentless_enabled is not None else config._llmobs_agentless_enabled
@@ -772,8 +780,14 @@ class LLMObs(Service):
         session_id = session_id if session_id is not None else _get_session_id(span)
         if session_id is not None:
             span._set_ctx_item(SESSION_ID, session_id)
+
+        ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
-            ml_app = _get_ml_app(span)
+            raise ValueError(
+                "ML app is required for sending LLM Observability data. "
+                "Ensure this configuration is set before running your application."
+            )
+
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
 
@@ -1453,12 +1467,24 @@ class LLMObs(Service):
     def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:
             return
-        active_context = cls._instance._current_trace_context()
-        if active_context is None:
-            parent_id = ROOT_PARENT_ID
+
+        active_span = cls._instance._llmobs_context_provider.active()
+        active_context = active_span.context if isinstance(active_span, Span) else active_span
+
+        parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
+
+        ml_app = None
+        if isinstance(active_span, Span):
+            ml_app = active_span._get_ctx_item(ML_APP)
+        elif active_context is not None:
+            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
         else:
-            parent_id = str(active_context.span_id)
+            ml_app = config._llmobs_ml_app
+
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+
+        if ml_app is not None:
+            span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:

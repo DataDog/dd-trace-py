@@ -69,7 +69,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def __init__(
         self,
-        recorder: Recorder,
+        recorder: Optional[Recorder] = None,
         _interval: float = _DEFAULT_INTERVAL,
         _max_events: Optional[int] = None,
         max_nframe: Optional[int] = None,
