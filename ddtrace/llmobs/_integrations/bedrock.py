@@ -1,5 +1,3 @@
-from datetime import timezone
-import json
 import re
 from typing import Any
 from typing import Dict
@@ -8,10 +6,7 @@ from typing import Optional
 from typing import Tuple
 from urllib.parse import urlparse
 
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal._rand import rand128bits
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -22,8 +17,17 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_custom_orchestration_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_failure_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_guardrail_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_orchestration_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_post_processing_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_pre_processing_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_routing_classifier_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.trace import Span
@@ -32,10 +36,20 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 BEDROCK_URL_REGEX_PATTERN = "^bedrock-runtime[\\w.-]*.com$"
+BEDROCK_AGENTS_TRACE_CONVERSION_METHODS = {
+    "customOrchestrationTrace": _translate_custom_orchestration_trace,
+    "failureTrace": _translate_failure_trace,
+    "guardrailTrace": _translate_guardrail_trace,
+    "orchestrationTrace": _translate_orchestration_trace,
+    "postProcessingTrace": _translate_post_processing_trace,
+    "preProcessingTrace": _translate_pre_processing_trace,
+    "routingClassifierTrace": _translate_routing_classifier_trace,
+}
 
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
+    _spans = {}  # Maps LLMObs span ID to LLMObs span events
 
     def _llmobs_set_tags(
         self,
@@ -116,9 +130,7 @@ class BedrockIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(self, span, args, kwargs):
-        if not self.llmobs_enabled:
-            return
-        if not span:
+        if not self.llmobs_enabled or not span:
             return
         span._set_ctx_items(
             {
@@ -132,126 +144,22 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate the bedrock trace to a format suitable for LLMObs."""
         if not traces or not self.llmobs_enabled:
             return
-        model_input, tool_input = None, None
+        translated_span_event = None
         for trace in traces:
-            orchestration_trace = trace.get("trace", {}).get("orchestrationTrace")
-            if orchestration_trace:
-                if "modelInvocationInput" in orchestration_trace:
-                    model_input = self._extract_message_from_model_invocation_input(orchestration_trace["modelInvocationInput"])
-                    continue
-                if "invocationInput" in orchestration_trace:
-                    tool_input = self._extract_tool_input_from_invocation_input(orchestration_trace["invocationInput"])
-                    continue
-                span_event = self._process_orchestration_trace(trace, root_span, model_input=model_input, tool_input=tool_input)
-                if span_event:
-                    LLMObs._instance._llmobs_span_writer.enqueue(span_event)
-
-    def _extract_message_from_model_invocation_input(self, model_invocation_input):
-        model = model_invocation_input.get("foundationModel", "")
-        model_name = model.split(".", 1)[-1] if model else ""
-        model_provider = model.split(".", 1)[0] if model else ""
-        text = json.loads(model_invocation_input.get("text", ""))
-        input_messages = [{"content": text["system"], "role": "system"}]
-        for message in text["messages"]:
-            input_messages.append({"content": message["content"], "role": message["role"]})
-        return {"model_name": model_name, "model_provider": model_provider, "input_messages": input_messages}
-
-    def _extract_tool_input_from_invocation_input(self, invocation_input):
-        if "actionGroupInvocationInput" not in invocation_input:
-            return None
-        bedrock_tool_call = invocation_input["actionGroupInvocationInput"]
-        params = bedrock_tool_call.get("parameters", {})
-        args = {arg["name"]: str(arg["value"]) for arg in params}
-        return {
-            "action_group_name": bedrock_tool_call.get("actionGroupName", ""),
-            "name": bedrock_tool_call.get("function", ""),
-            "arguments": json.dumps(args),
-            "tool_id": "",
-            "type": bedrock_tool_call.get("executionType"),
-        }
-
-    def _process_orchestration_trace(self, bedrock_trace, root_span, model_input=None, tool_input=None):
-        orchestration_trace = bedrock_trace["trace"].get("orchestrationTrace", {})
-        if not orchestration_trace:
-            return None
-        span_name = "orchestrationSpan"
-        input_value = None
-        output_value = None
-        input_messages = []
-        output_messages = []
-        token_metrics = {}
-        metadata = {}
-        bedrock_trace_id = orchestration_trace.get("modelInvocationInput", {}).get("traceId")
-        span_kind = "task"
-        span_id = str(rand128bits())
-        duration_ns = 1e9
-        if "modelInvocationInput" in orchestration_trace:
-            return
-        elif "modelInvocationOutput" in orchestration_trace:
-            span_name = "modelInvocation"
-            span_kind = "llm"
-            model_output = orchestration_trace["modelInvocationOutput"]
-            bedrock_metadata = model_output.get("metadata", {})
-            start_ns = bedrock_metadata.get("startTime")
-            if start_ns:
-                start_ns = start_ns.replace(tzinfo=timezone.utc).timestamp() * 1e9
-            duration_ns = bedrock_metadata.get("totalTimeMs", 1e6) * 1e6
-            input_messages = model_input["input_messages"]
-            metadata = {"model_name": model_input["model_name"], "model_provider": model_input["model_provider"]}
-            token_metrics = {
-                "input_tokens": bedrock_metadata.get("usage", {}).get("inputTokens", 0),
-                "output_tokens": bedrock_metadata.get("usage", {}).get("outputTokens", 0),
-            }
-            output_messages.append(model_output.get("rawResponse"))
-        elif "rationale" in orchestration_trace:
-            return
-        elif "observation" in orchestration_trace:
-            action_group_output = orchestration_trace["observation"].get("actionGroupInvocationOutput", {})
-            final_response = orchestration_trace["observation"].get("finalResponse", {})
-            if action_group_output:
-                span_name = tool_input.pop("action_group_name", "actionGroupInvocation")
-                span_kind = "tool"
-                output_metadata = action_group_output.get("metadata", {})
-                start_ns = output_metadata.get("startTime")
-                if start_ns:
-                    start_ns = start_ns.replace(tzinfo=timezone.utc).timestamp() * 1e9
-                duration_ns = output_metadata.get("totalTimeMs", 1e6) * 1e6
-                input_value = tool_input.pop("arguments", "")
-                output_value = action_group_output.get("text", "")
-                metadata = tool_input
-            elif final_response:
-                root_span._set_ctx_item("_ml_obs.meta.output.value", final_response.get("text", ""))
-                return
-
-
-        span_event = {
-            "span_id": span_id,
-            "trace_id": format_trace_id(root_span.trace_id),
-            "parent_id": str(root_span.span_id),
-            "tags": ["ml_app:{}".format(_get_ml_app(root_span))],
-            "name": span_name,
-            "start_ns": int(start_ns),
-            "duration": int(duration_ns),
-            "status": "ok",
-            "status_message": "",
-            "meta": {
-                "span.kind": span_kind,
-                "metadata": metadata,
-                "input": {},
-                "output": {},
-            },
-            "metrics": token_metrics,
-        }
-        if input_value is not None:
-            span_event["meta"]["input"]["value"] = input_value
-        if input_messages:
-            span_event["meta"]["input"]["messages"] = input_messages
-        if output_value is not None:
-            span_event["meta"]["output"]["value"] = output_value
-        if output_messages:
-            span_event["meta"]["output"]["messages"] = output_messages
-        return span_event
-
+            trace_step_id = _extract_trace_step_id(trace)
+            trace_type = _extract_trace_type(trace) or ""
+            if trace_type not in BEDROCK_AGENTS_TRACE_CONVERSION_METHODS:
+                log.warning("Unsupported trace type '%s' in Bedrock trace: %s", trace_type, trace)
+                continue
+            translated_span_event = BEDROCK_AGENTS_TRACE_CONVERSION_METHODS[trace_type](
+                trace, root_span, translated_span_event, trace_step_id,
+            )
+            if translated_span_event:
+                self._spans[translated_span_event["span_id"]] = translated_span_event
+            _create_or_update_bedrock_trace_step_span(trace, translated_span_event, root_span, self._spans)
+        for _, span_event, in self._spans.items():
+            LLMObs._instance._llmobs_span_writer.enqueue(span_event)
+        self._spans.clear()
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):

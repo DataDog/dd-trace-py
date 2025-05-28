@@ -3,9 +3,7 @@ import sys
 import wrapt
 
 from ddtrace import config
-from ddtrace.contrib.internal.httplib.patch import span_name
 from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 
 
@@ -60,15 +58,15 @@ def handle_bedrock_agent_response(result, integration, span, args, kwargs):
 
 
 def patched_bedrock_agent_api_call(original_func, instance, args, kwargs, function_vars):
-    params = function_vars.get("params")
     pin = function_vars.get("pin")
     integration = function_vars.get("integration")
+    agent_id = function_vars.get("params", {}).get("agentId", "")
     span = integration.trace(
         pin,
         schematize_service_name(
             "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
-        span_name="{}.{}".format(function_vars.get("endpoint_name", ""), function_vars.get("operation", "")),
+        span_name="Bedrock Agent {}".format(agent_id),
         submit_to_llmobs=True,
         interface_type="agent",
     )
