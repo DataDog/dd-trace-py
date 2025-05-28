@@ -220,8 +220,6 @@ def should_patch_module(integration_patch_module, integration_name, hooked_modul
     # stdlib modules will not have an associated version and should always be patched
     if not installed_version:
         return True
-    
-    breakpoint()
 
     supported_version_spec = _get_supported_versions(integration_patch_module, integration_name, hooked_module)
     if not supported_version_spec:
