@@ -53,7 +53,7 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
 
 @app.route(route="httpgetroot", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
-    requests.get("http://localhost:7071/api/httpgetchild")
+    requests.get("http://localhost:7071/api/httpgetchild", timeout=5)
     return func.HttpResponse("Hello Datadog!")
 
 
