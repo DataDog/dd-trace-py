@@ -291,6 +291,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
+                "pytest-benchmark": latest,
             },
             venvs=[
                 Venv(
