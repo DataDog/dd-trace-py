@@ -34,13 +34,14 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
         finally:
             if self._dd_span.finished:
                 return
-            traces, chunks = extract_traces_response_from_chunks(self._stream_chunks)
+            traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
+            response = _process_streamed_response_chunks(chunks)
             self._dd_integration._translate_bedrock_traces(traces, chunks, self._dd_span)
-            self._dd_integration._llmobs_set_tags_agent(self._dd_span, self._args, self._kwargs)
+            self._dd_integration._llmobs_set_tags_agent(self._dd_span, self._args, self._kwargs, response)
             self._dd_span.finish()
 
 
-def extract_traces_response_from_chunks(chunks):
+def _extract_traces_response_from_chunks(chunks):
     traces = []
     response = []
     for chunk in chunks:
@@ -49,6 +50,17 @@ def extract_traces_response_from_chunks(chunks):
         elif "trace" in chunk:
             traces.append(chunk["trace"])
     return traces, response
+
+def _process_streamed_response_chunks(chunks):
+    if not chunks:
+        return ""
+    resp = ""
+    for chunk in chunks:
+        if not isinstance(chunk, dict) or "bytes" not in chunk:
+            continue
+        parsed_chunk = chunk["bytes"].decode("utf-8")
+        resp += parsed_chunk
+    return resp
 
 
 def handle_bedrock_agent_response(result, integration, span, args, kwargs):

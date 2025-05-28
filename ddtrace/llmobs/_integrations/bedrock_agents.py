@@ -377,8 +377,6 @@ def _observation_span(observation, root_span, current_active_span):
     observation_type = observation.get("type", "")
     output_value = ""
     if observation_type == "FINISH":
-        final_response = observation.get("finalResponse", {})
-        root_span._set_ctx_item("_ml_obs.meta.output.value", final_response.get("text", ""))
         return None
     span_event = current_active_span
     if not span_event:
@@ -410,5 +408,3 @@ def _observation_span(observation, root_span, current_active_span):
     span_event["duration"] = int(duration_ns)
     span_event["meta"]["output"]["value"] = output_value
     return span_event
-
-

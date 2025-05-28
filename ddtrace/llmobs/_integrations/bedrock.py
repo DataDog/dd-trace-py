@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
@@ -129,16 +130,20 @@ class BedrockIntegration(BaseLLMIntegration):
             }
         )
 
-    def _llmobs_set_tags_agent(self, span, args, kwargs):
+    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
             return
+        input_value = args[1].get("inputText", "")
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent",
-                INPUT_VALUE: args[1].get("inputText", ""),
+                INPUT_VALUE: str(input_value),
                 TAGS: {"session_id": args[1].get("sessionId", [])},
             }
         )
+        if not response:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, str(response))
 
     def _translate_bedrock_traces(self, traces, chunks, root_span) -> None:
         """Translate the bedrock trace to a format suitable for LLMObs."""
