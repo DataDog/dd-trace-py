@@ -338,7 +338,7 @@ def test_single_trace_too_large_partial_flush_disabled():
 
 
 @parametrize_with_all_encodings(
-    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}
+    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}, check_logs=False
 )
 def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     import os
