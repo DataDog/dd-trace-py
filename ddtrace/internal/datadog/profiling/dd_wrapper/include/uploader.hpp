@@ -21,7 +21,7 @@ class Uploader
     std::string errmsg;
     static inline ddog_CancellationToken cancel{ .inner = nullptr };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
-    std::string* output_filename;
+    std::string_view output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
 
     bool export_to_file(ddog_prof_EncodedProfile* encoded);
@@ -35,7 +35,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string* _output_filename, ddog_prof_ProfileExporter ddog_exporter);
+    Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,
@@ -69,7 +69,6 @@ class Uploader
         ddog_exporter = other.ddog_exporter;
         other.ddog_exporter = { .inner = nullptr };
         output_filename = other.output_filename;
-        other.output_filename = nullptr;
         errmsg = std::move(other.errmsg);
     }
 
@@ -80,7 +79,6 @@ class Uploader
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
             output_filename = other.output_filename;
-            other.output_filename = nullptr;
             errmsg = std::move(other.errmsg);
         }
         return *this;

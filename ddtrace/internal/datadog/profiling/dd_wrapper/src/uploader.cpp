@@ -17,7 +17,7 @@
 
 using namespace Datadog;
 
-Datadog::Uploader::Uploader(std::string* _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
 {
@@ -32,12 +32,8 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
 
-    if (output_filename == nullptr) {
-        std::cerr << "output_filename is nullptr" << std::endl;
-        return false;
-    }
     std::ostringstream oss;
-    oss << *output_filename << "." << getpid() << "." << upload_seq;
+    oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
     std::ofstream out(filename, std::ios::binary);
     if (!out.is_open()) {
@@ -74,7 +70,7 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
     }
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
 
-    if (output_filename != nullptr && !output_filename->empty()) {
+    if (!output_filename.empty()) {
         bool ret = export_to_file(encoded);
         ddog_prof_EncodedProfile_drop(encoded);
         return ret;
