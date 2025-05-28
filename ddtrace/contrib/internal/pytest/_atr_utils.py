@@ -96,7 +96,11 @@ def atr_handle_retries(
         when=TestPhase.CALL,
         longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
-        user_properties=item.user_properties + [(UserProperty.RETRY_REASON, RetryReason.AUTO_TEST_RETRY)],
+        user_properties=item.user_properties
+        + [
+            (UserProperty.RETRY_REASON, RetryReason.AUTO_TEST_RETRY),
+            (UserProperty.RETRY_FINAL_OUTCOME, atr_outcome.value),
+        ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
 

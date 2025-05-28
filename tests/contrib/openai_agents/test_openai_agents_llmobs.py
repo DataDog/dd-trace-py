@@ -322,7 +322,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -396,7 +396,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [
                     {"role": "assistant", "content": mock.ANY},
@@ -487,7 +487,7 @@ async def test_llmobs_single_agent_with_tool_errors(
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),

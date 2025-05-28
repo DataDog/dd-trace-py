@@ -1,20 +1,24 @@
 import os
 import sysconfig
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
+from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
+from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
+from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
-from .._overhead_control_engine import Operation
 from .._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
@@ -53,9 +57,14 @@ def _check_positions_contained(needle, container):
     )
 
 
-class VulnerabilityBase(Operation):
+class VulnerabilityBase:
     vulnerability_type = ""
     secure_mark = 0
+
+    @staticmethod
+    def has_quota():
+        context = _get_iast_env()
+        return context.vulnerability_budget < asm_config._iast_max_vulnerabilities_per_requests
 
     @classmethod
     @taint_sink_deduplication
@@ -92,7 +101,7 @@ class VulnerabilityBase(Operation):
             ),
         )
         if report:
-            report.vulnerabilities.add(vulnerability)
+            report._append_vulnerability(vulnerability)
         else:
             report = IastSpanReporter(vulnerabilities={vulnerability})
         report.add_ranges_to_evidence_and_extract_sources(vulnerability)
@@ -115,9 +124,6 @@ class VulnerabilityBase(Operation):
         file_name = cls._rel_path(file_name)
         if not file_name:
             log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
-            return None, None, None, None
-
-        if not cls.is_not_reported(file_name, line_number):
             return None, None, None, None
 
         return file_name, line_number, function_name, class_name
@@ -159,18 +165,14 @@ class VulnerabilityBase(Operation):
     @classmethod
     def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> None:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
-        if cls.acquire_quota():
+        if should_process_vulnerability(cls.vulnerability_type):
             file_name = line_number = function_name = class_name = None
 
-            if getattr(cls, "skip_location", False):
-                if not cls.is_not_reported(cls.vulnerability_type, 0):
-                    return
-            else:
+            if not getattr(cls, "skip_location", False):
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
-                    cls.increment_quota()
+                    rollback_quota(cls.vulnerability_type)
                     return
-
             # Evidence is a string in weak cipher, weak hash and weak randomness
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
@@ -178,28 +180,46 @@ class VulnerabilityBase(Operation):
             # If result is None that's mean deduplication raises and no vulnerability wasn't reported, with that,
             # we need to restore the quota
             if not result:
-                cls.increment_quota()
+                rollback_quota(cls.vulnerability_type)
 
     @classmethod
-    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES) -> bool:
-        """Check if a string contains tainted ranges that are not marked as secure.
+    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: Set[OriginType] = set()) -> bool:
+        """Check if a string contains tainted ranges that are not marked as secure and don't come exclusively
+        from excluded origins.
 
         A string is considered tainted when:
         1. It has one or more taint ranges (indicating user-controlled data)
         2. At least one of these ranges is NOT marked as secure with the current vulnerability type's secure mark
            (cls.secure_mark)
+        3. If origins_to_exclude is provided, at least one range must have an origin NOT in the excluded list
+           for the string to be considered tainted
 
-        The method returns True if ANY range in the string lacks the secure mark of the current vulnerability class.
-        This means the string could be vulnerable to the specific type of attack this class checks for.
+        The origins_to_exclude parameter allows filtering out specific taint sources:
+        - If any range has an origin different from those in origins_to_exclude, the string is considered tainted
+        - If ALL ranges come from excluded origins, the string is NOT considered tainted
+        - If origins_to_exclude is empty, only conditions 1 and 2 are checked
+
+        Example:
+        - origins_to_exclude=[COOKIE]
+        - String has ranges from: [COOKIE, PARAMETER]
+        - Result: Tainted (because PARAMETER origin is not excluded)
+
+        - origins_to_exclude=[COOKIE]
+        - String has ranges from: [COOKIE, COOKIE]
+        - Result: Not tainted (because all ranges are from excluded origins)
 
         Args:
             string_to_check (Text): The string to check for taint ranges and secure marks
+            origins_to_exclude (list): List of origins to exclude from taint consideration
 
         Returns:
-            bool: True if any range lacks the current vulnerability type's secure mark, False otherwise
+            bool: True if any range lacks the secure mark AND has a non-excluded origin, False otherwise
         """
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
         if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
-            return True
+            if origins_to_exclude:
+                return not all(_range.source.origin in origins_to_exclude for _range in ranges)
+            else:
+                return True
         return False

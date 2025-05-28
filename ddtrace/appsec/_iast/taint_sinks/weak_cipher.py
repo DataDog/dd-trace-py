@@ -17,7 +17,6 @@ from ddtrace.settings.asm import config as asm_config
 
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
-from .._overhead_control_engine import oce
 from .._patch import set_and_check_module_is_patched
 from .._patch import set_module_unpatched
 from .._patch import try_wrap_function_wrapper
@@ -38,7 +37,6 @@ def get_weak_cipher_algorithms() -> Set:
     return CONFIGURED_WEAK_CIPHER_ALGORITHMS or DEFAULT_WEAK_CIPHER_ALGORITHMS
 
 
-@oce.register
 class WeakCipher(VulnerabilityBase):
     vulnerability_type = VULN_WEAK_CIPHER_TYPE
 
