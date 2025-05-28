@@ -19,11 +19,16 @@ log = get_logger(__name__)
 
 def is_di_enabled() -> bool:
     if (di_product := product_manager.__products__.get("dynamic-instrumentation")) is None:
+        print("Dynamic Instrumentation product is not available")
         return False
 
     if (di_config := getattr(di_product, "config", None)) is None:
+        print("Dynamic Instrumentation product configuration is not available")
+        print(di_product)
         return False
 
+    print(di_config)
+    print("Dynamic Instrumentation product configuration is available")
     return di_config.enabled
 
 
