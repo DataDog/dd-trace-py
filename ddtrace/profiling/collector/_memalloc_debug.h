@@ -40,7 +40,7 @@ memalloc_gil_debug_check_init(memalloc_gil_debug_check_t* c)
         assert(PyGILState_Check());                                                                                    \
         assert(!p->acquired);                                                                                          \
         p->acquired = true;                                                                                            \
-    } while(0)
+    } while (0)
 
 /* Annotate that we are ending a critical section where we don't want other
  * memalloc code to run. If compiled assertions enabled, this will check that the
@@ -52,7 +52,7 @@ memalloc_gil_debug_check_init(memalloc_gil_debug_check_t* c)
         memalloc_gil_debug_check_t* p = c;                                                                             \
         assert(p->acquired);                                                                                           \
         p->acquired = false;                                                                                           \
-    } while(0)
+    } while (0)
 #else
 
 #define MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(c)
