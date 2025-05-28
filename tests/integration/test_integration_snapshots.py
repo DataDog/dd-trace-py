@@ -6,8 +6,6 @@ import pytest
 
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import mark_snapshot
-from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
