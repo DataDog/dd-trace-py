@@ -15,8 +15,8 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.telemetry.writer import TelemetryWriter
+from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
 from ddtrace.settings._telemetry import config as telemetry_config
@@ -972,7 +972,6 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         assert len(log_events) == 1
 
         logs = log_events[0]["payload"]["logs"]
-        print(log_events[0])
         assert len(logs) == 1
 
         log_entry = logs[0]
@@ -982,12 +981,13 @@ def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_sessi
         stack_trace = log_entry["stack_trace"]
         expected_lines = [
             "Traceback (most recent call last):",
-            '  File "<redacted>/test_writer.py", line 965, in test_add_integration_error_log',
-            '    raise ValueError("Test exception")',
+            "  <REDACTED>",
+            "    <REDACTED>",
             "builtins.ValueError: Test exception",
         ]
         for expected_line in expected_lines:
             assert expected_line in stack_trace
+
 
 def test_add_integration_error_log_with_log_collection_disabled(mock_time, telemetry_writer, test_agent_session):
     """Test that add_integration_error_log respects LOG_COLLECTION_ENABLED setting"""
@@ -1008,14 +1008,14 @@ def test_add_integration_error_log_with_log_collection_disabled(mock_time, telem
 
 
 @pytest.mark.parametrize(
-    "filename,redacted_filename",
+    "filename, is_redacted",
     [
-        ("/path/to/file.py", "<redacted>/file.py"),
-        ("/path/to/ddtrace/contrib/flask/file.py", "<redacted>/ddtrace/contrib/flask/file.py"),
-        ("/path/to/dd-trace-something/file.py", "<redacted>/file.py"),
+        ("/path/to/file.py", True),
+        ("/path/to/ddtrace/contrib/flask/file.py", False),
+        ("/path/to/dd-trace-something/file.py", True),
     ],
 )
-def test_redact_filename(filename, redacted_filename):
+def test_redact_filename(filename, is_redacted):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
-    assert writer._redact_filename(filename) == redacted_filename
+    assert writer._should_redact(filename) == is_redacted

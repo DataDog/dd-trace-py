@@ -145,6 +145,7 @@ class TelemetryWriter(PeriodicService):
     # payloads is only used in tests and is not required to process Telemetry events.
     _sequence = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
+    CWD = os.getcwd()
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
@@ -516,24 +517,27 @@ class TelemetryWriter(PeriodicService):
             tb = traceback.extract_tb(exc_traceback)
             formatted_tb = ["Traceback (most recent call last):"]
             for filename, lineno, funcname, srcline in tb:
-                redacted_filename = self._redact_filename(filename)
-                formatted_line = f'  File "{redacted_filename}", line {lineno}, in {funcname}\n    {srcline}'
-                formatted_tb.append(formatted_line)
+                if self._should_redact(filename):
+                    formatted_tb.append("  <REDACTED>")
+                    formatted_tb.append("    <REDACTED>")
+                else:
+                    relative_filename = self._format_file_path(filename)
+                    formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
+                    formatted_tb.append(formatted_line)
             if exc_type:
                 formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
             return "\n".join(formatted_tb)
 
         return None
 
-    def _redact_filename(self, filename: str) -> str:
-        if self._is_ddtrace(filename):
-            return "<redacted>" + filename[filename.index("/ddtrace/") :]
-        # below should never happen as we report only integration logs
-        # but it acts as a safe guard
-        return "<redacted>" + filename[filename.rindex("/") :]
+    def _should_redact(self, filename: str) -> bool:
+        return "ddtrace" not in filename
 
-    def _is_ddtrace(self, filename: str) -> bool:
-        return "/ddtrace/" in filename
+    def _format_file_path(self, filename):
+        try:
+            return os.path.relpath(filename, start=self.CWD)
+        except ValueError:
+            return filename
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
         """
