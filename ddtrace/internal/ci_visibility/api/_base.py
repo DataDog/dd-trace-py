@@ -180,11 +180,12 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
+        # except if context is passed (for xdist support)
         parent_span: Optional[Union[Span, Context]] = None
         if context is not None:
             parent_span = context
-        else:
-            parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
+        elif isinstance(self, TestVisibilityParentItem):
+            parent_span = self.get_parent_span()
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -582,7 +583,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         if children_status_counts[TestStatus.FAIL.value] > 0:
             return TestStatus.FAIL
-        if children_status_counts[TestStatus.SKIP.value] == len(self._children):
+        len_children = len(self._children)
+        if len_children > 0 and children_status_counts[TestStatus.SKIP.value] == len_children:
             return TestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[TestStatus.FAIL.value] == 0:
