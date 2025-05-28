@@ -32,7 +32,6 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
         kwargs["router_instance"] = instance
         self._span_info.append((span, kwargs))
 
-
     def _finish_spans(self):
         """Helper to finish all spans associated with this stream."""
         formatted_completions = None
