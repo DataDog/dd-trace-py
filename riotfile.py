@@ -792,7 +792,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(),
-                    pkgs={"dramatiq": ["~=1.0.0", latest], "pytest": latest, "redis": latest},
+                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
         ),
@@ -1048,7 +1048,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys="3.8",
-                    pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
+                    pkgs={"psycopg2-binary": "~=2.8.0"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.12"),
@@ -2735,7 +2735,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~1.0.0", latest],
+                "azure.functions": latest,
                 "requests": latest,
             },
         ),

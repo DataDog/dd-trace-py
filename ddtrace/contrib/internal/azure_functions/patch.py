@@ -29,7 +29,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"azure_functions": ">=1.0.0"}
+    return {"azure.functions": ">=1.0.0"}
 
 
 def patch():

@@ -31,7 +31,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"jinja2": ">=2.11"}
+    return {"jinja2": ">=2.10"}
 
 
 def patch():
