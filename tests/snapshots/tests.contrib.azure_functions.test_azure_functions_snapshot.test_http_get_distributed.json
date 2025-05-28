@@ -1,0 +1,86 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "GET /api/httpgetroot",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "683728d800000000",
+      "aas.function.name": "http_get_root",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "GET",
+      "http.route": "/api/httpgetroot",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httpgetroot",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "8b77197bb47d4120bc9b72ca973e2add",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 8558
+    },
+    "duration": 170553667,
+    "start": 1748445400530790466
+  },
+     {
+       "name": "requests.request",
+       "service": "requests",
+       "resource": "GET /api/httpgetchild",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "requests",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://localhost:7071/api/httpgetchild",
+         "http.useragent": "python-requests/2.32.3",
+         "out.host": "localhost",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1
+       },
+       "duration": 166391500,
+       "start": 1748445400534436299
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "GET /api/httpgetchild",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "683728d800000000",
+            "aas.function.name": "http_get_child",
+            "aas.function.trigger": "Http",
+            "component": "azure_functions",
+            "http.method": "GET",
+            "http.route": "/api/httpgetchild",
+            "http.status_code": "200",
+            "http.url": "http://localhost:7071/api/httpgetchild",
+            "http.useragent": "python-requests/2.32.3",
+            "runtime-id": "8b77197bb47d4120bc9b72ca973e2add",
+            "span.kind": "server"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 8558
+          },
+          "duration": 116416,
+          "start": 1748445400559216633
+        }]]

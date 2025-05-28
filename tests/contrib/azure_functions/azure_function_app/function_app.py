@@ -1,9 +1,10 @@
 from ddtrace import patch
 
 
-patch(azure_functions=True)
+patch(azure_functions=True, requests=True)
 
 import azure.functions as func  # noqa: E402
+import requests  # noqa: E402
 
 
 app = func.FunctionApp()
@@ -47,6 +48,17 @@ def http_get_function_name_decorator(req: func.HttpRequest) -> func.HttpResponse
 
 @app.route(route="httpgetfunctionnamenodecorator", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(route="httpgetroot", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
+    requests.get("http://localhost:7071/api/httpgetchild")
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(route="httpgetchild", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
+def http_get_child(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 
