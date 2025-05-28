@@ -33,10 +33,11 @@ class UploaderConfig
 
     static inline UploaderConfig* instance = nullptr;
 
-  public:
+    // Private Constructor/Destructor
     UploaderConfig() = default;
     ~UploaderConfig() = default;
 
+  public:
     UploaderConfig(const UploaderConfig&) = delete;
     UploaderConfig& operator=(const UploaderConfig&) = delete;
 
