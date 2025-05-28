@@ -3,7 +3,6 @@ import errno
 import json
 from json.decoder import JSONDecodeError
 import os
-import os.path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
@@ -75,11 +74,18 @@ def _get_rate_limiter() -> RateLimiter:
 
 @dataclasses.dataclass(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
+    _instance: Optional["AppSecSpanProcessor"] = None
+
     rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+
+    def register(self) -> None:
+        if self._instance is None:
+            self.__class__._instance = self
+        super().register()
 
     @property
     def enabled(self):
