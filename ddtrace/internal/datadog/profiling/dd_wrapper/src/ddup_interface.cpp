@@ -337,6 +337,15 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
+    const auto& config = Datadog::UploaderConfig::get_instance();
+
+    if (!config.get_output_filename().empty()) {
+        Datadog::Uploader::export_to_file(Datadog::Sample::profile_borrow());
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
+        return true;
+    }
+
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
