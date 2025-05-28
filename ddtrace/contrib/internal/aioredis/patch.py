@@ -55,6 +55,10 @@ def get_version():
     return aioredis_version_str
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aioredis": "*"}
+
+
 def patch():
     if getattr(aioredis, "_datadog_patch", False):
         return

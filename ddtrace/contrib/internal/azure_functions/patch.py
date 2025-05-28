@@ -27,6 +27,10 @@ def get_version():
     return getattr(azure_functions, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"azure_functions": ">=1.0.0"}
+
+
 def patch():
     """
     Patch `azure.functions` module for tracing

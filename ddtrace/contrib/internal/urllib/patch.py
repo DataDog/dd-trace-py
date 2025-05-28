@@ -11,6 +11,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"urllib": "*"}
+
+
 def patch():
     """patch the built-in urllib.request methods for tracing"""
     if getattr(urllib.request, "__datadog_patch", False):

@@ -33,6 +33,10 @@ def get_version():
     return version.VERSION
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"openai": ">=1.0"}
+
+
 OPENAI_VERSION = parse_version(get_version())
 
 
@@ -78,10 +82,6 @@ _RESOURCES = {
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
-
-
-def _supported_versions() -> dict[str, str]:
-    return {"openai": ">=1.0"}
 
 
 def patch():

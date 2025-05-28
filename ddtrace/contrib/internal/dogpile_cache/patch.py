@@ -27,6 +27,10 @@ def get_version():
     return getattr(dogpile_cache, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"dogpile.cache": "*"}
+
+
 def patch():
     if getattr(dogpile_cache, "_datadog_patch", False):
         return

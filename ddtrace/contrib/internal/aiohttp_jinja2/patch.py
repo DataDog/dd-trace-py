@@ -21,6 +21,10 @@ def get_version():
     return getattr(aiohttp_jinja2, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aiohttp_jinja2": ">=1.0.0"}
+
+
 @with_traced_module
 def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     # original signature:

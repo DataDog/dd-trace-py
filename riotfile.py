@@ -792,7 +792,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(),
-                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
+                    pkgs={"dramatiq": ["~=1.0.0", latest], "pytest": latest, "redis": latest},
                 ),
             ],
         ),
@@ -1931,6 +1931,7 @@ venv = Venv(
                     latest,
                 ],
                 "aiohttp_jinja2": [
+                    "~=1.0.0",
                     "~=1.5.0",
                     latest,
                 ],
@@ -2261,6 +2262,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "dogpile.cache": [
+                            "~=0.6.0",
                             "~=0.9",
                             "~=1.0",
                             latest,
@@ -2514,7 +2516,7 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": latest,
+                "openai-agents": ["~=0.0.0", latest],
             },
         ),
         Venv(
@@ -2734,7 +2736,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": latest,
+                "azure.functions": ["~1.0.0", latest],
                 "requests": latest,
             },
         ),

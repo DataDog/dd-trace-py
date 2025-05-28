@@ -41,18 +41,17 @@ aiohttp
 ^^^^^^^
 .. automodule:: ddtrace.contrib.aiohttp
 
+.. _aiohttp_jinja2:
+
+aiohttp-jinja2
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._aiohttp_jinja2
+
 .. _aiomysql:
 
 aiomysql
 ^^^^^^^^
 .. automodule:: ddtrace.contrib._aiomysql
-
-
-.. _aiohttp_jinja2:
-
-aiohttp_jinja2
-^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._aiohttp_jinja2
 
 
 .. _anthropic:
@@ -88,6 +87,13 @@ avro
 AWS Lambda
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib._aws_lambda
+
+
+.. _azure_functions:
+
+Azure Functions
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._azure_functions
 
 
 .. _botocore:
@@ -139,6 +145,13 @@ Consul
 .. automodule:: ddtrace.contrib._consul
 
 
+.. _coverage:
+
+Coverage
+^^^^^^^^
+.. automodule:: ddtrace.contrib._coverage
+
+
 .. _crewai:
 
 CrewAI
@@ -175,6 +188,13 @@ dogpile.cache
 .. automodule:: ddtrace.contrib._dogpile_cache
 
 
+.. _dramatiq:
+
+Dramatiq
+^^^^^^^^
+.. automodule:: ddtrace.contrib._dramatiq
+
+
 .. _elasticsearch:
 
 Elasticsearch
@@ -208,6 +228,13 @@ Flask
 Flask Cache
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.flask_cache
+
+
+.. _freezegun:
+
+FreezeGun
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._freezegun
 
 
 .. _futures:
@@ -550,6 +577,13 @@ SQLite3
 .. automodule:: ddtrace.contrib._sqlite3
 
 
+.. _subprocess:
+
+Subprocess
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._subprocess
+
+
 .. _tornado:
 
 Tornado
@@ -562,6 +596,13 @@ Tornado
 unittest
 ^^^^^^^^
 .. automodule:: ddtrace.contrib._unittest
+
+
+.. _urllib:
+
+urllib
+^^^^^^
+.. automodule:: ddtrace.contrib._urllib
 
 
 .. _urllib3:

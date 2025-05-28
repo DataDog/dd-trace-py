@@ -38,6 +38,10 @@ def get_version() -> str:
         return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"freezegun": ">=1.0.0"}
+
+
 def patch() -> None:
     import freezegun
 

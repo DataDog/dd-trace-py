@@ -55,6 +55,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"wsgi": "*"}
+
+
 class _DDWSGIMiddlewareBase(object):
     """Base WSGI middleware class.
 

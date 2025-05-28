@@ -52,6 +52,10 @@ def get_version():
     return __version__
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"boto": "*"}
+
+
 def patch():
     if getattr(boto.connection, "_datadog_patch", False):
         return

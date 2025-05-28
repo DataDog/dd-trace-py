@@ -18,6 +18,10 @@ def get_version() -> str:
     return str(dramatiq.__version__)
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"dramatiq": ">=1.0.0"}
+
+
 def patch() -> None:
     """
     Instrument dramatiq so any new Actor is automatically instrumented.

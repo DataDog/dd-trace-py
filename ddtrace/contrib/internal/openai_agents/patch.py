@@ -16,6 +16,10 @@ def get_version() -> str:
     return getattr(version, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"openai_agents": "*"}
+
+
 def patch():
     """
     Patch the instrumented methods
