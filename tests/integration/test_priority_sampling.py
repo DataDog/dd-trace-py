@@ -129,6 +129,27 @@ def test_agent_sample_rate_keep():
     assert span.get_tag("_dd.p.dm") == "-1"
 
 
+@skip_if_testagent
+@parametrize_with_all_encodings()
+def test_sampling_rate_honored_tracer_configure():
+    from ddtrace.trace import TraceFilter
+    from ddtrace.trace import tracer as t
+
+    assert hasattr(t._span_aggregator.writer, "_response_cb") is True
+    assert t._span_aggregator.writer._response_cb is not None
+
+    class CustomFilter(TraceFilter):
+        def process_trace(self, trace):
+            for span in trace:
+                if span.name == "some_name":
+                    return None
+            return trace
+
+    t.configure(trace_processors=[CustomFilter()])  # Triggers AgentWriter recreate
+    assert hasattr(t._span_aggregator.writer, "_response_cb") is True
+    assert t._span_aggregator.writer._response_cb is not None
+
+
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():
