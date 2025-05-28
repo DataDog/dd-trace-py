@@ -776,7 +776,7 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
     "pytest-xdist",
 ]
 
