@@ -86,9 +86,9 @@ memalloc_should_sample_no_cpython(memalloc_context_t* ctx)
 /* Insert a sample into the profile data structure. The data structure is
  * protected by the GIL. This function must not call into C Python APIs, which
  * could release the GIL. Returns a non-NULL traceback if we couldn't add the
- * sample, either because profiling was stopped or because we are replacing a
- * sample. The returned traceback should be freed by the caller, since doing so
- * calls C Python APIs. */
+ * sample because profiling was stopped, or because we are replacing a sample.
+ * The returned traceback should be freed by the caller, since doing so calls C
+ * Python APIs. */
 static traceback_t*
 memalloc_add_sample_no_cpython(memalloc_context_t* ctx, traceback_t* tb)
 {
