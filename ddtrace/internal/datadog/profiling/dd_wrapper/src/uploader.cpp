@@ -31,7 +31,6 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 {
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
-
     std::ostringstream oss;
     oss << output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
