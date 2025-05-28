@@ -297,11 +297,10 @@ def test_single_trace_too_large():
         "ddtrace.internal.writer.writer.log"
     ) as log:
         with t.trace("huge"):
-            for i in range(30000):
-                with t.trace("operation") as s:
-                    # these strings must be unique to avoid compression
-                    s.set_tag(long_string + str(i), long_string + str(i))
-        assert (
+            for i in range(1 << 20 + 1):
+                t.trace("operation").finish()
+        t._span_aggregator.writer.flush_queue()
+        calls = [
             mock.call(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 AnyInt(),
@@ -310,10 +309,9 @@ def test_single_trace_too_large():
                 AnyInt(),
                 AnyStr(),
             )
-            in log.warning.mock_calls
-        ), log.mock_calls[:20]
+        ]
+        log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
-        t.shutdown()
 
 
 @skip_if_testagent
@@ -326,6 +324,7 @@ def test_single_trace_too_large_partial_flush_disabled():
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
 
+    assert t._span_aggregator.partial_flush_enabled is False
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("huge"):
             for _ in range(200000):
@@ -400,7 +399,7 @@ def test_inode_entity_id_header_present():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings()
+@parametrize_with_all_encodings(check_logs=False)
 def test_external_env_header_present():
     import mock
 
@@ -409,12 +408,11 @@ def test_external_env_header_present():
     mocked_external_env = "it-false,cn-nginx-webserver,pu-75a2b6d5-3949-4afb-ad0d-92ff0674e759"
 
     t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
-    with mock.patch("os.environ.get") as oegmock:
+    with mock.patch("os.environ.get") as oegmock, mock.patch("http.client.HTTPConnection.request") as request_mock:
         oegmock.return_value = mocked_external_env
         t.trace("op").finish()
         t.shutdown()
-    assert t._span_aggregator.writer._put.call_count == 1
-    headers = t._span_aggregator.writer._put.call_args[0][1]
+    headers = request_mock.call_args[1]["headers"]
     assert "Datadog-External-Env" in headers
     assert headers["Datadog-External-Env"] == mocked_external_env
 
