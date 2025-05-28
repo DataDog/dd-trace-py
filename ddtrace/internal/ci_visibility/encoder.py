@@ -88,12 +88,12 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def _build_payload(self, traces):
         new_parent_session_span_id = self._get_parent_session(traces)
-        is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
+        is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
         normalized_spans = [
             self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
             for trace in traces
             for span in trace
-            if (is_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
+            if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
         ]
         if not normalized_spans:
             return None
