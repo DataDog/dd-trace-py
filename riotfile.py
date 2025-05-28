@@ -284,14 +284,13 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
-            command="pytest -n auto -v {cmdargs} tests/internal/",
+            command="pytest -v {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
                 "python-json-logger": "==2.0.7",
                 "pyfakefs": latest,
-                "pytest-benchmark": latest,
             },
             venvs=[
                 Venv(
@@ -311,11 +310,11 @@ venv = Venv(
         ),
         Venv(
             name="gevent",
-            command="pytest -n auto {cmdargs} tests/contrib/gevent",
+            command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
                 "elasticsearch": latest,
                 "pynamodb": "<6.0",
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -390,14 +389,14 @@ venv = Venv(
         ),
         Venv(
             name="ddtracerun",
-            command="pytest -n auto {cmdargs} --no-cov tests/commands/test_runner.py",
+            command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
                     pys=select_pys(),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
-                        "pytest-xdist": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
@@ -767,7 +766,7 @@ venv = Venv(
         ),
         Venv(
             name="django:celery",
-            command="pytest -n auto {cmdargs} tests/contrib/django_celery",
+            command="pytest {cmdargs} tests/contrib/django_celery",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
                 # other versions as the main purpose of these tests is to ensure
@@ -777,7 +776,7 @@ venv = Venv(
                 "gevent": latest,
                 "requests": latest,
                 "typing-extensions": latest,
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -2150,11 +2149,11 @@ venv = Venv(
         ),
         Venv(
             name="snowflake",
-            command="pytest -n auto {cmdargs} tests/contrib/snowflake",
+            command="pytest {cmdargs} tests/contrib/snowflake",
             pkgs={
                 "responses": "~=0.16.0",
                 "cryptography": "<39",
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
@@ -2222,18 +2221,18 @@ venv = Venv(
         ),
         Venv(
             name="futures",
-            command="pytest -n auto {cmdargs} tests/contrib/futures",
+            command="pytest {cmdargs} tests/contrib/futures",
             pkgs={
                 "gevent": latest,
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             pys=select_pys(),
         ),
         Venv(
             name="sqlite3",
-            command="pytest -n auto {cmdargs} tests/contrib/sqlite3",
+            command="pytest {cmdargs} tests/contrib/sqlite3",
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 # sqlite3 is tied to the Python version and is not installable via pip
@@ -2315,14 +2314,14 @@ venv = Venv(
         ),
         Venv(
             name="opentelemetry",
-            command="pytest -n auto {cmdargs} tests/opentelemetry",
+            command="pytest {cmdargs} tests/opentelemetry",
             pys=select_pys(min_version="3.8"),
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
             env={"DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
                 # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
                 "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
@@ -2373,20 +2372,20 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": latest, "pytest-xdist": latest},
+            pkgs={"opentracing": latest, "pytest-randomly": latest},
             venvs=[
                 Venv(
                     pys=select_pys(),
-                    command="pytest -n auto {cmdargs} tests/opentracer/core",
+                    command="pytest {cmdargs} tests/opentracer/core",
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
-                    command="pytest -n auto {cmdargs} tests/opentracer/test_tracer_asyncio.py",
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
                     pkgs={"pytest-asyncio": "==0.21.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
-                    command="pytest -n auto {cmdargs} tests/opentracer/test_tracer_tornado.py",
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
                     # TODO: update opentracing tests to be compatible with Tornado v6.
                     # https://github.com/opentracing/opentracing-python/issues/136
                     pkgs={
@@ -2394,7 +2393,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    command="pytest -n auto {cmdargs} tests/opentracer/test_tracer_gevent.py",
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
                     venvs=[
                         Venv(
                             pys="3.8",
@@ -2550,7 +2549,7 @@ venv = Venv(
                 "ai21": latest,
                 "exceptiongroup": latest,
                 "psutil": latest,
-                "pytest-xdist": "==3.10.1",
+                "pytest-xdist": latest,
                 "numexpr": "==2.8.5",
                 "greenlet": "==3.0.3",
                 "respx": latest,
@@ -2714,12 +2713,12 @@ venv = Venv(
         ),
         Venv(
             name="gunicorn",
-            command="pytest -n auto {cmdargs} tests/contrib/gunicorn",
+            command="pytest {cmdargs} tests/contrib/gunicorn",
             pkgs={
                 "requests": latest,
                 "gevent": latest,
                 "gunicorn": ["==20.0.4", latest],
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             pys=select_pys(),
         ),
@@ -2778,11 +2777,11 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
-            command="pytest -n auto --no-ddtrace {cmdargs} tests/ci_visibility",
+            command="pytest --no-ddtrace {cmdargs} tests/ci_visibility",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
                 "gevent": latest,
             },
             env={
@@ -2848,7 +2847,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -n auto -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
@@ -2864,7 +2863,7 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
                 "pytest-asyncio": "==0.21.1",
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 # Python 3.8 + 3.9
@@ -2945,7 +2944,7 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -n auto -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
@@ -2962,7 +2961,7 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
                 "pytest-asyncio": "==0.21.1",
-                "pytest-xdist": latest,
+                "pytest-randomly": latest,
             },
             venvs=[
                 # Python 3.8 + 3.9
