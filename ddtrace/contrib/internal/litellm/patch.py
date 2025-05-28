@@ -102,7 +102,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = func(*args, **kwargs)
         if stream:
-            resp.add_router_span_info(span, kwargs, instance)
+            resp._add_router_span_info(span, kwargs, instance)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -133,7 +133,7 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            resp.add_router_span_info(span, kwargs, instance)
+            resp._add_router_span_info(span, kwargs, instance)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())

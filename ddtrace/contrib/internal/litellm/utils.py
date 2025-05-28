@@ -21,23 +21,22 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         self._dd_integration = integration
-        self._dd_spans = [span]
-        self._kwargs = [kwargs]  # each span is associated with a different kwargs
+        self._span_info = [(span, kwargs)]
         self._streamed_chunks = [[] for _ in range(n)]
 
-    def add_router_span_info(self, span, kwargs, instance):
+    def _add_router_span_info(self, span, kwargs, instance):
         """Handler to add router span to this streaming object.
 
         Helps to ensure that all spans associated with a single stream are finished and have the correct tags.
         """
-        self._dd_spans.append(span)
         kwargs["router_instance"] = instance
-        self._kwargs.append(kwargs)
+        self._span_info.append((span, kwargs))
 
-    def finish_spans(self):
+
+    def _finish_spans(self):
         """Helper to finish all spans associated with this stream."""
         formatted_completions = None
-        for span, kwargs in zip(self._dd_spans, self._kwargs):
+        for span, kwargs in self._span_info:
             if not formatted_completions:
                 formatted_completions = _process_finished_stream(
                     self._dd_integration, span, kwargs, self._streamed_chunks, span.resource
@@ -63,12 +62,12 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            if self._dd_spans:
-                span = self._dd_spans[0]
+            if self._span_info and len(self._span_info[0]) > 0:
+                span = self._span_info[0][0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            self.finish_spans()
+            self._finish_spans()
 
     def __next__(self):
         try:
@@ -78,12 +77,12 @@ class TracedLiteLLMStream(BaseTracedLiteLLMStream):
         except StopIteration:
             raise
         except Exception:
-            if self._dd_spans:
-                span = self._dd_spans[0]
+            if self._span_info and len(self._span_info[0]) > 0:
+                span = self._span_info[0][0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            self.finish_spans()
+            self._finish_spans()
 
 
 class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
@@ -100,12 +99,12 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
                 yield chunk
                 _loop_handler(chunk, self._streamed_chunks)
         except Exception:
-            if self._dd_spans:
-                span = self._dd_spans[0]
+            if self._span_info and len(self._span_info[0]) > 0:
+                span = self._span_info[0][0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            self.finish_spans()
+            self._finish_spans()
 
     async def __anext__(self):
         try:
@@ -115,12 +114,12 @@ class TracedLiteLLMAsyncStream(BaseTracedLiteLLMStream):
         except StopAsyncIteration:
             raise
         except Exception:
-            if self._dd_spans:
-                span = self._dd_spans[0]
+            if self._span_info and len(self._span_info[0]) > 0:
+                span = self._span_info[0][0]
                 span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            self.finish_spans()
+            self._finish_spans()
 
 
 def _loop_handler(chunk, streamed_chunks):
