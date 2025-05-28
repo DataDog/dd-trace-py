@@ -2,7 +2,6 @@ import time
 
 import pytest
 
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.internal.encoding import JSONEncoder
@@ -12,7 +11,6 @@ from ddtrace.trace import tracer as ddtracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
-from tests.utils import override_global_config
 
 
 def _turn_tracer_into_dummy(tracer):
@@ -61,7 +59,6 @@ def test_priority_sampling_rate_honored():
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
 
     _id = time.time()
-    env = "my-env-{}".format(_id)
     service = "my-svc-{}".format(_id)
 
     # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``

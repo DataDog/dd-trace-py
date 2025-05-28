@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.runtime import container
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
@@ -291,7 +290,6 @@ def test_single_trace_too_large():
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
-    long_string = "a" * 250
     assert t._span_aggregator.partial_flush_enabled is True
     with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
