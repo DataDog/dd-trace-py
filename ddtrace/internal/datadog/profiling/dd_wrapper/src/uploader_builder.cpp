@@ -168,7 +168,7 @@ UploaderConfig::get_user_tags() const
 void
 UploaderConfig::postfork_child()
 {
-    new (&UploaderConfig::get_instance()->tag_mutex) std::mutex();
+    new (&UploaderConfig::get_instance().tag_mutex) std::mutex();
 }
 
 std::string
@@ -200,14 +200,14 @@ Datadog::UploaderBuilder::build()
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, UploaderConfig::get_instance()->get_env() },
-        { ExportTagKey::service, UploaderConfig::get_instance()->get_service() },
-        { ExportTagKey::version, UploaderConfig::get_instance()->get_version() },
-        { ExportTagKey::language, UploaderConfig::get_instance()->get_language() },
-        { ExportTagKey::runtime, UploaderConfig::get_instance()->get_runtime() },
-        { ExportTagKey::runtime_id, UploaderConfig::get_instance()->get_runtime_id() },
-        { ExportTagKey::runtime_version, UploaderConfig::get_instance()->get_runtime_version() },
-        { ExportTagKey::profiler_version, UploaderConfig::get_instance()->get_profiler_version() },
+        { ExportTagKey::dd_env, UploaderConfig::get_instance().get_env() },
+        { ExportTagKey::service, UploaderConfig::get_instance().get_service() },
+        { ExportTagKey::version, UploaderConfig::get_instance().get_version() },
+        { ExportTagKey::language, UploaderConfig::get_instance().get_language() },
+        { ExportTagKey::runtime, UploaderConfig::get_instance().get_runtime() },
+        { ExportTagKey::runtime_id, UploaderConfig::get_instance().get_runtime_id() },
+        { ExportTagKey::runtime_version, UploaderConfig::get_instance().get_runtime_version() },
+        { ExportTagKey::profiler_version, UploaderConfig::get_instance().get_profiler_version() },
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -220,7 +220,7 @@ Datadog::UploaderBuilder::build()
     }
 
     // Add the user-defined tags, if any.
-    for (const auto& tag : UploaderConfig::get_instance()->get_user_tags()) {
+    for (const auto& tag : UploaderConfig::get_instance().get_user_tags()) {
         std::string errmsg;
         if (!add_tag(tags, tag.first, tag.second, errmsg)) {
             reasons.push_back(std::string(tag.first) + ": " + errmsg);
@@ -235,10 +235,10 @@ Datadog::UploaderBuilder::build()
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_ProfileExporter_Result res =
       ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                             to_slice(UploaderConfig::get_instance()->get_profiler_version()),
-                             to_slice(UploaderConfig::get_instance()->get_family()),
+                             to_slice(UploaderConfig::get_instance().get_profiler_version()),
+                             to_slice(UploaderConfig::get_instance().get_family()),
                              &tags,
-                             ddog_prof_Endpoint_agent(to_slice(UploaderConfig::get_instance()->get_url())));
+                             ddog_prof_Endpoint_agent(to_slice(UploaderConfig::get_instance().get_url())));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
@@ -272,7 +272,7 @@ Datadog::UploaderBuilder::build()
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         UploaderConfig::get_instance()->get_output_filename(),
+                                                         UploaderConfig::get_instance().get_output_filename(),
                                                          *ddog_exporter };
 }
 

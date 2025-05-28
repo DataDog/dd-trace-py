@@ -40,13 +40,15 @@ class UploaderConfig
   public:
     UploaderConfig(const UploaderConfig&) = delete;
     UploaderConfig& operator=(const UploaderConfig&) = delete;
+    UploaderConfig(UploaderConfig&&) = delete;
+    UploaderConfig& operator=(UploaderConfig&&) = delete;
 
-    static UploaderConfig* get_instance()
+    static UploaderConfig& get_instance()
     {
         if (instance == nullptr) {
             instance = new UploaderConfig(); // leak intentionally
         }
-        return instance;
+        return *instance;
     }
 
     void set_env(std::string_view _dd_env);

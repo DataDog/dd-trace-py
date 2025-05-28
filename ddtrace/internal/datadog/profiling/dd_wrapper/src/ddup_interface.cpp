@@ -51,55 +51,55 @@ ddup_prefork()
 void
 ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_env(dd_env);
+    Datadog::UploaderConfig::get_instance().set_env(dd_env);
 }
 
 void
 ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_service(service);
+    Datadog::UploaderConfig::get_instance().set_service(service);
 }
 
 void
 ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_version(version);
+    Datadog::UploaderConfig::get_instance().set_version(version);
 }
 
 void
 ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_runtime(runtime);
+    Datadog::UploaderConfig::get_instance().set_runtime(runtime);
 }
 
 void
 ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_runtime_id(runtime_id);
+    Datadog::UploaderConfig::get_instance().set_runtime_id(runtime_id);
 }
 
 void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_runtime_version(runtime_version);
+    Datadog::UploaderConfig::get_instance().set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_profiler_version(profiler_version);
+    Datadog::UploaderConfig::get_instance().set_profiler_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_url(url);
+    Datadog::UploaderConfig::get_instance().set_url(url);
 }
 
 void
 ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_tag(key, val);
+    Datadog::UploaderConfig::get_instance().set_tag(key, val);
 }
 
 void
@@ -123,7 +123,7 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 void
 ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderConfig::get_instance()->set_output_filename(output_filename);
+    Datadog::UploaderConfig::get_instance().set_output_filename(output_filename);
 }
 
 void
