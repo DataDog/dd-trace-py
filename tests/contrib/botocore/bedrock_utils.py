@@ -1,7 +1,9 @@
 import os
 
+import botocore
 import boto3
-
+import urllib3
+from io import BytesIO
 
 try:
     import vcr
@@ -46,14 +48,6 @@ def create_bedrock_converse_request(user_message=None, tools=None, system=None):
     if tools:
         request_params["toolConfig"] = {"tools": tools}
     return request_params
-
-
-_MOCK_RESPONSE_DATA = (
-    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
-    b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
-    b'escape their event horizon. They are formed when very large stars collapse.", '
-    b'"completionReason": "FINISH"}]}'
-)
 
 
 _MODELS = {
@@ -113,6 +107,97 @@ _REQUEST_BODIES = {
         "max_gen_len": 60,
     },
 }
+
+_MOCK_AI21_RESPONSE_DATA = (
+    b'{"completions": [{"data": {"text": "hello"}}]}'
+)
+
+_MOCK_AMAZON_RESPONSE_DATA = (
+    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
+    b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
+    b'escape their event horizon. They are formed when very large stars collapse.", '
+    b'"completionReason": "FINISH"}]}'
+)
+
+_MOCK_ANTHROPIC_RESPONSE_DATA = (
+    b'{"completion": "hello", "stop_reason": "stop_sequence"}'
+)
+
+_MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA = (
+    b'{"content": "hello", "stop_reason": "max_tokens"}'
+)
+
+_MOCK_COHERE_RESPONSE_DATA = (
+    b'{"generations": [{"text": "A LLM chain is a sequence of language models working together", '
+    b'"finish_reason": "MAX_TOKENS", "id": "e9b9cff2-2404-4bc2-82ec-e18c424849f7"}], '
+    b'"id": "909434da-e64a-4ccd-8c11-c97793dc3746", '
+    b'"tokenCount": {"prompt": 10, "response": 12}}'
+)
+
+
+_MOCK_META_RESPONSE_DATA = (
+    b'{"generation": "hello"}'
+)
+
+_RESPONSE_BODIES = {
+    "ai21": _MOCK_AI21_RESPONSE_DATA,
+    "amazon": _MOCK_AMAZON_RESPONSE_DATA,
+    "anthropic": _MOCK_ANTHROPIC_RESPONSE_DATA,
+    "anthropic_message": _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA,
+    "cohere": _MOCK_COHERE_RESPONSE_DATA,
+    "meta": _MOCK_META_RESPONSE_DATA,
+}
+
+def get_mock_response_data(provider, stream=False):
+    if stream:
+        body = botocore.eventstream.EventStream(
+            urllib3.response.HTTPResponse(
+                # empty response stream makes this easier to mock
+                body=BytesIO(b''), 
+                status=200,
+                headers={"Content-Type": "application/vnd.amazon.eventstream"},
+                preload_content=False,
+            ),
+            botocore.model.StructureShape(
+                shape_name="BedrockStreamResponse",
+                shape_model={"type": "structure", "members": {}},
+            ),
+            botocore.parsers.EventStreamJSONParser(),
+            "dummy_operation_name",
+        )
+    else:
+        response = _RESPONSE_BODIES[provider]
+        response_len = len(response)
+        body = botocore.response.StreamingBody(
+            urllib3.response.HTTPResponse(
+                body=BytesIO(response),
+                status=200,
+                headers={"Content-Type": "application/json"},
+                preload_content=False,
+            ),
+            response_len,
+        )
+
+    return {
+        "ResponseMetadata": {
+            "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
+            "HTTPStatusCode": 200,
+            "HTTPHeaders": {
+                "date": "Wed, 05 Mar 2025 18:13:31 GMT",
+                "content-type": "application/json",
+                "content-length": "285",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
+                "x-amzn-bedrock-invocation-latency": "2823",
+                "x-amzn-bedrock-output-token-count": "91",
+                "x-amzn-bedrock-input-token-count": "10",
+            },
+            "RetryAttempts": 0,
+        },
+        "contentType": "application/json",
+        "body": body,
+    }
+
 
 
 # VCR is used to capture and store network requests made to OpenAI and other APIs.
