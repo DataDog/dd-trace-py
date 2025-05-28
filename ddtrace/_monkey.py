@@ -180,25 +180,21 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def is_version_compatible(package_name: str, version: str, supported_versions: Dict[str, str]) -> bool:
+def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
     """Check if a given package version is compatible with the instrumented versions.
 
     Args:
         package_name: The name of the package to check
         version: The version string to check against
-        supported_versions: Dictionary mapping module names to their version requirements
+        supported_versions_spec: The version requirements for the package
 
     Returns:
         bool: True if the version is compatible, False otherwise
     """
-    if package_name not in supported_versions:
+    if not supported_versions_spec:
         return False
 
-    spec = supported_versions.get(package_name)
-    if not spec:
-        return False
-
-    version_specifier = VersionSpecifier(spec)
+    version_specifier = VersionSpecifier(supported_versions_spec)
     return version_specifier.contains(version)
 
 
@@ -210,21 +206,31 @@ def _get_installed_version(imported_module, module):
     return None
 
 
-def should_patch_module(imported_module, module):
-    if not hasattr(imported_module, "_supported_versions"):
-        return True
+def _get_supported_versions(integration_patch_module, integration_name, hooked_module):
+    supported_versions = integration_patch_module._supported_versions()
+    if integration_name in supported_versions:
+        return supported_versions[integration_name]
+    elif hooked_module.__name__ in supported_versions:
+        return supported_versions[hooked_module.__name__]
+    return None
 
-    supported_versions = imported_module._supported_versions()
 
-    installed_version = _get_installed_version(imported_module, module)
-
+def should_patch_module(integration_patch_module, integration_name, hooked_module):
+    installed_version = _get_installed_version(integration_patch_module, integration_name)
+    # stdlib modules will not have an associated version and should always be patched
     if not installed_version:
         return True
+    
+    breakpoint()
 
-    if not is_version_compatible(module, installed_version, supported_versions):
+    supported_version_spec = _get_supported_versions(integration_patch_module, integration_name, hooked_module)
+    if not supported_version_spec:
+        return False
+
+    if not is_version_compatible(installed_version, supported_version_spec):
         message = (
-            f"Skipped patching '{module}' integration, installed version: {installed_version} is not compatible with "
-            f"integration support spec: {supported_versions[module]}"
+            f"Skipped patching '{integration_name}' integration, installed version: {installed_version} is not compatible with "
+            f"integration support spec: {supported_version_spec}"
         )
         log.debug(message)
         return False
@@ -240,7 +246,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         try:
             imported_module = importlib.import_module(path_f % (module,))
             # compare installed version with versions we instrument
-            should_patch = should_patch_module(imported_module, module)
+            should_patch = should_patch_module(imported_module, module, hook)
             if should_patch:
                 imported_module.patch()
                 if hasattr(imported_module, "patch_submodules"):

@@ -80,7 +80,7 @@ PATCHED_VERSIONS = {}
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"psycopg": ">=2.8"}
+    return {"psycopg": ">=3.0.0", "psycopg2": ">=2.8.0"}
 
 
 def get_versions():

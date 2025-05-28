@@ -24,7 +24,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"aiohttp_jinja2": ">=1.0.0"}
+    return {"aiohttp_jinja2": ">=1.5.0"}
 
 
 @with_traced_module

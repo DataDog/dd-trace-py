@@ -810,8 +810,16 @@ class PatchTestCase(object):
 
             module_name = self.__module_name__
             if module_name not in versions:
-                # this may be a submodule we are importing, so get the top level module name
-                module_name = module_name.split(".")[0]
+                # some integration modules are not named the same as the module they are patching
+                from ddtrace._monkey import _MODULES_FOR_CONTRIB
+
+                if module_name in _MODULES_FOR_CONTRIB:
+                    module_name = _MODULES_FOR_CONTRIB[module_name][0]
+                else:
+                    # this may be a submodule we are importing, so get the top level module name
+                    # ie: snowflake.connector -> snowflake
+                    module_name = module_name.split(".")[0]
+                print(module_name)
                 assert module_name in versions
             else:
                 assert module_name in versions

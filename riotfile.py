@@ -1048,7 +1048,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys="3.8",
-                    pkgs={"psycopg2-binary": "~=2.8.0"},
+                    pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.12"),
@@ -1931,7 +1931,6 @@ venv = Venv(
                     latest,
                 ],
                 "aiohttp_jinja2": [
-                    "~=1.0.0",
                     "~=1.5.0",
                     latest,
                 ],
