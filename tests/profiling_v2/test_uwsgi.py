@@ -94,6 +94,8 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     started = 0
     while True:
         line = stdout.readline()
+        if line != b"":
+            print(line)
         if line == b"":
             break
         elif b"WSGI app 0 (mountpoint='') ready" in line:
@@ -133,6 +135,8 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
     time.sleep(3)
     proc.terminate()
     assert proc.wait() == 0
+    for line in proc.stdout.readlines():
+        print(line)
     for pid in worker_pids:
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -160,6 +164,8 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
                 os.kill(pid, 0)
             except OSError:
                 break
+    for line in proc.stdout.readlines():
+        print(line)
     for pid in worker_pids:
         profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
