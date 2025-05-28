@@ -2505,8 +2505,8 @@ venv = Venv(
         ),
         Venv(
             name="mysqldb",
-            command="pytest -n auto {cmdargs} tests/contrib/mysqldb",
-            pkgs={"pytest-xdist": latest},
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            pkgs={"pytest-randomly": latest},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
