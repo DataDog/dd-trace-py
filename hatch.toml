@@ -153,6 +153,7 @@ python = "3.10"
 extra-dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis<6.45.1"
 ]
 [envs.meta-testing.env-vars]
@@ -160,7 +161,7 @@ DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
 test = [
-  "pytest {args} --no-ddtrace tests/meta"
+  "pytest -n auto {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -171,6 +172,7 @@ extra-dependencies = [
     "pytest-mock==3.10.0",
     "coverage==7.2.2",
     "pytest-cov==4.0.0",
+    "pytest-xdist",
     "opentracing==2.4.0",
     "hypothesis==6.45.0",
 ]
@@ -197,6 +199,7 @@ template = "appsec_threats_django"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "django{matrix:django}"
@@ -206,8 +209,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest -n auto tests/appsec/contrib_appsec/test_django.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest -n auto tests/appsec/contrib_appsec/test_django.py"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -240,6 +243,7 @@ template = "appsec_threats_flask"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "MarkupSafe{matrix:markupsafe:}",
@@ -251,8 +255,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest -n auto tests/appsec/contrib_appsec/test_flask.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest -n auto tests/appsec/contrib_appsec/test_flask.py"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -282,6 +286,7 @@ template = "appsec_iast_default"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "urllib3",
@@ -302,7 +307,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest --no-ddtrace {args:tests/appsec/iast/}",
+    "python -m pytest -n auto --no-ddtrace {args:tests/appsec/iast/}",
 ]
 
 [[envs.appsec_iast_default.matrix]]
@@ -341,6 +346,7 @@ template = "iast_tdd_propagation"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "flask",
@@ -363,7 +369,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/appsec/iast_tdd_propagation",
+    "python -m pytest -n auto tests/appsec/iast_tdd_propagation",
 ]
 
 [[envs.iast_tdd_propagation.matrix]]
@@ -376,6 +382,7 @@ template = "appsec_integrations_packages"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "SQLAlchemy",
@@ -398,7 +405,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -n auto -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -412,6 +419,7 @@ template = "appsec_integrations_django"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "pylibmc",
@@ -431,7 +439,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
+    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -449,6 +457,7 @@ template = "appsec_integrations_flask"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "gunicorn",
@@ -470,7 +479,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
@@ -508,6 +517,7 @@ template = "appsec_integrations_fastapi"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "python-multipart",
@@ -528,7 +538,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv {args:tests/appsec/integrations/fastapi_tests/}",
+    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/fastapi_tests/}",
 ]
 
 
@@ -555,6 +565,7 @@ dependencies = [
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "langchain{matrix:langchain:}",
     "langchain-experimental{matrix:langchain-experimental:}",
@@ -570,7 +581,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv {args:tests/appsec/integrations/langchain_tests/}",
+    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/langchain_tests/}",
 ]
 
 [[envs.appsec_integrations_langchain.matrix]]
@@ -595,6 +606,7 @@ template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "httpx<0.28.0",
@@ -606,8 +618,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest -n auto tests/appsec/contrib_appsec/test_fastapi.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest -n auto tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -632,6 +644,7 @@ template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "pytest-asyncio",
@@ -650,7 +663,7 @@ test = [
     "uname -a",
     "pip freeze",
     # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    "python -m pytest -n auto --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
 [[envs.iast_aggregated_leak_testing.matrix]]
@@ -662,6 +675,7 @@ python = ["3.10", "3.11", "3.12"]
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "torch>=1.8.1",
@@ -677,7 +691,7 @@ DD_PROFILING_PYTORCH_ENABLED = "true"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
+    "python -m pytest -n auto tests/profiling_v2/test_pytorch.py -vvv --capture=tee-sys",
 ]
 
 [[envs.profiling_pytorch.matrix]]
@@ -689,6 +703,7 @@ python = ["3.12"]
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "flask",
@@ -707,8 +722,8 @@ CARGO_BUILD_JOBS = "6"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s",
-    "python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
+    "python -m pytest -n auto tests/internal/service_name/test_extra_services_names.py -v -s",
+    "python -m pytest -n auto tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
 ]
 
 [[envs.multiple_os_tests.matrix]]
@@ -722,12 +737,13 @@ dependencies = [
     "hypothesis",
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
 ]
 
 [envs.dd_coverage.scripts]
 test = [
     "pip freeze",
-    "pytest tests/coverage -s --no-cov {args:}",
+    "pytest -n auto tests/coverage -s --no-cov {args:}",
 ]
 
 [[envs.dd_coverage.matrix]]
@@ -740,12 +756,13 @@ dependencies = [
     "hypothesis",
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
 ]
 
 [envs.errortracking.scripts]
 test = [
     "pip freeze",
-    "pytest tests/internal/errortracking",
+    "pytest -n auto tests/internal/errortracking",
 ]
 
 [[envs.errortracking.matrix]]
@@ -759,7 +776,8 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-xdist",
 ]
 
 [envs.pytest_plugin_v2.env-vars]
@@ -769,7 +787,7 @@ DD_AGENT_PORT = "9126"
 test = [
     "pip freeze",
     "echo $PYTEST_ADDOPTS",
-    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
+    "pytest -n auto -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
 ]
 
 [[envs.pytest_plugin_v2.matrix]]
@@ -795,12 +813,13 @@ dependencies = [
     "freezegun{matrix:freezegun}",
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
 ]
 
 [envs.freezegun.scripts]
 test = [
-    "pytest tests/contrib/freezegun {args:}",
+    "pytest -n auto tests/contrib/freezegun {args:}",
 ]
 
 [[envs.freezegun.matrix]]
@@ -812,6 +831,7 @@ template = "selenium"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "selenium~=4.0",
     "webdriver-manager"
@@ -823,7 +843,7 @@ DD_AGENT_TRACER_URL = "9126"
 [envs.selenium.scripts]
 test = [
     "pip freeze",
-    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
+    "pytest -n auto -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
 ]
 
 [[envs.selenium.matrix]]
@@ -841,6 +861,7 @@ template = "appsec_integrations_pygoat"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "requests",
     "hypothesis",
     "pyyaml==6.0.1",
