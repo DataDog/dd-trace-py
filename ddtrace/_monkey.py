@@ -113,6 +113,7 @@ PATCH_MODULES = {
     "valkey": True,
     "openai_agents": True,
     "protobuf": config._data_streams_enabled,
+    "mistralai": True,
 }
 
 
