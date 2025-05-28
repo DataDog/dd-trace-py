@@ -365,35 +365,11 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings()
-def test_validate_headers_in_payload_to_intake():
+@parametrize_with_all_encodings(check_logs=False)
+def test_inode_entity_id_header_present():
     import mock
 
     from ddtrace import __version__
-    from ddtrace.trace import tracer as t
-
-    t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
-    t.trace("op").finish()
-    t.shutdown()
-    assert t._span_aggregator.writer._put.call_count == 1
-    headers = t._span_aggregator.writer._put.call_args[0][1]
-    assert headers.get("Datadog-Meta-Tracer-Version") == __version__
-    assert headers.get("Datadog-Meta-Lang") == "python"
-    assert headers.get("Content-Type") == "application/msgpack"
-    assert headers.get("X-Datadog-Trace-Count") == "1"
-    if container.get_container_info():
-        assert "Datadog-Container-Id" in headers
-        assert "Datadog-Entity-ID" in headers
-        assert headers["Datadog-Entity-ID"].startswith("ci")
-
-
-@skip_if_testagent
-@parametrize_with_all_encodings(check_logs=False)
-def test_inode_entity_id_header_present():
-    import http.client as httplib
-
-    import mock
-
     from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.runtime.container.get_container_info") as gcimock, mock.patch(
@@ -403,13 +379,24 @@ def test_inode_entity_id_header_present():
 
         gcimock.return_value = CGroupInfo(node_inode=12345)
 
-        t._span_aggregator.writer._reuse_connections = True
         t.trace("op").finish()
         t._span_aggregator.writer.flush_queue()
         headers = request_mock.call_args[1]["headers"]
+        assert "Datadog-Entity-ID" in headers
+        assert headers["Datadog-Entity-ID"].startswith("in")
+
+        gcimock.return_value = CGroupInfo(container_id=12345)
+        t.trace("op").finish()
+        t._span_aggregator.writer.flush_queue()
+        headers = request_mock.call_args[1]["headers"]
+        assert headers.get("Datadog-Meta-Tracer-Version") == __version__
+        assert headers.get("Datadog-Meta-Lang") == "python"
+        assert headers.get("Content-Type") == "application/msgpack"
+        assert headers.get("X-Datadog-Trace-Count") == "1"
+        assert "Datadog-Container-Id" in headers
+        assert "Datadog-Entity-ID" in headers
+
         t.shutdown()
-    assert "Datadog-Entity-ID" in headers
-    assert headers["Datadog-Entity-ID"].startswith("in")
 
 
 @skip_if_testagent
