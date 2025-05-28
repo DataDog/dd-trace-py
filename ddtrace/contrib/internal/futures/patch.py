@@ -13,7 +13,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"futures": "*"}
+    return {"concurrent.futures.thread": "*"}
 
 
 def patch():

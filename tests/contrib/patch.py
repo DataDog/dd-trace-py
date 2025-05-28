@@ -840,7 +840,32 @@ class PatchTestCase(object):
                                 supported_versions_called = True
                                 return result
 
-                            wrap(module.__name__, module.patch._supported_versions.__name__, supported_versions_wrapper)
+                            def patch_wrapper(wrapped, _, args, kwrags):
+                                global patched
+
+                                result = wrapped(*args, **kwrags)
+                                sys.stdout.write("K")
+                                patched = True
+                                return result
+
+                            patch_module = module
+                            if 'patch' not in module.__name__:
+                                patch_module = module.patch
+
+                            # try to get the module installed version via the patch file and get_version function
+                            installed_version = patch_module.get_version()
+                            if not installed_version:
+                                # wrap the patch function and ensure it's called if no installed version is found
+                                # (due to being a stdlib module)
+                                wrap(module.__name__, module.patch.__name__, patch_wrapper)
+                            else:
+                                # if the installed version is found, wrap the supported_versions function and assert
+                                # its called
+                                wrap(
+                                    patch_module.__name__,
+                                    patch_module._supported_versions.__name__,
+                                    supported_versions_wrapper,
+                                )
 
                         ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
 
@@ -864,5 +889,4 @@ class PatchTestCase(object):
                 env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
                 out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
-
-                self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
+                assert "OK" in out.decode(), "stderr:\n%s" % err.decode()

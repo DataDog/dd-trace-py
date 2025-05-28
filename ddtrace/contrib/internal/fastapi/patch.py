@@ -38,10 +38,6 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"fastapi": ">=0.64"}
-
-
-def _supported_versions() -> Dict[str, str]:
     return {"fastapi": ">=0.57.0"}
 
 

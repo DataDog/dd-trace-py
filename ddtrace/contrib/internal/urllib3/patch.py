@@ -46,7 +46,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"urllib3": ">=1.25.8"}
+    return {"urllib3": ">=1.25.0"}
 
 
 def patch():
