@@ -144,10 +144,19 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
     async def _astream():
         item = None
         response = None
+        add_supported = True
         while True:
             try:
                 item = await result.__anext__()
-                response = item if response is None else response + item
+                if add_supported:
+                    try:
+                        response = item if response is None else response + item
+                    except TypeError:
+                        response = item
+                        add_supported = False
+                else:
+                    # default to the last item if addition between items is not supported
+                    response = item
                 yield item
             except StopAsyncIteration:
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
@@ -308,6 +317,8 @@ def patch():
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
+    # trace `astream` and `consume_aiter` since they are triggered by `astream_events` ->`Pregel.astream`
+    # The sync counter-parts are not used anywhere as of langgraph 0.4.7, so we don't trace them for now.
     wrap(RunnableSeq, "astream", traced_runnable_seq_astream(langgraph))
     wrap(Pregel, "stream", traced_pregel_stream(langgraph))
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
