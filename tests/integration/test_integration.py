@@ -388,26 +388,26 @@ def test_validate_headers_in_payload_to_intake():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings()
+@parametrize_with_all_encodings(check_logs=False)
 def test_inode_entity_id_header_present():
+    import http.client as httplib
+
     import mock
 
-    from ddtrace.internal.runtime import container
     from ddtrace.trace import tracer as t
 
-    t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
-    import sys
-
-    sys.path.append("ddtrace/internal/runtime")
-    with mock.patch("container.get_container_info") as gcimock:
+    with mock.patch("ddtrace.internal.runtime.container.get_container_info") as gcimock, mock.patch(
+        "http.client.HTTPConnection.request"
+    ) as request_mock:
         from ddtrace.internal.runtime.container import CGroupInfo
 
         gcimock.return_value = CGroupInfo(node_inode=12345)
+
+        t._span_aggregator.writer._reuse_connections = True
         t.trace("op").finish()
+        t._span_aggregator.writer.flush_queue()
+        headers = request_mock.call_args[1]["headers"]
         t.shutdown()
-    print(t._span_aggregator.writer._put.call_args)
-    headers = t._span_aggregator.writer._put.call_args[-1][1]
-    print(headers)
     assert "Datadog-Entity-ID" in headers
     assert headers["Datadog-Entity-ID"].startswith("in")
 
