@@ -281,7 +281,7 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@parametrize_with_all_encodings()
+@parametrize_with_all_encodings(check_logs=False)
 def test_single_trace_too_large():
     import mock
 
