@@ -1,10 +1,12 @@
 import os
 import sysconfig
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
@@ -181,25 +183,43 @@ class VulnerabilityBase:
                 rollback_quota(cls.vulnerability_type)
 
     @classmethod
-    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES) -> bool:
-        """Check if a string contains tainted ranges that are not marked as secure.
+    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: Set[OriginType] = set()) -> bool:
+        """Check if a string contains tainted ranges that are not marked as secure and don't come exclusively
+        from excluded origins.
 
         A string is considered tainted when:
         1. It has one or more taint ranges (indicating user-controlled data)
         2. At least one of these ranges is NOT marked as secure with the current vulnerability type's secure mark
            (cls.secure_mark)
+        3. If origins_to_exclude is provided, at least one range must have an origin NOT in the excluded list
+           for the string to be considered tainted
 
-        The method returns True if ANY range in the string lacks the secure mark of the current vulnerability class.
-        This means the string could be vulnerable to the specific type of attack this class checks for.
+        The origins_to_exclude parameter allows filtering out specific taint sources:
+        - If any range has an origin different from those in origins_to_exclude, the string is considered tainted
+        - If ALL ranges come from excluded origins, the string is NOT considered tainted
+        - If origins_to_exclude is empty, only conditions 1 and 2 are checked
+
+        Example:
+        - origins_to_exclude=[COOKIE]
+        - String has ranges from: [COOKIE, PARAMETER]
+        - Result: Tainted (because PARAMETER origin is not excluded)
+
+        - origins_to_exclude=[COOKIE]
+        - String has ranges from: [COOKIE, COOKIE]
+        - Result: Not tainted (because all ranges are from excluded origins)
 
         Args:
             string_to_check (Text): The string to check for taint ranges and secure marks
+            origins_to_exclude (list): List of origins to exclude from taint consideration
 
         Returns:
-            bool: True if any range lacks the current vulnerability type's secure mark, False otherwise
+            bool: True if any range lacks the secure mark AND has a non-excluded origin, False otherwise
         """
         if len(ranges := get_ranges(string_to_check)) == 0:
             return False
         if not all(_range.has_secure_mark(cls.secure_mark) for _range in ranges):
-            return True
+            if origins_to_exclude:
+                return not all(_range.source.origin in origins_to_exclude for _range in ranges)
+            else:
+                return True
         return False
