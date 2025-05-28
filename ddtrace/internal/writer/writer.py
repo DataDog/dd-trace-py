@@ -554,6 +554,7 @@ class AgentWriter(HTTPWriter):
             api_version=self._api_version,
             headers=self._headers,
             report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
         )
 
     @property
