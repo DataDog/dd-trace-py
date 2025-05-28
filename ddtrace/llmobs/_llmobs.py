@@ -755,7 +755,9 @@ class LLMObs(Service):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
-            return active.context
+            context = active.context
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID))
+            return context
         return None
 
     def _activate_llmobs_span(self, span: Span) -> None:
@@ -766,7 +768,7 @@ class LLMObs(Service):
             if isinstance(llmobs_parent, Span):
                 llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
             else:
-                llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                llmobs_trace_id = int(llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
@@ -801,7 +803,6 @@ class LLMObs(Service):
                 "ML app is required for sending LLM Observability data. "
                 "Ensure this configuration is set before running your application."
             )
-
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
 
