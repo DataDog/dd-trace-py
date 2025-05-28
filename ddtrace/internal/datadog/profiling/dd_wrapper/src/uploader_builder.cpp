@@ -11,63 +11,72 @@
 
 namespace Datadog {
 
-void UploaderConfig::set_env(std::string_view _dd_env)
+void
+UploaderConfig::set_env(std::string_view _dd_env)
 {
     if (!_dd_env.empty()) {
         dd_env = _dd_env;
     }
 }
 
-void UploaderConfig::set_service(std::string_view _service)
+void
+UploaderConfig::set_service(std::string_view _service)
 {
     if (!_service.empty()) {
         service = _service;
     }
 }
 
-void UploaderConfig::set_version(std::string_view _version)
+void
+UploaderConfig::set_version(std::string_view _version)
 {
     if (!_version.empty()) {
         version = _version;
     }
 }
 
-void UploaderConfig::set_runtime(std::string_view _runtime)
+void
+UploaderConfig::set_runtime(std::string_view _runtime)
 {
     if (!_runtime.empty()) {
         runtime = _runtime;
     }
 }
 
-void UploaderConfig::set_runtime_id(std::string_view _runtime_id)
+void
+UploaderConfig::set_runtime_id(std::string_view _runtime_id)
 {
     if (!_runtime_id.empty()) {
         runtime_id = _runtime_id;
     }
 }
 
-void UploaderConfig::set_runtime_version(std::string_view _runtime_version)
+void
+UploaderConfig::set_runtime_version(std::string_view _runtime_version)
 {
     if (!_runtime_version.empty()) {
         runtime_version = _runtime_version;
     }
 }
 
-void UploaderConfig::set_profiler_version(std::string_view _profiler_version)
+void
+UploaderConfig::set_profiler_version(std::string_view _profiler_version)
 {
     if (!_profiler_version.empty()) {
         profiler_version = _profiler_version;
     }
 }
 
-void UploaderConfig::set_url(std::string_view _url)
+void
+UploaderConfig::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
         url = _url;
     }
 }
 
-void UploaderConfig::set_tag(std::string_view _key, std::string_view _val)
+void
+UploaderConfig::set_tag(std::string_view _key, std::string_view _val)
 {
 
     if (!_key.empty() && !_val.empty()) {
@@ -76,74 +85,88 @@ void UploaderConfig::set_tag(std::string_view _key, std::string_view _val)
     }
 }
 
-void UploaderConfig::set_output_filename(std::string_view _output_filename)
+void
+UploaderConfig::set_output_filename(std::string_view _output_filename)
 {
     if (!_output_filename.empty()) {
         output_filename = _output_filename;
     }
 }
 
-std::string_view UploaderConfig::get_env() const
+std::string_view
+UploaderConfig::get_env() const
 {
     return dd_env;
 }
 
-std::string_view UploaderConfig::get_service() const
+std::string_view
+UploaderConfig::get_service() const
 {
     return service;
 }
 
-std::string_view UploaderConfig::get_version() const
+std::string_view
+UploaderConfig::get_version() const
 {
     return version;
 }
 
-std::string_view UploaderConfig::get_runtime() const
+std::string_view
+UploaderConfig::get_runtime() const
 {
     return runtime;
 }
 
-std::string_view UploaderConfig::get_runtime_id() const
+std::string_view
+UploaderConfig::get_runtime_id() const
 {
     return runtime_id;
 }
 
-std::string_view UploaderConfig::get_runtime_version() const
+std::string_view
+UploaderConfig::get_runtime_version() const
 {
     return runtime_version;
 }
 
-std::string_view UploaderConfig::get_profiler_version() const
+std::string_view
+UploaderConfig::get_profiler_version() const
 {
     return profiler_version;
 }
 
-std::string_view UploaderConfig::get_url() const
+std::string_view
+UploaderConfig::get_url() const
 {
     return url;
 }
 
-std::string_view UploaderConfig::get_output_filename() const
+std::string_view
+UploaderConfig::get_output_filename() const
 {
     return output_filename;
 }
 
-std::string_view UploaderConfig::get_language() const
+std::string_view
+UploaderConfig::get_language() const
 {
     return language;
 }
 
-std::string_view UploaderConfig::get_family() const
+std::string_view
+UploaderConfig::get_family() const
 {
     return family;
 }
 
-const UploaderConfig::ExporterTagset& UploaderConfig::get_user_tags() const
+const UploaderConfig::ExporterTagset&
+UploaderConfig::get_user_tags() const
 {
     return user_tags;
 }
 
-void UploaderConfig::postfork_child()
+void
+UploaderConfig::postfork_child()
 {
     new (&UploaderConfig::get_instance()->tag_mutex) std::mutex();
 }
@@ -210,11 +233,12 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                                  to_slice(UploaderConfig::get_instance()->get_profiler_version()),
-                                                                  to_slice(UploaderConfig::get_instance()->get_family()),
-                                                                  &tags,
-                                                                  ddog_prof_Endpoint_agent(to_slice(UploaderConfig::get_instance()->get_url())));
+    ddog_prof_ProfileExporter_Result res =
+      ddog_prof_Exporter_new(to_slice("dd-trace-py"),
+                             to_slice(UploaderConfig::get_instance()->get_profiler_version()),
+                             to_slice(UploaderConfig::get_instance()->get_family()),
+                             &tags,
+                             ddog_prof_Endpoint_agent(to_slice(UploaderConfig::get_instance()->get_url())));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {

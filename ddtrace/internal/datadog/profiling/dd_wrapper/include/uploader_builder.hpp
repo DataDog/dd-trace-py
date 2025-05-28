@@ -10,40 +10,38 @@
 
 namespace Datadog {
 
-class UploaderConfig {
+class UploaderConfig
+{
     using ExporterTagset = std::unordered_map<std::string, std::string>;
-
 
   private:
     std::string dd_env;
     std::string service;
     std::string version;
-    std::string runtime { g_runtime_name };
+    std::string runtime{ g_runtime_name };
     std::string runtime_id;
     std::string runtime_version;
     std::string profiler_version;
-    std::string url { "http://localhost:8126" };
+    std::string url{ "http://localhost:8126" };
     std::string output_filename;
 
-    std::string_view language { g_language_name };
-    std::string_view family { g_language_name };
+    std::string_view language{ g_language_name };
+    std::string_view family{ g_language_name };
 
     std::mutex tag_mutex;
     ExporterTagset user_tags;
 
     static inline UploaderConfig* instance = nullptr;
 
-
-public:
-
+  public:
     UploaderConfig() = default;
     ~UploaderConfig() = default;
 
     UploaderConfig(const UploaderConfig&) = delete;
     UploaderConfig& operator=(const UploaderConfig&) = delete;
 
-
-    static UploaderConfig* get_instance() {
+    static UploaderConfig* get_instance()
+    {
         if (instance == nullptr) {
             instance = new UploaderConfig(); // leak intentionally
         }
