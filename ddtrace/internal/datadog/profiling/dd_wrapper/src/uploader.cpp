@@ -29,6 +29,7 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 bool
 Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
 {
+    std::cout << "debunk cache" << std::endl;
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
     if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         auto err = serialize_result.err;
