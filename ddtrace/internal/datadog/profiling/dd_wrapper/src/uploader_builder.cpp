@@ -61,7 +61,14 @@ void
 Datadog::UploaderBuilder::set_profiler_version(std::string_view _profiler_version)
 {
     if (!_profiler_version.empty()) {
-        profiler_version = _profiler_version;
+        // override if profiler_version is nullptr or
+        // profiler_version is different from _profiler_version
+        if (profiler_version == nullptr || *profiler_version != _profiler_version) {
+            if (profiler_version != nullptr) {
+                delete profiler_version;
+            }
+            profiler_version = new std::string(_profiler_version);
+        }
     }
 }
 
@@ -69,7 +76,12 @@ void
 Datadog::UploaderBuilder::set_url(std::string_view _url)
 {
     if (!_url.empty()) {
-        url = _url;
+        if (url == nullptr || *url != _url) {
+            if (url != nullptr) {
+                delete url;
+            }
+            url = new std::string(_url);
+        }
     }
 }
 
@@ -87,7 +99,12 @@ void
 Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
 {
     if (!_output_filename.empty()) {
-        output_filename = _output_filename;
+        if (output_filename == nullptr || *output_filename != _output_filename) {
+            if (output_filename != nullptr) {
+                delete output_filename;
+            }
+            output_filename = new std::string(_output_filename);
+        }
     }
 }
 
@@ -127,7 +144,7 @@ Datadog::UploaderBuilder::build()
         { ExportTagKey::runtime, runtime },
         { ExportTagKey::runtime_id, runtime_id },
         { ExportTagKey::runtime_version, runtime_version },
-        { ExportTagKey::profiler_version, profiler_version },
+        { ExportTagKey::profiler_version, profiler_version != nullptr ? *profiler_version : "" },
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -152,16 +169,16 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
-    std::cout << "profiler_version: " << profiler_version << std::endl;
+    std::cout << "profiler_version: " << (profiler_version != nullptr ? *profiler_version : "") << std::endl;
     std::cout << "family: " << family << std::endl;
-    std::cout << "url: " << url << std::endl;
+    std::cout << "url: " << (url != nullptr ? *url : "http://localhost:8126") << std::endl;
 
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                                                                  to_slice(profiler_version),
+                                                                  to_slice(profiler_version != nullptr ? *profiler_version : ""),
                                                                   to_slice(family),
                                                                   &tags,
-                                                                  ddog_prof_Endpoint_agent(to_slice(url)));
+                                                                  ddog_prof_Endpoint_agent(to_slice(url != nullptr ? *url : "http://localhost:8126")));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
