@@ -169,10 +169,6 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
-    std::cout << "profiler_version: " << (profiler_version != nullptr ? *profiler_version : "") << std::endl;
-    std::cout << "family: " << family << std::endl;
-    std::cout << "url: " << (url != nullptr ? *url : "http://localhost:8126") << std::endl;
-
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(to_slice("dd-trace-py"),
                                                                   to_slice(profiler_version != nullptr ? *profiler_version : ""),

@@ -36,7 +36,6 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
         std::cerr << "output_filename is nullptr" << std::endl;
         return false;
     }
-    std::cout << "output_filename: " << *output_filename << std::endl;
     std::ostringstream oss;
     oss << *output_filename << "." << getpid() << "." << upload_seq;
     std::string filename = oss.str();
