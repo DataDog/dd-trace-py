@@ -50,18 +50,17 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links = invoked_node_span_links
         current_span_links = span._get_ctx_item(SPAN_LINKS) or []
 
-        maybe_astream_output = span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)
+        def maybe_format_langchain_io(messages):
+            if messages is None:
+                return None
+            return format_langchain_io(messages)
+
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs),
-                OUTPUT_VALUE: (
-                    format_langchain_io(response)
-                    if response is not None
-                    else format_langchain_io(maybe_astream_output)
-                    if maybe_astream_output is not None
-                    else None
-                ),
+                OUTPUT_VALUE: maybe_format_langchain_io(response)
+                or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
                 NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }
