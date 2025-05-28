@@ -104,6 +104,10 @@ def get_version():
     return django.__version__
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"django": ">=3.2"}
+
+
 def patch_conn(django, conn):
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 

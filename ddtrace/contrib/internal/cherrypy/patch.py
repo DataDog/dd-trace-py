@@ -38,6 +38,10 @@ def get_version():
     return getattr(cherrypy, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"cherrypy": ">=17.0"}
+
+
 SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)
 
 

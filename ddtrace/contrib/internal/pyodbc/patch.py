@@ -28,6 +28,10 @@ def get_version():
     return pyodbc.version
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pyodbc": ">=4.0.31"}
+
+
 def patch():
     if getattr(pyodbc, "_datadog_patch", False):
         return

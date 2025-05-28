@@ -100,6 +100,10 @@ def get_version():
     return getattr(valkey, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"valkey": ">=6.0.0"}
+
+
 def patch():
     """Patch the instrumented methods
 

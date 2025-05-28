@@ -29,6 +29,10 @@ def get_version():
     return getattr(jinja2, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"jinja2": ">=2.11"}
+
+
 def patch():
     if getattr(jinja2, "__datadog_patch", False):
         # already patched

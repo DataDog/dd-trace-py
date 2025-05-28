@@ -68,6 +68,10 @@ def get_version():
     return getattr(pymongo, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pymongo": ">=3.12.3"}
+
+
 def patch():
     if getattr(pymongo, "_datadog_patch", False):
         return

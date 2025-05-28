@@ -88,6 +88,10 @@ if HAS_GRPC_AIO:
     )
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"grpc": ">=1.34"}
+
+
 def patch():
     _patch_client()
     _patch_server()

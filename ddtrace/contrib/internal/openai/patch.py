@@ -80,6 +80,10 @@ _RESOURCES = {
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"openai": ">=1.0"}
+
+
 def patch():
     # Avoid importing openai at the module level, eventually will be an import hook
     import openai

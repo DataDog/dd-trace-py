@@ -39,6 +39,10 @@ def get_version():
     return getattr(pynamodb, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pynamodb": ">=5.0"}
+
+
 def patch():
     if getattr(pynamodb.connection.base, "_datadog_patch", False):
         return

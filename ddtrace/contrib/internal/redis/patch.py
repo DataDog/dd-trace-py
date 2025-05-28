@@ -32,6 +32,10 @@ def get_version():
     return getattr(redis, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"redis": "*"}
+
+
 def patch():
     """Patch the instrumented methods
 

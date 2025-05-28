@@ -52,6 +52,10 @@ def get_version():
     return getattr(asyncpg, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"asyncpg": ">=0.22.0"}
+
+
 def _get_connection_tags(conn):
     # type: (asyncpg.Connection) -> Dict[str, str]
     addr = conn._addr

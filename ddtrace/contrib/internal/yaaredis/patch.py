@@ -32,6 +32,10 @@ def get_version():
     return getattr(yaaredis, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"yaaredis": ">=2.0.0"}
+
+
 def patch():
     """Patch the instrumented methods"""
     deprecate(

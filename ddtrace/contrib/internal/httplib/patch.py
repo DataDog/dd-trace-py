@@ -44,6 +44,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"httplib": "*"}
+
+
 def _wrap_init(func, instance, args, kwargs):
     Pin(service=None, _config=config.httplib).onto(instance)
     return func(*args, **kwargs)

@@ -30,6 +30,10 @@ def get_version():
     return getattr(aredis, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aredis": "*"}
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(aredis, "_datadog_patch", False):

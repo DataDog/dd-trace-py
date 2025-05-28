@@ -16,6 +16,10 @@ def get_version():
     return getattr(mongoengine, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"mongoengine": ">=0.23"}
+
+
 def patch():
     if getattr(mongoengine, "_datadog_patch", False):
         return

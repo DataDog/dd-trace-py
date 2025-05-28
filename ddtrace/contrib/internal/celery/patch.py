@@ -26,6 +26,10 @@ def get_version():
     return str(celery.__version__)
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"celery": ">=4.4"}
+
+
 def patch():
     """Instrument Celery base application and the `TaskRegistry` so
     that any new registered task is automatically instrumented. In the

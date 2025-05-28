@@ -44,6 +44,10 @@ config._add(
 )
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"httpx": ">=0.17"}
+
+
 def _url_to_str(url):
     # type: (httpx.URL) -> str
     """

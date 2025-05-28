@@ -43,6 +43,10 @@ def get_version():
         return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"flask_cache": ">=0.13"}
+
+
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
     """
     Return a traced Cache object that behaves exactly as ``cache_cls``.

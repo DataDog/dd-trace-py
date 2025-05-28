@@ -12,6 +12,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"asyncio": "*"}
+
+
 def patch():
     """Patches current loop `create_task()` method to enable spawned tasks to
     parent to the base task context.

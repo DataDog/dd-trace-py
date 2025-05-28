@@ -25,6 +25,10 @@ def get_version():
     return getattr(structlog, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"structlog": ">=20.2.0"}
+
+
 def _tracer_injection(_, __, event_dict):
     trace_details = ddtrace.tracer.get_log_correlation_context()
 

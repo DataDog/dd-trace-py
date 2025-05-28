@@ -28,6 +28,10 @@ def get_version():
     return getattr(tornado, "version", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"tornado": ">=5.1"}
+
+
 def patch():
     """
     Tracing function that patches the Tornado web application so that it will be

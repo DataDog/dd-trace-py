@@ -34,6 +34,10 @@ def get_version():
     return str(importlib_metadata.version(pyramid.__package__))
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pyramid": ">=1.10"}
+
+
 def patch():
     """
     Patch pyramid.config.Configurator

@@ -44,6 +44,10 @@ def get_version():
     return getattr(urllib3, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"urllib3": ">=1.25.8"}
+
+
 def patch():
     """Enable tracing for all urllib3 requests"""
     if getattr(urllib3, "__datadog_patch", False):

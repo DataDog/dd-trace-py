@@ -21,6 +21,10 @@ def get_version():
     return getattr(mako, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"mako": ">=0.1.0"}
+
+
 def patch():
     if getattr(mako, "__datadog_patch", False):
         # already patched

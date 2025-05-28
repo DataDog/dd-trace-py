@@ -39,6 +39,10 @@ def get_version():
     return str(c.__version__)
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"snowflake": ">=2.3.0"}
+
+
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)

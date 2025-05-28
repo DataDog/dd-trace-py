@@ -29,6 +29,10 @@ def get_version():
     return getattr(anthropic, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"anthropic": ">=0.28.0"}
+
+
 config._add(
     "anthropic",
     {

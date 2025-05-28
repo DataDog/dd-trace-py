@@ -28,6 +28,10 @@ def get_version():
     return getattr(mariadb, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"mariadb": ">=1.0.0"}
+
+
 def patch():
     if getattr(mariadb, "_datadog_patch", False):
         return

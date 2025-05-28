@@ -77,6 +77,10 @@ def get_version():
     return get_version_for_package("flask")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"flask": ">=1.0"}
+
+
 def get_werkzeug_version():
     # type: () -> str
     return get_version_for_package("werkzeug")

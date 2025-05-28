@@ -7,13 +7,14 @@ class VersionSpecifier:
 
     Supports operators: >, <, >=, <=
     Supports version ranges like: >1,<3
+    Supports * wildcard to indicate any version is supported
     """
 
     def __init__(self, spec: str):
         """Initialize with a version specifier string.
 
         Args:
-            spec: Version specifier string (e.g. ">1,<3" or ">=2.0.0")
+            spec: Version specifier string (e.g. ">1,<3" or ">=2.0.0" or "*")
         """
         self.specs = self._parse_spec(spec)
 
@@ -26,6 +27,9 @@ class VersionSpecifier:
         Returns:
             List of (operator, version) tuples
         """
+        if spec.strip() == "*":
+            return [("*", "*")]
+
         specs = []
         for part in spec.split(","):
             part = part.strip()
@@ -90,6 +94,9 @@ class VersionSpecifier:
         Returns:
             True if the version satisfies all specifiers, False otherwise
         """
+        if self.specs and self.specs[0] == ("*", "*"):
+            return True
+
         for op, spec_version in self.specs:
             cmp = self._compare_versions(version, spec_version)
 

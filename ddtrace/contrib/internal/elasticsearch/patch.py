@@ -68,6 +68,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"elasticsearch": ">=1.10,<8.0"}
+
+
 def get_versions():
     # type: () -> List[str]
     return versions

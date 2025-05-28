@@ -55,6 +55,10 @@ def get_version():
     return aiohttp.__version__
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aiohttp": ">=3.7"}
+
+
 class _WrappedConnectorClass(wrapt.ObjectProxy):
     def __init__(self, obj, pin):
         super().__init__(obj)

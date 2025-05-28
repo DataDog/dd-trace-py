@@ -28,6 +28,10 @@ def get_version():
     return getattr(sanic, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"sanic": ">=20.12.0"}
+
+
 def _get_current_span(request):
     pin = Pin._find(request.ctx)
     if not pin or not pin.enabled():

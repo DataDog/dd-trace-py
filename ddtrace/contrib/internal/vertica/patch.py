@@ -126,6 +126,10 @@ def get_version():
     return vertica_python.__version__
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"vertica": ">=0.6"}
+
+
 def patch():
     global _PATCHED
     if _PATCHED:

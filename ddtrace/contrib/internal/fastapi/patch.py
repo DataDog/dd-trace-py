@@ -36,6 +36,10 @@ def get_version():
     return getattr(fastapi, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"fastapi": ">=0.64"}
+
+
 def _supported_versions():
     return {"fastapi": ">=0.57.0"}
 

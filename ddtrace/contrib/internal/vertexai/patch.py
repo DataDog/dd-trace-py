@@ -30,6 +30,10 @@ def get_version():
     return getattr(vertexai, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"vertexai": ">=1.71.1"}
+
+
 @with_traced_module
 def traced_generate(vertexai, pin, func, instance, args, kwargs):
     return _traced_generate(vertexai, pin, func, instance, args, kwargs, instance, False)

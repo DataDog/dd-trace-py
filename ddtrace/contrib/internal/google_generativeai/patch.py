@@ -33,6 +33,10 @@ def get_version():
     return getattr(genai, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"google_generativeai": ">=0.7.2"}
+
+
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration

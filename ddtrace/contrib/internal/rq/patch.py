@@ -44,6 +44,10 @@ def get_version():
     return str(getattr(rq, "__version__", ""))
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"rq": ">=1.8"}
+
+
 @trace_utils.with_traced_module
 def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")

@@ -26,6 +26,10 @@ def get_version():
     return getattr(consul, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"consul": ">=1.1"}
+
+
 def patch():
     if getattr(consul, "__datadog_patch", False):
         return

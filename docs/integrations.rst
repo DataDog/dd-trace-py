@@ -76,6 +76,20 @@ asyncpg
 .. automodule:: ddtrace.contrib._asyncpg
 
 
+.. _avro:
+
+avro
+^^^^
+.. automodule:: ddtrace.contrib._avro
+
+
+.. _aws_lambda:
+
+AWS Lambda
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib._aws_lambda
+
+
 .. _botocore:
 
 botocore
@@ -137,6 +151,13 @@ CrewAI
 Datadog Lambda
 ^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._aws_lambda
+
+
+.. _ddtrace_api:
+
+ddtrace API
+^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._ddtrace_api
 
 
 .. _djangorestframework:
@@ -269,11 +290,29 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib._langchain
 
+.. _langgraph:
+
+LangGraph
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._langgraph
+
+.. _litellm:
+
+LiteLLM
+^^^^^^^
+.. automodule:: ddtrace.contrib._litellm
+
 .. _logbook:
 
 Logbook
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib._logbook
+
+.. _logging:
+
+Logging
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._logging
 
 .. _loguru:
 
@@ -308,6 +347,13 @@ Molten
 Mongoengine
 ^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._mongoengine
+
+
+.. _mysql:
+
+MySQL
+^^^^^
+.. automodule:: ddtrace.contrib._mysql
 
 
 .. _mysql-connector:
@@ -401,6 +447,18 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib._pytest_bdd
 
+.. _pytest_benchmark:
+
+pytest-benchmark
+^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._pytest_benchmark
+
+.. _protobuf:
+
+protobuf
+^^^^^^^^
+.. automodule:: ddtrace.contrib._protobuf
+
 .. _psycopg:
 
 psycopg
@@ -443,6 +501,13 @@ Sanic
 .. automodule:: ddtrace.contrib._sanic
 
 
+.. _selenium:
+
+Selenium
+^^^^^^^^
+.. automodule:: ddtrace.contrib._selenium
+
+
 .. _snowflake:
 
 Snowflake
@@ -475,6 +540,13 @@ SQLAlchemy
 
 SQLite
 ^^^^^^
+.. automodule:: ddtrace.contrib._sqlite3
+
+
+.. _sqlite3:
+
+SQLite3
+^^^^^^^
 .. automodule:: ddtrace.contrib._sqlite3
 
 
@@ -519,14 +591,20 @@ Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib._vertica
 
-.. _yaaredis:
+.. _webbrowser:
 
-yaaredis
-^^^^^^^^
-.. automodule:: ddtrace.contrib._yaaredis
+Webbrowser
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib._webbrowser
 
 .. _wsgi:
 
 WSGI
 ^^^^
 .. automodule:: ddtrace.contrib.wsgi
+
+.. _yaaredis:
+
+yaaredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib._yaaredis

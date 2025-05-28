@@ -16,6 +16,10 @@ def get_version():
     return getattr(gevent, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"gevent": ">=20.12"}
+
+
 def patch():
     """
     Patch the gevent module so that all references to the

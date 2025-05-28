@@ -4,3 +4,7 @@ def get_version():
     import pytest
 
     return pytest.__version__
+
+
+def _supported_versions() -> dict[str, str]:
+    return {"pytest": ">=6.0"}

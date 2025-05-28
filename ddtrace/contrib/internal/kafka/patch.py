@@ -55,6 +55,10 @@ def get_version():
     return getattr(confluent_kafka, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"kafka": ">=1.9.2"}
+
+
 KAFKA_VERSION_TUPLE = parse_version(get_version())
 
 

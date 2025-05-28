@@ -35,6 +35,10 @@ def get_version():
     return getattr(requests, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"requests": ">=2.20"}
+
+
 def patch():
     """Activate http calls tracing"""
     if getattr(requests, "__datadog_patch", False):

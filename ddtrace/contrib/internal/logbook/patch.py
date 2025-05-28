@@ -24,6 +24,10 @@ def get_version():
     return getattr(logbook, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"logbook": ">=1.0.0"}
+
+
 def _tracer_injection(event_dict):
     trace_details = ddtrace.tracer.get_log_correlation_context()
 

@@ -78,6 +78,10 @@ def get_version():
 PATCHED_VERSIONS = {}
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"psycopg": ">=2.8"}
+
+
 def get_versions():
     # type: () -> List[str]
     return PATCHED_VERSIONS

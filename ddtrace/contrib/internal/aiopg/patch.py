@@ -25,6 +25,10 @@ def get_version():
     return getattr(aiopg, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aiopg": ">=0.16.0"}
+
+
 def patch():
     """Patch monkey patches psycopg's connection function
     so that the connection's functions are traced.

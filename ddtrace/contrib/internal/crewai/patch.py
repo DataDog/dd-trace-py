@@ -17,6 +17,10 @@ def get_version() -> str:
 config._add("crewai", {})
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"crewai": ">=0.102"}
+
+
 @with_traced_module
 def traced_kickoff(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration

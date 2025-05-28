@@ -59,6 +59,10 @@ def get_version():
     return _graphql_version_str
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"graphene": ">=3.0.0", "graphql-core": ">=3.1"}
+
+
 def _parse_error_extensions(error_extensions: Optional[str]):
     """Parse the user provided error extensions."""
     if error_extensions is not None:

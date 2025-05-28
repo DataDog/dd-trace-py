@@ -41,6 +41,10 @@ def get_version():
     return VERSION
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"algoliasearch": ">=2.5.0"}
+
+
 def patch():
     if algoliasearch_version == V0:
         return

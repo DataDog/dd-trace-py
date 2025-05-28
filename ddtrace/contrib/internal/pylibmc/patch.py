@@ -12,6 +12,10 @@ def get_version():
     return getattr(pylibmc, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pylibmc": ">=1.6.2"}
+
+
 def patch():
     if getattr(pylibmc, "_datadog_patch", False):
         return

@@ -41,6 +41,10 @@ CONN_ATTR_BY_TAG = {
 }
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"pymysql": ">=1.0"}
+
+
 def patch():
     wrapt.wrap_function_wrapper("pymysql", "connect", _connect)
     pymysql._datadog_patch = True

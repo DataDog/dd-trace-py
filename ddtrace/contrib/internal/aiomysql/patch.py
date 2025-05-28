@@ -35,6 +35,10 @@ def get_version():
     return getattr(aiomysql, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aiomysql": ">=0.1.0"}
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "host",
     net.TARGET_PORT: "port",

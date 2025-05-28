@@ -12,6 +12,10 @@ def get_version():
     return getattr(sqlalchemy, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"sqlalchemy": ">=1.3"}
+
+
 def patch():
     if getattr(sqlalchemy.engine, "__datadog_patch", False):
         return

@@ -51,6 +51,10 @@ config._add(
 propagator = HTTPPropagator
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"kombu": ">=4.2"}
+
+
 def patch():
     """Patch the instrumented methods
 

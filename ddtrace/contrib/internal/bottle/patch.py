@@ -23,6 +23,10 @@ def get_version():
     return getattr(bottle, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"bottle": ">=0.12"}
+
+
 def patch():
     """Patch the bottle.Bottle class"""
     if getattr(bottle, "_datadog_patch", False):
