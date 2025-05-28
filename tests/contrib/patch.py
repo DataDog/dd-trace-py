@@ -797,7 +797,8 @@ class PatchTestCase(object):
             """
             Test the integration's supported versions are correctly reported via the '_supported_versions()' method.
             """
-            if hasattr(self, "_supported_versions") and self._supported_versions is not None:
-                versions = self._supported_versions()
-                assert self.__module_name__ in versions
-                assert versions[self.__module_name__] != ""
+            assert hasattr(self, "_supported_versions") is not False
+
+            versions = self._supported_versions()
+            assert self.__module_name__ in versions
+            assert versions[self.__module_name__] != ""
