@@ -819,7 +819,7 @@ class PatchTestCase(object):
                     # this may be a submodule we are importing, so get the top level module name
                     # ie: snowflake.connector -> snowflake
                     module_name = module_name.split(".")[0]
-                print(module_name)
+
                 assert module_name in versions
             else:
                 assert module_name in versions
