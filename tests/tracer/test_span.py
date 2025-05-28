@@ -554,9 +554,7 @@ class SpanTestCase(TracerTestCase):
         span.finish()
 
         span.assert_span_event_count(1)
-        span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
-        )
+        span.assert_span_event_attributes(0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim"})
 
     def test_span_record_multiple_exceptions(self):
         span = self.start_span("span")
@@ -572,32 +570,20 @@ class SpanTestCase(TracerTestCase):
         span.finish()
 
         span.assert_span_event_count(2)
-        span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
-        )
-        span.assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": False}
-        )
+        span.assert_span_event_attributes(0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim"})
+        span.assert_span_event_attributes(1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam"})
 
-    def test_span_record_escaped_exception(self):
-        exc = RuntimeError("bim")
+    def test_span_record_exception_with_attributes(self):
         span = self.start_span("span")
         try:
-            raise exc
+            raise RuntimeError("bim")
         except RuntimeError as e:
-            span.record_exception(e, escaped=True)
+            span.record_exception(e, {"foo": "bar"})
         span.finish()
 
-        span.assert_matches(
-            error=1,
-            meta={
-                "error.message": str(exc),
-                "error.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
-            },
-        )
         span.assert_span_event_count(1)
         span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": True}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "foo": "bar"}
         )
 
 
