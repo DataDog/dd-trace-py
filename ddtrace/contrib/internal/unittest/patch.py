@@ -70,6 +70,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"unittest": "*"}
+
+
 def _enable_unittest_if_not_started():
     _initialize_unittest_data()
     if _CIVisibility.enabled:

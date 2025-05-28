@@ -23,6 +23,10 @@ def get_version():
     return getattr(protobuf, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"protobuf": "*"}
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(protobuf, "_datadog_patch", False):

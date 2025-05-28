@@ -19,6 +19,10 @@ def get_version():
     return getattr(avro, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"avro": "*"}
+
+
 def patch():
     """Patch the instrumented methods"""
     if getattr(avro, "_datadog_patch", False):

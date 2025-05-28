@@ -17,6 +17,10 @@ def get_version():
     return getattr(version, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"langgraph": "*"}
+
+
 config._add("langgraph", {})
 
 

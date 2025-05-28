@@ -84,6 +84,10 @@ def get_version() -> str:
     return getattr(ddtrace_api, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"ddtrace_api": "*"}
+
+
 def patch(tracer=None):
     if getattr(ddtrace_api, "__datadog_patch", False):
         return

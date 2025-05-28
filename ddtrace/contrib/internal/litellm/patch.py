@@ -21,6 +21,10 @@ def get_version() -> str:
     return getattr(version_module, "version", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"litellm": "*"}
+
+
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
     return _traced_completion(litellm, pin, func, instance, args, kwargs, False)

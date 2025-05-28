@@ -11,6 +11,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"futures": "*"}
+
+
 def patch():
     """Enables Context Propagation between threads"""
     try:

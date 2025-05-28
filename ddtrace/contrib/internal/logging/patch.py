@@ -31,6 +31,10 @@ def get_version():
     return getattr(logging, "__version__", "")
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"logging": "*"}
+
+
 class DDLogRecord:
     trace_id: int
     span_id: int

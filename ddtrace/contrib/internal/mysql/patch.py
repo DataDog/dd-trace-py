@@ -33,6 +33,10 @@ def get_version():
     return mysql.connector.version.VERSION_TEXT
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"mysql": "*"}
+
+
 CONN_ATTR_BY_TAG = {
     net.TARGET_HOST: "server_host",
     net.TARGET_PORT: "server_port",

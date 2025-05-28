@@ -48,6 +48,10 @@ def get_version():
     return ".".join(map(str, MySQLdb.version_info[0:3]))
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"mysqldb": "*"}
+
+
 def patch():
     # patch only once
     if getattr(MySQLdb, "_datadog_patch", False):

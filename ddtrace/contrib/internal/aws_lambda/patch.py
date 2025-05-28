@@ -19,6 +19,10 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"aws_lambda": "*"}
+
+
 class DDLambdaLogger:
     """Uses `DDLogger` to log only on cold start invocations."""
 

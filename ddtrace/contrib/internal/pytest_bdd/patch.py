@@ -7,3 +7,7 @@ def get_version():
         import importlib_metadata  # type: ignore[no-redef]
 
     return str(importlib_metadata.version("pytest-bdd"))
+
+
+def _supported_versions() -> dict[str, str]:
+    return {"pytest_bdd": "*"}

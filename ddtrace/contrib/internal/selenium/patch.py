@@ -156,6 +156,10 @@ def get_version() -> str:
         return ""
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"selenium": "*"}
+
+
 def patch() -> None:
     import selenium
 
