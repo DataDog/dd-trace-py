@@ -35,7 +35,6 @@ class UploaderConfig
     UploaderConfig() = default;
     ~UploaderConfig() = default;
 
-
   public:
     UploaderConfig(const UploaderConfig&) = delete;
     UploaderConfig& operator=(const UploaderConfig&) = delete;
