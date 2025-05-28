@@ -183,6 +183,7 @@ class PatchTestCase(object):
         __unpatch_func__ = None
         __get_version__ = None
         __get_versions__ = None
+        __supported_versions__ = None
 
         def __init__(self, *args, **kwargs):
             # DEV: Python will wrap a function when assigning it to a class as an
@@ -224,6 +225,13 @@ class PatchTestCase(object):
                     get_versions_func()
 
                 self.__get_versions__ = get_versions
+
+            # we can dynamically import the supported versions function given the module name and the patch file
+            _supported_versions = importlib.import_module(
+                f"ddtrace.contrib.internal.{self.__integration_name__}.patch"
+            )._supported_versions
+            self._supported_versions = _supported_versions
+
             super(PatchTestCase.Base, self).__init__(*args, **kwargs)
 
         def _gen_test_attrs(self, ops):
@@ -793,12 +801,68 @@ class PatchTestCase(object):
                     self.__integration_name__, version, module_name=self.__module_name__
                 )
 
-        def test_supported_versions(self):
+        def test_supported_versions_function_exists(self):
             """
             Test the integration's supported versions are correctly reported via the '_supported_versions()' method.
             """
             assert hasattr(self, "_supported_versions") is not False
-
             versions = self._supported_versions()
-            assert self.__module_name__ in versions
-            assert versions[self.__module_name__] != ""
+
+            module_name = self.__module_name__
+            if module_name not in versions:
+                # this may be a submodule we are importing, so get the top level module name
+                module_name = module_name.split(".")[0]
+                assert module_name in versions
+            else:
+                assert module_name in versions
+
+            assert versions[module_name] != ""
+
+        def test_supported_versions_function_allows_valid_imports(self):
+            """
+            Test the integration's supported versions allows valid imports.
+            """
+            with NamedTemporaryFile(mode="w", suffix=".py") as f:
+                f.write(
+                    dedent(
+                        """
+                        import sys
+                        from ddtrace.internal.module import ModuleWatchdog
+                        from wrapt import wrap_function_wrapper as wrap
+
+                        supported_versions_called = False
+
+                        def patch_hook(module):
+                            def supported_versions_wrapper(wrapped, _, args, kwrags):
+                                global supported_versions_called
+                                result = wrapped(*args, **kwrags)
+                                sys.stdout.write("K")
+                                supported_versions_called = True
+                                return result
+
+                            wrap(module.__name__, module.patch._supported_versions.__name__, supported_versions_wrapper)
+
+                        ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
+
+                        sys.stdout.write("O")
+
+                        import %s as mod
+
+                        # If the module was already loaded during the sitecustomize
+                        # we check that the module was marked as patched.
+                        if not supported_versions_called and (
+                            getattr(mod, "__datadog_patch", False) or getattr(mod, "_datadog_patch", False)
+                        ):
+                            sys.stdout.write("K")
+                        """
+                        % (self.__integration_name__, self.__module_name__)
+                    )
+                )
+                f.flush()
+
+                env = os.environ.copy()
+                env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+
+                out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+
+                self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())

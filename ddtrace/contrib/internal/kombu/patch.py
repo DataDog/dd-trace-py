@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 # 3p
 import kombu
@@ -51,7 +52,7 @@ config._add(
 propagator = HTTPPropagator
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"kombu": ">=4.2"}
 
 

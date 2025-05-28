@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import google.generativeai as genai
 
@@ -33,7 +34,7 @@ def get_version():
     return getattr(genai, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"google_generativeai": ">=0.7.2"}
 
 

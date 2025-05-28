@@ -133,7 +133,7 @@ def get_version():
     return __version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"botocore": "*"}
 
 

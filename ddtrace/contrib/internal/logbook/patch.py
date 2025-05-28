@@ -1,3 +1,5 @@
+from typing import Dict
+
 import logbook
 from wrapt import wrap_function_wrapper as _w
 
@@ -24,7 +26,7 @@ def get_version():
     return getattr(logbook, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"logbook": ">=1.0.0"}
 
 

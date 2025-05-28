@@ -1,4 +1,5 @@
 from inspect import unwrap
+from typing import Dict
 
 import flask
 import werkzeug
@@ -77,7 +78,7 @@ def get_version():
     return get_version_for_package("flask")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"flask": ">=1.0"}
 
 

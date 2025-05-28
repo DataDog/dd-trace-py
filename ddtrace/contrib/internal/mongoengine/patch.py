@@ -1,5 +1,7 @@
 # TODO(mabdinur): Remove the pymongoengine integration, this integration does nothing special
 # it just uses the pymongo integration and creates unnecessary pin objects
+from typing import Dict
+
 import mongoengine
 
 from ..pymongo.patch import patch as patch_pymongo_module
@@ -16,7 +18,7 @@ def get_version():
     return getattr(mongoengine, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"mongoengine": ">=0.23"}
 
 

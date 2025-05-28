@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import wrapt
 
@@ -39,7 +40,7 @@ def get_version():
     return str(c.__version__)
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"snowflake": ">=2.3.0"}
 
 

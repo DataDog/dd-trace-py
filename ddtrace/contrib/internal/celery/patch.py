@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import celery
 
@@ -26,7 +27,7 @@ def get_version():
     return str(celery.__version__)
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"celery": ">=4.4"}
 
 

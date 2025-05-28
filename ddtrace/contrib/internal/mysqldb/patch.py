@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
@@ -48,7 +49,7 @@ def get_version():
     return ".".join(map(str, MySQLdb.version_info[0:3]))
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"mysqldb": "*"}
 
 

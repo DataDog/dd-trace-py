@@ -75,7 +75,7 @@ config._add(
 )
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"langchain": ">=0.1"}
 
 

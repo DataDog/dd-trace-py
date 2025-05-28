@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import mysql.connector
 import wrapt
@@ -33,7 +34,7 @@ def get_version():
     return mysql.connector.version.VERSION_TEXT
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"mysql": "*"}
 
 

@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Dict
 from typing import Union
 import unittest
 
@@ -70,7 +71,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"unittest": "*"}
 
 

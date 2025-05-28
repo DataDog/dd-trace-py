@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import falcon
 import wrapt
@@ -27,7 +28,7 @@ def get_version():
     return getattr(falcon, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"falcon": ">=3.0"}
 
 

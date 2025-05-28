@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import httpx
 from wrapt import BoundFunctionWrapper
@@ -44,7 +45,7 @@ config._add(
 )
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"httpx": ">=0.17"}
 
 

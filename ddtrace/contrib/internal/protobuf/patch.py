@@ -1,3 +1,5 @@
+from typing import Dict
+
 from google import protobuf
 from google.protobuf.internal import builder
 import wrapt
@@ -23,7 +25,7 @@ def get_version():
     return getattr(protobuf, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"protobuf": "*"}
 
 

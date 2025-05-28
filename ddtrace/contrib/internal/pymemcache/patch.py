@@ -1,3 +1,5 @@
+from typing import Dict
+
 import pymemcache
 import pymemcache.client.hash
 
@@ -21,7 +23,7 @@ def get_version():
     return getattr(pymemcache, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"pymemcache": ">=3.4"}
 
 

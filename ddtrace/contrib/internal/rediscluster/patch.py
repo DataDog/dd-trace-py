@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 # 3p
 import rediscluster
@@ -45,7 +46,7 @@ def get_version():
     return getattr(rediscluster, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"rediscluster": ">=2.0"}
 
 

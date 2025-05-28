@@ -1,4 +1,5 @@
 import importlib
+from typing import Dict
 
 import wrapt
 
@@ -126,7 +127,7 @@ def get_version():
     return vertica_python.__version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"vertica": ">=0.6"}
 
 

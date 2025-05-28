@@ -4,6 +4,7 @@ Datadog trace code for flask_cache
 
 import logging
 import typing
+from typing import Dict
 
 from ddtrace import config
 from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
@@ -43,7 +44,7 @@ def get_version():
         return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"flask_cache": ">=0.13"}
 
 

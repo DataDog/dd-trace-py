@@ -1,3 +1,5 @@
+from typing import Dict
+
 import wrapt
 
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
@@ -21,7 +23,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"coverage": "*"}
 
 

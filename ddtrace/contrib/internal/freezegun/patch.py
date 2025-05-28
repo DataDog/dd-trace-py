@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 
@@ -38,7 +40,7 @@ def get_version() -> str:
         return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"freezegun": ">=1.0.0"}
 
 

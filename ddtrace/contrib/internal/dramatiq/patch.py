@@ -18,7 +18,7 @@ def get_version() -> str:
     return str(dramatiq.__version__)
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"dramatiq": ">=1.0.0"}
 
 

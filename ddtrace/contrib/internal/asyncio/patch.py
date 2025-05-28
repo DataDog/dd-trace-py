@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -12,7 +13,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"asyncio": "*"}
 
 

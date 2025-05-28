@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import vertexai
 
@@ -30,7 +31,7 @@ def get_version():
     return getattr(vertexai, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"vertexai": ">=1.71.1"}
 
 

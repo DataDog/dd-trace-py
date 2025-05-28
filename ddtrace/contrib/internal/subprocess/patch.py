@@ -37,7 +37,7 @@ def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"subprocess": "*"}
 
 

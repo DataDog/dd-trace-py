@@ -1,4 +1,5 @@
 from importlib import import_module
+from typing import Dict
 from typing import List  # noqa:F401
 from urllib import parse
 
@@ -68,7 +69,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"elasticsearch": ">=1.10,<8.0"}
 
 

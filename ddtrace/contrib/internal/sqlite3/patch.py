@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
+from typing import Dict
 
 import wrapt
 
@@ -35,7 +36,7 @@ def get_version():
     return sqlite3.sqlite_version
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"sqlite3": "*"}
 
 

@@ -5,6 +5,8 @@ except AttributeError:
     from dogpile import cache as dogpile_cache
     from dogpile import lock as dogpile_lock
 
+from typing import Dict
+
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace._trace.pin import _DD_PIN_NAME
@@ -27,7 +29,7 @@ def get_version():
     return getattr(dogpile_cache, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"dogpile.cache": "*"}
 
 

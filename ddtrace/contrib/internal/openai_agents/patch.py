@@ -1,3 +1,5 @@
+from typing import Dict
+
 import agents
 from agents.tracing import add_trace_processor
 
@@ -16,7 +18,7 @@ def get_version() -> str:
     return getattr(version, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"openai_agents": "*"}
 
 

@@ -14,6 +14,7 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+from typing import Dict
 
 import wrapt
 from wrapt.importer import when_imported
@@ -104,7 +105,7 @@ def get_version():
     return django.__version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"django": ">=3.2"}
 
 

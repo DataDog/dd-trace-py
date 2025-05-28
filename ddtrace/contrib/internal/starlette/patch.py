@@ -52,7 +52,7 @@ def get_version():
 _STARLETTE_VERSION = parse_version(get_version())
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"starlette": ">=0.14.0"}
 
 

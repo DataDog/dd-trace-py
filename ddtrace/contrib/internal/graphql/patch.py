@@ -59,7 +59,7 @@ def get_version():
     return _graphql_version_str
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"graphene": ">=3.0.0", "graphql-core": ">=3.1"}
 
 

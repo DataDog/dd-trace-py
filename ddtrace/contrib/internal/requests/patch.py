@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import requests
 from wrapt import wrap_function_wrapper as _w
@@ -35,7 +36,7 @@ def get_version():
     return getattr(requests, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"requests": ">=2.20"}
 
 

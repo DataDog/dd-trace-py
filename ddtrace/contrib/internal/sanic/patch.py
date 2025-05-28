@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 
 import sanic
 import wrapt
@@ -28,7 +29,7 @@ def get_version():
     return getattr(sanic, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"sanic": ">=20.12.0"}
 
 
