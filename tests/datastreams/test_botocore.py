@@ -1,6 +1,5 @@
 import json
 
-
 from ddtrace.internal.datastreams.botocore import get_datastreams_context
 
 
@@ -11,7 +10,7 @@ class TestGetDatastreamsContext:
         trace_context = {
             "x-datadog-trace-id": "123456789",
             "x-datadog-parent-id": "987654321",
-            "x-datadog-sampling-priority": "1"
+            "x-datadog-sampling-priority": "1",
         }
 
         lambda_record = {
@@ -22,26 +21,26 @@ class TestGetDatastreamsContext:
                 "ApproximateReceiveCount": "1",
                 "SentTimestamp": "1545082649183",
                 "SenderId": "AIDAIENQZJOLO23YVJ4VO",
-                "ApproximateFirstReceiveTimestamp": "1545082649185"
+                "ApproximateFirstReceiveTimestamp": "1545082649185",
             },
             "messageAttributes": {
                 "_datadog": {
                     "stringValue": json.dumps(trace_context),
                     "stringListValues": [],
                     "binaryListValues": [],
-                    "dataType": "String"
+                    "dataType": "String",
                 },
                 "myAttribute": {
                     "stringValue": "myValue",
                     "stringListValues": [],
                     "binaryListValues": [],
-                    "dataType": "String"
-                }
+                    "dataType": "String",
+                },
             },
             "md5OfBody": "e4e68fb7bd0e697a0ae8f1bb342846b3",
             "eventSource": "aws:sqs",
             "eventSourceARN": "arn:aws:sqs:us-east-2:123456789012:my-queue",
-            "awsRegion": "us-east-2"
+            "awsRegion": "us-east-2",
         }
 
         result = get_datastreams_context(lambda_record)

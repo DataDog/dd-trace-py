@@ -151,9 +151,7 @@ def get_datastreams_context(message):
     except (ValueError, TypeError):
         log.debug("Unable to parse message body as JSON, treat as non-json")
 
-    message_attributes = (
-        message_body.get("MessageAttributes") or message_body.get("messageAttributes")
-    )
+    message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
     if not message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
