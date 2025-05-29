@@ -11,9 +11,6 @@
 
 namespace Datadog {
 
-UploaderConfig* UploaderConfig::instance = nullptr;
-std::mutex UploaderConfig::instance_mutex;
-
 void
 UploaderConfig::set_env(std::string_view _dd_env)
 {
