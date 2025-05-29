@@ -11,6 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.utils import override_global_config
@@ -984,6 +985,142 @@ def test_django_header_injection(client, iast_span, tracer):
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
         "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_url(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/unvalidated_redirect_url/?url={tainted_value}"
+    )
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash("unvalidated_redirect_url", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE)
+
+    assert loaded["sources"] == [
+        {"origin": "http.request.parameter", "name": "url", "value": "http://www.malicious.com.ar.uk/muahahaha"}
+    ]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "http://www.malicious.com.ar.uk/muahahaha", "source": 0}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_url_validator(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/unvalidated_redirect_url_validator/?url={tainted_value}"
+    )
+
+    assert root_span.get_tag(IAST.JSON) is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_url_header(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/unvalidated_redirect_url_header/?url={tainted_value}"
+    )
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+    line, hash_value = get_line_and_hash(
+        "unvalidated_redirect_url_header", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE
+    )
+    assert loaded["sources"] == [
+        {"origin": "http.request.parameter", "name": "url", "value": "http://www.malicious.com.ar.uk/muahahaha"}
+    ]
+    # Check we're only reporting
+    assert len(loaded["vulnerabilities"]) == 1
+    assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "http://www.malicious.com.ar.uk/muahahaha", "source": 0}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_path(client, iast_span, tracer):
+    tainted_value = "muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/unvalidated_redirect_path/?url={tainted_value}"
+    )
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    line, hash_value = get_line_and_hash("unvalidated_redirect_path", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE)
+
+    assert loaded["sources"] == [{"origin": "http.request.parameter", "name": "url", "value": "muahahaha"}]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "http://localhost:8080/"}, {"value": "muahahaha", "source": 0}]
+    }
+    assert loaded["vulnerabilities"][0]["location"]["line"] == line
+    assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_safe_source_cookie(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/appsec/unvalidated_redirect_safe_source_cookie/",
+        cookies={"url": tainted_value},
+    )
+
+    assert root_span.get_tag(IAST.JSON) is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_safe_source_header(client, iast_span, tracer):
+    tainted_value = "muahahaha"
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/appsec/unvalidated_redirect_safe_source_header/",
+        headers={"url": tainted_value},
+    )
+
+    assert root_span.get_tag(IAST.JSON) is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_unvalidated_redirect_path_multiple_sources(client, iast_span, tracer):
+    tainted_value = "http://www.malicious.com.ar.uk/"
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url=f"/appsec/unvalidated_redirect_path_multiple_sources/?url={tainted_value}",
+        headers={"url": "muahahaha"},
+    )
+
+    loaded = json.loads(root_span.get_tag(IAST.JSON))
+    line, hash_value = get_line_and_hash(
+        "unvalidated_redirect_path_multiple_sources", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE
+    )
+
+    assert loaded["sources"] == [
+        {"origin": "http.request.parameter", "name": "url", "value": "http://www.malicious.com.ar.uk/"},
+        {"origin": "http.request.header", "name": "url", "value": "muahahaha"},
+    ]
+    assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
+    assert loaded["vulnerabilities"][0]["hash"] == hash_value
+    assert loaded["vulnerabilities"][0]["evidence"] == {
+        "valueParts": [{"value": "http://www.malicious.com.ar.uk/", "source": 0}, {"value": "muahahaha", "source": 1}]
     }
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
