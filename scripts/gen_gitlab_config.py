@@ -272,6 +272,7 @@ build_base_venvs:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     DD_FAST_BUILD: '1'
+    DD_COMPILE_MODE: 'RelWithDebInfo'
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
