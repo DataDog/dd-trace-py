@@ -4,7 +4,6 @@ from ddtrace.internal.datastreams.botocore import get_datastreams_context
 
 
 class TestGetDatastreamsContext:
-
     def test_sqs_to_lambda_format_with_datadog_context(self):
         """Test SQS -> Lambda format with _datadog messageAttributes."""
         trace_context = {
