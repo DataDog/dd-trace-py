@@ -82,13 +82,6 @@ avro
 .. automodule:: ddtrace.contrib._avro
 
 
-.. _aws_lambda:
-
-AWS Lambda
-^^^^^^^^^^
-.. automodule:: ddtrace.contrib._aws_lambda
-
-
 .. _azure_functions:
 
 Azure Functions
