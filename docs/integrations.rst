@@ -92,7 +92,7 @@ AWS Lambda
 .. _azure_functions:
 
 Azure Functions
-^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._azure_functions
 
 
