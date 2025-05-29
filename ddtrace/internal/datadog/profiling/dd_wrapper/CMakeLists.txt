@@ -6,7 +6,7 @@ project(
 
 # Build in a predictable location.  This is needed for setup.py
 get_filename_component(dd_wrapper_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ddtrace.internal.datadog.profiling"
-    ABSOLUTE)
+                       ABSOLUTE)
 
 # Custom modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
@@ -50,8 +50,8 @@ if(WIN32)
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
-        src/uploader_config.cpp
-        src/uploader_builder.cpp)
+        src/uploader_builder.cpp
+        src/uploader_config.cpp)
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -74,8 +74,8 @@ else()
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
-        src/uploader_config.cpp
-        src/uploader_builder.cpp)
+        src/uploader_builder.cpp
+        src/uploader_config.cpp)
 endif()
 
 # Add common configuration flags
