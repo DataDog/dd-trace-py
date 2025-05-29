@@ -305,6 +305,7 @@ def test_encode_span_with_large_bytes_attributes(encoding):
         with tracer.trace(name=name, resource=resource) as span:
             span.set_tag(key=key, value=value)
 
+
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
 @pytest.mark.snapshot()
 def test_encode_span_with_large_unicode_string_attributes(encoding):
