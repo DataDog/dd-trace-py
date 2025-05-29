@@ -2,14 +2,13 @@ import os
 
 import bm
 import bm.utils as utils
-from opentelemetry.trace import get_tracer
-from opentelemetry.trace import set_tracer_provider
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import Link
 from opentelemetry.trace import SpanContext
+from opentelemetry.trace import get_tracer
+from opentelemetry.trace import set_tracer_provider
 from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
-
-from opentelemetry.sdk.trace import TracerProvider
 
 
 set_tracer_provider(TracerProvider())
