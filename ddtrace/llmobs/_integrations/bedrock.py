@@ -19,7 +19,6 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION
 from ddtrace.llmobs._integrations.bedrock_agents import _translate_custom_orchestration_trace
 from ddtrace.llmobs._integrations.bedrock_agents import _translate_failure_trace
 from ddtrace.llmobs._integrations.bedrock_agents import _translate_guardrail_trace
@@ -77,6 +76,9 @@ class BedrockIntegration(BaseLLMIntegration):
             "llmobs.stop_reason": Optional[str],
         }
         """
+        if operation == "agent":
+            return self._llmobs_set_tags_agent(span, args, kwargs, response)
+
         metadata = {}
         usage_metrics = {}
         ctx = args[0]

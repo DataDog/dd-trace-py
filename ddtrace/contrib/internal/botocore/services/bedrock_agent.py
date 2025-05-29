@@ -37,13 +37,15 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
             traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
             response = _process_streamed_response_chunks(chunks)
             self._dd_integration._translate_bedrock_traces(traces, chunks, self._dd_span)
-            self._dd_integration._llmobs_set_tags_agent(self._dd_span, self._args, self._kwargs, response)
+            self._dd_integration.llmobs_set_tags(self._dd_span, self._args, self._kwargs, response, operation="agent")
             self._dd_span.finish()
 
 
 def _extract_traces_response_from_chunks(chunks):
     traces = []
     response = []
+    if not chunks or not isinstance(chunks, list):
+        return traces, response
     for chunk in chunks:
         if "chunk" in chunk:
             response.append(chunk["chunk"])
@@ -88,7 +90,7 @@ def patched_bedrock_agent_api_call(original_func, instance, args, kwargs, functi
         result = handle_bedrock_agent_response(result, integration, span, args, kwargs)
         return result
     except Exception:
-        integration._llmobs_set_tags_agent(span, args, kwargs, result)
+        integration.llmobs_set_tags(span, args, kwargs, result, operation="agent")
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise
