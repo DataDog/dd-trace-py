@@ -2,7 +2,9 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
+
 import subprocess
+
 
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
 system_tests_workflows_path = ".github/workflows/system-tests.yml"
