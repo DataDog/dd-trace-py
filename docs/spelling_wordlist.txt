@@ -317,3 +317,4 @@ wsgi
 xfail
 yaaredis
 openai-agents
+mistralai

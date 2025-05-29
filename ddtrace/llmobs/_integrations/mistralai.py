@@ -1,7 +1,42 @@
-from datetime import datetime, timezone
+from datetime import datetime
+from datetime import timezone
+import json
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 import uuid
-from typing import Dict, Any, List, Optional, Union
+import weakref
+
+from ddtrace.internal import core
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
+from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
+from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.trace import Pin
+from ddtrace.trace import Span
+
 
 def datetime_to_ns(dt: datetime) -> int:
     """Convert a datetime object to nanoseconds since the epoch."""
@@ -90,20 +125,12 @@ def reconstruct_trace(
     fetch_agent_info=None,
     input: str = None,
 ):
-    outputs = [
-        output
-        for output in response.outputs
-        if output.created_at and output.completed_at
-    ]
+    outputs = [output for output in response.outputs if output.created_at and output.completed_at]
     spans = []
-    inferred_agent_boundaries = [
-        {"agent_id": starting_agent_id, "start_time": start_time, "end_time": end_time}
-    ]
+    inferred_agent_boundaries = [{"agent_id": starting_agent_id, "start_time": start_time, "end_time": end_time}]
     for output in outputs:
         if output.type == "agent.handoff":
-            inferred_agent_boundaries[-1]["end_time"] = datetime_to_ns(
-                output.completed_at
-            )
+            inferred_agent_boundaries[-1]["end_time"] = datetime_to_ns(output.completed_at)
             inferred_agent_boundaries[-1]["agent_id"] = output.previous_agent_id
             inferred_agent_boundaries.append(
                 {
@@ -113,14 +140,10 @@ def reconstruct_trace(
                 }
             )
         if output.type == "message.output":
-            inferred_agent_boundaries[-1]["end_time"] = datetime_to_ns(
-                output.completed_at
-            )
+            inferred_agent_boundaries[-1]["end_time"] = datetime_to_ns(output.completed_at)
 
     if inferred_agent_boundaries[-1]["end_time"] is None:
-        print(
-            "No end time found for last agent boundary, dropping inferred agent boundary"
-        )
+        print("No end time found for last agent boundary, dropping inferred agent boundary")
         inferred_agent_boundaries.pop()
 
     if inferred_agent_boundaries[-1]["agent_id"] is None:
@@ -163,9 +186,7 @@ def reconstruct_trace(
                 "tool.execution",
                 "function.call",
             ):
-                inferred_first_llm_call[1] = datetime_to_ns(
-                    outputs[resp_idx].created_at
-                )
+                inferred_first_llm_call[1] = datetime_to_ns(outputs[resp_idx].created_at)
                 inferred_first_llm_call[2] = outputs[resp_idx]
                 resp_idx += 1
                 break
@@ -229,7 +250,7 @@ def reconstruct_trace(
     spans.sort(key=lambda x: x["start_ns"])
     """
     Now we construct span links
-    Given some (llm) -> (X # of tools) -> (llm) .. pattern, we want links between 
+    Given some (llm) -> (X # of tools) -> (llm) .. pattern, we want links between
     all of these spans.
     """
     llm_span_ids = []
@@ -275,6 +296,7 @@ def reconstruct_trace(
     }
     for span in spans:
         from ddtrace.llmobs import LLMObs
+
         LLMObs._instance._llmobs_span_writer.enqueue(span)
     return spans
 
@@ -395,11 +417,7 @@ def _create_llm_span(output, trace_id, parent_id, session_id, ml_app):
     span_id = generate_span_id()
 
     # Get timing from the entire sequence
-    start_ns = (
-        datetime_to_ns(output.created_at)
-        if output.created_at
-        else datetime_to_ns(datetime.now(timezone.utc))
-    )
+    start_ns = datetime_to_ns(output.created_at) if output.created_at else datetime_to_ns(datetime.now(timezone.utc))
     end_ns = datetime_to_ns(output.completed_at) if output.completed_at else start_ns
     duration = end_ns - start_ns
 
@@ -450,11 +468,7 @@ def _create_llm_span(output, trace_id, parent_id, session_id, ml_app):
 def _create_tool_execution_span(output, trace_id, parent_id, session_id, ml_app):
     """Create a span event for tool.execution type."""
     span_id = generate_span_id()
-    start_ns = (
-        datetime_to_ns(output.created_at)
-        if output.created_at
-        else datetime_to_ns(datetime.now(timezone.utc))
-    )
+    start_ns = datetime_to_ns(output.created_at) if output.created_at else datetime_to_ns(datetime.now(timezone.utc))
     end_ns = datetime_to_ns(output.completed_at) if output.completed_at else start_ns
     duration = end_ns - start_ns
 
@@ -486,11 +500,7 @@ def _create_tool_execution_span(output, trace_id, parent_id, session_id, ml_app)
 def _create_agent_handoff_span(output, trace_id, parent_id, session_id, ml_app):
     """Create a span event for agent.handoff type."""
     span_id = generate_span_id()
-    start_ns = (
-        datetime_to_ns(output.created_at)
-        if output.created_at
-        else datetime_to_ns(datetime.now(timezone.utc))
-    )
+    start_ns = datetime_to_ns(output.created_at) if output.created_at else datetime_to_ns(datetime.now(timezone.utc))
     end_ns = datetime_to_ns(output.completed_at) if output.completed_at else start_ns
     duration = end_ns - start_ns
 
@@ -526,3 +536,57 @@ def _create_agent_handoff_span(output, trace_id, parent_id, session_id, ml_app):
             "session_id:" + session_id,
         ],
     }
+
+
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+
+
+class MistralAIIntegration(BaseLLMIntegration):
+    _integration_name = "mistralai"
+
+    def __init__(self, integration_config):
+        super().__init__(integration_config)
+        self._mistral_client = None
+
+    def trace(
+        self,
+        pin: Pin,
+        operation_id: str = "",
+        submit_to_llmobs: bool = False,
+        **kwargs,
+    ) -> Span:
+        llmobs_span = super().trace(
+            pin,
+            operation_id=operation_id,
+            submit_to_llmobs=submit_to_llmobs,
+            span_name=operation_id,
+        )
+        return llmobs_span
+        # if oai_trace:
+        #     self.oai_to_llmobs_span[oai_trace.trace_id] = llmobs_span
+        #     self.llmobs_traces[format_trace_id(llmobs_span.trace_id)] = LLMObsTraceInfo(
+        #         span_id=str(llmobs_span.span_id),
+        #         trace_id=format_trace_id(llmobs_span.trace_id),
+        #     )
+        # elif oai_span:
+        #     self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
+        #     self._llmobs_update_trace_info_input(oai_span, llmobs_span)
+        # return llmobs_span
+
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        inputs = kwargs.get("inputs", [])
+        agent_id = kwargs.get("agent_id", "")
+        metadata = {}
+        for k, v in kwargs.items():
+            metadata[k] = v
+        span._set_ctx_item(SPAN_KIND, operation)
+        span._set_ctx_item(METADATA, metadata)
+        if response:
+            span._set_ctx_item(OUTPUT_VALUE, response.model_dump())

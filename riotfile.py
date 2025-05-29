@@ -2675,6 +2675,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="mistralai",
+            command="pytest {cmdargs} tests/contrib/mistralai",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "vcrpy": latest,
+                "pytest-asyncio": latest,
+                "mistralai": latest,
+            },
+        ),
+        Venv(
             name="molten",
             command="pytest {cmdargs} tests/contrib/molten",
             pys=select_pys(),
