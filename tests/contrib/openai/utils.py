@@ -57,10 +57,10 @@ mock_openai_chat_completions_response = openai.types.chat.ChatCompletion(
 )
 
 multi_message_input = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Who won the world series in 2020?"},
-    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-    {"role": "user", "content": "Where was it played?"},
+    {"content": "You are a helpful assistant.", "role": "system", },
+    {"content": "Who won the world series in 2020?", "role": "user"},
+    {"content": "The Los Angeles Dodgers won the World Series in 2020.", "role": "assistant"},
+    {"content": "Where was it played?", "role": "user"},
 ]
 
 chat_completion_input_description = """

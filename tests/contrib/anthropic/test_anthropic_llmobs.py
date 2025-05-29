@@ -3,11 +3,12 @@ from pathlib import Path
 from mock import patch
 import pytest
 
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
 WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
@@ -59,8 +60,23 @@ class TestLLMObsAnthropic:
                 }
             ],
         )
-        # base_url is specified, so no llm obs span should be sent
-        assert mock_llmobs_writer.enqueue.call_count == 0
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json([
+                    {"content": "Respond only in all caps.", "role": "system"},
+                    {"content": "Hello, I am looking for information about some books!", "role": "user"},
+                    {"content": "What is the best selling book?", "role": "user"},
+                ], ensure_ascii=False),
+                output_value=safe_json([{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False),
+                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
+        )
+
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
