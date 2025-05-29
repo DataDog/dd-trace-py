@@ -29,8 +29,6 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 bool
 Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
 {
-    std::cout << "Uploader::export_to_file is called" << std::endl;
-
     ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
     if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
         auto err = serialize_result.err;
@@ -39,8 +37,6 @@ Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok;
-
-    std::cout << "Uploader::export_to_file serialized result" << std::endl;
 
     const auto& config = Datadog::UploaderConfig::get_instance();
     // Write the profile to a file using the following format for filename:
@@ -54,8 +50,6 @@ Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
         return false;
     }
 
-    std::cout << "Uploader::export_to_file opened file " << filename << std::endl;
-
     auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
     if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
         std::cerr << "Error getting bytes from encoded profile: "
@@ -64,15 +58,12 @@ Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
         return false;
     }
 
-    std::cout << "Uploader::export_to_file got bytes from encoded profile" << std::endl;
-
     out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
     if (out.fail()) {
         std::cerr << "Error writing to output file " << filename << ": " << strerror(errno) << std::endl;
         return false;
     }
 
-    std::cout << "Uploader::export_to_file wrote to file" << std::endl;
     return true;
 }
 

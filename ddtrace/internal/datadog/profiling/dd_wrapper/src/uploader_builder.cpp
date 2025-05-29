@@ -277,9 +277,3 @@ Datadog::UploaderBuilder::build()
 }
 
 }
-
-__attribute__((destructor)) static void
-on_unload()
-{
-    printf("uploader_builder is being unloaded! %d\n", getpid());
-}
