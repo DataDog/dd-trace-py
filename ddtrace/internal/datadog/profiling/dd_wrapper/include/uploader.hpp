@@ -32,7 +32,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    static bool export_to_file(std::string_view filename, ddog_prof_Profile& profile);
+    static bool export_to_file(ddog_prof_Profile& profile);
 
     Uploader(ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()

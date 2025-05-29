@@ -145,7 +145,7 @@ def test_wrapt_disable_extensions():
     test_name = "test_wrapt_disable_extensions"
     pprof_prefix = "/tmp" + os.sep + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -161,7 +161,7 @@ def test_wrapt_disable_extensions():
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload()
 
     expected_filename = "test_threading.py"
 
@@ -216,7 +216,7 @@ def test_lock_gevent_tasks():
     test_name = "test_lock_gevent_tasks"
     pprof_prefix = "/tmp" + os.sep + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
@@ -231,7 +231,7 @@ def test_lock_gevent_tasks():
         t.start()
         t.join()
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload()
 
     expected_filename = "test_threading.py"
     linenos = get_lock_linenos(test_name)
@@ -281,7 +281,7 @@ class TestThreadingLockCollector:
 
         # ddup is available when the native module is compiled
         assert ddup.is_available, "ddup is not available"
-        ddup.config(env="test", service=self.test_name, version="my_version")
+        ddup.config(env="test", service=self.test_name, version="my_version", output_filename=self.pprof_prefix)
         ddup.start()
 
     def teardown_method(self, method):
@@ -304,7 +304,7 @@ class TestThreadingLockCollector:
             lock.acquire()  # !ACQUIRE! test_lock_events
             lock.release()  # !RELEASE! test_lock_events
         # Calling upload will trigger the exporter to write to a file
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         profile = pprof_utils.parse_profile(self.output_filename)
         linenos = get_lock_linenos("test_lock_events")
@@ -338,7 +338,7 @@ class TestThreadingLockCollector:
 
             Foobar().lockfunc()
 
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         linenos = get_lock_linenos("test_lock_acquire_events_class")
 
@@ -373,7 +373,7 @@ class TestThreadingLockCollector:
                 span_id = t.span_id
 
             lock2.release()  # !RELEASE! test_lock_events_tracer_2
-        ddup.upload(tracer=tracer, output_filename=self.pprof_prefix)
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_2")
@@ -432,7 +432,7 @@ class TestThreadingLockCollector:
                 span_id = t.span_id
 
             lock2.release()  # !RELEASE! test_lock_events_tracer_non_web
-        ddup.upload(tracer=tracer, output_filename=self.pprof_prefix)
+        ddup.upload(tracer=tracer)
 
         linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
 
@@ -478,7 +478,7 @@ class TestThreadingLockCollector:
             lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
         span.resource = resource
         span.finish()
-        ddup.upload(tracer=tracer, output_filename=self.pprof_prefix)
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
@@ -534,7 +534,7 @@ class TestThreadingLockCollector:
                 lock1.release()  # !RELEASE! test_resource_not_collected_1
                 span_id = t.span_id
             lock2.release()  # !RELEASE! test_resource_not_collected_2
-        ddup.upload(tracer=tracer, output_filename=self.pprof_prefix)
+        ddup.upload(tracer=tracer)
 
         linenos1 = get_lock_linenos("test_resource_not_collected_1")
         linenos2 = get_lock_linenos("test_resource_not_collected_2")
@@ -584,7 +584,7 @@ class TestThreadingLockCollector:
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
 
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         # for enter/exits, we need to update the lock_linenos for versions >= 3.10
         linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
@@ -624,7 +624,7 @@ class TestThreadingLockCollector:
                 bar = Bar()
                 bar.bar()
 
-            ddup.upload(output_filename=self.pprof_prefix)
+            ddup.upload()
 
             linenos = get_lock_linenos("foolock", with_stmt=True)
             profile = pprof_utils.parse_profile(self.output_filename)
@@ -666,7 +666,7 @@ class TestThreadingLockCollector:
             foo = Foo()
             foo.foo()
 
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         linenos = get_lock_linenos("test_private_lock", with_stmt=True)
 
@@ -705,7 +705,7 @@ class TestThreadingLockCollector:
             bar = Bar()
             bar.bar()
 
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         linenos_foo = get_lock_linenos("foolock")
         linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
@@ -736,7 +736,7 @@ class TestThreadingLockCollector:
         with collector_threading.ThreadingLockCollector(capture_pct=100, export_libdd_enabled=True):
             with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
 
@@ -766,7 +766,7 @@ class TestThreadingLockCollector:
             global_locks.foo()
             global_locks.bar_instance.bar()
 
-        ddup.upload(output_filename=self.pprof_prefix)
+        ddup.upload()
 
         profile = pprof_utils.parse_profile(self.output_filename)
         linenos_foo = get_lock_linenos("global_lock", with_stmt=True)

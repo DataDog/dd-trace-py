@@ -54,6 +54,7 @@ def test_memory_collector(tmp_path):
         service=test_name,
         version="test",
         env="test",
+        output_filename=pprof_prefix,
     )
     ddup.start()
 
@@ -62,7 +63,7 @@ def test_memory_collector(tmp_path):
         _allocate_1k()
         mc.periodic()
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload()
 
     profile = pprof_utils.parse_profile(output_filename)
     # Gets samples with alloc-space > 0
@@ -101,6 +102,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
         service=test_name,
         version="test",
         env="test",
+        output_filename=pprof_prefix,
     )
     ddup.start()
 
@@ -124,7 +126,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
     quit_thread.set()
     alloc_thread.join()
 
-    ddup.upload(output_filename=pprof_prefix)
+    ddup.upload()
 
     try:
         pprof_utils.parse_profile(output_filename)
