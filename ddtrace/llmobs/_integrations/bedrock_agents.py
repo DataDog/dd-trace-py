@@ -78,6 +78,11 @@ def _create_or_update_bedrock_trace_step_span(trace, inner_span_event, root_span
             "metrics": {},
         }
         span_dict[trace_step_id] = span_event
+    trace_step_input = span_event.get("meta", {}).get("input", {})
+    if not trace_step_input and inner_span_event and inner_span_event.get("meta", {}).get("input"):
+        span_event["meta"]["input"] = inner_span_event.get("meta", {}).get("input")
+    if inner_span_event and inner_span_event.get("meta", {}).get("output"):
+        span_event["meta"]["output"] = inner_span_event.get("meta", {}).get("output")
     if not inner_span_event or not inner_span_event.get("start_ns") or not inner_span_event.get("duration"):
         return span_event
     span_event["duration"] = int(inner_span_event["duration"] + inner_span_event["start_ns"] - span_event["start_ns"])
@@ -87,11 +92,11 @@ def _create_or_update_bedrock_trace_step_span(trace, inner_span_event, root_span
 def _translate_custom_orchestration_trace(trace, root_span, current_active_span, trace_step_id):
     custom_orchestration_trace = trace.get("trace", {}).get("customOrchestrationTrace", {})
     if not custom_orchestration_trace or not isinstance(custom_orchestration_trace, dict):
-        return None
+        return None, False
     start_ns = _extract_start_ns(trace, root_span)
     custom_orchestration_event = custom_orchestration_trace.get("event", {})
     if not custom_orchestration_event or not isinstance(custom_orchestration_event, dict):
-        return None
+        return None, False
     return {
         "name": "customOrchestration",
         "span_id": str(rand128bits()),
@@ -99,7 +104,7 @@ def _translate_custom_orchestration_trace(trace, root_span, current_active_span,
         "parent_id": str(trace_step_id),
         "tags": ["ml_app:{}".format(_get_ml_app(root_span))],
         "start_ns": int(start_ns),
-        "duration": DEFAULT_SPAN_DURATION,
+        "duration": None,
         "status": "ok",
         "meta": {
             "span.kind": "tool",
@@ -108,16 +113,16 @@ def _translate_custom_orchestration_trace(trace, root_span, current_active_span,
             "output": {"value": custom_orchestration_event.get("text", "")},
         },
         "metrics": {},
-    }
+    }, False
 
 
 
 def _translate_orchestration_trace(trace, root_span, current_active_span, trace_step_id):
     orchestration_trace = trace.get("trace", {}).get("orchestrationTrace", {})
     if not orchestration_trace:
-        return None
+        return None, False
     if not isinstance(orchestration_trace, dict) or len(orchestration_trace) != 1:
-        return None
+        return None, False
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = orchestration_trace.get("modelInvocationInput", {})
     if model_invocation_input:
@@ -139,7 +144,7 @@ def _translate_orchestration_trace(trace, root_span, current_active_span, trace_
 def _translate_failure_trace(trace, root_span, current_active_span, trace_step_id):
     failure_trace = trace.get("trace", {}).get("failureTrace", {})
     if not failure_trace or not isinstance(failure_trace, dict):
-        return None
+        return None, False
     failure_metadata = failure_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(failure_metadata, root_span)
     try:
@@ -165,7 +170,7 @@ def _translate_failure_trace(trace, root_span, current_active_span, trace_step_i
 
         },
         "metrics": {},
-    }
+    }, True
 
 def _translate_guardrail_trace(trace, root_span, current_active_span, trace_step_id):
     guardrail_trace = trace.get("trace", {}).get("guardrailTrace", {})
@@ -204,15 +209,15 @@ def _translate_guardrail_trace(trace, root_span, current_active_span, trace_step
             raise Exception("Guardrail triggered")
         except Exception:
             root_span.set_exc_info(*sys.exc_info())
-    return span_event
+    return span_event, True
 
 
 def _translate_post_processing_trace(trace, root_span, current_active_span, trace_step_id):
     postprocessing_trace = trace.get("trace", {}).get("postProcessingTrace", {})
     if not postprocessing_trace:
-        return None
+        return None, False
     if not isinstance(postprocessing_trace, dict) or len(postprocessing_trace) != 1:
-        return None
+        return None, False
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = postprocessing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
@@ -225,9 +230,9 @@ def _translate_post_processing_trace(trace, root_span, current_active_span, trac
 def _translate_pre_processing_trace(trace, root_span, current_active_span, trace_step_id):
     preprocessing_trace = trace.get("trace", {}).get("preProcessingTrace", {})
     if not preprocessing_trace:
-        return None
+        return None, False
     if not isinstance(preprocessing_trace, dict) or len(preprocessing_trace) != 1:
-        return None
+        return None, False
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = preprocessing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
@@ -282,14 +287,14 @@ def _model_invocation_input_span(model_input, trace_step_id, start_ns, root_span
             "output": {},
         },
         "metrics": {},
-    }
+    }, False
 
 
 def _model_invocation_output_span(model_output, current_active_span, root_span):
     span_event = current_active_span
     if not span_event:
         log.warning("Error in processing modelInvocationOutput.")
-        return None
+        return None, False
     bedrock_metadata = model_output.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     output_messages = [model_output.get("rawResponse", {"content": ""})]
@@ -307,7 +312,7 @@ def _model_invocation_output_span(model_output, current_active_span, root_span):
     span_event["duration"] = int(duration_ns)
     span_event["meta"]["output"]["messages"] = output_messages
     span_event["metrics"] = token_metrics
-    return span_event
+    return span_event, True
 
 
 def _rationale_span(rationale, trace_step_id, start_ns, root_span):
@@ -326,7 +331,7 @@ def _rationale_span(rationale, trace_step_id, start_ns, root_span):
             "output": {"value": rationale.get("text", "")},
         },
         "metrics": {},
-    }
+    }, True
 
 
 def _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span):
@@ -371,17 +376,17 @@ def _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span)
         },
         "metrics": {},
     }
-    return span_event
+    return span_event, False
 
 def _observation_span(observation, root_span, current_active_span):
     observation_type = observation.get("type", "")
     output_value = ""
     if observation_type == "FINISH":
-        return None
+        return None, False
     span_event = current_active_span
     if not span_event:
         log.warning("Error in processing observation.")
-        return None
+        return None, False
     bedrock_metadata = {}
     if observation_type == "ACTION_GROUP":
         output_chunk = observation.get("actionGroupInvocationOutput", {})
@@ -397,7 +402,7 @@ def _observation_span(observation, root_span, current_active_span):
         output_value = output_chunk.get("retrievedReferences", {}).get("text", "")
     elif observation_type == "REPROMPT":
         # There shouldn't be a corresponding active span for a reprompt observation.
-        return None
+        return None, False
     elif observation_type == "ACTION_GROUP_CODE_INTERPRETER":
         output_chunk = observation.get("codeInterpreterInvocationOutput", {})
         bedrock_metadata = output_chunk.get("metadata", {})
@@ -407,4 +412,4 @@ def _observation_span(observation, root_span, current_active_span):
     span_event["start_ns"] = int(start_ns)
     span_event["duration"] = int(duration_ns)
     span_event["meta"]["output"]["value"] = output_value
-    return span_event
+    return span_event, True
