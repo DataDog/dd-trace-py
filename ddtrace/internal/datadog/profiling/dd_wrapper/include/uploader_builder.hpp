@@ -34,7 +34,7 @@ class UploaderConfig
 
     // Private Constructor/Destructor
     UploaderConfig() = default;
-    ~UploaderConfig() { printf("UploaderConfig destructor is called\n"); };
+    ~UploaderConfig() = default;
 
   public:
     UploaderConfig(const UploaderConfig&) = delete;
