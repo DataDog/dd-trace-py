@@ -34,7 +34,15 @@ TEXT_COMPLETION_OPERATIONS = (
 )
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature")
-METADATA_KEYS = ("deployment", "endpoint", "headers", "litellm_api_version", "model_group", "model_group_size", "model_info")
+METADATA_KEYS = (
+    "deployment",
+    "endpoint",
+    "headers",
+    "litellm_api_version",
+    "model_group",
+    "model_group_size",
+    "model_info",
+)
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -127,7 +135,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 value = litellm_params.get(key)
                 if value:
                     litellm_params_dict[key] = value
-            
+
             new_model_list.append(
                 {
                     "model_name": model.get("model_name"),
