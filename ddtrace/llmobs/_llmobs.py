@@ -212,7 +212,7 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
-        if _get_span_name(span) == "Triage Agent (LLM)":
+        if _get_span_name(span) == "Triage Agent (LLM)" and "output" in meta:
             for message in meta["output"]["messages"]:
                 if message.get("tool_calls", [{}])[0].get("name") == "web_search":
                     metrics.update({"tool_selection": 1})
