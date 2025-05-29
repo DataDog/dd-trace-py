@@ -113,6 +113,7 @@ if _USE_PLUGIN_V2:
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol_wrapper  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401

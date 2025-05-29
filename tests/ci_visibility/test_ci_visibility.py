@@ -1537,3 +1537,165 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
             "_dd.library_capabilities.early_flake_detection": "1",
             "_dd.library_capabilities.test_impact_analysis": "2",
         }
+
+
+@pytest.mark.usefixtures("_disable_ci_visibility")
+class TestCIVisibilityGzipSupport:
+    @pytest.fixture(autouse=True)
+    def _setup_mocks(self):
+        self.dummy_tracer = DummyTracer()
+        self.dummy_tracer._agent_url = "http://agent:8126"
+        self.civisibility = CIVisibility()
+        self.civisibility.tracer = self.dummy_tracer
+        self.civisibility._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
+        self.civisibility._git_client = mock.Mock()
+        self.civisibility._codeowner_patterns = []
+        self.civisibility._suite_skipping_mode = False
+        self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
+        self.civisibility._config = Config()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_no_info(self, mock_agent_info):
+        mock_agent_info.return_value = None
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_info_no_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"some_other_key": "value"}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_info_empty_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": []}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_v2_endpoint(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v2/api/v2/citestcycle"]}
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_v4_endpoint(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v4/api/v2/citestcycle"]}
+        assert self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_is_gzip_supported_by_agent_multiple_endpoints(self, mock_agent_info):
+        mock_agent_info.return_value = {"endpoints": ["/evp_proxy/v2", "/telemetry", EVP_PROXY_AGENT_BASE_PATH_V4]}
+        assert self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info", side_effect=Exception("Agent down"))
+    def test_is_gzip_supported_by_agent_exception(self, mock_agent_info):
+        assert not self.civisibility._is_gzip_supported_by_agent()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_agentless_gzip_true(self, mock_writer):
+        # In agentless mode, DD_API_KEY is required.
+        with _ci_override_env(dict(DD_API_KEY="key", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            # Ensure tracer is set for _configure_writer and has _span_aggregator
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_evp_proxy_gzip_supported(self, mock_writer):
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # Mock _is_gzip_supported_by_agent on the instance
+            civis._is_gzip_supported_by_agent = mock.Mock(return_value=True)
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.EVP_PROXY_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            civis._is_gzip_supported_by_agent.assert_called_once()
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_evp_proxy_gzip_not_supported(self, mock_writer):
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # Mock _is_gzip_supported_by_agent on the instance
+            civis._is_gzip_supported_by_agent = mock.Mock(return_value=False)
+
+            civis._configure_writer(requests_mode=REQUESTS_MODE.EVP_PROXY_EVENTS)
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is False
+            civis._is_gzip_supported_by_agent.assert_called_once()
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    def test_configure_writer_default_mode_agentless_gzip_true(self, mock_writer):
+        # Agentless enabled implies _requests_mode = AGENTLESS_EVENTS
+        with _ci_override_env(dict(DD_API_KEY="key")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            # DEV: Forcing agentless mode
+            civis._requests_mode = REQUESTS_MODE.AGENTLESS_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called_once()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_configure_writer_default_mode_evp_proxy_gzip_supported(self, mock_agent_info, mock_writer):
+        # Simulate EVP proxy with gzip support (v4 endpoint)
+        mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH_V4]}
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            assert civis._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is True
+            # CIVisibility.__init__ calls _agent_evp_proxy_is_available and _is_gzip_supported_by_agent
+            # _configure_writer also calls _is_gzip_supported_by_agent if mode is EVP_PROXY_EVENTS
+            assert mock_agent_info.call_count >= 2
+            CIVisibility.disable()
+
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
+    @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
+    def test_configure_writer_default_mode_evp_proxy_gzip_not_supported(self, mock_agent_info, mock_writer):
+        # Simulate EVP proxy without gzip support (e.g. only v2 endpoint)
+        mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH]}  # No v4 endpoint
+        with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
+            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis.tracer = self.dummy_tracer
+            if not hasattr(civis.tracer, "_span_aggregator"):
+                civis.tracer._span_aggregator = mock.Mock()
+
+            assert civis._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS
+
+            civis._configure_writer()  # Call without explicit requests_mode
+            mock_writer.assert_called()
+            _args, kwargs = mock_writer.call_args
+            assert kwargs.get("use_gzip") is False
+            assert mock_agent_info.call_count >= 2
+            CIVisibility.disable()

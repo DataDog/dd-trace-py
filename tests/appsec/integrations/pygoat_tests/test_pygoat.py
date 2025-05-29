@@ -61,7 +61,7 @@ def get_traces(agent_client: requests.Session) -> requests.Response:
 
 
 def assert_vulnerability_in_traces(
-    agent_client: requests.Session, vuln_type: str, file: str, line: int, class_: str, method: str
+    agent_client: requests.Session, vuln_type: str, file: str, line: int, class_: str | None, method: str | None
 ) -> None:
     time.sleep(5)
     traces = get_traces(agent_client)
@@ -95,7 +95,7 @@ def test_insecure_cookie(client):
     reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "INSECURE_COOKIE", "pygoat/introduction/views.py", 282, "", "auth_lab_signup"
+        client.agent_session, "INSECURE_COOKIE", "pygoat/introduction/views.py", 282, None, "auth_lab_signup"
     )
 
 
@@ -104,7 +104,7 @@ def test_nohttponly_cookie(client):
     reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "NO_HTTPONLY_COOKIE", "pygoat/introduction/views.py", 282, "", "auth_lab_signup"
+        client.agent_session, "NO_HTTPONLY_COOKIE", "pygoat/introduction/views.py", 282, None, "auth_lab_signup"
     )
 
 
@@ -112,7 +112,7 @@ def test_weak_random(client):
     reply = client.pygoat_session.get(PYGOAT_URL + "/otp?email=test%40test.com", headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "WEAK_RANDOMNESS", "pygoat/introduction/views.py", 486, "", "Otp"
+        client.agent_session, "WEAK_RANDOMNESS", "pygoat/introduction/views.py", 486, None, "Otp"
     )
 
 
@@ -123,7 +123,7 @@ def test_weak_hash(client):
     )
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "WEAK_HASH", "pygoat/introduction/views.py", 981, "", "crypto_failure_lab"
+        client.agent_session, "WEAK_HASH", "pygoat/introduction/views.py", 981, None, "crypto_failure_lab"
     )
 
 
@@ -132,7 +132,7 @@ def test_cmdi(client):
     reply = client.pygoat_session.post(PYGOAT_URL + "/cmd_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "COMMAND_INJECTION", "pygoat/introduction/views.py", 420, "", "cmd_lab"
+        client.agent_session, "COMMAND_INJECTION", "pygoat/introduction/views.py", 420, None, "cmd_lab"
     )
 
 
@@ -141,7 +141,7 @@ def test_sqli(client):
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
     assert_vulnerability_in_traces(
-        client.agent_session, "SQL_INJECTION", "pygoat/introduction/views.py", 169, "", "sql_lab"
+        client.agent_session, "SQL_INJECTION", "pygoat/introduction/views.py", 169, None, "sql_lab"
     )
 
 
@@ -150,17 +150,17 @@ def test_ssrf1(client, iast_context_defaults):
     payload = {"blog": "templates/Lab/ssrf/blogs/blog2.txt", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 1, "", "")
+    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 1, None, "")
 
 
 def test_ssrf2(client, iast_context_defaults):
     payload = {"url": "http://example.com", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab2", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 918, "", "ssrf_lab2")
+    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 918, None, "ssrf_lab2")
 
 
 def test_xss(client):
     reply = client.pygoat_session.get(PYGOAT_URL + '/xssL?q=<script>alert("XSS")</script>', headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert_vulnerability_in_traces(client.agent_session, "XSS", "pygoat/introduction/views.py", 98, "", "xss_lab")
+    assert_vulnerability_in_traces(client.agent_session, "XSS", "pygoat/introduction/views.py", 98, None, "xss_lab")

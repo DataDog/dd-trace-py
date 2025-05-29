@@ -7,7 +7,6 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
 from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
@@ -48,8 +47,13 @@ def unpatch():
     set_module_unpatched("builtins", default_attr="_datadog_code_injection_patch")
 
 
+class CodeInjection(VulnerabilityBase):
+    vulnerability_type = VULN_CODE_INJECTION
+    secure_mark = VulnerabilityType.CODE_INJECTION
+
+
 def _iast_coi(wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled and len(args) >= 1:
+    if len(args) >= 1:
         _iast_report_code_injection(args[0])
 
     caller_frame = None
@@ -75,17 +79,11 @@ def _iast_coi(wrapped, instance, args, kwargs):
     return wrapped(args[0], func_globals, func_locals)
 
 
-@oce.register
-class CodeInjection(VulnerabilityBase):
-    vulnerability_type = VULN_CODE_INJECTION
-    secure_mark = VulnerabilityType.CODE_INJECTION
-
-
 def _iast_report_code_injection(code_string: Text):
     reported = False
     try:
         if asm_config.is_iast_request_enabled:
-            if isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
+            if code_string and isinstance(code_string, IAST.TEXT_TYPES) and CodeInjection.has_quota():
                 if CodeInjection.is_tainted_pyobject(code_string):
                     CodeInjection.report(evidence_value=code_string)
 

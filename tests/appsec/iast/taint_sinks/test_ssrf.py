@@ -54,7 +54,8 @@ def _check_report(tainted_path, label):
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == label
-    assert vulnerability["location"]["class"] == ""
+    assert "class" not in vulnerability["location"]
+    assert type(vulnerability["location"]["spanId"]) is int
     assert vulnerability["hash"] == hash_value
 
 
@@ -63,7 +64,7 @@ def test_ssrf_requests(tracer, iast_context_defaults):
         requests_patch()
         try:
             import requests
-            from requests.exceptions import ConnectionError
+            from requests.exceptions import ConnectionError  # noqa: A004
 
             tainted_url, tainted_path = _get_tainted_url()
             try:
@@ -166,7 +167,7 @@ def test_ssrf_requests_deduplication(iast_context_deduplication_enabled):
     _end_iast_context_and_oce()
     try:
         import requests
-        from requests.exceptions import ConnectionError
+        from requests.exceptions import ConnectionError  # noqa: A004
 
         for num_vuln_expected in [1, 0, 0]:
             _start_iast_context_and_oce()
