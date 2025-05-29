@@ -6,7 +6,7 @@ aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,1.4.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
-anthropic,anthropic,0.26.1,0.49.0,True
+anthropic,anthropic,0.40.0,0.49.0,True
 aredis,aredis,1.1.8,1.1.8,True
 pytest-asyncio,asyncio *,0.21.1,0.21.1,True
 asyncpg,asyncpg,0.23.0,0.30.0,True

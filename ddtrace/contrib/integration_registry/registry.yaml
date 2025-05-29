@@ -76,7 +76,7 @@ integrations:
   - anthropic
   tested_versions_by_dependency:
     anthropic:
-      min: 0.26.1
+      min: 0.40.0
       max: 0.49.0
 
 - integration_name: aredis

@@ -97,3 +97,67 @@ if not patched and (
             out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
 
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
+
+
+    def test_supported_versions_function_allows_valid_imports(self):
+        """
+        Test the integration's supported versions allows valid imports.
+        """
+        with NamedTemporaryFile(mode="w", suffix=".py") as f:
+            f.write(
+                    """
+import sys
+from ddtrace.internal.module import ModuleWatchdog
+from wrapt import wrap_function_wrapper as wrap
+
+supported_versions_called = False
+
+def patch_hook(module):
+    def supported_versions_wrapper(wrapped, _, args, kwrags):
+        global supported_versions_called
+        result = wrapped(*args, **kwrags)
+        sys.stdout.write("K")
+        supported_versions_called = True
+        return result
+
+    def patch_wrapper(wrapped, _, args, kwrags):
+        global patched
+
+        result = wrapped(*args, **kwrags)
+        sys.stdout.write("K")
+        patched = True
+        return result
+
+    patch_module = module
+    if 'patch' not in module.__name__:
+        patch_module = module.patch
+
+    wrap(
+        patch_module.__name__,
+        patch_module._supported_versions.__name__,
+        supported_versions_wrapper,
+    )
+
+ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
+
+sys.stdout.write("O")
+
+import langgraph.graph as mod
+
+# If the module was already loaded during the sitecustomize
+# we check that the module was marked as patched.
+if not supported_versions_called and (
+    getattr(mod, "__datadog_patch", False) or getattr(mod, "_datadog_patch", False)
+):
+    sys.stdout.write("K")
+                    """
+                    % (self.__integration_name__)
+                )
+            f.flush()
+
+            env = os.environ.copy()
+            env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+
+            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            assert "OK" in out.decode(), "stderr:\n%s" % err.decode()
+
