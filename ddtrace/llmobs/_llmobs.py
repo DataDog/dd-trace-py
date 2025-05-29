@@ -41,7 +41,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID, PROPAGATED_LLMOBS_TRACE_ID_KEY
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
@@ -49,9 +49,9 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -61,6 +61,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID

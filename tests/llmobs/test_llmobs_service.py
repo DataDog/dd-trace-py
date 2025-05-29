@@ -1735,8 +1735,8 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_even
     assert child_span["span_id"] != parent_span["span_id"]
     assert child_span["parent_id"] == parent_span["span_id"]
     assert parent_span["parent_id"] == "undefined"
-    assert child_span["_dd"]['apm_trace_id'] == parent_span["_dd"]['apm_trace_id']
-    assert parent_span["_dd"]['apm_trace_id'] != parent_span["trace_id"]
+    assert child_span["_dd"]["apm_trace_id"] == parent_span["_dd"]["apm_trace_id"]
+    assert parent_span["_dd"]["apm_trace_id"] != parent_span["trace_id"]
 
 
 def test_annotation_context_separate_traces_maintained(llmobs, llmobs_events):

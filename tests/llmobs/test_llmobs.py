@@ -1,12 +1,12 @@
-import os
-from textwrap import dedent
 import asyncio
 import concurrent.futures
+import os
+from textwrap import dedent
 
-from ddtrace.internal.utils.formats import format_trace_id
 import pytest
 
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
@@ -465,10 +465,11 @@ def test_structured_io_data_unserializable(llmobs, llmobs_backend):
         assert expected_repr in events[0][0]["spans"][0]["meta"]["input"]["value"]
         assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]
 
+
 @pytest.mark.asyncio
 async def test_asyncio_trace_id_propagation(llmobs, llmobs_events):
     """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
-    
+
     async def async_task():
         with llmobs.workflow("inner_workflow"):
             return 42
@@ -486,8 +487,13 @@ async def test_asyncio_trace_id_propagation(llmobs, llmobs_events):
 
     # All spans should share the same trace ID
     assert outer_workflow["trace_id"] == inner_workflow["trace_id"] == another_workflow["trace_id"]
-    assert outer_workflow["_dd"]["apm_trace_id"] == inner_workflow["_dd"]["apm_trace_id"] == another_workflow["_dd"]["apm_trace_id"]
+    assert (
+        outer_workflow["_dd"]["apm_trace_id"]
+        == inner_workflow["_dd"]["apm_trace_id"]
+        == another_workflow["_dd"]["apm_trace_id"]
+    )
     assert outer_workflow["trace_id"] != outer_workflow["_dd"]["apm_trace_id"]
+
 
 def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     """Test that LLMObs trace ID and APM trace ID propagate correctly with non-LLM parent spans."""
@@ -504,7 +510,7 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     # First child should have different trace ID from second child + grandchild
     assert first_child_event["trace_id"] != second_child_event["trace_id"]
     assert second_child_event["trace_id"] == grandchild_event["trace_id"]
-    
+
     # APM trace ID should match parent span for all
     parent_trace_id = format_trace_id(parent.trace_id)
     assert first_child_event["_dd"]["apm_trace_id"] == parent_trace_id

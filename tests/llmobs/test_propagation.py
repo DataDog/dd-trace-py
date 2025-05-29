@@ -5,7 +5,8 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID, ML_APP
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -379,8 +380,8 @@ def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
     assert main_thread_span["parent_id"] == ROOT_PARENT_ID
     assert executor_thread_span["parent_id"] == main_thread_span["span_id"]
     assert main_thread_span["trace_id"] == executor_thread_span["trace_id"]
-    assert main_thread_span["_dd"]['apm_trace_id'] == executor_thread_span["_dd"]['apm_trace_id']
-    assert main_thread_span['trace_id'] != main_thread_span['_dd']['apm_trace_id']
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_span["_dd"]["apm_trace_id"]
+    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
 
 
 def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
@@ -406,6 +407,6 @@ def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
     assert executor_thread_spans[1]["parent_id"] == main_thread_span["span_id"]
     assert main_thread_span["trace_id"] == executor_thread_spans[0]["trace_id"]
     assert main_thread_span["trace_id"] == executor_thread_spans[1]["trace_id"]
-    assert main_thread_span["_dd"]['apm_trace_id'] == executor_thread_spans[0]["_dd"]['apm_trace_id']
-    assert main_thread_span["_dd"]['apm_trace_id'] == executor_thread_spans[1]["_dd"]['apm_trace_id']
-    assert main_thread_span['trace_id'] != main_thread_span['_dd']['apm_trace_id']
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[0]["_dd"]["apm_trace_id"]
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[1]["_dd"]["apm_trace_id"]
+    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
