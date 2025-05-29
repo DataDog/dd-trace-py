@@ -232,8 +232,8 @@ integrations:
   - crewai
   tested_versions_by_dependency:
     crewai:
-      min: 0.108.0
-      max: 0.108.0
+      min: 0.121.0
+      max: 0.121.0
 
 - integration_name: ddtrace_api
   is_external_package: false
