@@ -83,3 +83,5 @@ DISPATCH_ON_TOOL_CALL = "on_tool_call"
 # Tool call arguments are used to lookup the associated tool call info.
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
+
+LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"

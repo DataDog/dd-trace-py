@@ -3,6 +3,7 @@ import sys
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 
@@ -29,7 +30,7 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
 
         Helps to ensure that all spans associated with a single stream are finished and have the correct tags.
         """
-        kwargs["router_instance"] = instance
+        kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
         self._span_info.append((span, kwargs))
 
     def _finish_spans(self):

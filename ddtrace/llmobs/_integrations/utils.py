@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -32,7 +33,7 @@ logger = get_logger(__name__)
 
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
 AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
-OPENAI_SKIPPED_COMPLETION_TAGS = ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash", "router_instance")
+OPENAI_SKIPPED_COMPLETION_TAGS = ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash", LITELLM_ROUTER_INSTANCE_KEY)
 OPENAI_SKIPPED_CHAT_TAGS = (
     "model",
     "messages",
@@ -41,7 +42,7 @@ OPENAI_SKIPPED_CHAT_TAGS = (
     "api_key",
     "user_api_key",
     "user_api_key_hash",
-    "router_instance",
+    LITELLM_ROUTER_INSTANCE_KEY,
 )
 
 

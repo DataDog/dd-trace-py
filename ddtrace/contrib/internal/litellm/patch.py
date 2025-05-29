@@ -11,6 +11,7 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LiteLLMIntegration
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.trace import Pin
 
 
@@ -110,7 +111,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     finally:
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                kwargs["router_instance"] = instance
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
@@ -141,7 +142,7 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     finally:
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                kwargs["router_instance"] = instance
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 

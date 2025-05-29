@@ -8,6 +8,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -90,7 +91,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
             del metadata["metadata"]["user_api_key"]
 
-        llm_router = kwargs.get("router_instance")
+        llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
         if not llm_router:
             span._set_ctx_items({METADATA: metadata})
             return
