@@ -1487,6 +1487,11 @@ def test_django_ssrf_safe_path(client, iast_span, tracer):
         ("safe_path", "url-path/", None),
         ("protocol", "http", [{"value": "http", "source": 0}, {"value": "://localhost:8080/"}]),
         ("host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
+        ("urlencode_single", "value1", None),
+        ("urlencode_multiple", "value1", None),
+        ("urlencode_nested", "value1", None),
+        ("urlencode_with_fragment", "value1", None),
+        ("urlencode_doseq", "value1", None),
         ("safe_host", "localhost", None),
         ("port", "8080", [{"value": "http://localhost:"}, {"value": "8080", "source": 0}, {"value": "/"}]),
         (

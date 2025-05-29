@@ -4,12 +4,14 @@ Class based views used for Django tests.
 
 import hashlib
 from html import escape
+import json
 import os
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
 import subprocess
 from typing import Any
+import urllib
 from urllib.parse import quote
 
 from django.db import connection
@@ -511,6 +513,22 @@ def ssrf_requests(request):
             )
         elif option == "query_param":
             _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+        elif option == "urlencode_single":
+            params = urllib.parse.urlencode({"key1": value})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_multiple":
+            params = urllib.parse.urlencode({"key1": value, "key2": "static_value", "key3": "another_value"})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_nested":
+            nested_data = {"user": value, "filters": {"type": "report", "format": "json"}}
+            params = urllib.parse.urlencode({"data": json.dumps(nested_data)})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_with_fragment":
+            params = urllib.parse.urlencode({"search": value})
+            _ = requests.get(f"http://localhost:8080/?{params}#results", timeout=1)
+        elif option == "urlencode_doseq":
+            params = urllib.parse.urlencode({"ids": [value, "id2", "id3"]}, doseq=True)
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
         elif option == "safe_host":
             if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
                 _ = requests.get(f"http://{value}:8080/", timeout=1)
