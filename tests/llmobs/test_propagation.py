@@ -206,7 +206,7 @@ LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentl
 with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
         headers = {
-            "_DD_LLMOBS_SPAN_ID": str(root_span.span_id), 
+            "_DD_LLMOBS_SPAN_ID": str(root_span.span_id),
             "_DD_LLMOBS_TRACE_ID": str(root_span._get_ctx_item("_ml_obs.llmobs_trace_id"))
         }
         headers = LLMObs.inject_distributed_headers(headers, span=child_span)
