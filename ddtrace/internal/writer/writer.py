@@ -61,8 +61,9 @@ class NoEncodableSpansError(Exception):
 
 
 def _rebind_instance_method(method_name, dest_type, method_from_src, dest):
-    bound = method_from_src.__get__(dest, dest_type)
-    setattr(dest, method_name, bound)
+    if method_from_src is not None:
+        bound = method_from_src.__get__(dest, dest_type)
+        setattr(dest, method_name, bound)
 
 
 # The window size should be chosen so that the look-back period is
