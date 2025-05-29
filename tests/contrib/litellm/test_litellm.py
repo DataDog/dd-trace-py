@@ -1,7 +1,12 @@
 import pytest
+from starlette.requests import Request
+from starlette.datastructures import Headers
+from fastapi.responses import Response
 
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.utils import override_global_config
+from litellm.proxy.common_request_processing import ProxyBaseLLMRequestProcessing
+from litellm.proxy._types import UserAPIKeyAuth
 
 
 def test_global_tags(litellm, request_vcr, mock_tracer):
@@ -103,3 +108,22 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
                 stream=False,
                 n=1,
             )
+
+async def test_litellm_base_process_llm_request(snapshot_context):
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_base_process_llm_request"):
+        headers = Headers({"host": "0.0.0.0:4000"})
+        request = Request({"type": "http", "headers": headers})
+        request._json = {"model": "gpt-3.5-turbo"}
+        response = Response()
+        user_api_key_dict = UserAPIKeyAuth()
+        request_processor = ProxyBaseLLMRequestProcessing(data = {})
+        await request_processor.base_process_llm_request(
+            request=request,
+            fastapi_response=response,
+            user_api_key_dict=user_api_key_dict,
+            route_type="acompletion",
+            proxy_logging_obj=None,
+            general_settings=None,
+            proxy_config=None,
+            select_data_generator=None,
+        )
