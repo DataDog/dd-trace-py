@@ -44,7 +44,7 @@ class UploaderConfig
 
     static UploaderConfig& get_instance()
     {
-        static UploaderConfig *instance = new UploaderConfig();
+        static UploaderConfig* instance = new UploaderConfig();
         return *instance;
     }
 
@@ -80,5 +80,12 @@ class UploaderBuilder
   public:
     static std::variant<Uploader, std::string> build();
 };
+
+struct Unloader
+{
+    ~Unloader() { printf("uploader_builder is being unloaded!\n"); }
+};
+
+static Unloader u;
 
 } // namespace Datadog
