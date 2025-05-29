@@ -1,14 +1,13 @@
 # this module must not load any other unsafe appsec module directly
 
+from _io import BytesIO
+from _io import StringIO
 import os
 from re import Match
 from typing import Any
 from typing import Iterator
 from typing import Literal  # noqa:F401
 from typing import Tuple
-
-from _io import BytesIO
-from _io import StringIO
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
