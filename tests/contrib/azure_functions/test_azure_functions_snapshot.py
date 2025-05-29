@@ -20,7 +20,7 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
 
 @pytest.fixture
 def azure_functions_client(request):
-    env_vars = request.param
+    env_vars = getattr(request, "param", {})
 
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
