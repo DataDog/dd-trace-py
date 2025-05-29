@@ -60,11 +60,6 @@ class NoEncodableSpansError(Exception):
     pass
 
 
-def _rebind_instance_method(method_name, dest_type, method_from_src, dest):
-    bound = method_from_src.__get__(dest, dest_type)
-    setattr(dest, method_name, bound)
-
-
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
@@ -559,9 +554,6 @@ class AgentWriter(HTTPWriter):
             headers=self._headers,
             report_metrics=self._report_metrics,
         )
-        # necessary because _response_cb defaults to None but it holds important runtime configuration
-        # a better design would store that information in a form that can be easily passed across execution boundaries
-        _rebind_instance_method("_response_cb", AgentWriter, self._response_cb, new_instance)
         return new_instance
 
     @property
