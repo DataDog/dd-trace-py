@@ -54,7 +54,7 @@ Datadog::Uploader::export_to_file(ddog_prof_Profile& profile)
         return false;
     }
 
-    std::cout << "Uploader::export_to_file opened file" << std::endl;
+    std::cout << "Uploader::export_to_file opened file " << filename << std::endl;
 
     auto bytes_res = ddog_prof_EncodedProfile_bytes(encoded);
     if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
