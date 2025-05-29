@@ -17,7 +17,7 @@ def upload(
     service: StringType,
     env: StringType,
     version: StringType,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
+    tags: Optional[Dict[str, str]],
     output_filename: StringType,
 ) -> None: ...
 

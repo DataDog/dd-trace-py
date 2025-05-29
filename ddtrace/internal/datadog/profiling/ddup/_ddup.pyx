@@ -329,7 +329,7 @@ def upload(
     service: StringType = None,
     env: StringType = None,
     version: StringType = None,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    tags: Optional[Dict[str, str]] = None,
     output_filename: StringType = None,
 ) -> None:
     global _code_provenance_set
