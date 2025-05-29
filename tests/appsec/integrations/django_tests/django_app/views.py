@@ -483,35 +483,37 @@ def ssrf_requests(request):
     try:
         if option == "path":
             # label ssrf_requests_path
-            _ = requests.get(f"http://localhost:8080/{value}")
+            _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
         elif option == "protocol":
             # label ssrf_requests_protocol
-            _ = requests.get(f"{value}://localhost:8080/")
+            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
         elif option == "host":
             # label ssrf_requests_host
-            _ = requests.get(f"http://{value}:8080/")
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "query":
             # label ssrf_requests_query
-            _ = requests.get(f"http://localhost:8080/?{value}")
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "query_with_fragment":
             # label ssrf_requests_query_with_fragment
-            _ = requests.get(f"http://localhost:8080/?{value}")
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "port":
             # label ssrf_requests_port
-            _ = requests.get(f"http://localhost:{value}/")
+            _ = requests.get(f"http://localhost:{value}/", timeout=1)
         elif option == "fragment1":
-            _ = requests.get(f"http://localhost:8080/#section1={value}")
+            _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
         elif option == "fragment2":
-            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}")
+            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
         elif option == "fragment3":
             _ = requests.get(
-                f"http://localhost:8080/path-to-something/object_identifier?param1=value1&param2=value2#section3={value}"
+                "http://localhost:8080/path-to-something/object_identifier?"
+                f"param1=value1&param2=value2#section3={value}",
+                timeout=1,
             )
         elif option == "query_param":
-            _ = requests.get("http://localhost:8080/", params={"param1": value})
+            _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
         elif option == "safe_path":
             safe_path = quote(value)
-            _ = requests.get(f"http://localhost:8080/{safe_path}")
+            _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
     except ConnectionError:
         pass
     return HttpResponse("OK", status=200)
