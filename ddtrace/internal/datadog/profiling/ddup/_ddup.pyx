@@ -47,7 +47,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
-    void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
 
     void ddup_config_user_tag(string_view key, string_view val)
@@ -58,6 +57,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload() nogil
+    bint ddup_export_to_file(string_view output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -329,7 +329,6 @@ def config(
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
-        output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
@@ -341,8 +340,6 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
 
     # Inherited
     call_func_with_str(ddup_config_runtime, platform.python_implementation())
@@ -376,10 +373,26 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+def upload(tracer: Optional[Tracer] = ddtrace.tracer,
+           # Here, enable_code_provenance and output_filename can't be defaulted
+           # to ddtrace.settings.profiling.enable_code_provenance and
+           # ddtrace.settings.profiling.output_pprof because it leads to a
+           # circular import.
+           enable_code_provenance: Optional[bool] = None,
+           output_filename: Optional[str] = None) -> None:
     global _code_provenance_set
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
+    # Previously, we used to configure output_filename similar to what we do
+    # for other strings as in ddup_config. And output_filename was stored as a
+    # static field in UploaderBuilder class. For uwsgi tests, this resulted in
+    # output_filename destructed before it was used which led to a crash,
+    # especially in uwsgi tests with --lazy-apps.
+    # We pass a Python str backed string_view to the C++ code to work around
+    # the issue with uwsgi tests.
+    # TODO(taegyunkim): consider doing the same for the rest of string objects
+    # that are used to building the uploader and uploading the profile.
+    cdef const char* c_str_data
+    cdef Py_ssize_t c_str_size
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -387,15 +400,23 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
+    if output_filename and len(output_filename) > 0:
+        c_str_data = PyUnicode_AsUTF8AndSize(output_filename, &c_str_size)
+        if c_str_data != NULL:
+            with nogil:
+                ddup_export_to_file(string_view(c_str_data, c_str_size))
+    else:
+        call_func_with_str(ddup_set_runtime_id, get_runtime_id())
 
-    if enable_code_provenance and not _code_provenance_set:
-        call_code_provenance_set_json_str(json_str_to_export())
-        _code_provenance_set = True
+        endpoint = _get_endpoint(tracer)
+        call_func_with_str(ddup_config_url, endpoint)
 
-    with nogil:
-        ddup_upload()
+        if enable_code_provenance and not _code_provenance_set:
+            call_code_provenance_set_json_str(json_str_to_export())
+            _code_provenance_set = True
+
+        with nogil:
+            ddup_upload()
 
 
 cdef class SampleHandle:
