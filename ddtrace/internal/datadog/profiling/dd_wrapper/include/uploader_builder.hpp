@@ -31,6 +31,9 @@ class UploaderConfig
     std::mutex tag_mutex;
     ExporterTagset user_tags;
 
+    static UploaderConfig* instance;
+    static std::mutex instance_mutex;
+
     // Private Constructor/Destructor
     UploaderConfig() = default;
     ~UploaderConfig() = default;
@@ -43,9 +46,9 @@ class UploaderConfig
 
     static UploaderConfig& get_instance()
     {
-        static UploaderConfig* instance = nullptr;
+        std::lock_guard<std::mutex> lock(instance_mutex);
         if (instance == nullptr) {
-            instance = new UploaderConfig(); // leak intentionally
+            instance = new UploaderConfig();
         }
         return *instance;
     }
