@@ -1,4 +1,3 @@
-import ctypes
 import json
 import time
 from typing import Any
@@ -170,7 +169,7 @@ class DDWaf(WAF):
         observator = _observator()
         wrapper = ddwaf_object(data, observator=observator)
         wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
-        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, ctypes.byref(result_obj), int(timeout_ms * 1000))
+        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, result_obj, int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
         result = result_obj.struct
@@ -198,7 +197,7 @@ class DDWaf(WAF):
 
     def __del__(self):
         if hasattr(self, "_default_ruleset"):
-            ddwaf_object_free(ctypes.byref(self._default_ruleset))
+            ddwaf_object_free(self._default_ruleset)
 
 
 def version() -> str:

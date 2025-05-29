@@ -314,7 +314,7 @@ all traces of incoming requests to a specific url::
     class FilterbyName(TraceFilter):
         def process_trace(self, trace):
             for span in trace:
-                if span.name == "some_name"
+                if span.name == "some_name":
                     # drop the full trace chunk
                     return None
             return trace
