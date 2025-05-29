@@ -3,6 +3,7 @@
 #include "uploader.hpp"
 
 #include <mutex>
+#include <stdio.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -33,7 +34,7 @@ class UploaderConfig
 
     // Private Constructor/Destructor
     UploaderConfig() = default;
-    ~UploaderConfig() = default;
+    ~UploaderConfig() { printf("UploaderConfig destructor is called\n"); };
 
   public:
     UploaderConfig(const UploaderConfig&) = delete;
@@ -43,8 +44,8 @@ class UploaderConfig
 
     static UploaderConfig& get_instance()
     {
-        static UploaderConfig* instance = new UploaderConfig(); // leak intentionally
-        return *instance;
+        static UploaderConfig instance = UploaderConfig();
+        return instance;
     }
 
     void set_env(std::string_view _dd_env);
