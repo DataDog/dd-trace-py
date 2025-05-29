@@ -70,7 +70,6 @@ include:
   script:
     - |
       ulimit -c unlimited
-      echo "core.%p" | tee /proc/sys/kernel/core_pattern
 
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
       if [[ ${#hashes[@]} -eq 0 ]]; then
