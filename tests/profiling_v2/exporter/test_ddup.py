@@ -21,12 +21,7 @@ def test_ddup_start():
     """
 
     try:
-        ddup.config(
-            env="my_env",
-            service="my_service",
-            version="my_version",
-            tags={},
-        )
+        ddup.config()
         ddup.start()
     except Exception as e:
         pytest.fail(str(e))
