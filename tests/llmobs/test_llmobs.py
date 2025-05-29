@@ -1,6 +1,9 @@
 import os
 from textwrap import dedent
+import asyncio
+import concurrent.futures
 
+from ddtrace.internal.utils.formats import format_trace_id
 import pytest
 
 from ddtrace.ext import SpanTypes
@@ -461,3 +464,82 @@ def test_structured_io_data_unserializable(llmobs, llmobs_backend):
         assert len(events) == 1
         assert expected_repr in events[0][0]["spans"][0]["meta"]["input"]["value"]
         assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]
+
+@pytest.mark.asyncio
+async def test_asyncio_trace_id_propagation(llmobs, llmobs_events):
+    """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
+    
+    async def async_task():
+        with llmobs.workflow("inner_workflow"):
+            return 42
+
+    async def another_async_task():
+        with llmobs.workflow("another_workflow"):
+            return 43
+
+    with llmobs.workflow("outer_workflow"):
+        results = await asyncio.gather(async_task(), another_async_task())
+        assert results == [42, 43]
+
+    assert len(llmobs_events) == 3
+    outer_workflow, inner_workflow, another_workflow = llmobs_events
+
+    # All spans should share the same trace ID
+    assert outer_workflow["trace_id"] == inner_workflow["trace_id"] == another_workflow["trace_id"]
+    assert outer_workflow["_dd"]["apm_trace_id"] == inner_workflow["_dd"]["apm_trace_id"] == another_workflow["_dd"]["apm_trace_id"]
+    assert outer_workflow["trace_id"] != outer_workflow["_dd"]["apm_trace_id"]
+
+def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
+    """Test that LLMObs trace ID and APM trace ID propagate correctly with non-LLM parent spans."""
+    with llmobs._instance.tracer.trace("parent_non_llm") as parent:
+        with llmobs.workflow("first_child"):
+            pass
+        with llmobs.workflow("second_child") as second_child:
+            with llmobs.workflow("grandchild"):
+                pass
+
+    assert len(llmobs_events) == 3
+    first_child_event, second_child_event, grandchild_event = llmobs_events
+
+    # First child should have different trace ID from second child + grandchild
+    assert first_child_event["trace_id"] != second_child_event["trace_id"]
+    assert second_child_event["trace_id"] == grandchild_event["trace_id"]
+    
+    # APM trace ID should match parent span for all
+    parent_trace_id = format_trace_id(parent.trace_id)
+    assert first_child_event["_dd"]["apm_trace_id"] == parent_trace_id
+    assert second_child_event["_dd"]["apm_trace_id"] == parent_trace_id
+    assert grandchild_event["_dd"]["apm_trace_id"] == parent_trace_id
+
+    # LLMObs trace IDs should be different from APM trace ID
+    assert first_child_event["trace_id"] != first_child_event["_dd"]["apm_trace_id"]
+    assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]
+
+
+def test_trace_id_propagation_threaded(llmobs, llmobs_events):
+    """Test that LLMObs trace ID and APM trace ID propagate correctly when child span is created in a separate thread."""
+    def child_fn():
+        with llmobs.llm("child_llm"):
+            return 42
+
+    with llmobs.llm("parent_llm") as parent:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(child_fn)
+            result = future.result()
+            assert result == 42
+
+    assert len(llmobs_events) == 2
+    parent_event, child_event = llmobs_events
+
+    # Both spans should share the same trace ID
+    assert parent_event["trace_id"] == child_event["trace_id"]
+    
+    # APM trace IDs should match 
+    assert parent_event["_dd"]["apm_trace_id"] == child_event["_dd"]["apm_trace_id"]
+
+    # LLMObs trace IDs should be different from APM trace ID
+    assert parent_event["trace_id"] != parent_event["_dd"]["apm_trace_id"]
+    assert child_event["trace_id"] != child_event["_dd"]["apm_trace_id"]
+
+
+
