@@ -18,13 +18,15 @@ generic_launch_sleep_upload(int n, unsigned int sleep_time_ns)
     launch_samplers(ids, sleep_time_ns, threads, done);
     std::this_thread::sleep_for(std::chrono::seconds(1));
     join_samplers(threads, done);
-    ddup_upload(); // upload will fail right away, no need to wait
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
+    // Upload.  It'll fail, but whatever
+    ddup_upload(std::move(config));
 }
 
 void
 emulate_profiler(unsigned int num_threads, unsigned int sample_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure(256);
     generic_launch_sleep_upload(num_threads, sample_ns);
 
     // Assumed to execute within a thread

@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 #include "test_utils.hpp"
+#include "uploader_builder.hpp"
 #include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the
@@ -10,7 +11,7 @@ void
 single_sample_noframe()
 {
 
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure(256);
 
     // Collect and flush one sample
     auto h = ddup_start_sample();
@@ -19,8 +20,9 @@ single_sample_noframe()
     ddup_drop_sample(h);
     h = nullptr;
 
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(std::move(config));
 
     std::exit(0);
 }
@@ -33,7 +35,7 @@ TEST(UploadDeathTest, SingleSample)
 void
 single_oneframe_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure(256);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -43,8 +45,9 @@ single_oneframe_sample()
     ddup_drop_sample(h);
     h = nullptr;
 
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(std::move(config));
 
     std::exit(0);
 }
@@ -57,7 +60,7 @@ TEST(UploadDeathTest, SingleSampleOneFrame)
 void
 single_manyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure(512);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -75,8 +78,9 @@ single_manyframes_sample()
     ddup_drop_sample(h);
     h = nullptr;
 
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(std::move(config));
 
     std::exit(0);
 }
@@ -89,7 +93,7 @@ TEST(UploadDeathTest, SingleSampleManyFrames)
 void
 single_toomanyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure(512);
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -107,8 +111,9 @@ single_toomanyframes_sample()
     ddup_drop_sample(h);
     h = nullptr;
 
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(std::move(config));
 
     std::exit(0);
 }
@@ -121,7 +126,7 @@ TEST(UploadDeathTest, SingleSampleTooManyFrames)
 void
 lotsa_frames_lotsa_samples()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure(512);
 
     // 60 seconds @ 100 hertz
     for (int i = 0; i < 60 * 100; i++) {
@@ -151,8 +156,9 @@ lotsa_frames_lotsa_samples()
         h = nullptr;
     }
 
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
     // Upload.  It'll fail, but whatever
-    ddup_upload();
+    ddup_upload(std::move(config));
 
     std::exit(0);
 }

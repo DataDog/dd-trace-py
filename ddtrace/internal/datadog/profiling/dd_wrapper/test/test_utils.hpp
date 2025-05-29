@@ -39,22 +39,8 @@ static constexpr std::array<std::array<std::string_view, 7>, 3> names = { {
 } };
 
 inline static void
-configure(const char* service,
-          const char* env,
-          const char* version,
-          const char* url,
-          const char* runtime,
-          const char* runtime_version,
-          const char* profiler_version,
-          int max_nframes)
+configure(int max_nframes)
 {
-    ddup_config_service(service);
-    ddup_config_env(env);
-    ddup_config_version(version);
-    ddup_config_url(url);
-    ddup_config_runtime(runtime);
-    ddup_config_runtime_version(runtime_version);
-    ddup_config_profiler_version(profiler_version);
     ddup_config_max_nframes(max_nframes);
     ddup_start();
 }

@@ -9,7 +9,9 @@
 void*
 upload_in_thread(void*)
 {
-    ddup_upload();
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
+    // Upload.  It'll fail, but whatever
+    ddup_upload(std::move(config));
 
     return nullptr;
 }
@@ -28,7 +30,9 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     std::this_thread::sleep_for(std::chrono::nanoseconds(run_time_ns));
     done.store(true);
     join_samplers(new_threads, done);
-    ddup_upload();
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
+    // Upload.  It'll fail, but whatever
+    ddup_upload(std::move(config));
     std::exit(0);
 }
 
@@ -76,7 +80,7 @@ join_pthread_samplers(std::vector<pthread_t>& threads, std::atomic<bool>& done)
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure(256);
     std::atomic<bool> done(false);
     std::vector<pthread_t> thread_handles;
     std::vector<unsigned int> ids;
@@ -112,7 +116,9 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     int status;
     done.store(true);
     waitpid(pid, &status, 0);
-    ddup_upload();
+    std::unique_ptr<Datadog::UploaderConfig> config = std::make_unique<Datadog::UploaderConfig>();
+    // Upload.  It'll fail, but whatever
+    ddup_upload(std::move(config));
     join_pthread_samplers(thread_handles, done);
     if (!is_exit_normal(status)) {
         std::exit(1);
