@@ -44,8 +44,8 @@ class UploaderConfig
 
     static UploaderConfig& get_instance()
     {
-        static UploaderConfig instance = UploaderConfig();
-        return instance;
+        static UploaderConfig *instance = new UploaderConfig();
+        return *instance;
     }
 
     void set_env(std::string_view _dd_env);
