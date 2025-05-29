@@ -189,13 +189,8 @@ class _ProfilerInstance(service.Service):
         if self._export_libdd_enabled:
             try:
                 ddup.config(
-                    env=self.env,
-                    service=self.service,
-                    version=self.version,
-                    tags=self.tags,  # type: ignore
                     max_nframes=profiling_config.max_frames,
                     timeline_enabled=profiling_config.timeline_enabled,
-                    output_filename=profiling_config.output_pprof,
                     sample_pool_capacity=profiling_config.sample_pool_capacity,
                 )
                 ddup.start()
@@ -338,16 +333,27 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters or self._export_libdd_enabled:
-            scheduler_class = (
-                scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+            scheduler_class = scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
-            self._scheduler = scheduler_class(
-                recorder=r,
-                exporters=exporters,
-                before_flush=self._collectors_snapshot,
-                tracer=self.tracer,
-            )
+            if scheduler_class == scheduler.Scheduler:
+                self._scheduler = scheduler_class(
+                    recorder=r,
+                    exporters=exporters,
+                    before_flush=self._collectors_snapshot,
+                    tracer=self.tracer,
+                    env=self.env,
+                    service=self.service,
+                    version=self.version,
+                    tags=self.tags,
+                    output_filename=profiling_config.output_pprof,
+                )
+            else:
+                self._scheduler = scheduler_class(
+                    recorder=r,
+                    exporters=exporters,
+                    before_flush=self._collectors_snapshot,
+                    tracer=self.tracer,
+                )
 
     def _collectors_snapshot(self):
         for c in self._collectors:

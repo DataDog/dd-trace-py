@@ -35,7 +35,7 @@ class Uploader
     static void postfork_parent();
     static void postfork_child();
 
-    Uploader(std::string_view _url, ddog_prof_ProfileExporter ddog_exporter);
+    Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()
     {
         // We need to call _drop() on the exporter and the cancellation token,

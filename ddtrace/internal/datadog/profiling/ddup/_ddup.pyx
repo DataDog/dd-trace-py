@@ -7,7 +7,10 @@ from typing import Optional
 from typing import Union
 
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
+from libcpp.memory cimport make_unique
+from libcpp.memory cimport unique_ptr
 from libcpp.unordered_map cimport unordered_map
+from libcpp.utility cimport move
 from libcpp.utility cimport pair
 
 import ddtrace
@@ -37,27 +40,31 @@ cdef extern from "sample.hpp" namespace "Datadog":
     ctypedef struct Sample:
         pass
 
+cdef extern from "uploader_builder.hpp" namespace "Datadog":
+    cdef cppclass UploaderConfig:
+        UploaderConfig() except +
+        void set_env(string_view _dd_env)
+        void set_service(string_view _service)
+        void set_version(string_view _version)
+        void set_runtime(string_view _runtime)
+        void set_runtime_id(string_view _runtime_id)
+        void set_runtime_version(string_view _runtime_version)
+        void set_profiler_version(string_view _profiler_version)
+        void set_url(string_view _url)
+        void set_tag(string_view _key, string_view _val)
+        void set_output_filename(string_view _output_filename)
+
 cdef extern from "ddup_interface.hpp":
-    void ddup_config_env(string_view env)
-    void ddup_config_service(string_view service)
-    void ddup_config_version(string_view version)
-    void ddup_config_runtime(string_view runtime)
-    void ddup_config_runtime_version(string_view runtime_version)
-    void ddup_config_profiler_version(string_view profiler_version)
-    void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
-    void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
-
-    void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    bint ddup_upload() nogil
+    bint ddup_upload(unique_ptr[UploaderConfig] config) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -88,38 +95,6 @@ cdef extern from "ddup_interface.hpp":
 
 cdef extern from "code_provenance_interface.hpp":
     void code_provenance_set_json_str(string_view json_str)
-
-
-# Create wrappers for cython
-cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
-    if not str_arg:
-        return
-    if isinstance(str_arg, bytes):
-        func(string_view(<const char*>str_arg, len(str_arg)))
-        return
-    cdef const char* utf8_data
-    cdef Py_ssize_t utf8_size
-    utf8_data = PyUnicode_AsUTF8AndSize(str_arg, &utf8_size)
-    if utf8_data != NULL:
-        func(string_view(utf8_data, utf8_size))
-
-cdef call_ddup_config_user_tag(key: StringType, val: StringType):
-    if not key or not val:
-        return
-    if isinstance(key, bytes) and isinstance(val, bytes):
-        ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
-        return
-    cdef const char* key_utf8_data
-    cdef Py_ssize_t key_utf8_size
-    cdef const char* val_utf8_data
-    cdef Py_ssize_t val_utf8_size
-    key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
-    val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
-    if key_utf8_data != NULL and val_utf8_data != NULL:
-        ddup_config_user_tag(
-            string_view(key_utf8_data, key_utf8_size),
-            string_view(val_utf8_data, val_utf8_size)
-        )
 
 cdef call_code_provenance_set_json_str(str json_str):
     cdef const char* json_str_data
@@ -323,39 +298,11 @@ cdef bint _code_provenance_set = False
 
 
 def config(
-        service: StringType = None,
-        env: StringType = None,
-        version: StringType = None,
-        tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
         max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
-        output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None) -> None:
-
-    # Try to provide a ddtrace-specific default service if one is not given
-    service = service or DEFAULT_SERVICE_NAME
-    call_func_with_str(ddup_config_service, service)
-
-    # Empty values are auto-populated in the backend (omitted in client)
-    if env:
-        call_func_with_str(ddup_config_env, env)
-    if version:
-        call_func_with_str(ddup_config_version, version)
-    if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
-
-    # Inherited
-    call_func_with_str(ddup_config_runtime, platform.python_implementation())
-    call_func_with_str(ddup_config_runtime_version, platform.python_version())
-    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
-
     if max_nframes is not None:
         ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
-    if tags is not None:
-        for key, val in tags.items():
-            if key and val:
-                call_ddup_config_user_tag(key, val)
-
     if timeline_enabled is True:
         ddup_config_timeline(True)
     if sample_pool_capacity:
@@ -376,10 +323,83 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+def upload(
+    tracer: Optional[Tracer] = ddtrace.tracer,
+    enable_code_provenance: Optional[bool] = None,
+    service: StringType = None,
+    env: StringType = None,
+    version: StringType = None,
+    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    output_filename: StringType = None,
+) -> None:
     global _code_provenance_set
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
+    cdef unique_ptr[UploaderConfig] config = make_unique[UploaderConfig]()
+    cdef Py_ssize_t c_str_len
+    cdef const char* c_str
+
+    # Note these set_* functions allocate a new string on C++ side, so we only
+    # need to call these with string_view to avoid extra copies.
+    service = service or DEFAULT_SERVICE_NAME
+    c_str = PyUnicode_AsUTF8AndSize(service, &c_str_len)
+    if c_str != NULL:
+        config.get().set_service(string_view(c_str, c_str_len))
+
+    if env:
+        c_str = PyUnicode_AsUTF8AndSize(env, &c_str_len)
+        if c_str != NULL:
+            config.get().set_env(string_view(c_str, c_str_len))
+
+    if version:
+        c_str = PyUnicode_AsUTF8AndSize(version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_version(string_view(c_str, c_str_len))
+
+    cdef Py_ssize_t val_len
+    cdef const char* val_ptr
+
+    if tags:
+        for key, val in tags.items():
+            if key and val:
+                c_str = PyUnicode_AsUTF8AndSize(key, &c_str_len)
+                val_ptr = PyUnicode_AsUTF8AndSize(val, &val_len)
+                if c_str != NULL and val_ptr != NULL:
+                    config.get().set_tag(string_view(c_str, c_str_len), string_view(val_ptr, val_len))
+
+    if output_filename:
+        c_str = PyUnicode_AsUTF8AndSize(output_filename, &c_str_len)
+        if c_str != NULL:
+            config.get().set_output_filename(string_view(c_str, c_str_len))
+
+    runtime = platform.python_implementation()
+    if runtime:
+        c_str = PyUnicode_AsUTF8AndSize(runtime, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime(string_view(c_str, c_str_len))
+
+    runtime_id = get_runtime_id()
+    if runtime_id:
+        c_str = PyUnicode_AsUTF8AndSize(runtime_id, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime_id(string_view(c_str, c_str_len))
+
+    runtime_version = platform.python_version()
+    if runtime_version:
+        c_str = PyUnicode_AsUTF8AndSize(runtime_version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime_version(string_view(c_str, c_str_len))
+
+    endpoint = _get_endpoint(tracer)
+    if endpoint:
+        c_str = PyUnicode_AsUTF8AndSize(endpoint, &c_str_len)
+        if c_str != NULL:
+            config.get().set_url(string_view(c_str, c_str_len))
+
+    profiler_version = ddtrace.__version__
+    if profiler_version:
+        c_str = PyUnicode_AsUTF8AndSize(profiler_version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_profiler_version(string_view(c_str, c_str_len))
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -387,15 +407,12 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
-
     if enable_code_provenance and not _code_provenance_set:
         call_code_provenance_set_json_str(json_str_to_export())
         _code_provenance_set = True
 
     with nogil:
-        ddup_upload()
+        ddup_upload(move(config))
 
 
 cdef class SampleHandle:

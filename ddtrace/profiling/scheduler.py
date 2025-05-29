@@ -34,6 +34,11 @@ class Scheduler(periodic.PeriodicService):
         before_flush: Optional[Callable] = None,
         tracer: Optional[Tracer] = ddtrace.tracer,
         interval: float = config.upload_interval,
+        env: Optional[str] = None,
+        service: Optional[str] = None,
+        version: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        output_filename: Optional[str] = None,
     ):
         super(Scheduler, self).__init__(interval=interval)
         self.recorder: Optional[Recorder] = recorder
@@ -44,6 +49,11 @@ class Scheduler(periodic.PeriodicService):
         self._tracer = tracer
         self._export_libdd_enabled: bool = config.export.libdd_enabled
         self._enable_code_provenance: bool = config.code_provenance
+        self.env: Optional[str] = env
+        self.service: Optional[str] = service
+        self.version: Optional[str] = version
+        self.tags: Optional[Dict[str, str]] = tags
+        self.output_filename: Optional[str] = output_filename
 
     def _start_service(self):
         # type: (...) -> None
@@ -64,7 +74,15 @@ class Scheduler(periodic.PeriodicService):
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
         if self._export_libdd_enabled:
-            ddup.upload(self._tracer, self._enable_code_provenance)
+            ddup.upload(
+                tracer=self._tracer,
+                enable_code_provenance=self._enable_code_provenance,
+                env=self.env,
+                service=self.service,
+                version=self.version,
+                tags=self.tags,
+                output_filename=self.output_filename,
+            )
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
