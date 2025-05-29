@@ -3,11 +3,6 @@
 #include "stack_renderer.hpp"
 
 #include <atomic>
-#ifdef __linux__
-#include <pthread.h>
-#else
-#include <thread>
-#endif
 
 namespace Datadog {
 
@@ -26,13 +21,6 @@ class Sampler
     // transactions upon the sampling threads (usually starts + stops). This allows threads to be
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
-
-    // Store the sampling thread for joining
-#ifdef __linux__
-    pthread_t pthread_id_;
-#else
-    std::thread sampling_thread_;
-#endif
 
     // Parameters
     uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
