@@ -563,8 +563,19 @@ class TestLLMObsBedrock:
                 response = bedrock_client_proxy.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
 
-        assert len(mock_tracer_proxy.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
+        span = mock_tracer_proxy.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            input_value=mock.ANY,
+            output_value=mock.ANY,
+            metadata={"temperature": 0.9, "max_tokens": 60},
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            error="botocore.exceptions.ClientError",
+            error_message=mock.ANY,
+            error_stack=mock.ANY,
+        )
         LLMObs.disable()
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):

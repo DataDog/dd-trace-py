@@ -109,64 +109,77 @@ _REQUEST_BODIES = {
 }
 
 _MOCK_AI21_RESPONSE_DATA = (
-    b'{"completions": [{"data": {"text": "hello"}}]}'
+    b'{"completions": [{"data": {"text": "A neural network is like a brain made of '
+    b'tiny computers that learn from examples, just like how you learn from your toys!"}}]}'
 )
 
 _MOCK_AMAZON_RESPONSE_DATA = (
-    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Black '
-    b"holes are massive objects that have a gravitational pull so strong that nothing, including light, can "
-    b'escape their event horizon. They are formed when very large stars collapse.", '
+    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Datadog is like '
+    b'a smart doctor for your computer systems, helping companies keep their websites and apps running smoothly.", '
     b'"completionReason": "FINISH"}]}'
 )
 
+_MOCK_AMAZON_STREAM_RESPONSE_DATA = (
+    b'{"outputText": "Datadog is like a smart doctor for your computer systems, helping companies '
+    b'keep their websites and apps running smoothly.", "completionReason": "FINISH"}'
+)
+
 _MOCK_ANTHROPIC_RESPONSE_DATA = (
-    b'{"completion": "hello", "stop_reason": "stop_sequence"}'
+    b'{"completion": "I can understand and respond to complex questions while maintaining context '
+    b'and providing detailed, accurate information.", "stop_reason": "stop_sequence"}'
 )
 
 _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA = (
-    b'{"content": "hello", "stop_reason": "max_tokens"}'
+    b'{"content": "A hobbit destroys a powerful ring to save Middle-earth from darkness.", "stop_reason": "max_tokens"}'
 )
 
 _MOCK_COHERE_RESPONSE_DATA = (
-    b'{"generations": [{"text": "A LLM chain is a sequence of language models working together", '
-    b'"finish_reason": "MAX_TOKENS", "id": "e9b9cff2-2404-4bc2-82ec-e18c424849f7"}], '
-    b'"id": "909434da-e64a-4ccd-8c11-c97793dc3746", '
-    b'"tokenCount": {"prompt": 10, "response": 12}}'
+    b'{"generations": [{"text": "A LLM chain is like a relay race where each AI model passes '
+    b'information to the next one to solve complex tasks together", '
+    b'"finish_reason": "MAX_TOKENS", "id": "e9b9cff2-2404-4bc2-82ec-e18c424849f7"}]}'
 )
 
+_MOCK_COHERE_STREAM_RESPONSE_DATA = (
+    b'{"generations": [{"text": "A LLM chain is like a relay race where each AI model passes '
+    b'information to the next one to solve complex tasks together"}], '
+    b'"is_finished": true, "finish_reason": "MAX_TOKENS"}'
+)
 
 _MOCK_META_RESPONSE_DATA = (
-    b'{"generation": "hello"}'
+    b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", "stop_reason": "max_tokens"}'
 )
 
 _RESPONSE_BODIES = {
-    "ai21": _MOCK_AI21_RESPONSE_DATA,
-    "amazon": _MOCK_AMAZON_RESPONSE_DATA,
-    "anthropic": _MOCK_ANTHROPIC_RESPONSE_DATA,
-    "anthropic_message": _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA,
-    "cohere": _MOCK_COHERE_RESPONSE_DATA,
-    "meta": _MOCK_META_RESPONSE_DATA,
+    "stream": {
+        "ai21": _MOCK_AI21_RESPONSE_DATA,
+        "amazon": _MOCK_AMAZON_STREAM_RESPONSE_DATA,
+        "anthropic": _MOCK_ANTHROPIC_RESPONSE_DATA,
+        "anthropic_message": _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA,
+        "cohere": _MOCK_COHERE_STREAM_RESPONSE_DATA,
+        "meta": _MOCK_META_RESPONSE_DATA,
+    },
+    "non_stream": {
+        "ai21": _MOCK_AI21_RESPONSE_DATA,
+        "amazon": _MOCK_AMAZON_RESPONSE_DATA,
+        "anthropic": _MOCK_ANTHROPIC_RESPONSE_DATA,
+        "anthropic_message": _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA,
+        "cohere": _MOCK_COHERE_RESPONSE_DATA,
+        "meta": _MOCK_META_RESPONSE_DATA,
+    }
 }
 
+class MockStream:
+    def __init__(self, response):
+        self.response = response
+
+    def __iter__(self):
+        yield {'chunk': {'bytes': self.response}}
+
 def get_mock_response_data(provider, stream=False):
+    response = _RESPONSE_BODIES["stream" if stream else "non_stream"][provider]
     if stream:
-        body = botocore.eventstream.EventStream(
-            urllib3.response.HTTPResponse(
-                # empty response stream makes this easier to mock
-                body=BytesIO(b''), 
-                status=200,
-                headers={"Content-Type": "application/vnd.amazon.eventstream"},
-                preload_content=False,
-            ),
-            botocore.model.StructureShape(
-                shape_name="BedrockStreamResponse",
-                shape_model={"type": "structure", "members": {}},
-            ),
-            botocore.parsers.EventStreamJSONParser(),
-            "dummy_operation_name",
-        )
+        body = MockStream(response)
     else:
-        response = _RESPONSE_BODIES[provider]
         response_len = len(response)
         body = botocore.response.StreamingBody(
             urllib3.response.HTTPResponse(
@@ -197,7 +210,6 @@ def get_mock_response_data(provider, stream=False):
         "contentType": "application/json",
         "body": body,
     }
-
 
 
 # VCR is used to capture and store network requests made to OpenAI and other APIs.
