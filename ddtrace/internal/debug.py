@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 import platform
-import re
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -169,6 +168,16 @@ def pretty_collect(tracer, color=True):
         ENDC = "\033[0m"
         BOLD = "\033[1m"
 
+    if not color:
+        bcolors.HEADER = ""
+        bcolors.OKBLUE = ""
+        bcolors.OKCYAN = ""
+        bcolors.OKGREEN = ""
+        bcolors.WARNING = ""
+        bcolors.FAIL = ""
+        bcolors.ENDC = ""
+        bcolors.BOLD = ""
+
     info = collect(tracer)
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
@@ -253,12 +262,4 @@ def pretty_collect(tracer, color=True):
 
     info_pretty += "\n\n" + summary
 
-    if color is False:
-        return escape_ansi(info_pretty)
-
     return info_pretty
-
-
-def escape_ansi(line):
-    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-9:;<=>?]*[ -/]*[@-~]")
-    return ansi_escape.sub("", line)

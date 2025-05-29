@@ -955,7 +955,7 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=4.0",
+                        "pytest": "~=6.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "~=3.0",
                         "Jinja2": "~=2.10.0",
@@ -2652,7 +2652,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [latest],
+                "crewai": [">=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -2827,6 +2827,7 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
+                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

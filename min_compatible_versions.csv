@@ -37,7 +37,7 @@ cherrypy,>=17
 cohere,==5.4.0
 confluent-kafka,~=1.9.2
 coverage,0
-crewai,0
+crewai,>=0.102.0
 cryptography,<39
 daphne,0
 databases,0
@@ -141,7 +141,7 @@ pynamodb,~=5.0
 pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
-pytest,~=4.0
+pytest,>=6.0
 pytest-aiohttp,0
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
