@@ -511,6 +511,10 @@ def ssrf_requests(request):
             )
         elif option == "query_param":
             _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+        elif option == "safe_host":
+            if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                _ = requests.get(f"http://{value}:8080/", timeout=1)
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "safe_path":
             safe_path = quote(value)
             _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)

@@ -6,6 +6,7 @@ from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_saniti
 from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
+from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 
 
@@ -39,6 +40,11 @@ def patch_iast(patch_modules=IAST_PATCH):
             "quote",
             cmdi_sanitizer,
         )
+    )
+
+    # SSRF
+    when_imported("django.utils.http")(
+        lambda _: try_wrap_function_wrapper("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
     )
 
     # SQL sanitizers

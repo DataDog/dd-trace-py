@@ -1487,6 +1487,7 @@ def test_django_ssrf_safe_path(client, iast_span, tracer):
         ("safe_path", "url-path/", None),
         ("protocol", "http", [{"value": "http", "source": 0}, {"value": "://localhost:8080/"}]),
         ("host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
+        ("safe_host", "localhost", None),
         ("port", "8080", [{"value": "http://localhost:"}, {"value": "8080", "source": 0}, {"value": "/"}]),
         (
             "query",
