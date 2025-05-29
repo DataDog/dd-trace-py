@@ -9,13 +9,13 @@ namespace Datadog {
 
 class StaticSamplePool
 {
-public:
+  public:
     static constexpr std::size_t CAPACITY = g_default_sample_pool_capacity;
 
     static std::optional<Sample*> take_sample();
     static std::optional<Sample*> return_sample(Sample* sample);
 
-private:
+  private:
     StaticSamplePool() = delete;
     StaticSamplePool(const StaticSamplePool&) = delete;
     StaticSamplePool& operator=(const StaticSamplePool&) = delete;
