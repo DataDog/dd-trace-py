@@ -70,8 +70,8 @@ class VersionSpecifier:
             0 if v1 == v2
             1 if v1 > v2
         """
-        v1_parts = [int(x) for x in v1.split(".")]
-        v2_parts = [int(x) for x in v2.split(".")]
+        v1_parts = [int(x) for x in v1.split(".")[:3]]
+        v2_parts = [int(x) for x in v2.split(".")[:3]]
 
         # Pad with zeros to make lengths equal
         max_len = max(len(v1_parts), len(v2_parts))

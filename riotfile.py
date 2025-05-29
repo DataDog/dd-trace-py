@@ -2621,7 +2621,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": [latest, "~=0.28"],
+                "anthropic": ["~=0.26.0", latest],
             },
         ),
         Venv(

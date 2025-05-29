@@ -43,7 +43,7 @@ CONN_ATTR_BY_TAG = {
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"pymysql": ">=1.0"}
+    return {"pymysql": ">=0.10"}
 
 
 def patch():

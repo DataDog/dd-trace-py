@@ -46,7 +46,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"httplib": "*"}
+    return {"http.client": "*"}
 
 
 def _wrap_init(func, instance, args, kwargs):

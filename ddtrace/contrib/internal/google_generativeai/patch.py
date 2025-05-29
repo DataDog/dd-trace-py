@@ -35,7 +35,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"google_generativeai": ">=0.7.2"}
+    return {"google.generativeai": ">=0.7.2"}
 
 
 @with_traced_module

@@ -70,7 +70,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"pymongo": ">=3.12.3"}
+    return {"pymongo": ">=3.8.0"}
 
 
 def patch():
