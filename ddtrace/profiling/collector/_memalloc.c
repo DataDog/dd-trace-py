@@ -324,12 +324,14 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
-    /* TODO(nick): gil guard the next two lines? */
+    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&global_memalloc_ctx.alloc_gil_guard);
     alloc_tracker_t* tracker = global_alloc_tracker;
     /* Setting this to NULL indicates that in-progress sampling shouldn't add a sample */
     global_alloc_tracker = NULL;
-    /* Now free the tracker, in case GIL release while deallocating tracebacks lets
-     * in-process sampling continue and observe a partially de-initialized tracker */
+    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&global_memalloc_ctx.alloc_gil_guard);
+
+    /* Now any in-progress sampling wil see the NULL global_alloc_tracker and
+     * abort early, so it's safe to free tracker */
     alloc_tracker_free(tracker);
 
     memalloc_heap_tracker_deinit();

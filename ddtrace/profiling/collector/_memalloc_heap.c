@@ -283,8 +283,7 @@ memalloc_heap_should_sample_no_cpython(heap_tracker_t* heap_tracker, size_t size
  * must be called with the GIL held and without making any C Python API calls.
  * If the allocation could not be added because the profiler was stopped,
  * or if an allocation at the same address is already tracked, this function
- * returns a traceback that should be freed (TODO: better doc)
- */
+ * returns a traceback that should be freed */
 static traceback_t*
 memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* tb)
 {
@@ -295,17 +294,17 @@ memalloc_heap_add_sample_no_cpython(heap_tracker_t* heap_tracker, traceback_t* t
     }
 
     traceback_t* old = NULL;
-    if (global_heap_tracker.frozen) {
-        old = memalloc_heap_map_insert(global_heap_tracker.freezer.allocs_m, tb->ptr, tb);
+    if (heap_tracker->frozen) {
+        old = memalloc_heap_map_insert(heap_tracker->freezer.allocs_m, tb->ptr, tb);
     } else {
-        old = memalloc_heap_map_insert(global_heap_tracker.allocs_m, tb->ptr, tb);
+        old = memalloc_heap_map_insert(heap_tracker->allocs_m, tb->ptr, tb);
     }
 
     /* Reset the counter to 0 */
-    global_heap_tracker.allocated_memory = 0;
+    heap_tracker->allocated_memory = 0;
 
     /* Compute the new target sample size */
-    global_heap_tracker.current_sample_size = heap_tracker_next_sample_size(global_heap_tracker.sample_size);
+    heap_tracker->current_sample_size = heap_tracker_next_sample_size(heap_tracker->sample_size);
 
     MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&heap_tracker->gil_guard);
     return old;
