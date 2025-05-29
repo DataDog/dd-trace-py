@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import os
 from textwrap import dedent
 
@@ -500,7 +499,7 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     with llmobs._instance.tracer.trace("parent_non_llm") as parent:
         with llmobs.workflow("first_child"):
             pass
-        with llmobs.workflow("second_child") as second_child:
+        with llmobs.workflow("second_child"):
             with llmobs.workflow("grandchild"):
                 pass
 
