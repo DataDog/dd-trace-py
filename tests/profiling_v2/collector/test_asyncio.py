@@ -97,7 +97,7 @@ class TestAsyncioLockCollector:
             lock_ctx = asyncio.Lock()  # !CREATE! test_asyncio_lock_events_tracer_3
             async with lock_ctx:  # !ACQUIRE! !RELEASE! test_asyncio_lock_events_tracer_3
                 pass
-        ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer, output_filename=self.output_prefix)
 
         linenos_1 = get_lock_linenos("test_asyncio_lock_events_tracer_1")
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
