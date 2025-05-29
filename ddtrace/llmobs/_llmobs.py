@@ -314,7 +314,10 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        _llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        if _llmobs_trace_id is None:
+            raise ValueError("LLMObs trace ID not found in span context")
+        llmobs_trace_id = int(_llmobs_trace_id)
 
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": format_trace_id(llmobs_trace_id),
@@ -767,9 +770,12 @@ class LLMObs(Service):
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
             if isinstance(llmobs_parent, Span):
-                llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+                _llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
             else:
-                llmobs_trace_id = int(llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
+                _llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            if _llmobs_trace_id is None:
+                raise ValueError("LLMObs span has parent span with no trace ID.")
+            llmobs_trace_id = int(_llmobs_trace_id)
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
@@ -1557,7 +1563,7 @@ class LLMObs(Service):
             log.warning("Failed to extract LLMObs trace ID from request headers.")
             return "missing_llmobs_trace_id"
         try:
-            llmobs_trace_id = int(_llmobs_trace_id)
+            llmobs_trace_id = str(_llmobs_trace_id)
         except ValueError:
             log.warning("Failed to parse LLMObs trace ID from request headers.")
             return "invalid_llmobs_trace_id"
