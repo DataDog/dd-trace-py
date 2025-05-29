@@ -145,7 +145,9 @@ def get_datastreams_context(message):
     context_json = None
     message_body = message
     try:
-        message_body = json.loads(message.get("Body", ""))
+        body message.get("Body")
+        if body:
+            message_body = json.loads(body)
     except (ValueError, TypeError):
         log.debug("Unable to parse message body as JSON, treat as non-json")
 
