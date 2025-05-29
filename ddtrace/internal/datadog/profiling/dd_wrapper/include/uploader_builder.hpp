@@ -26,8 +26,8 @@ class UploaderConfig
     std::string url{ "http://localhost:8126" };
     std::string output_filename;
 
-    std::string_view language{ g_language_name };
-    std::string_view family{ g_language_name };
+    std::string language{ g_language_name };
+    std::string family{ g_language_name };
 
     std::mutex tag_mutex;
     ExporterTagset user_tags;
@@ -80,12 +80,5 @@ class UploaderBuilder
   public:
     static std::variant<Uploader, std::string> build();
 };
-
-struct Unloader
-{
-    ~Unloader() { printf("uploader_builder is being unloaded!\n"); }
-};
-
-static Unloader u;
 
 } // namespace Datadog

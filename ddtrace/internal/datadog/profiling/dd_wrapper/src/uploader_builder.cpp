@@ -6,6 +6,7 @@
 #include <numeric>
 #include <string>
 #include <string_view>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -275,4 +276,10 @@ Datadog::UploaderBuilder::build()
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>, *ddog_exporter };
 }
 
+}
+
+__attribute__((destructor)) static void
+on_unload()
+{
+    printf("uploader_builder is being unloaded! %d\n", getpid());
 }
