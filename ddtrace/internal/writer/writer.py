@@ -560,6 +560,7 @@ class AgentWriter(HTTPWriter):
             report_metrics=self._report_metrics,
         )
         # necessary because _response_cb defaults to None but it holds important runtime configuration
+        # a better design would store that information in a form that can be easily passed across execution boundaries
         _rebind_instance_method("_response_cb", AgentWriter, self._response_cb, new_instance)
         return new_instance
 
