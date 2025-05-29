@@ -104,3 +104,42 @@ def test_third_party_packages_excludes_includes():
 
     assert {"myfancypackage", "myotherfancypackage"} < _third_party_packages()
     assert "requests" not in _third_party_packages()
+
+
+def test_third_party_packages_symlinks(tmp_path):
+    """
+    Test that a symlink doesn't break our logic of detecting user code.
+    """
+    import os
+
+    from ddtrace.internal.packages import is_user_code
+
+    # Use pathlib for more pythonic directory creation
+    actual_path = tmp_path / "site-packages" / "ddtrace"
+    runfiles_path = tmp_path / "test.runfiles" / "site-packages" / "ddtrace"
+
+    # Create directories using pathlib (more pythonic)
+    actual_path.mkdir(parents=True)
+    runfiles_path.mkdir(parents=True)
+
+    # Assert that the runfiles path is considered user code when symlinked.
+    code_file = actual_path / "test.py"
+    code_file.write_bytes(b"#")
+
+    symlink_file = runfiles_path / "test.py"
+    os.symlink(code_file, symlink_file)
+
+    assert is_user_code(code_file)
+    # Symlinks with `.runfiles` in the path should not be considered user code.
+    from ddtrace.internal.compat import Path
+
+    p = Path(symlink_file)
+    p2 = Path(symlink_file).resolve()
+    print(symlink_file, p, p2)
+
+    assert not is_user_code(symlink_file)
+
+    code_file_2 = runfiles_path / "test2.py"
+    code_file_2.write_bytes(b"#")
+
+    assert not is_user_code(code_file_2)
