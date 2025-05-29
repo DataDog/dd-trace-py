@@ -159,13 +159,6 @@ Datadog Lambda
 .. automodule:: ddtrace.contrib._aws_lambda
 
 
-.. _ddtrace_api:
-
-ddtrace API
-^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._ddtrace_api
-
-
 .. _djangorestframework:
 .. _django:
 
