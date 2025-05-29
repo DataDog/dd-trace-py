@@ -188,20 +188,14 @@ expected_router_settings = {
         {
             "model_name": "gpt-3.5-turbo",
             "litellm_params": {
-                "use_in_pass_through": False,
-                "merge_reasoning_content_in_choices": False,
                 "model": "gpt-3.5-turbo",
             },
-            "model_info": {"id": "d3fd9892d06620e68be6a5003b9a57fbe34a99b5f0a0d5152dba268433665ff5", "db_model": False},
         },
         {
             "model_name": "gpt-4",
             "litellm_params": {
-                "use_in_pass_through": False,
-                "merge_reasoning_content_in_choices": False,
                 "model": "gpt-4",
             },
-            "model_info": {"id": "ae9ff51b0bccc07e81179560923cd3002d40d2c707538a4a7b15c8a1b83ad655", "db_model": False},
         },
     ],
 }

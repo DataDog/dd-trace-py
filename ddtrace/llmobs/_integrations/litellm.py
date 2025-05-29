@@ -32,6 +32,8 @@ TEXT_COMPLETION_OPERATIONS = (
     "router.atext_completion",
 )
 
+MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature")
+
 
 class LiteLLMIntegration(BaseLLMIntegration):
     _integration_name = "litellm"
@@ -102,15 +104,27 @@ class LiteLLMIntegration(BaseLLMIntegration):
             "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
         }
         if hasattr(llm_router, "get_model_list"):
-            metadata["router_settings"]["model_list"] = self._scrub_litellm_model_list(llm_router.get_model_list())
+            metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(llm_router.get_model_list())
 
         span._set_ctx_items({METADATA: metadata})
 
-    def _scrub_litellm_model_list(self, model_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _construct_litellm_model_list(self, model_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        new_model_list = []
         for model in model_list:
-            if "litellm_params" in model and "api_key" in model["litellm_params"]:
-                del model["litellm_params"]["api_key"]
-        return model_list
+            litellm_params = model.get("litellm_params", {})
+            litellm_params_dict = {}
+            for key in MODEL_LIST_KEYS:
+                value = litellm_params.get(key)
+                if value:
+                    litellm_params_dict[key] = value
+            
+            new_model_list.append(
+                {
+                    "model_name": model.get("model_name"),
+                    "litellm_params": litellm_params_dict,
+                }
+            )
+        return new_model_list
 
     def _update_input_output_value(self, span: Span, span_kind: str = ""):
         if span_kind == "llm":
