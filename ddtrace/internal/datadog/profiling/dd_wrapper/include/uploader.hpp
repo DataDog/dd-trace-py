@@ -24,8 +24,6 @@ class Uploader
     std::string output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
 
-    bool export_to_file(ddog_prof_EncodedProfile* encoded);
-
   public:
     bool upload(ddog_prof_Profile& profile);
     static void cancel_inflight();
@@ -34,6 +32,8 @@ class Uploader
     static void prefork();
     static void postfork_parent();
     static void postfork_child();
+
+    static bool export_to_file(ddog_prof_Profile& profile, std::string_view output_filename);
 
     Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter ddog_exporter);
     ~Uploader()
