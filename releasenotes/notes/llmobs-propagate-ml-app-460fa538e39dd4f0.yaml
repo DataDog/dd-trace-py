@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Propagate the ``ml_app`` of the most recent LLM Observability span (or the global ``ml_app``) when injecting distributed headers. In distributed services, uses the ``ml_app`` from the distributed trace headers.
+

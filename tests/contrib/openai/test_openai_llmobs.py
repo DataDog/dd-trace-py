@@ -718,6 +718,63 @@ class TestLLMObsOpenaiV1:
         assert span_event["meta"]["model_name"] == "deepseek-chat"
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that None responses from streamed chat completions results in a finished span regardless."""
+        client = openai.OpenAI()
+        with mock.patch.object(client.completions, "_post", return_value=None):
+            model = "ada"
+            resp_model = model
+            resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+            assert resp is None
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=[{"content": "Hello world"}],
+                output_messages=[{"content": ""}],
+                metadata={"stream": True},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that None responses from streamed chat completions results in a finished span regardless."""
+        client = openai.OpenAI()
+        with mock.patch.object(client.chat.completions, "_post", return_value=None):
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+                stream_options={"include_usage": False},
+            )
+            assert resp is None
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"content": ""}],
+                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
     def test_response(self, openai, mock_llmobs_writer, mock_tracer):
