@@ -66,7 +66,7 @@ def _patched_route(wrapped, instance, args, kwargs):
             @functools.wraps(func)
             async def async_wrap_function(*args, **kwargs):
                 req = kwargs.get(trigger_arg_name)
-                with create_context("azure.functions.patched_route_request", pin, None, req.headers) as ctx, ctx.span:
+                with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
                     ctx.set_item("req_span", ctx.span)
                     core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                     res = None
@@ -83,7 +83,7 @@ def _patched_route(wrapped, instance, args, kwargs):
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
             req = kwargs.get(trigger_arg_name)
-            with create_context("azure.functions.patched_route_request", pin, None, req.headers) as ctx, ctx.span:
+            with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
                 ctx.set_item("req_span", ctx.span)
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None
