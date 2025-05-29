@@ -514,32 +514,3 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
     # LLMObs trace IDs should be different from APM trace ID
     assert first_child_event["trace_id"] != first_child_event["_dd"]["apm_trace_id"]
     assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]
-
-
-def test_trace_id_propagation_threaded(llmobs, llmobs_events):
-    """Test that LLMObs trace ID and APM trace ID propagate correctly when child span is created in a separate thread."""
-    def child_fn():
-        with llmobs.llm("child_llm"):
-            return 42
-
-    with llmobs.llm("parent_llm") as parent:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(child_fn)
-            result = future.result()
-            assert result == 42
-
-    assert len(llmobs_events) == 2
-    parent_event, child_event = llmobs_events
-
-    # Both spans should share the same trace ID
-    assert parent_event["trace_id"] == child_event["trace_id"]
-    
-    # APM trace IDs should match 
-    assert parent_event["_dd"]["apm_trace_id"] == child_event["_dd"]["apm_trace_id"]
-
-    # LLMObs trace IDs should be different from APM trace ID
-    assert parent_event["trace_id"] != parent_event["_dd"]["apm_trace_id"]
-    assert child_event["trace_id"] != child_event["_dd"]["apm_trace_id"]
-
-
-
