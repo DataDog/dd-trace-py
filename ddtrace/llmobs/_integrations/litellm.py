@@ -34,6 +34,7 @@ TEXT_COMPLETION_OPERATIONS = (
 )
 
 MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature")
+METADATA_KEYS = ("deployment", "endpoint", "headers", "litellm_api_version", "model_group", "model_group_size", "model_info")
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -81,6 +82,16 @@ class LiteLLMIntegration(BaseLLMIntegration):
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA) or {}
         base_url = kwargs.get("api_base")
+        # select certain keys within metadata to avoid sending sensitive data
+        if "metadata" in metadata:
+            inner_metadata = {}
+            for key in METADATA_KEYS:
+                value = metadata["metadata"].get(key)
+                if key == "headers":
+                    value = {"host": value.get("host")}
+                if value:
+                    inner_metadata[key] = value
+            metadata["metadata"] = inner_metadata
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
             span._set_ctx_items({METADATA: metadata})
@@ -88,8 +99,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if base_url or "router" not in operation:
             span._set_ctx_items({METADATA: metadata})
             return
-        if "metadata" in metadata and "user_api_key" in metadata["metadata"]:
-            del metadata["metadata"]["user_api_key"]
 
         llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
         if not llm_router:
