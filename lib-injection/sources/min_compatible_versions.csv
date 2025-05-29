@@ -50,7 +50,7 @@ django-redis,>=4.5
 django_hosts,~=4.0
 djangorestframework,>=3.11
 docker,0
-dogpile.cache,~=0.9
+dogpile.cache,~=0.6.0
 dramatiq,0
 elasticsearch,~=7.13.0
 elasticsearch1,~=1.10.0
@@ -117,7 +117,7 @@ mysql-connector-python,==8.0.5
 mysqlclient,~=2.0
 numexpr,==2.8.5
 openai,==1.30.3
-openai-agents,0
+openai-agents,~=0.0.0
 "openai[embeddings,datalib]",==1.0.0
 opensearch-py,0
 opensearch-py[async],0

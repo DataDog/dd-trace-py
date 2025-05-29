@@ -98,14 +98,13 @@ if not patched and (
 
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
-
     def test_supported_versions_function_allows_valid_imports(self):
         """
         Test the integration's supported versions allows valid imports.
         """
         with NamedTemporaryFile(mode="w", suffix=".py") as f:
             f.write(
-                    """
+                """
 import sys
 from ddtrace.internal.module import ModuleWatchdog
 from wrapt import wrap_function_wrapper as wrap
@@ -151,8 +150,8 @@ if not supported_versions_called and (
 ):
     sys.stdout.write("K")
                     """
-                    % (self.__integration_name__)
-                )
+                % (self.__integration_name__)
+            )
             f.flush()
 
             env = os.environ.copy()
@@ -160,4 +159,3 @@ if not supported_versions_called and (
 
             out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
             assert "OK" in out.decode(), "stderr:\n%s" % err.decode()
-
