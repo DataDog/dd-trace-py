@@ -10,6 +10,7 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
@@ -1467,3 +1468,68 @@ def test_django_iast_sampling_by_route_method(client, test_spans_2_vuln_per_requ
     assert (
         len(list_vulnerabilities) == 16
     ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_ssrf_safe_path(client, iast_span, tracer):
+    tainted_value = "path_param"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/ssrf_requests/?url={tainted_value}"
+    )
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.parametrize(
+    ("option", "url", "value_parts"),
+    [
+        ("path", "url-path/", [{"value": "http://localhost:8080/"}, {"value": "url-path/", "source": 0}]),
+        ("safe_path", "url-path/", None),
+        ("protocol", "http", [{"value": "http", "source": 0}, {"value": "://localhost:8080/"}]),
+        ("host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
+        ("port", "8080", [{"value": "http://localhost:"}, {"value": "8080", "source": 0}, {"value": "/"}]),
+        (
+            "query",
+            "param1=value1&param2=value2",
+            [
+                {"value": "http://localhost:8080/?"},
+                {"source": 0, "value": "param1="},
+                {"redacted": True, "source": 0, "pattern": "hijklm"},
+            ],
+        ),
+        (
+            "query_with_fragment",
+            "param1=value_with_%23hash%23&param2=value2",
+            [
+                {"value": "http://localhost:8080/?"},
+                {"source": 0, "value": "param1="},
+                {"redacted": True, "source": 0, "pattern": "hijklmnopqr"},
+                {"source": 0, "value": "#hash#"},
+            ],
+        ),
+        ("fragment1", "fragment_value1", None),
+        ("fragment2", "fragment_value1", None),
+        ("fragment3", "fragment_value1", None),
+        ("query_param", "param1=value1&param2=value2", None),
+    ],
+)
+def test_django_ssrf_url(client, iast_span, tracer, option, url, value_parts):
+    root_span, response = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/ssrf_requests/?option={option}&url={url}"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"OK"
+
+    if value_parts is None:
+        assert root_span.get_tag(IAST.JSON) is None
+    else:
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(f"ssrf_requests_{option}", VULN_SSRF, filename=TEST_FILE)
+
+        assert loaded["vulnerabilities"][0]["type"] == VULN_SSRF
+        assert loaded["vulnerabilities"][0]["evidence"] == {"valueParts": value_parts}
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value

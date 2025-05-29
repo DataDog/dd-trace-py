@@ -32,6 +32,7 @@ def patch_iast(patch_modules=IAST_PATCH):
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
 
+    # CMDI sanitizers
     when_imported("shlex")(
         lambda _: try_wrap_function_wrapper(
             "shlex",

@@ -10,6 +10,7 @@ from pathlib import PosixPath
 import shlex
 import subprocess
 from typing import Any
+from urllib.parse import quote
 
 from django.db import connection
 from django.http import HttpResponse
@@ -18,6 +19,8 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
+import requests
+from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -472,3 +475,43 @@ def signup(request):
         User.objects.create_user(username=login, password=passwd)
         return HttpResponse("OK", status=200)
     return HttpResponse("Error", status=400)
+
+
+def ssrf_requests(request):
+    value = request.GET.get("url")
+    option = request.GET.get("option")
+    try:
+        if option == "path":
+            # label ssrf_requests_path
+            _ = requests.get(f"http://localhost:8080/{value}")
+        elif option == "protocol":
+            # label ssrf_requests_protocol
+            _ = requests.get(f"{value}://localhost:8080/")
+        elif option == "host":
+            # label ssrf_requests_host
+            _ = requests.get(f"http://{value}:8080/")
+        elif option == "query":
+            # label ssrf_requests_query
+            _ = requests.get(f"http://localhost:8080/?{value}")
+        elif option == "query_with_fragment":
+            # label ssrf_requests_query_with_fragment
+            _ = requests.get(f"http://localhost:8080/?{value}")
+        elif option == "port":
+            # label ssrf_requests_port
+            _ = requests.get(f"http://localhost:{value}/")
+        elif option == "fragment1":
+            _ = requests.get(f"http://localhost:8080/#section1={value}")
+        elif option == "fragment2":
+            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}")
+        elif option == "fragment3":
+            _ = requests.get(
+                f"http://localhost:8080/path-to-something/object_identifier?param1=value1&param2=value2#section3={value}"
+            )
+        elif option == "query_param":
+            _ = requests.get("http://localhost:8080/", params={"param1": value})
+        elif option == "safe_path":
+            safe_path = quote(value)
+            _ = requests.get(f"http://localhost:8080/{safe_path}")
+    except ConnectionError:
+        pass
+    return HttpResponse("OK", status=200)
