@@ -26,7 +26,6 @@ V2 = parse_version("2.0")
 V3 = parse_version("3.0")
 
 try:
-    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
