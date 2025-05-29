@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add support for DSM context extraction for SQS -> Lambda messsage events.
+    DSM: Add support for context extraction for SQS -> Lambda messsage events.
