@@ -46,9 +46,11 @@ class UploaderConfig
 
     static UploaderConfig& get_instance()
     {
-        std::lock_guard<std::mutex> lock(instance_mutex);
         if (instance == nullptr) {
-            instance = new UploaderConfig();
+            std::lock_guard<std::mutex> lock(instance_mutex);
+            if (instance == nullptr) {
+                instance = new UploaderConfig();
+            }
         }
         return *instance;
     }
