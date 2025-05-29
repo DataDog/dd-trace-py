@@ -17,9 +17,8 @@
 
 using namespace Datadog;
 
-Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
-  : output_filename{ _output_filename }
-  , ddog_exporter{ _ddog_exporter }
+Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
+  : ddog_exporter{ _ddog_exporter }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Upoloaders are use-once-and-destroy.

@@ -77,14 +77,6 @@ UploaderConfig::set_tag(std::string_view _key, std::string_view _val)
     }
 }
 
-void
-UploaderConfig::set_output_filename(std::string_view _output_filename)
-{
-    if (!_output_filename.empty()) {
-        output_filename = _output_filename;
-    }
-}
-
 std::string_view
 UploaderConfig::get_env() const
 {
@@ -131,12 +123,6 @@ std::string_view
 UploaderConfig::get_url() const
 {
     return url;
-}
-
-std::string_view
-UploaderConfig::get_output_filename() const
-{
-    return output_filename;
 }
 
 std::string_view

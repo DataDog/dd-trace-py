@@ -22,7 +22,6 @@ class UploaderConfig
     std::string url;
 
     ExporterTagset user_tags;
-    std::string output_filename;
 
     std::string language{ g_language_name };
     std::string family{ g_language_name };
@@ -40,7 +39,6 @@ class UploaderConfig
     void set_profiler_version(std::string_view _profiler_version);
     void set_url(std::string_view _url);
     void set_tag(std::string_view _key, std::string_view _val);
-    void set_output_filename(std::string_view _output_filename);
 
     std::string_view get_env() const;
     std::string_view get_service() const;
@@ -50,7 +48,6 @@ class UploaderConfig
     std::string_view get_runtime_version() const;
     std::string_view get_profiler_version() const;
     std::string_view get_url() const;
-    std::string_view get_output_filename() const;
     std::string_view get_language() const;
     std::string_view get_family() const;
     const ExporterTagset& get_user_tags() const;
