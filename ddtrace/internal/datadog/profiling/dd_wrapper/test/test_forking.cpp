@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 #include "test_utils.hpp"
+#include "uploader_config.hpp"
 #include <gtest/gtest.h>
 
 #include <chrono>

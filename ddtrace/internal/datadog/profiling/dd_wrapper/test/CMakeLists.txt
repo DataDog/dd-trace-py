@@ -32,7 +32,7 @@ endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ../include)
+    target_include_directories(${name} PRIVATE ../include )
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper)
     add_ddup_config(${name})
 

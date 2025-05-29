@@ -1,6 +1,6 @@
 #include "ddup_interface.hpp"
 #include "test_utils.hpp"
-#include "uploader_builder.hpp"
+#include "uploader_config.hpp"
 #include <gtest/gtest.h>
 
 // NOTE: cmake gives us an old gtest, and rather than update I just use the

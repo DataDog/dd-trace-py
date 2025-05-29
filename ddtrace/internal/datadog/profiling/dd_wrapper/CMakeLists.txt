@@ -50,6 +50,7 @@ if(WIN32)
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
+        src/uploader_config.cpp
         src/uploader_builder.cpp)
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -73,6 +74,7 @@ else()
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
+        src/uploader_config.cpp
         src/uploader_builder.cpp)
 endif()
 
