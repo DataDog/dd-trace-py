@@ -6,7 +6,7 @@ project(
 
 # Build in a predictable location.  This is needed for setup.py
 get_filename_component(dd_wrapper_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ddtrace.internal.datadog.profiling"
-                       ABSOLUTE)
+    ABSOLUTE)
 
 # Custom modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
@@ -94,6 +94,7 @@ check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
 check_symbol_exists(__MUSL__ "features.h" HAVE_MUSL)
 
 set(PLATFORM_LIBC "unknown")
+
 if(HAVE_GLIBC)
     set(PLATFORM_LIBC "glibc")
 elseif(HAVE_MUSL)
