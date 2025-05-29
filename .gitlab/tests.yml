@@ -17,7 +17,7 @@ include:
   extends: .testrunner
   stage: hatch
   # Hatch doesn't use pre-built wheels or venvs so we can start them right away
-  needs: [prechecks]
+  needs: [ prechecks ]
   parallel: 4
   # DEV: This is the max retries that GitLab currently allows for
   before_script:
@@ -37,9 +37,12 @@ include:
         echo "Running hatch env: ${env}:test"
         hatch run ${env}:test
       done
-  variables: CMAKE_BUILD_PARALLEL_LEVEL = "12"
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL = "12"
     CARGO_BUILD_JOBS = "12"
     DD_FAST_BUILD = "1"
+
+
 
 .test_base_hatch_snapshot:
   extends: .test_base_hatch
@@ -55,7 +58,7 @@ include:
 .test_base_riot:
   extends: .testrunner
   stage: riot
-  needs: [build_base_venvs, prechecks]
+  needs: [ build_base_venvs, prechecks ]
   parallel: 4
   services:
     - !reference [.services, ddagent]
@@ -69,9 +72,6 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      ulimit -c unlimited
-      echo "core.%p" | tee /proc/sys/kernel/core_pattern
-
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
@@ -82,22 +82,12 @@ include:
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
-
-        riot shell "${hash}"
-        ls -l core.* || pwd
-        for core in core.*; do
-          gdb -q -batch -ex "bt full" -ex q `which python` ${core} > ${core}.backtrace
-        done
-        exit
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
         "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 
-  artifacts:
-    paths:
-      - "*.backtrace"
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
@@ -110,4 +100,6 @@ include:
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/root/project"
+
+
 # Required jobs will appear here
