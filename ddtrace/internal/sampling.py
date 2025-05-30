@@ -55,7 +55,9 @@ class PriorityCategory(object):
     RULE_CUSTOMER = "rule_customer"
     RULE_DYNAMIC = "rule_dynamic"
 
-SAMPLING_MECHANISM_CONSTANTS = {"-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()}
+SAMPLING_MECHANISM_CONSTANTS = {
+    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
+}
 
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
@@ -67,6 +69,7 @@ SpanSamplingRules = TypedDict(
     },
     total=False,
 )
+
 
 def validate_sampling_decision(
     meta: Dict[str, str],
