@@ -34,71 +34,62 @@ STACKTRACE_EXCEPTION_REGEX = re.compile(
     r"^(?P<exc>[A-Za-z_]\w*(?:Error|Exception|Interrupt|Fault|Warning))" r"(?:\s*:\s*(?P<msg>.*))?$"
 )
 
-DEFAULT_WEAK_HASH_ALGORITHMS = sorted({MD5_DEF, SHA1_DEF})
+DEFAULT_WEAK_HASH_ALGORITHMS = {MD5_DEF, SHA1_DEF}
 
-DEFAULT_WEAK_CIPHER_ALGORITHMS = sorted({DES_DEF, BLOWFISH_DEF, RC2_DEF, RC4_DEF, IDEA_DEF})
+DEFAULT_WEAK_CIPHER_ALGORITHMS = {DES_DEF, BLOWFISH_DEF, RC2_DEF, RC4_DEF, IDEA_DEF}
 
-DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = sorted(
-    {
-        "random",
-        "randint",
-        "randrange",
-        "choice",
-        "shuffle",
-        "betavariate",
-        "gammavariate",
-        "expovariate",
-        "choices",
-        "gauss",
-        "uniform",
-        "lognormvariate",
-        "normalvariate",
-        "paretovariate",
-        "sample",
-        "triangular",
-        "vonmisesvariate",
-        "weibullvariate",
-        "randbytes",
-    }
-)
+DEFAULT_WEAK_RANDOMNESS_FUNCTIONS = {
+    "random",
+    "randint",
+    "randrange",
+    "choice",
+    "shuffle",
+    "betavariate",
+    "gammavariate",
+    "expovariate",
+    "choices",
+    "gauss",
+    "uniform",
+    "lognormvariate",
+    "normalvariate",
+    "paretovariate",
+    "sample",
+    "triangular",
+    "vonmisesvariate",
+    "weibullvariate",
+    "randbytes",
+}
 
-DEFAULT_PATH_TRAVERSAL_FUNCTIONS = sorted(
-    {
-        "_io": {"open"},
-        "io": {"open"},
-        "glob": {"glob"},
-        "os": sorted(
-            {
-                "mkdir",
-                "remove",
-                "rename",
-                "rmdir",
-                "listdir",
-            }
-        ),
-        "pickle": {"load"},
-        "_pickle": {"load"},
-        "posix": sorted(
-            {
-                "mkdir",
-                "remove",
-                "rename",
-                "rmdir",
-                "listdir",
-            }
-        ),
-        "shutil": sorted(
-            {
-                "copy",
-                "copytree",
-                "move",
-                "rmtree",
-            }
-        ),
-        "tarfile": {"open"},
-        "zipfile": {"ZipFile"},
-    }
-)
+DEFAULT_PATH_TRAVERSAL_FUNCTIONS = {
+    "_io": {"open"},
+    "io": {"open"},
+    "glob": {"glob"},
+    "os": {
+        "mkdir",
+        "remove",
+        "rename",
+        "rmdir",
+        "listdir",
+    },
+    "pickle": {"load"},
+    "_pickle": {"load"},
+    "posix": {
+        "mkdir",
+        "remove",
+        "rename",
+        "rmdir",
+        "listdir",
+    },
+    "shutil": {
+        "copy",
+        "copytree",
+        "move",
+        "rmtree",
+    },
+    "tarfile": {"open"},
+    "zipfile": {"ZipFile"},
+}
+
 DBAPI_SQLITE = "sqlite"
 DBAPI_PSYCOPG = "psycopg"
 DBAPI_MYSQL = "mysql"
