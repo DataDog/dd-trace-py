@@ -32,6 +32,7 @@ def test_sampling_with_rate_limit_3():
     with tracer.trace("trace5"):
         tracer.trace("child").finish()
 
+
 def test_supported_sampling_mechanism():
     """
     validate_sampling_decision should not give errors for supported sampling mechanisms
@@ -54,6 +55,7 @@ def test_supported_sampling_mechanism():
         sampling_decision_validation = validate_sampling_decision(meta)
         decoding_error_result = {"_dd.propagation_error": "decoding_error"}
         assert sampling_decision_validation != decoding_error_result, f"{mechanism} returned {decoding_error_result}"
+
 
 def test_unsupported_sampling_mechanism():
     """
