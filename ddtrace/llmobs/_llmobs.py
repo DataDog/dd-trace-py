@@ -773,9 +773,7 @@ class LLMObs(Service):
                 _llmobs_trace_id = llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
             else:
                 _llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            if _llmobs_trace_id is None:
-                _llmobs_trace_id = llmobs_parent.trace_id
-            llmobs_trace_id = int(_llmobs_trace_id)
+            llmobs_trace_id = int(_llmobs_trace_id) if _llmobs_trace_id is not None else llmobs_parent.trace_id
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
