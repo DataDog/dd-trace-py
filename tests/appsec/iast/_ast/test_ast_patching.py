@@ -189,7 +189,7 @@ def test_should_not_iast_patch_if_not_in_static_allowlist():
 
 @pytest.mark.parametrize(
     "module_name",
-    {
+    sorted({
         "__future__",
         "_ast",
         "_compression",
@@ -405,7 +405,7 @@ def test_should_not_iast_patch_if_not_in_static_allowlist():
         "zipimport",
         "zlib",
         "zoneinfo",
-    },
+    }),
 )
 def test_should_not_iast_patch_if_stdlib(module_name):
     assert iastpatch.should_iast_patch(module_name) == iastpatch.DENIED_BUILTINS_DENYLIST
@@ -507,11 +507,11 @@ def test_astpatch_dir_patched_with_env_var(module_name, env_var):
     [
         (
             "tests.appsec.iast.fixtures.ast.other.with_implemented_dir",
-            {"custom_added", "symbol1", "symbol2", "symbol3", "symbol4"},
+            sorted({"custom_added", "symbol1", "symbol2", "symbol3", "symbol4"}),
         ),
         (
             "tests.appsec.iast.fixtures.ast.other.without_implemented_dir",
-            {"symbol1", "symbol2", "symbol3", "symbol4"},
+            sorted({"symbol1", "symbol2", "symbol3", "symbol4"}),
         ),
     ],
 )
