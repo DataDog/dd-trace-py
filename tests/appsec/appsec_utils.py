@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
