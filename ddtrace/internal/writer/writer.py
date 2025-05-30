@@ -48,7 +48,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
-    from .agent import ConnectionType  # noqa:F401
+    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -479,7 +479,13 @@ class AgentWriter(HTTPWriter):
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
 
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
+        if (
+            is_windows
+            or in_gcp_function()
+            or in_azure_function()
+            or asm_config._asm_enabled
+            or asm_config._iast_enabled
+        ):
             default_api_version = "v0.4"
 
         self._api_version = api_version or config._trace_api or default_api_version
@@ -535,9 +541,8 @@ class AgentWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self):
-        # type: () -> HTTPWriter
-        return self.__class__(
+    def recreate(self) -> HTTPWriter:
+        new_instance = self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
@@ -549,6 +554,7 @@ class AgentWriter(HTTPWriter):
             headers=self._headers,
             report_metrics=self._report_metrics,
         )
+        return new_instance
 
     @property
     def agent_url(self):

@@ -87,6 +87,9 @@ DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 BAGGAGE_TAG_PREFIX = "baggage."
 
+SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
+COLLECTOR_MAX_SIZE_PER_SPAN = 100
+
 
 class SamplingMechanism(object):
     DEFAULT = 0

@@ -171,9 +171,9 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     if request_spans:
         if asm_config._iast_enabled:
-            from ddtrace.appsec._iast._patch import _iast_instrument_starlette_scope
+            from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 
-            _iast_instrument_starlette_scope(scope)
+            _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
 
         trace_utils.set_http_meta(
             request_spans[0],

@@ -1,4 +1,5 @@
 #include "profile.hpp"
+
 #include "libdatadog_helpers.hpp"
 
 #include <functional>
@@ -23,7 +24,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period, nullptr);
+    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period);
     if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {
@@ -49,7 +50,7 @@ Datadog::Profile::cycle_buffers()
     std::swap(last_profile, cur_profile);
 
     // Clear the profile before using it
-    auto res = ddog_prof_Profile_reset(&cur_profile, nullptr);
+    auto res = ddog_prof_Profile_reset(&cur_profile);
     if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {
