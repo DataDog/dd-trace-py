@@ -239,8 +239,11 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         # Import and patch module
         try:
             imported_module = importlib.import_module(path_f % (module,))
-            # compare installed version with versions we instrument
-            should_patch = should_patch_module(imported_module, module)
+            if config._trace_safe_instrumentation_enabled is False:
+                should_patch = True
+            else:
+                # compare installed version with versions we instrument
+                should_patch = should_patch_module(imported_module, module)
             if should_patch:
                 imported_module.patch()
                 if hasattr(imported_module, "patch_submodules"):
