@@ -536,8 +536,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} "
-                    "tests/contrib/bottle/test_autopatch.py",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
                     env={"DD_SERVICE": "bottle-app"},
                     venvs=[
                         Venv(
