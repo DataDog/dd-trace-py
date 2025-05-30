@@ -624,10 +624,10 @@ venv = Venv(
         ),
         Venv(
             name="pymongo",
-            command="pytest -n auto {cmdargs} tests/contrib/pymongo",
+            command="pytest {cmdargs} tests/contrib/pymongo",
             pkgs={
                 "mongoengine": latest,
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 # ddtrace patches different methods for the following pymongo version:
@@ -665,7 +665,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest -n auto {cmdargs} tests/contrib/django",
+            command="pytest {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
@@ -676,7 +676,7 @@ venv = Venv(
                 "pytest-django[testing]": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
                 "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
@@ -1021,11 +1021,11 @@ venv = Venv(
         ),
         Venv(
             name="mako",
-            command="pytest -n auto {cmdargs} tests/contrib/mako",
+            command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={
                 "mako": ["~=1.1.0", latest],
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
         ),
         Venv(
@@ -1076,9 +1076,9 @@ venv = Venv(
         ),
         Venv(
             name="psycopg",
-            command="pytest -n auto {cmdargs} tests/contrib/psycopg",
+            command="pytest {cmdargs} tests/contrib/psycopg",
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -1123,7 +1123,7 @@ venv = Venv(
             name="pymemcache",
             pys=select_pys(),
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
                 "pymemcache": [
                     "~=3.4.2",
                     "~=3.5",
@@ -1132,11 +1132,11 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} --ignore=tests/contrib/pymemcache/autopatch "
+                    command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch "
                     "tests/contrib/pymemcache"
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest -n auto {cmdargs} tests/contrib/pymemcache/autopatch/"
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"
                 ),
             ],
         ),
@@ -1304,10 +1304,10 @@ venv = Venv(
         ),
         Venv(
             name="botocore",
-            command="pytest -n auto {cmdargs} tests/contrib/botocore",
+            command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={
                 "moto[all]": "<5.0",
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
                 "vcrpy": "==6.0.1",
             },
             venvs=[
@@ -1323,11 +1323,11 @@ venv = Venv(
         ),
         Venv(
             name="mongoengine",
-            command="pytest -n auto {cmdargs} tests/contrib/mongoengine",
+            command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
                 # pymongo v4.9.0 introduced breaking changes that are not yet supported by mongoengine
                 "pymongo": "<4.9.0",
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -1397,12 +1397,12 @@ venv = Venv(
         ),
         Venv(
             name="pyramid",
-            command="pytest -n auto {cmdargs} tests/contrib/pyramid",
+            command="pytest {cmdargs} tests/contrib/pyramid",
             pkgs={
                 "requests": [latest],
                 "webtest": [latest],
                 "tests/contrib/pyramid/pserve_app": [latest],
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -1427,11 +1427,11 @@ venv = Venv(
         ),
         Venv(
             name="aiobotocore",
-            command="pytest -n auto {cmdargs} --no-cov tests/contrib/aiobotocore",
+            command="pytest {cmdargs} --no-cov tests/contrib/aiobotocore",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "async_generator": ["~=1.10"],
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -1695,10 +1695,10 @@ venv = Venv(
         ),
         Venv(
             name="grpc",
-            command="python -m pytest -n auto -v {cmdargs} tests/contrib/grpc",
+            command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
                 "googleapis-common-protos": latest,
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 # Versions between 1.14 and 1.20 have known threading issues
@@ -2062,11 +2062,11 @@ venv = Venv(
         ),
         Venv(
             name="protobuf",
-            command="pytest -n auto {cmdargs} tests/contrib/protobuf",
+            command="pytest {cmdargs} tests/contrib/protobuf",
             pys=select_pys(min_version="3.8"),
             pkgs={
                 "protobuf": latest,
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
         ),
         Venv(
@@ -2273,9 +2273,9 @@ venv = Venv(
         ),
         Venv(
             name="dogpile_cache",
-            command="pytest -n auto {cmdargs} tests/contrib/dogpile_cache",
+            command="pytest {cmdargs} tests/contrib/dogpile_cache",
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -2344,12 +2344,12 @@ venv = Venv(
         ),
         Venv(
             name="openai",
-            command="pytest -n auto {cmdargs} tests/contrib/openai",
+            command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
                 "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
@@ -2625,7 +2625,7 @@ venv = Venv(
         ),
         Venv(
             name="litellm",
-            command="pytest -n auto {cmdargs} tests/contrib/litellm",
+            command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "litellm": "==1.65.4",
@@ -2634,7 +2634,7 @@ venv = Venv(
                 "botocore": latest,
                 "boto3": latest,
                 "openai": "==1.68.2",
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
         ),
         Venv(
@@ -2674,14 +2674,14 @@ venv = Venv(
         ),
         Venv(
             name="crewai",
-            command="pytest -n auto {cmdargs} tests/contrib/crewai",
+            command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
                 "crewai": [latest],
                 "vcrpy": "==7.0.0",
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
         ),
         Venv(
@@ -2730,11 +2730,11 @@ venv = Venv(
                 "DD_DATA_STREAMS_ENABLED": "true",
             },
             pkgs={
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.10"),
@@ -2825,13 +2825,13 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            command="pytest -n auto {cmdargs} tests/llmobs",
+            command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
-                "pytest-xdist": latest,
+                "pytest-randomize": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),

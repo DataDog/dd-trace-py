@@ -419,7 +419,6 @@ template = "appsec_integrations_django"
 dependencies = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "requests",
     "hypothesis",
     "pylibmc",
@@ -439,7 +438,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/django_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/django_tests/}",
 ]
 
 [[envs.appsec_integrations_django.matrix]]
@@ -457,7 +456,6 @@ template = "appsec_integrations_flask"
 dependencies = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "requests",
     "hypothesis",
     "gunicorn",
@@ -479,7 +477,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/flask_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/flask_tests/}",
 ]
 
 [[envs.appsec_integrations_flask.matrix]]
@@ -565,7 +563,6 @@ dependencies = [
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
-    "pytest-xdist",
     "hypothesis",
     "langchain{matrix:langchain:}",
     "langchain-experimental{matrix:langchain-experimental:}",
@@ -581,7 +578,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -n auto -vvv {args:tests/appsec/integrations/langchain_tests/}",
+    "python -m pytest -vvv {args:tests/appsec/integrations/langchain_tests/}",
 ]
 
 [[envs.appsec_integrations_langchain.matrix]]
@@ -606,7 +603,6 @@ template = "appsec_threats_fastapi"
 dependencies = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "requests",
     "hypothesis",
     "httpx<0.28.0",
@@ -618,8 +614,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest -n auto tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest -n auto tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -737,13 +733,13 @@ dependencies = [
     "hypothesis",
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
+    "pytest-randomize",
 ]
 
 [envs.dd_coverage.scripts]
 test = [
     "pip freeze",
-    "pytest -n auto tests/coverage -s --no-cov {args:}",
+    "pytest tests/coverage -s --no-cov {args:}",
 ]
 
 [[envs.dd_coverage.matrix]]
