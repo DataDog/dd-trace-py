@@ -1,5 +1,4 @@
 import json
-import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Dict
