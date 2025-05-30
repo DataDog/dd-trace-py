@@ -6,7 +6,7 @@ from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.trace import Pin
 
 
-def create_context(context_name, pin, resource=None):
+def create_context(context_name, pin, resource=None, headers=None):
     operation_name = schematize_cloud_faas_operation(
         "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
     )
@@ -17,6 +17,9 @@ def create_context(context_name, pin, resource=None):
         resource=resource,
         service=int_service(pin, config.azure_functions),
         span_type=SpanTypes.SERVERLESS,
+        distributed_headers=headers,
+        integration_config=config.azure_functions,
+        activate_distributed_headers=True,
     )
 
 

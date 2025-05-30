@@ -1,5 +1,6 @@
 import functools
 import inspect
+import os
 
 import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
@@ -8,6 +9,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
@@ -16,9 +18,10 @@ from .utils import get_function_name
 
 config._add(
     "azure_functions",
-    {
-        "_default_service": schematize_service_name("azure_functions"),
-    },
+    dict(
+        _default_service=schematize_service_name("azure_functions"),
+        distributed_tracing=asbool(os.getenv("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
+    ),
 )
 
 
@@ -63,7 +66,7 @@ def _patched_route(wrapped, instance, args, kwargs):
             @functools.wraps(func)
             async def async_wrap_function(*args, **kwargs):
                 req = kwargs.get(trigger_arg_name)
-                with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
+                with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
                     ctx.set_item("req_span", ctx.span)
                     core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                     res = None
@@ -80,7 +83,7 @@ def _patched_route(wrapped, instance, args, kwargs):
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
             req = kwargs.get(trigger_arg_name)
-            with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
+            with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
                 ctx.set_item("req_span", ctx.span)
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None

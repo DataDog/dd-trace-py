@@ -330,7 +330,6 @@ def test_info_no_configs():
         b"Application Security enabled: False",
         b"Remote Configuration enabled: False",
         b"Debug logging: False",
-        b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: False",
         b"Health metrics enabled: False",
         b"Partial flushing enabled: True",
@@ -387,7 +386,6 @@ def test_info_w_configs():
         b"Remote Configuration enabled: True",
         b"IAST enabled (experimental)",
         b"Debug logging: True",
-        b"App Analytics enabled(deprecated): False",
         b"Log injection enabled: True",
         b"Health metrics enabled: False",
         b"Partial flushing enabled: True",
@@ -522,6 +520,23 @@ def test_ddtrace_run_and_auto_sitecustomize():
     # no additional modules imported / side-effects
     final_modules = set(sys.modules.keys())
     assert final_modules - starting_modules == set(["ddtrace.auto"])
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True"), err=None)
+def test_global_trace_tags_deprecation_warning():
+    """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        import ddtrace.auto  # noqa: F401
+
+        assert len(warns) == 1
+        warning_message = str(warns[0].message)
+        assert (
+            warning_message
+            == "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using DD_TAGS instead"  # noqa: E501
+        ), warning_message
 
 
 @pytest.mark.subprocess(ddtrace_run=False, err="")

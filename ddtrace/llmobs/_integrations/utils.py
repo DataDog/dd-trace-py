@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -32,6 +33,24 @@ logger = get_logger(__name__)
 
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
 AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
+OPENAI_SKIPPED_COMPLETION_TAGS = (
+    "model",
+    "prompt",
+    "api_key",
+    "user_api_key",
+    "user_api_key_hash",
+    LITELLM_ROUTER_INSTANCE_KEY,
+)
+OPENAI_SKIPPED_CHAT_TAGS = (
+    "model",
+    "messages",
+    "tools",
+    "functions",
+    "api_key",
+    "user_api_key",
+    "user_api_key_hash",
+    LITELLM_ROUTER_INSTANCE_KEY,
+)
 
 
 def is_openai_default_base_url(base_url: Optional[str] = None) -> bool:
@@ -297,9 +316,7 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {
-        k: v for k, v in kwargs.items() if k not in ("model", "prompt", "api_key", "user_api_key", "user_api_key_hash")
-    }
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -321,11 +338,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-    parameters = {
-        k: v
-        for k, v in kwargs.items()
-        if k not in ("model", "messages", "tools", "functions", "api_key", "user_api_key", "user_api_key_hash")
-    }
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -591,6 +604,13 @@ class OaiSpanAdapter:
         return self.response.output_text
 
     @property
+    def response_system_instructions(self) -> Optional[str]:
+        """Get the system instructions from the response."""
+        if not self.response:
+            return None
+        return getattr(self.response, "instructions", None)
+
+    @property
     def llmobs_model_name(self) -> Optional[str]:
         """Get the model name formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):
@@ -686,6 +706,9 @@ class OaiSpanAdapter:
         messages = self.input
         processed: List[Dict[str, Any]] = []
         tool_call_ids: List[str] = []
+
+        if self.response_system_instructions:
+            processed.append({"role": "system", "content": self.response_system_instructions})
 
         if not messages:
             return processed, tool_call_ids
