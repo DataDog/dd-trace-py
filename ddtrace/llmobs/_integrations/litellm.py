@@ -43,6 +43,7 @@ METADATA_KEYS = (
     "model_group_size",
     "model_info",
 )
+PROXY_SERVER_REQUEST_KEYS = ("body", "url", "method")
 
 
 class LiteLLMIntegration(BaseLLMIntegration):
@@ -100,6 +101,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 if value:
                     inner_metadata[key] = value
             metadata["metadata"] = inner_metadata
+        if "proxy_server_request" in metadata:
+            metadata["proxy_server_request"] = self._select_keys(metadata["proxy_server_request"], PROXY_SERVER_REQUEST_KEYS)
+
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
             span._set_ctx_items({METADATA: metadata})
@@ -130,12 +134,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         new_model_list = []
         for model in model_list:
             litellm_params = model.get("litellm_params", {})
-            litellm_params_dict = {}
-            for key in MODEL_LIST_KEYS:
-                value = litellm_params.get(key)
-                if value:
-                    litellm_params_dict[key] = value
-
+            litellm_params_dict = self._select_keys(litellm_params, MODEL_LIST_KEYS)
             new_model_list.append(
                 {
                     "model_name": model.get("model_name"),
@@ -183,6 +182,14 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if self.is_router_operation(operation) or base_url:
             return "workflow"
         return "llm"
+    
+    def _select_keys(self, data: Dict[str, Any], keys_to_select: Tuple[str]) -> Dict[str, Any]:
+        new_data = {}
+        for key in keys_to_select:
+            value = data.get(key)
+            if value:
+                new_data[key] = value
+        return new_data
 
     def is_completion_operation(self, operation: str) -> bool:
         return operation in TEXT_COMPLETION_OPERATIONS
