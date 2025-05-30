@@ -1,4 +1,9 @@
 import re
+from urllib.parse import quote
+
+from ddtrace import config as ddconfig
+from ddtrace.ext import ci
+from ddtrace.internal.ci_visibility import CIVisibility
 
 
 DATADOG_BASE_URL = "https://app.datadoghq.com"
@@ -29,12 +34,6 @@ def print_test_report_links(terminalreporter):
 
 
 def _build_test_commit_redirect_url():
-    from urllib.parse import quote
-
-    from ddtrace import config as ddconfig
-    from ddtrace.ext import ci
-    from ddtrace.internal.ci_visibility import CIVisibility
-
     tags = CIVisibility.get_ci_tags()
     settings = CIVisibility.get_session_settings()
     env = ddconfig.env
@@ -64,11 +63,6 @@ def _quote_for_query(text):
 
 
 def _build_test_runs_url():
-    from urllib.parse import quote
-
-    from ddtrace.ext import ci
-    from ddtrace.internal.ci_visibility import CIVisibility
-
     tags = CIVisibility.get_ci_tags()
     ci_job_name = tags.get(ci.JOB_NAME)
     ci_pipeline_id = tags.get(ci.PIPELINE_ID)
