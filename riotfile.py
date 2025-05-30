@@ -159,7 +159,7 @@ venv = Venv(
                 "DD_IAST_ENABLED": "true",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
                 "DD_FAST_BUILD": "0",
-            }
+            },
         ),
         Venv(
             name="profile-diff",
