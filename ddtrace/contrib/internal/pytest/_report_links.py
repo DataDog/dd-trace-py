@@ -34,7 +34,6 @@ def _build_test_commit_redirect_url():
 def _build_test_runs_url():
     from urllib.parse import quote
 
-    from ddtrace import config as ddconfig
     from ddtrace.ext import ci
     from ddtrace.internal.ci_visibility import CIVisibility
 
