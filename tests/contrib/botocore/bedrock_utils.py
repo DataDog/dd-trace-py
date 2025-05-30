@@ -14,6 +14,12 @@ from ddtrace.internal.utils.version import parse_version
 
 BOTO_VERSION = parse_version(boto3.__version__)
 
+AGENT_ALIAS_ID = "NWGOFQESWP"
+AGENT_ID = "EITYAHSOCJ"
+AGENT_INPUT = ("I like beach vacations but also nature and outdoor adventures. I'd like the trip to be 7 days, "
+                 "and include lounging on the beach, something like an all-inclusive resort is nice too (but I prefer "
+                 "luxury 4/5 star resorts)")
+
 bedrock_converse_args_with_system_and_tool = {
     "system": "You are an expert swe that is to use the tool fetch_concept",
     "user_message": "Explain the concept of distributed tracing in a simple way",

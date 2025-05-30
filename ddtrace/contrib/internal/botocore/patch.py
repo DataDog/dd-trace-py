@@ -37,7 +37,7 @@ from ddtrace.settings._config import Config
 from ddtrace.trace import Pin
 
 from .services.bedrock import patched_bedrock_api_call
-from .services.bedrock_agent import patched_bedrock_agent_api_call
+from .services.bedrock_agents import patched_bedrock_agents_api_call
 from .services.kinesis import patched_kinesis_api_call
 from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
@@ -62,7 +62,7 @@ ENDPOINTS_TO_PATCH_FUNCTIONS = {
         SUPPORTED_OPS_KEY: ["Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"],
     },
     "bedrock-agent-runtime": {
-        PATCHING_FN_KEY: patched_bedrock_agent_api_call,
+        PATCHING_FN_KEY: patched_bedrock_agents_api_call,
         SUPPORTED_OPS_KEY: ["InvokeAgent"],
     },
     "kinesis": {PATCHING_FN_KEY: patched_kinesis_api_call, SUPPORTED_OPS_KEY: None},

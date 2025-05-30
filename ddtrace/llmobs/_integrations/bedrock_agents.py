@@ -2,13 +2,14 @@ from datetime import timezone
 import json
 import sys
 
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal._rand import rand128bits
-from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal._rand import rand128bits
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import safe_json
+
 
 log = get_logger(__name__)
 
@@ -74,7 +75,7 @@ def _create_or_update_bedrock_trace_step_span(trace, inner_span_event, root_span
             "start_ns": int(start_ns),
             "duration": DEFAULT_SPAN_DURATION,
             "status": "ok",
-            "meta": {"span.kind": "workflow"},
+            "meta": {"span.kind": "workflow", "metadata": {"bedrock_trace_id": trace_step_id}},
             "metrics": {},
         }
         span_dict[trace_step_id] = span_event
@@ -116,7 +117,6 @@ def _translate_custom_orchestration_trace(trace, root_span, current_active_span,
     }, False
 
 
-
 def _translate_orchestration_trace(trace, root_span, current_active_span, trace_step_id):
     orchestration_trace = trace.get("trace", {}).get("orchestrationTrace", {})
     if not orchestration_trace:
@@ -139,6 +139,7 @@ def _translate_orchestration_trace(trace, root_span, current_active_span, trace_
     observation = orchestration_trace.get("observation", {})
     if observation:
         return _observation_span(observation, root_span, current_active_span)
+    return None, False
 
 
 def _translate_failure_trace(trace, root_span, current_active_span, trace_step_id):
@@ -167,15 +168,15 @@ def _translate_failure_trace(trace, root_span, current_active_span, trace_step_i
             "output": {},
             ERROR_MSG: failure_trace.get("failureReason", ""),
             ERROR_TYPE: failure_trace.get("failureType", ""),
-
         },
         "metrics": {},
     }, True
 
+
 def _translate_guardrail_trace(trace, root_span, current_active_span, trace_step_id):
     guardrail_trace = trace.get("trace", {}).get("guardrailTrace", {})
     if not guardrail_trace or not isinstance(guardrail_trace, dict):
-        return None
+        return None, False
     guardrail_metadata = guardrail_trace.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(guardrail_metadata, root_span)
     action = guardrail_trace.get("action", "")
@@ -225,6 +226,7 @@ def _translate_post_processing_trace(trace, root_span, current_active_span, trac
     model_invocation_output = postprocessing_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span)
+    return None, False
 
 
 def _translate_pre_processing_trace(trace, root_span, current_active_span, trace_step_id):
@@ -240,14 +242,15 @@ def _translate_pre_processing_trace(trace, root_span, current_active_span, trace
     model_invocation_output = preprocessing_trace.get("modelInvocationOutput", {})
     if model_invocation_output:
         return _model_invocation_output_span(model_invocation_output, current_active_span, root_span)
+    return None, False
 
 
 def _translate_routing_classifier_trace(trace, root_span, current_active_span, trace_step_id):
     routing_trace = trace.get("trace", {}).get("routingClassifierTrace", {})
     if not routing_trace:
-        return None
+        return None, False
     if not isinstance(routing_trace, dict) or len(routing_trace) != 1:
-        return None
+        return None, False
     start_ns = _extract_start_ns(trace, root_span)
     model_invocation_input = routing_trace.get("modelInvocationInput", {})
     if model_invocation_input:
@@ -261,6 +264,7 @@ def _translate_routing_classifier_trace(trace, root_span, current_active_span, t
     observation = routing_trace.get("observation", {})
     if observation:
         return _observation_span(observation, root_span, current_active_span)
+    return None, False
 
 
 def _model_invocation_input_span(model_input, trace_step_id, start_ns, root_span):
@@ -345,7 +349,7 @@ def _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span)
         args = {arg["name"]: str(arg["value"]) for arg in params}
         tool_metadata = {
             "function": bedrock_tool_call.get("function", ""),
-            "execution_type": bedrock_tool_call.get("executionType", "")
+            "execution_type": bedrock_tool_call.get("executionType", ""),
         }
     bedrock_tool_call = invocation_input.get("agentCollaboratorInvocationInput", {})
     if bedrock_tool_call:
@@ -377,6 +381,7 @@ def _invocation_input_span(invocation_input, trace_step_id, start_ns, root_span)
         "metrics": {},
     }
     return span_event, False
+
 
 def _observation_span(observation, root_span, current_active_span):
     observation_type = observation.get("type", "")
