@@ -10,18 +10,20 @@ pytestmark = pytest.mark.skipif(
     BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent traces are only supported for boto3 > 1.36.0"
 )
 
-EXPECTED_OUTPUT = ("Based on your preferences for a beach vacation with nature and outdoor adventures, I recommend a "
-                   "7-day trip to Manuel Antonio, Costa Rica. This destination offers beautiful beaches, lush nature, "
-                   "and plenty of outdoor activities.\n\nThe best time to visit Manuel Antonio is during the dry "
-                   "season, from December to April. This period offers ideal weather for beach activities and outdoor "
-                   "adventures. The average cost for a luxury trip to Manuel Antonio is around $200-$300 per day, "
-                   "which aligns well with your preference for 4/5 star resorts.\n\nIn Manuel Antonio, "
-                   "you can enjoy:\n1. Lounging on pristine beaches like Playa Manuel Antonio and Playa Espadilla\n2. "
-                   "Exploring Manuel Antonio National Park, known for its diverse wildlife and hiking trails\n3. "
-                   "Luxury resorts offering all-inclusive packages with stunning ocean views\n4. Adventure activities "
-                   "such as zip-lining, white-water rafting, and snorkeling\n\nThis destination perfectly combines "
-                   "your desire for beach relaxation, nature experiences, and outdoor adventures, all while providing "
-                   "the luxury accommodations you prefer.")
+EXPECTED_OUTPUT = (
+    "Based on your preferences for a beach vacation with nature and outdoor adventures, I recommend a "
+    "7-day trip to Manuel Antonio, Costa Rica. This destination offers beautiful beaches, lush nature, "
+    "and plenty of outdoor activities.\n\nThe best time to visit Manuel Antonio is during the dry "
+    "season, from December to April. This period offers ideal weather for beach activities and outdoor "
+    "adventures. The average cost for a luxury trip to Manuel Antonio is around $200-$300 per day, "
+    "which aligns well with your preference for 4/5 star resorts.\n\nIn Manuel Antonio, "
+    "you can enjoy:\n1. Lounging on pristine beaches like Playa Manuel Antonio and Playa Espadilla\n2. "
+    "Exploring Manuel Antonio National Park, known for its diverse wildlife and hiking trails\n3. "
+    "Luxury resorts offering all-inclusive packages with stunning ocean views\n4. Adventure activities "
+    "such as zip-lining, white-water rafting, and snorkeling\n\nThis destination perfectly combines "
+    "your desire for beach relaxation, nature experiences, and outdoor adventures, all while providing "
+    "the luxury accommodations you prefer."
+)
 SESSION_ID = "test_session"
 MODEL_NAME = "claude-3-5-sonnet-20240620-v1:0"
 MODEL_PROVIDER = "anthropic"
