@@ -19,11 +19,11 @@ idna==3.10
 iniconfig==2.1.0
 jsonpatch==1.33
 jsonpointer==3.0.0
-langchain-core==0.3.62
+langchain-core==0.3.63
 langgraph==0.2.76
 langgraph-checkpoint==2.0.26
 langgraph-sdk==0.1.70
-langsmith==0.3.42
+langsmith==0.3.43
 mock==5.2.0
 opentracing==2.4.0
 orjson==3.10.18

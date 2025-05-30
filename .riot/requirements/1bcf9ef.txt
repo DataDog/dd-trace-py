@@ -22,7 +22,7 @@ more-itertools==8.10.0
 opentracing==2.4.0
 packaging==25.0
 pluggy==1.6.0
-portend==3.2.0
+portend==3.2.1
 pytest==8.3.5
 pytest-cov==6.1.1
 pytest-mock==3.14.1

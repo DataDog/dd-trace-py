@@ -15,7 +15,7 @@ mock==5.2.0
 opentracing==2.4.0
 packaging==25.0
 pluggy==1.6.0
-protobuf==6.31.0
+protobuf==6.31.1
 pytest==8.3.5
 pytest-asyncio==0.23.7
 pytest-cov==6.1.1
