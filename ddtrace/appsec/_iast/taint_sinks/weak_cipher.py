@@ -27,7 +27,7 @@ from ._base import VulnerabilityBase
 log = get_logger(__name__)
 
 
-def get_weak_cipher_algorithms() -> Set:
+def get_weak_cipher_algorithms() -> Set[str] | list[str]:
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
