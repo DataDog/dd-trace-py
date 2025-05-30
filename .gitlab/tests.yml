@@ -97,6 +97,7 @@ include:
   artifacts:
     paths:
       - "*.backtrace"
+    when: on_failure
 
 .test_base_riot_snapshot:
   extends: .test_base_riot
