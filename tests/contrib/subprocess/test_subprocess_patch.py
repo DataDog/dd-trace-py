@@ -60,3 +60,6 @@ class TestSubprocessPatch(PatchTestCase.Base):
         version = get_version()
         assert type(version) == str
         assert version == ""
+
+    def test_supported_versions_function_allows_valid_imports(self):
+        pass

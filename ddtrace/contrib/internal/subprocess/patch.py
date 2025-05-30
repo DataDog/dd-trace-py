@@ -37,6 +37,10 @@ def get_version() -> str:
     return ""
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"subprocess": "*"}
+
+
 _STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
 _LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
 
@@ -64,6 +68,11 @@ def patch() -> List[str]:
 
     import os  # nosec
     import subprocess  # nosec
+
+    if getattr(subprocess, "_datadog_patch", False):
+        return
+
+    subprocess._datadog_patch = True
 
     should_patch_system = not trace_utils.iswrapped(os.system)
     should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
@@ -315,6 +324,11 @@ class SubprocessCmdLine:
 def unpatch() -> None:
     import os  # nosec
     import subprocess  # nosec
+
+    if not getattr(subprocess, "_datadog_patch", False):
+        return
+
+    subprocess._datadog_patch = False
 
     for obj, attr in [(os, "system"), (os, "_spawnvef"), (subprocess.Popen, "__init__"), (subprocess.Popen, "wait")]:
         try:

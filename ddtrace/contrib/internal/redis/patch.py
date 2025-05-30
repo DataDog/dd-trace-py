@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import redis
 import wrapt
@@ -30,6 +31,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(redis, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"redis": "*"}
 
 
 def patch():

@@ -1,4 +1,5 @@
 from importlib import import_module
+from typing import Dict
 from typing import List  # noqa:F401
 from urllib import parse
 
@@ -66,6 +67,10 @@ def get_version_tuple(elasticsearch):
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"elasticsearch": ">=1.10,<8.0"}
 
 
 def get_versions():

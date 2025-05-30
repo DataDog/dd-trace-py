@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import wrapt
 import yaaredis
@@ -30,6 +31,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(yaaredis, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"yaaredis": ">=2.0.0"}
 
 
 def patch():

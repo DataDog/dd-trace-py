@@ -2268,6 +2268,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "dogpile.cache": [
+                            "~=0.6.0",
                             "~=0.9",
                             "~=1.0",
                             latest,
@@ -2521,7 +2522,7 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": latest,
+                "openai-agents": ["~=0.0.0", latest],
             },
         ),
         Venv(
@@ -2627,7 +2628,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": [latest, "~=0.28"],
+                "anthropic": ["~=0.40.0", latest],
             },
         ),
         Venv(

@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import aiohttp
 import wrapt
@@ -53,6 +54,10 @@ config._add(
 def get_version():
     # type: () -> str
     return aiohttp.__version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiohttp": ">=3.7"}
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):

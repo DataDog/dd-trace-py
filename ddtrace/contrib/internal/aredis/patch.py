@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import aredis
 import wrapt
@@ -28,6 +29,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(aredis, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aredis": "*"}
 
 
 def patch():

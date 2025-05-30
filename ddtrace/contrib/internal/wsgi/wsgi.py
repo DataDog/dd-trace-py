@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from typing import Callable
+from typing import Dict
 from typing import Iterable
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -7,7 +8,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
 
@@ -53,6 +53,10 @@ config._add(
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"wsgi": "*"}
 
 
 class _DDWSGIMiddlewareBase(object):

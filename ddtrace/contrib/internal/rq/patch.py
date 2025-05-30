@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
@@ -42,6 +44,10 @@ def get_version():
     import rq
 
     return str(getattr(rq, "__version__", ""))
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"rq": ">=1.8"}
 
 
 @trace_utils.with_traced_module

@@ -1,3 +1,5 @@
+from typing import Dict
+
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -38,6 +40,10 @@ except ImportError:
 def get_version():
     # type: () -> str
     return VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"algoliasearch": ">=2.5.0"}
 
 
 def patch():
