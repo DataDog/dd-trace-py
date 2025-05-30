@@ -21,7 +21,7 @@ from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
 
 
-def get_weak_hash_algorithms() -> Set[str] | list[str]:
+def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
     DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
