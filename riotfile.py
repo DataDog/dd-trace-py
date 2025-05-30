@@ -2679,7 +2679,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [latest],
+                "crewai": [">=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
                 "pytest-randomize": latest,
             },
