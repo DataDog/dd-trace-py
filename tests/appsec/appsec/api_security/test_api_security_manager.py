@@ -33,24 +33,6 @@ class TestApiSecurityManager:
             yield manager
 
     @pytest.fixture
-    def api_manager_standalone(self):
-        with override_global_config(
-            values=dict(
-                _asm_enabled=True,
-                _api_security_enabled=True,
-                _apm_tracing_enabled=False,
-                _api_security_parse_response_body=True,
-            )
-        ):
-            manager = APIManager()
-            manager._appsec_processor = MagicMock()
-            manager._asm_context = MagicMock()
-            manager._metrics = MagicMock()
-            manager._should_collect_schema = MagicMock(return_value=True)
-
-            yield manager
-
-    @pytest.fixture
     def mock_environment(self):
         # Create a mock environment with required attributes
         env = MagicMock()
@@ -138,7 +120,7 @@ class TestApiSecurityManager:
     @pytest.mark.parametrize("should_collect_return", [True, False, None])
     @pytest.mark.parametrize("sampling_priority", [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP])
     def test_schema_callback_apm_tracing_disabled(
-        self, api_manager_standalone, mock_environment, should_collect_return, sampling_priority
+        self, api_manager, mock_environment, should_collect_return, sampling_priority
     ):
         """Test that _schema_callback manually keeps spans when APM tracing is disabled.
         Expects _asm_manual_keep to be called only when should_collect_schema returns True.
@@ -153,14 +135,14 @@ class TestApiSecurityManager:
             "_dd.appsec.s.res.headers": {"type": "object"},
             "_dd.appsec.s.res.body": {"type": "object", "properties": {"status": {"type": "string"}}},
         }
-        api_manager_standalone._asm_context.call_waf_callback.return_value = mock_waf_result
+        api_manager._asm_context.call_waf_callback.return_value = mock_waf_result
 
-        api_manager_standalone._should_collect_schema.return_value = should_collect_return
+        api_manager._should_collect_schema.return_value = should_collect_return
         mock_environment.span._local_root.context.sampling_priority = sampling_priority
 
         with override_global_config(values=dict(_apm_tracing_enabled=False)):
             with patch("ddtrace.appsec._api_security.api_manager._asm_manual_keep") as mock_keep:
-                api_manager_standalone._schema_callback(mock_environment)
+                api_manager._schema_callback(mock_environment)
 
                 # Verify manual keep was called only if should_collect_schema returns True
                 if should_collect_return:
