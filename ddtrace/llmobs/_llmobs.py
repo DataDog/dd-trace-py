@@ -314,7 +314,9 @@ class LLMObs(Service):
         span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id
+        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        if llmobs_trace_id is None:
+            raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": format_trace_id(llmobs_trace_id),
@@ -757,7 +759,9 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID))
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID)) or str(
+                active.trace_id
+            )
             return context
         return None
 
@@ -1558,15 +1562,13 @@ class LLMObs(Service):
             return "invalid_parent_id"
         parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
         if parent_llmobs_trace_id is None:
-            log.warning("Failed to extract LLMObs trace ID from request headers.")
+            log.debug("Failed to extract LLMObs trace ID from request headers. Expected string, got None.")
+            llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+            cls._instance._llmobs_context_provider.activate(llmobs_context)
             return "missing_parent_llmobs_trace_id"
-        try:
-            llmobs_trace_id = str(parent_llmobs_trace_id)
-        except ValueError:
-            log.warning("Failed to parse LLMObs trace ID from request headers.")
-            return "invalid_llmobs_trace_id"
         llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-        llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = llmobs_trace_id
+        llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
         cls._instance._llmobs_context_provider.activate(llmobs_context)
         return None
 
