@@ -86,7 +86,6 @@ class TestPatching(SubprocessTestCase):
 
                 fastapi_supported_version = ddtrace.contrib.internal.fastapi.patch._supported_versions().get("fastapi")
 
-
                 mock_add_integration.assert_any_call(
                     "fastapi",
                     False,
