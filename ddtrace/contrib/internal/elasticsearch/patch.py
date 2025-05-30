@@ -1,5 +1,5 @@
 from importlib import import_module
-from typing import List  # noqa:F401
+from typing import Dict
 from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
@@ -24,6 +24,14 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
 
 
+try:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as get_module_version
+except ImportError:
+    from importlib_metadata import PackageNotFoundError
+    from importlib_metadata import version as get_module_version
+
+
 log = get_logger(__name__)
 
 config._add(
@@ -33,30 +41,28 @@ config._add(
     },
 )
 
+ES_MODULE_VERSIONS = {}
+ES_MODULE_NAMES = [
+    "elasticsearch",
+    "elasticsearch1",
+    "elasticsearch2",
+    "elasticsearch5",
+    "elasticsearch6",
+    "elasticsearch7",
+    # Starting with version 8, the default transport which is what we
+    # actually patch is found in the separate elastic_transport package
+    "elastic_transport",
+    "opensearchpy",
+]
+
 
 def _es_modules():
-    module_names = (
-        "elasticsearch",
-        "elasticsearch1",
-        "elasticsearch2",
-        "elasticsearch5",
-        "elasticsearch6",
-        "elasticsearch7",
-        # Starting with version 8, the default transport which is what we
-        # actually patch is found in the separate elastic_transport package
-        "elastic_transport",
-        "opensearchpy",
-    )
-    for module_name in module_names:
+    for module_name in ES_MODULE_NAMES:
         try:
             module = import_module(module_name)
-            versions[module_name] = getattr(module, "__versionstr__", "")
             yield module
         except ImportError:
             pass
-
-
-versions = {}
 
 
 def get_version_tuple(elasticsearch):
@@ -68,9 +74,19 @@ def get_version():
     return ""
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"elasticsearch": ">=1.10"}
+
+
 def get_versions():
-    # type: () -> List[str]
-    return versions
+    # type: () -> Dict[str, str]
+    if not ES_MODULE_VERSIONS:
+        for es_module in ES_MODULE_NAMES:
+            try:
+                ES_MODULE_VERSIONS[es_module] = get_module_version(es_module)
+            except PackageNotFoundError:
+                pass
+    return ES_MODULE_VERSIONS
 
 
 def _get_transport_module(elasticsearch):

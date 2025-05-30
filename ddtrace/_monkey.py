@@ -20,11 +20,11 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from types import ModuleType  # noqa:F401
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Union  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -180,55 +180,67 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
-def is_version_compatible(package_name: str, version: str, supported_versions: Dict[str, str]) -> bool:
-    """Check if a given package version is compatible with the instrumented versions.
+class IncompatibleModuleException(PatchException):
+    pass
 
-    Args:
-        package_name: The name of the package to check
-        version: The version string to check against
-        supported_versions: Dictionary mapping module names to their version requirements
 
-    Returns:
-        bool: True if the version is compatible, False otherwise
-    """
-    if package_name not in supported_versions:
+def is_version_compatible(version, supported_versions_spec):
+    # type: (str, str) -> bool
+    "Returns whether a given package version is compatible with the integration's supported version range."
+
+    if not supported_versions_spec:
         return False
 
-    spec = supported_versions.get(package_name)
-    if not spec:
-        return False
-
-    version_specifier = VersionSpecifier(spec)
+    version_specifier = VersionSpecifier(supported_versions_spec)
     return version_specifier.contains(version)
 
 
-def _get_installed_version(imported_module, module):
-    if hasattr(imported_module, "get_version"):
+def _get_installed_module_version(imported_module, hooked_module_name):
+    # type: (ModuleType, str) -> Union[str, None]
+    "Returns the installed version of a module."
+
+    if hasattr(imported_module, "get_versions"):
+        return imported_module.get_versions().get(hooked_module_name)
+    elif hasattr(imported_module, "get_version"):
         return imported_module.get_version()
-    elif hasattr(imported_module, "get_versions"):
-        return imported_module.get_versions().get(module)
     return None
 
 
-def should_patch_module(imported_module, module):
-    if not hasattr(imported_module, "_supported_versions"):
-        return True
+def _get_integration_supported_versions(integration_patch_module, integration_name, hooked_module_name):
+    # type: (ModuleType, str, str) -> Union[str, None]
+    "Returns the supported version range for an integration."
 
-    supported_versions = imported_module._supported_versions()
+    supported_versions = integration_patch_module._supported_versions()
+    if hooked_module_name in supported_versions:
+        return supported_versions[hooked_module_name]
+    elif integration_name in supported_versions:
+        return supported_versions[integration_name]
+    return None
 
-    installed_version = _get_installed_version(imported_module, module)
 
+def check_module_compatibility(integration_patch_module, integration_name, hooked_module_name):
+    # type: (ModuleType, str, str) -> None
+    "Determines if a module should be patched based on installed version and the integration's supported version range."
+
+    # stdlib modules will not have an associated version and should always be patched
+    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name)
     if not installed_version:
-        return True
+        return
 
-    if not is_version_compatible(module, installed_version, supported_versions):
+    supported_version_spec = _get_integration_supported_versions(
+        integration_patch_module, integration_name, hooked_module_name
+    )
+    if not supported_version_spec:
+        # TODO: once all integrations have a supported version spec, we should raise an error here
+        return
+
+    if not is_version_compatible(installed_version, supported_version_spec):
         message = (
-            f"Skipped patching '{module}' integration, installed version: {installed_version} is not compatible with "
-            f"integration support spec: {supported_versions[module]}"
+            f"Skipped patching '{integration_name}' integration, installed version: {installed_version} "
+            f"is not compatible with integration support spec: {supported_version_spec}."
         )
-        log.debug(message)
-        return False
-    return True
+        raise IncompatibleModuleException(message)
+    return
 
 
 def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
@@ -239,17 +251,18 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         # Import and patch module
         try:
             imported_module = importlib.import_module(path_f % (module,))
-            if config._trace_safe_instrumentation_enabled is False:
-                should_patch = True
-            else:
-                # compare installed version with versions we instrument
-                should_patch = should_patch_module(imported_module, module)
-            if should_patch:
-                imported_module.patch()
-                if hasattr(imported_module, "patch_submodules"):
-                    imported_module.patch_submodules(patch_indicator)
+
+            # if safe instrumentation is enabled, we check if the module's version
+            # is compatible with the integration's supported version range, and throw an error if it is not
+            if config._trace_safe_instrumentation_enabled:
+                check_module_compatibility(imported_module, module, hook.__name__)
+
+            imported_module.patch()
+            if hasattr(imported_module, "patch_submodules"):
+                imported_module.patch_submodules(patch_indicator)
         except Exception as e:
-            if raise_errors:
+            # don't raise errors for incompatible integration versions
+            if raise_errors and not isinstance(e, IncompatibleModuleException):
                 raise
             log.error(
                 "failed to enable ddtrace support for %s: %s",
@@ -257,33 +270,27 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 str(e),
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "integration_errors",
-                1,
-                (("integration_name", module), ("error_type", type(e).__name__)),
-            )
-        else:
-            error_message = ""
-            if should_patch is False:
-                supported_versions = imported_module._supported_versions()
-                installed_version = _get_installed_version(imported_module, module)
-                error_message = (
-                    f"Unable to patch integration: {module}, installed version: {installed_version} is not "
-                    f"compatible with integration support spec of {supported_versions[module]}"
-                )
 
+            # don't send telemetry for incompatible integration versions
+            if not isinstance(e, IncompatibleModuleException):
+                telemetry.telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "integration_errors",
+                    1,
+                    (("integration_name", module), ("error_type", type(e).__name__)),
+                )
+        else:
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
                     telemetry.telemetry_writer.add_integration(
-                        name, should_patch, PATCH_MODULES.get(module) is True, error_message, version=v
+                        name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
             elif hasattr(imported_module, "get_version"):
                 # Some integrations/iast patchers do not define get_version
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
-                    module, should_patch, PATCH_MODULES.get(module) is True, error_message, version=version
+                    module, True, PATCH_MODULES.get(module) is True, "", version=version
                 )
 
     return on_import
