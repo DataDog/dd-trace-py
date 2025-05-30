@@ -177,3 +177,24 @@ class TestObject(object):
     @lru_cache(maxsize=1)
     def test_get(self, pwd):
         return sensitive_stuff(pwd)
+
+    @lru_cache(maxsize=1)
+    @staticmethod
+    def test_get_static(pwd):
+        return sensitive_stuff(pwd)
+
+
+import json  # noqa:E402
+
+from django.views.decorators.csrf import csrf_exempt  # noqa:E402
+
+
+# Attempt to recreate this function:
+#   https://github.com/DataDog/shopist/blob/9f4c905d8a402ed1386d44568d6846d9d7b58ce2/coupon-django/coupons/views.py#L42-L46
+# Where probe creation succeeds on L42-44 and fails starting at L45...
+@csrf_exempt
+def test_json_loads(request):
+    data = json.loads(request)
+    coupon_code = data.get("coupon_code")
+    items = data.get("items")
+    return coupon_code, items
