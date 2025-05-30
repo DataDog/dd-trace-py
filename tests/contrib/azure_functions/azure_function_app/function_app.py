@@ -50,6 +50,20 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
     return func.HttpResponse("Hello Datadog!")
 
 
+@app.function_name(name="servicebusqueue")
+@app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_SETTING")
+def service_bus_queue(msg: func.ServiceBusMessage):
+    pass
+
+
+@app.function_name(name="servicebustopic")
+@app.service_bus_topic_trigger(
+    arg_name="msg", topic_name="topic.1", connection="CONNECTION_SETTING", subscription_name="subscription.1"
+)
+def service_bus_topic(msg: func.ServiceBusMessage):
+    pass
+
+
 @app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
 def timer(timer: func.TimerRequest) -> None:
     pass
