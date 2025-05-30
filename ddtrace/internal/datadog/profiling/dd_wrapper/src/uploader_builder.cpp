@@ -111,7 +111,8 @@ UploaderBuilder::build(std::unique_ptr<UploaderConfig> config)
     // when the temporary Uploader object goes out of scope.
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
-    return std::variant<Uploader, std::string>{ std::in_place_type<Uploader>, *ddog_exporter };
+    return std::variant<Uploader, std::string>{ std::in_place_type<Uploader>,
+                                                *ddog_exporter };
 }
 
 }

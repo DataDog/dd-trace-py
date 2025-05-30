@@ -36,7 +36,7 @@ def test_ddup_start():
         DD_PROFILING_MEMORY_ENABLED="False",
         DD_PROFILING_LOCK_ENABLED="False",
         DD_PROFILING_EXPORT_LIBDD_ENABLED="True",
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_tags_propagated_when_libdd_enabled",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_tags_propagated_when_libdd_enabled"
     ),
     err=None,
 )
