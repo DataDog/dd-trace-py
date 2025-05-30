@@ -394,6 +394,7 @@ class CIVisibility(Service):
                 headers=headers,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
+                use_gzip=True,
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
@@ -402,6 +403,7 @@ class CIVisibility(Service):
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
                 itr_suite_skipping_mode=self._suite_skipping_mode,
+                use_gzip=self._is_gzip_supported_by_agent(),
             )
         if writer is not None:
             self.tracer._span_aggregator.writer = writer
@@ -421,6 +423,9 @@ class CIVisibility(Service):
                 return EVP_PROXY_AGENT_BASE_PATH
         return None
 
+    def _is_gzip_supported_by_agent(self) -> bool:
+        return self._agent_evp_proxy_base_url() == EVP_PROXY_AGENT_BASE_PATH_V4
+
     def _agent_get_default_env(self) -> Optional[str]:
         try:
             info = agent.info(self.tracer._agent_url)
@@ -436,6 +441,11 @@ class CIVisibility(Service):
         # cls.enabled guarantees _instance is not None
         if not cls.enabled or cls._instance is None:
             return False
+
+        if not ddconfig._ci_visibility_intelligent_testrunner_enabled:
+            log.debug("Intelligent Test Runner is disabled by environment variable")
+            return False
+
         return cls._instance._api_settings.itr_enabled
 
     @classmethod

@@ -106,10 +106,10 @@ def stop(join=False):
 
 
 def at_exit(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._atexit()
+    # at_exit hooks are currently registered when the tracer is created. This is
+    # required to support non-global tracers (ex: CiVisibility and the Dummy Tracers used in tests).
+    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer._init__(....) to the product protocol,
+    pass
 
 
 class APMCapabilities(enum.IntFlag):
