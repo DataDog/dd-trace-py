@@ -1,6 +1,7 @@
 from collections import defaultdict
 from collections import deque
 from pathlib import Path
+from inspect import unwrap
 
 from wrapt import FunctionWrapper
 
@@ -189,6 +190,11 @@ def _collect_functions(module: ModuleType) -> Dict[str, _FunctionCodePair]:
         seen_containers.add(id(c._container))
 
         for k, o in c:
+            # Some objects are wrapped by a decorator. We need to unwrap them before the FunctionType check since
+            # they are wrapper objects.
+            if not _isinstance(o, (FunctionType, FunctionWrapper)) and hasattr(o, "__wrapped__"):
+                o = unwrap(o)
+
             code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
             if code is not None:
                 f = cast(FunctionType, o)

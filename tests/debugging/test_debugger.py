@@ -361,6 +361,37 @@ def test_debugger_tracer_correlation(stuff):
         assert all(snapshot["dd"]["span_id"] == span_id for snapshot in snapshots)
 
 
+def test_debugger_capture_decorator_outside_module(stuff):
+    snapshots = simple_debugger_test(
+        create_snapshot_line_probe(
+            probe_id="capture-decorator-outside-module",
+            source_file="tests/submod/stuff.py",
+            line=179,
+            condition=None,
+        ),
+        lambda: stuff.TestObject().test_get(1),
+    )
+
+    (snapshot,) = snapshots
+    assert "179" in snapshot["debugger"]["snapshot"]["captures"]["lines"]
+
+
+def test_debugger_capture_decorator_repro_coupon_django(stuff):
+    request = '{"shipping_info": {"shipping_address": {"city": "123456"}}, "items": [1, 2, 3]}'
+    snapshots = simple_debugger_test(
+        create_snapshot_line_probe(
+            probe_id="capture-decorator-double-wrapped-outside-module",
+            source_file="tests/submod/stuff.py",
+            line=203,
+            condition=None,
+        ),
+        lambda: stuff.checkout(request),
+    )
+
+    (snapshot,) = snapshots
+    assert "203" in snapshot["debugger"]["snapshot"]["captures"]["lines"]
+
+
 def test_debugger_captured_exception(stuff):
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(

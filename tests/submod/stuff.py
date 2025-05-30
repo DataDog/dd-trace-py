@@ -167,3 +167,37 @@ def sensitive_stuff(pwd):
     token, answer, data = "deadbeef", 42, SensitiveData()  # noqa:F841
     pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
     return pwd
+
+
+from functools import lru_cache  # noqa:E402
+
+
+class TestObject(object):
+
+    @lru_cache(maxsize=1)
+    def test_get(self, pwd):
+        return sensitive_stuff(pwd)
+
+    @lru_cache(maxsize=1)
+    @staticmethod
+    def test_get_static(pwd):
+        return sensitive_stuff(pwd)
+
+
+import json  # noqa:E402
+
+from django.views.decorators.csrf import csrf_exempt  # noqa:E402
+from unidecode import unidecode  # noqa:E402
+
+
+# Attempt to recreate this function where the probe fails on L161:
+#   https://github.com/DataDog/shopist/blob/9f4c905d8a402ed1386d44568d6846d9d7b58ce2/coupon-django/coupons/views.py#L161C4-L161C49
+@csrf_exempt
+def checkout(request):
+    payload = json.loads(request or "{}")
+    shipping_info = payload.get("shipping_info", {})
+
+    # Retrieve or create a cart and populate it with line items
+    _ = payload.get("items", [])
+    shipping_info["shipping_address"]["city"] = unidecode(shipping_info.get("shipping_address", {}).get("city", ""))
+    _ = shipping_info["shipping_address"]["city"]
