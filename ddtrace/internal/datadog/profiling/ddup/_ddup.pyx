@@ -9,7 +9,6 @@ from typing import Union
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
 from libcpp.memory cimport make_unique
 from libcpp.memory cimport unique_ptr
-from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport move
 from libcpp.utility cimport pair
@@ -53,6 +52,7 @@ cdef extern from "uploader_builder.hpp" namespace "Datadog":
         void set_profiler_version(string_view _profiler_version)
         void set_url(string_view _url)
         void set_tag(string_view _key, string_view _val)
+        void set_output_filename(string_view _output_filename)
 
 cdef extern from "ddup_interface.hpp":
     void ddup_config_max_nframes(int max_nframes)
@@ -65,7 +65,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     bint ddup_upload(unique_ptr[UploaderConfig] config) nogil
-    void ddup_export_to_file(string_view output_filename) nogil
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -294,80 +293,6 @@ cdef int64_t clamp_to_int64_unsigned(value):
     return value
 
 
-cdef unique_ptr[UploaderConfig] build_uploader_config(
-    tracer: Optional[Tracer] = ddtrace.tracer,
-    enable_code_provenance: Optional[bool] = None,
-    service: StringType = None,
-    env: StringType = None,
-    version: StringType = None,
-    tags: Optional[Dict[str, str]] = None,
-):
-    cdef unique_ptr[UploaderConfig] config = make_unique[UploaderConfig]()
-    cdef Py_ssize_t c_str_len
-    cdef const char* c_str
-
-    # Note these set_* functions allocate a new string on C++ side, so we only
-    # need to call these with string_view to avoid extra copies.
-    service = service or DEFAULT_SERVICE_NAME
-    c_str = PyUnicode_AsUTF8AndSize(service, &c_str_len)
-    if c_str != NULL:
-        config.get().set_service(string_view(c_str, c_str_len))
-
-    if env:
-        c_str = PyUnicode_AsUTF8AndSize(env, &c_str_len)
-        if c_str != NULL:
-            config.get().set_env(string_view(c_str, c_str_len))
-
-    if version:
-        c_str = PyUnicode_AsUTF8AndSize(version, &c_str_len)
-        if c_str != NULL:
-            config.get().set_version(string_view(c_str, c_str_len))
-
-    cdef Py_ssize_t val_len
-    cdef const char* val_ptr
-
-    if tags:
-        for key, val in tags.items():
-            if key and val:
-                c_str = PyUnicode_AsUTF8AndSize(key, &c_str_len)
-                val_ptr = PyUnicode_AsUTF8AndSize(val, &val_len)
-                if c_str != NULL and val_ptr != NULL:
-                    config.get().set_tag(string_view(c_str, c_str_len), string_view(val_ptr, val_len))
-
-    runtime = platform.python_implementation()
-    if runtime:
-        c_str = PyUnicode_AsUTF8AndSize(runtime, &c_str_len)
-        if c_str != NULL:
-            config.get().set_runtime(string_view(c_str, c_str_len))
-
-    runtime_id = get_runtime_id()
-    if runtime_id:
-        c_str = PyUnicode_AsUTF8AndSize(runtime_id, &c_str_len)
-        if c_str != NULL:
-            config.get().set_runtime_id(string_view(c_str, c_str_len))
-
-    runtime_version = platform.python_version()
-    if runtime_version:
-        c_str = PyUnicode_AsUTF8AndSize(runtime_version, &c_str_len)
-        if c_str != NULL:
-            config.get().set_runtime_version(string_view(c_str, c_str_len))
-
-    endpoint = _get_endpoint(tracer)
-    if endpoint:
-        c_str = PyUnicode_AsUTF8AndSize(endpoint, &c_str_len)
-        if c_str != NULL:
-            config.get().set_url(string_view(c_str, c_str_len))
-
-    profiler_version = ddtrace.__version__
-    if profiler_version:
-        c_str = PyUnicode_AsUTF8AndSize(profiler_version, &c_str_len)
-        if c_str != NULL:
-            config.get().set_profiler_version(string_view(c_str, c_str_len))
-
-    return move(config)
-
-
-
 # Module-level flag to track if code provenance has been set
 cdef bint _code_provenance_set = False
 
@@ -409,8 +334,72 @@ def upload(
 ) -> None:
     global _code_provenance_set
 
-    cdef unique_ptr[UploaderConfig] config
-    cdef string output_filename_str
+    cdef unique_ptr[UploaderConfig] config = make_unique[UploaderConfig]()
+    cdef Py_ssize_t c_str_len
+    cdef const char* c_str
+
+    # Note these set_* functions allocate a new string on C++ side, so we only
+    # need to call these with string_view to avoid extra copies.
+    service = service or DEFAULT_SERVICE_NAME
+    c_str = PyUnicode_AsUTF8AndSize(service, &c_str_len)
+    if c_str != NULL:
+        config.get().set_service(string_view(c_str, c_str_len))
+
+    if env:
+        c_str = PyUnicode_AsUTF8AndSize(env, &c_str_len)
+        if c_str != NULL:
+            config.get().set_env(string_view(c_str, c_str_len))
+
+    if version:
+        c_str = PyUnicode_AsUTF8AndSize(version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_version(string_view(c_str, c_str_len))
+
+    cdef Py_ssize_t val_len
+    cdef const char* val_ptr
+
+    if tags:
+        for key, val in tags.items():
+            if key and val:
+                c_str = PyUnicode_AsUTF8AndSize(key, &c_str_len)
+                val_ptr = PyUnicode_AsUTF8AndSize(val, &val_len)
+                if c_str != NULL and val_ptr != NULL:
+                    config.get().set_tag(string_view(c_str, c_str_len), string_view(val_ptr, val_len))
+
+    if output_filename:
+        c_str = PyUnicode_AsUTF8AndSize(output_filename, &c_str_len)
+        if c_str != NULL:
+            config.get().set_output_filename(string_view(c_str, c_str_len))
+
+    runtime = platform.python_implementation()
+    if runtime:
+        c_str = PyUnicode_AsUTF8AndSize(runtime, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime(string_view(c_str, c_str_len))
+
+    runtime_id = get_runtime_id()
+    if runtime_id:
+        c_str = PyUnicode_AsUTF8AndSize(runtime_id, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime_id(string_view(c_str, c_str_len))
+
+    runtime_version = platform.python_version()
+    if runtime_version:
+        c_str = PyUnicode_AsUTF8AndSize(runtime_version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_runtime_version(string_view(c_str, c_str_len))
+
+    endpoint = _get_endpoint(tracer)
+    if endpoint:
+        c_str = PyUnicode_AsUTF8AndSize(endpoint, &c_str_len)
+        if c_str != NULL:
+            config.get().set_url(string_view(c_str, c_str_len))
+
+    profiler_version = ddtrace.__version__
+    if profiler_version:
+        c_str = PyUnicode_AsUTF8AndSize(profiler_version, &c_str_len)
+        if c_str != NULL:
+            config.get().set_profiler_version(string_view(c_str, c_str_len))
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -418,20 +407,12 @@ def upload(
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
-    if output_filename:
-        output_filename_str = output_filename.encode("utf-8")
-        with nogil:
-            ddup_export_to_file(string_view(output_filename_str.c_str(), output_filename_str.size()))
+    if enable_code_provenance and not _code_provenance_set:
+        call_code_provenance_set_json_str(json_str_to_export())
+        _code_provenance_set = True
 
-    else:
-        config = move(build_uploader_config(tracer, enable_code_provenance, service, env, version, tags))
-
-        if enable_code_provenance and not _code_provenance_set:
-            call_code_provenance_set_json_str(json_str_to_export())
-            _code_provenance_set = True
-
-        with nogil:
-            ddup_upload(move(config))
+    with nogil:
+        ddup_upload(move(config))
 
 
 cdef class SampleHandle:

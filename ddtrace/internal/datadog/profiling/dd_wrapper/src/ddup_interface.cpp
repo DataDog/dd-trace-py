@@ -275,6 +275,13 @@ ddup_upload(std::unique_ptr<Datadog::UploaderConfig> config) // cppcheck-suppres
         return false;
     }
 
+    if (!config->get_output_filename().empty()) {
+        Datadog::Uploader::export_to_file(Datadog::Sample::profile_borrow(), config->get_output_filename());
+        Datadog::Sample::profile_release();
+        Datadog::Sample::profile_clear_state();
+        return true;
+    }
+
     auto uploader_or_err = Datadog::UploaderBuilder::build(std::move(config));
 
     if (std::holds_alternative<std::string>(uploader_or_err)) {
@@ -296,22 +303,6 @@ ddup_upload(std::unique_ptr<Datadog::UploaderConfig> config) // cppcheck-suppres
     Datadog::Sample::profile_release();
     Datadog::Sample::profile_clear_state();
     return true;
-}
-
-void
-ddup_export_to_file(std::string_view output_filename)
-{
-    static bool already_warned = false;
-    if (!is_ddup_initialized) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "ddup_export_to_file() called before ddup_start()" << std::endl;
-        }
-    }
-
-    Datadog::Uploader::export_to_file(Datadog::Sample::profile_borrow(), output_filename);
-    Datadog::Sample::profile_release();
-    Datadog::Sample::profile_clear_state();
 }
 
 void
