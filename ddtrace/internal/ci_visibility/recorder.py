@@ -992,6 +992,11 @@ class CIVisibility(Service):
         client.set_metadata("test", capabilities.tags())
 
     @classmethod
+    def get_ci_tags(cls):
+        instance = cls.get_instance()
+        return instance._tags
+
+    @classmethod
     def is_known_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
         instance = cls.get_instance()
         if instance is None:
