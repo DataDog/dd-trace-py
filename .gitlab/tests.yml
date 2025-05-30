@@ -78,8 +78,6 @@ include:
       fi
       for hash in "${hashes[@]}"
       do
-        export RIOT_HASH=${hash}
-        echo "$RIOT_HASH" > last_riot_hash.txt
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
@@ -88,28 +86,27 @@ include:
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       ./scripts/check-diff "ddtrace/contrib/integration_registry/registry.yaml" \
         "Registry YAML file (ddtrace/contrib/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
-  after_script:
-    - |
-      if [[ -f last_riot_hash.txt ]]; then
-        RIOT_HASH=$(cat last_riot_hash.txt)
-        echo "Entering riot shell for hash: $RIOT_HASH"
-        riot shell "$RIOT_HASH"
-      else
-        echo "No last_riot_hash.txt found; skipping riot shell"
-        exit 0
-      fi
+  # after_script:
+  #   - |
+  #     if [[ -f last_riot_hash.txt ]]; then
+  #       RIOT_HASH=$(cat last_riot_hash.txt)
+  #       echo "Entering riot shell for hash: $RIOT_HASH"
+  #     else
+  #       echo "No last_riot_hash.txt found; skipping riot shell"
+  #       exit 0
+  #     fi
 
-      ls -l core.* || true
-      for core in core.*; do
-        test -f "$core" || continue
-        echo "Backtrace for $core"
-        gdb -q -batch -ex "bt full" -ex q "$(which python)" "$core" > "${core}.backtrace"
-      done
-      exit
+  #     ls -l core.* || true
+  #     for core in core.*; do
+  #       test -f "$core" || continue
+  #       echo "Backtrace for $core"
+  #       gdb -q -batch -ex "bt full" -ex q "$(which python)" "$core" > "${core}.backtrace"
+  #     done
+  #     exit
 
   artifacts:
     paths:
-      - "*.backtrace"
+      - "core.*"
     when: on_failure
 
 .test_base_riot_snapshot:
