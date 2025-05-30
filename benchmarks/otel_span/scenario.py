@@ -53,3 +53,8 @@ class OtelSpan(bm.Scenario):
                         s.end()
 
         yield _
+
+        if hasattr(trace, "_span_aggregator"):
+            if hasattr(tracer._span_aggregator, "_traces"):
+                # Clear traces to avoid memory leaks and errors on shutdown
+                tracer._span_aggregator._traces.clear()
