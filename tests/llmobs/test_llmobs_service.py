@@ -2281,3 +2281,4 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_event
     assert llmobs_events[0]["_dd"]["apm_trace_id"] != llmobs_events[0]["trace_id"]
     for event in llmobs_events:
         assert event["trace_id"] == llmobs_events[0]["trace_id"]
+        assert event["_dd"]["apm_trace_id"] == llmobs_events[0]["_dd"]["apm_trace_id"]
