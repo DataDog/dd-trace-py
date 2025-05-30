@@ -167,3 +167,13 @@ def sensitive_stuff(pwd):
     token, answer, data = "deadbeef", 42, SensitiveData()  # noqa:F841
     pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
     return pwd
+
+
+from functools import lru_cache  # noqa:E402
+
+
+class TestObject(object):
+
+    @lru_cache(maxsize=1)
+    def test_get(self, pwd):
+        return sensitive_stuff(pwd)

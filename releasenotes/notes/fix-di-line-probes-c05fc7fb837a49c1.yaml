@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixed an issue where line probes were able to create line probes when the
+    function was decorated with a decorator outside of that module.
