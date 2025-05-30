@@ -59,7 +59,8 @@ def _quote_for_query(text):
     if SAFE_FOR_QUERY.match(text):
         return text
 
-    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{text}"'
 
 
 def _build_test_runs_url():
