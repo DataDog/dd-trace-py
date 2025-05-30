@@ -26,10 +26,10 @@ from ddtrace.trace import Pin
 
 try:
     from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as get_module_version
+    from importlib.metadata import version as get_package_version
 except ImportError:
     from importlib_metadata import PackageNotFoundError
-    from importlib_metadata import version as get_module_version
+    from importlib_metadata import version as get_package_version
 
 
 log = get_logger(__name__)
@@ -42,24 +42,25 @@ config._add(
 )
 
 ES_MODULE_VERSIONS = {}
-ES_MODULE_NAMES = [
-    "elasticsearch",
-    "elasticsearch1",
-    "elasticsearch2",
-    "elasticsearch5",
-    "elasticsearch6",
-    "elasticsearch7",
+ES_PACKAGE_TO_MODULE_NAME = {
+    "elasticsearch": "elasticsearch",
+    "elasticsearch1": "elasticsearch1",
+    "elasticsearch2": "elasticsearch2",
+    "elasticsearch5": "elasticsearch5",
+    "elasticsearch6": "elasticsearch6",
+    "elasticsearch7": "elasticsearch7",
     # Starting with version 8, the default transport which is what we
     # actually patch is found in the separate elastic_transport package
-    "elastic_transport",
-    "opensearchpy",
-]
+    "elastic-transport": "elastic_transport",
+    "opensearch-py": "opensearchpy",
+}
 
 
 def _es_modules():
-    for module_name in ES_MODULE_NAMES:
+    for module_name in ES_PACKAGE_TO_MODULE_NAME.values():
         try:
             module = import_module(module_name)
+            ES_MODULE_VERSIONS[module_name] = getattr(module, "__versionstr__", "")
             yield module
         except ImportError:
             pass
@@ -81,9 +82,9 @@ def _supported_versions() -> Dict[str, str]:
 def get_versions():
     # type: () -> Dict[str, str]
     if not ES_MODULE_VERSIONS:
-        for es_module in ES_MODULE_NAMES:
+        for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
             try:
-                ES_MODULE_VERSIONS[es_module] = get_module_version(es_module)
+                ES_MODULE_VERSIONS[es_module] = get_package_version(es_module)
             except PackageNotFoundError:
                 pass
     return ES_MODULE_VERSIONS

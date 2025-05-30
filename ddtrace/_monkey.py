@@ -209,6 +209,8 @@ def _get_installed_module_version(imported_module, hooked_module_name):
 def _get_integration_supported_versions(integration_patch_module, integration_name, hooked_module_name):
     # type: (ModuleType, str, str) -> Union[str, None]
     "Returns the supported version range for an integration."
+    if not hasattr(integration_patch_module, "_supported_versions"):
+        return None
 
     supported_versions = integration_patch_module._supported_versions()
     if hooked_module_name in supported_versions:
