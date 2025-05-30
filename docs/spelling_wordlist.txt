@@ -272,6 +272,7 @@ submodule
 submodules
 substring
 suitespec
+teardown
 TensorBoard
 testagent
 TestCase

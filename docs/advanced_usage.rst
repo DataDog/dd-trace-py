@@ -517,7 +517,7 @@ uWSGI
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
-- Skip atexit, `--skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled. This is to avoid crashes from native extensions that could occur during at exit teardown.
+- Skip atexit, `skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled. This is to avoid crashes from native extensions that could occur during at exit teardown.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
 - Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
@@ -525,7 +525,7 @@ Example with CLI arguments:
 
 .. code-block:: bash
 
-  uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
+  uwsgi --enable-threads --lazy-apps --skip-atexit --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
 
 
 Example with uWSGI ini file:
@@ -543,6 +543,7 @@ Example with uWSGI ini file:
   ;; ddtrace required options
   enable-threads = 1
   lazy-apps = 1
+  skip-atexit = 1
   import=ddtrace.bootstrap.sitecustomize
 
 
