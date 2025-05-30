@@ -95,7 +95,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             inner_metadata = {}
             for key in METADATA_KEYS:
                 value = metadata["metadata"].get(key)
-                if key == "headers":
+                if key == "headers" and value:
                     value = {"host": value.get("host")}
                 if value:
                     inner_metadata[key] = value
