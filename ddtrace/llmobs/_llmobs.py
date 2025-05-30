@@ -316,7 +316,7 @@ class LLMObs(Service):
 
         _llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if _llmobs_trace_id is None:
-            raise ValueError("LLMObs trace ID not found in span context")
+            _llmobs_trace_id = span.trace_id
         llmobs_trace_id = int(_llmobs_trace_id)
 
         llmobs_span_event: LLMObsSpanEvent = {
@@ -774,7 +774,7 @@ class LLMObs(Service):
             else:
                 _llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             if _llmobs_trace_id is None:
-                raise ValueError("LLMObs span has parent span with no trace ID.")
+                _llmobs_trace_id = llmobs_parent.trace_id
             llmobs_trace_id = int(_llmobs_trace_id)
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
