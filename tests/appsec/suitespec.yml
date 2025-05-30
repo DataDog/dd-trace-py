@@ -70,7 +70,7 @@ suites:
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_aggregated_memcheck/*
-    runner: hatch
+    runner: riot
     timeout: 50m
   appsec_iast_packages:
     paths:
