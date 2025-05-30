@@ -419,10 +419,9 @@ venv = Venv(
         ),
         Venv(
             name="errortracker",
-            command="pytest -n auto {cmdargs} tests/errortracking/",
+            command="pytest {cmdargs} tests/errortracking/",
             pkgs={
                 "flask": latest,
-                "pytest-xdist": latest,
             },
             pys=select_pys(min_version="3.10"),
         ),
