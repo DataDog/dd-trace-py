@@ -206,3 +206,7 @@ tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 # Serverless
 tests/internal/test_serverless.py   @DataDog/apm-core-python @DataDog/apm-serverless
 tests/contrib/aws_lambda            @DataDog/apm-serverless
+
+# Data Streams Monitoring
+ddtrace/internal/datastreams        @DataDog/data-streams-monitoring
+tests/datastreams                   @DataDog/data-streams-monitoring
