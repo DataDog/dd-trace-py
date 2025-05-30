@@ -12,7 +12,6 @@ SAFE_FOR_QUERY = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
 
 def print_test_report_links(terminalreporter):
-    breakpoint()
     redirect_test_commit_url = _build_test_commit_redirect_url()
     test_runs_url = _build_test_runs_url()
 
