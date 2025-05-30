@@ -33,7 +33,7 @@ TEXT_COMPLETION_OPERATIONS = (
     "router.atext_completion",
 )
 
-MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature")
+MODEL_LIST_KEYS = ("api_base", "model", "organization", "max_tokens", "temperature", "tags")
 METADATA_KEYS = (
     "deployment",
     "endpoint",
@@ -42,6 +42,7 @@ METADATA_KEYS = (
     "model_group",
     "model_group_size",
     "model_info",
+    "tags",
 )
 PROXY_SERVER_REQUEST_KEYS = ("body", "url", "method")
 
