@@ -1,7 +1,6 @@
+import _io
 import os
 import re
-
-import _io
 
 import ddtrace._version as version
 
