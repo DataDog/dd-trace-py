@@ -28,6 +28,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
+LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 CREWAI_APM_SPAN_NAME = "crewai.request"
@@ -82,3 +83,5 @@ DISPATCH_ON_TOOL_CALL = "on_tool_call"
 # Tool call arguments are used to lookup the associated tool call info.
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
+
+LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"

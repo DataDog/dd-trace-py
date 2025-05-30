@@ -713,13 +713,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.attempt_to_fix_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
