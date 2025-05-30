@@ -1,6 +1,7 @@
 import json
 import os
 
+from litellm import RouterGeneralSettings
 import vcr
 
 
@@ -138,6 +139,23 @@ def parse_response(resp, is_completion=False):
     return output_messages, token_metrics
 
 
+model_list = [
+    {
+        "model_name": "gpt-3.5-turbo",
+        "litellm_params": {
+            "model": "gpt-3.5-turbo",
+            "api_key": "<not-a-real-key>",
+        },
+    },
+    {
+        "model_name": "gpt-4",
+        "litellm_params": {
+            "model": "gpt-4",
+            "api_key": "<not-a-real-key>",
+        },
+    },
+]
+
 tools = [
     {
         "type": "function",
@@ -158,3 +176,26 @@ tools = [
         },
     }
 ]
+
+expected_router_settings = {
+    "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False),
+    "routing_strategy": "simple-shuffle",
+    "routing_strategy_args": {},
+    "provider_budget_config": None,
+    "retry_policy": None,
+    "enable_tag_filtering": False,
+    "model_list": [
+        {
+            "model_name": "gpt-3.5-turbo",
+            "litellm_params": {
+                "model": "gpt-3.5-turbo",
+            },
+        },
+        {
+            "model_name": "gpt-4",
+            "litellm_params": {
+                "model": "gpt-4",
+            },
+        },
+    ],
+}
