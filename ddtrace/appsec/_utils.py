@@ -52,7 +52,17 @@ class _observator:
 
 
 class DDWaf_result:
-    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
+    __slots__ = [
+        "return_code",
+        "data",
+        "actions",
+        "runtime",
+        "total_runtime",
+        "timeout",
+        "truncation",
+        "derivatives",
+        "keep",
+    ]
 
     def __init__(
         self,
@@ -64,6 +74,7 @@ class DDWaf_result:
         timeout: bool,
         truncation: _observator,
         derivatives: Dict[str, Any],
+        keep: bool = False,
     ):
         self.return_code = return_code
         self.data = data
@@ -73,6 +84,7 @@ class DDWaf_result:
         self.timeout = timeout
         self.truncation = truncation
         self.derivatives = derivatives
+        self.keep = keep
 
     def __repr__(self):
         return (
