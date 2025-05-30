@@ -2,4 +2,4 @@
 
 .. _official documentation: https://docs.datadoghq.com/tracing/visualization/
 
-.. _development guide: https://ddtrace.readthedocs.io/en/stable/contributing.html
+.. _development guide: https://github.com/datadog/dd-trace-py#development
