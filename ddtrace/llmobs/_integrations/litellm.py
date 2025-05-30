@@ -185,7 +185,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             return "workflow"
         return "llm"
 
-    def _select_keys(self, data: Dict[str, Any], keys_to_select: Tuple[str]) -> Dict[str, Any]:
+    def _select_keys(self, data: Dict[str, Any], keys_to_select: Tuple[str, ...]) -> Dict[str, Any]:
         new_data = {}
         for key in keys_to_select:
             value = data.get(key)
