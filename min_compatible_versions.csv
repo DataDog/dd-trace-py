@@ -37,7 +37,7 @@ cherrypy,>=17
 cohere,==5.4.0
 confluent-kafka,~=1.9.2
 coverage,0
-crewai,0
+crewai,>=0.102.0
 cryptography,<39
 daphne,0
 databases,0

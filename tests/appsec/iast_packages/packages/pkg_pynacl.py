@@ -3,6 +3,7 @@ PyNaCl==1.5.0
 
 https://pypi.org/project/PyNaCl/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request
@@ -53,7 +54,7 @@ def pkg_pynacl_propagation_view():
     from nacl import secret
     from nacl import utils
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 

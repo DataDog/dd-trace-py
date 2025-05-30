@@ -5,15 +5,14 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-import sys
 from threading import RLock
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import TypeVar
 from typing import Union
 
 from ddtrace._hooks import Hooks
@@ -31,7 +30,6 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
-from ddtrace.internal import compat
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
@@ -62,7 +60,7 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-AnyCallable = TypeVar("AnyCallable", bound=Callable)
+AnyCallable = Callable[..., Any]
 
 if TYPE_CHECKING:
     from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -216,15 +214,10 @@ class Tracer(object):
             register_on_exit_signal(self._atexit)
 
         self._hooks = Hooks()
+        # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
-
-        # Non-global tracers require that we still register these hooks, until
-        # their usage is fully deprecated. The global one will be managed by the
-        # product protocol. We also need to register these hooks if the library
-        # was not bootstrapped correctly.
-        if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
-            atexit.register(self._atexit)
-            forksafe.register(self._child_after_fork)
+        atexit.register(self._atexit)
+        forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -453,6 +446,7 @@ class Tracer(object):
             # the writer before that point will raise a ServiceStatusError.
             pass
         # Re-create the background writer thread
+        rules = self._span_aggregator.sampling_processor.sampler._by_service_samplers
         self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
         self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
@@ -462,6 +456,7 @@ class Tracer(object):
             self._span_aggregator.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
+        self._span_aggregator.sampling_processor.sampler._by_service_samplers = rules.copy()
 
     def _start_span_after_shutdown(
         self,
@@ -834,18 +829,12 @@ class Tracer(object):
             # right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
             if iscoroutinefunction(f):
-                # call the async factory that creates a tracing decorator capable
-                # to await the coroutine execution before finishing the span. This
-                # code is used for compatibility reasons to prevent Syntax errors
-                # in Python 2
-                func_wrapper = compat.make_async_decorator(
-                    self,
-                    f,
-                    span_name,
-                    service=service,
-                    resource=resource,
-                    span_type=span_type,
-                )
+                # create an async wrapper that awaits the coroutine and traces it
+                @functools.wraps(f)
+                async def func_wrapper(*args, **kwargs):
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return await f(*args, **kwargs)
+
             else:
 
                 @functools.wraps(f)
@@ -895,13 +884,9 @@ class Tracer(object):
                 if processor:
                     processor.shutdown(timeout)
             self.enabled = False
-            forksafe.unregister_before_fork(self._sample_before_fork)
-            # Non-global tracers require that we still register these hooks,
-            # until their usage is fully deprecated. The global one will be
-            # managed by the product protocol. We also need to register these
-            # hooks if the library was not bootstrapped correctly.
-            if not isinstance(self, Tracer) or "ddtrace.bootstrap.sitecustomize" not in sys.modules:
+            if self.start_span != self._start_span_after_shutdown:
+                # Ensure that tracer exit hooks are registered and unregistered once per instance
+                forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
-
-        self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+                self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
