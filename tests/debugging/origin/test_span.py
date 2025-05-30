@@ -63,8 +63,8 @@ class SpanProbeTestCase(TracerTestCase):
 
         # Check for the expected tags on the exit span
         assert _exit.get_tag("_dd.code_origin.type") == "exit"
-        assert _exit.get_tag("_dd.code_origin.frames.2.file") == str(Path(__file__).resolve())
-        assert _exit.get_tag("_dd.code_origin.frames.2.line") == str(self.test_span_origin.__code__.co_firstlineno)
+        assert _exit.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert _exit.get_tag("_dd.code_origin.frames.0.line") == str(self.test_span_origin.__code__.co_firstlineno)
 
     def test_span_origin_session(self):
         def entry_call():
