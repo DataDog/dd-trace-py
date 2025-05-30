@@ -145,6 +145,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_aggregated_leak_testing",
+            pys=["3.10", "3.11", "3.12"],
+            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_leak_testing/",
+            pkgs={
+                "requests": latest,
+                "pytest-asyncio": latest,
+                "anyio": latest,
+                "pydantic": latest,
+                "pydantic-settings": latest,
+            },
+            env={
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
+                "DD_FAST_BUILD": "0",
+            }
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
