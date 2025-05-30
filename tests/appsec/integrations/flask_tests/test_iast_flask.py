@@ -1235,8 +1235,20 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert "class" not in vulnerability["location"]
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection(self):
+        """Test header injection vulnerability detection in Flask test client.
+
+        This test works specifically because we're using Flask's test client, which has a different
+        header handling mechanism than a real Flask application. In the test client, setting
+        resp.headers["Header-Injection"] directly manipulates the headers without calling
+        werkzeug.datastructures.headers._str_header_value. In a real application, that method
+        would be called and it would sanitize or raise an exception for invalid header values.
+
+        This test is valuable for verifying the header injection vulnerability detection logic,
+        but it's important to note that exploiting this in a real Flask application would be more
+        difficult due to Werkzeug's header value sanitization.
+        """
+
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
