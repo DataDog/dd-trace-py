@@ -72,7 +72,7 @@ class TestPatching(SubprocessTestCase):
 
         _monkey.patch(raise_errors=False, sqlite3=True)
 
-    @run_in_subprocess()
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SAFE_INSTRUMENTATION_ENABLED="true"))
     def test_patch_guardrails_with_unsupported_integration_version(self):
         # spy on fastapi get_version method and return a fake version we don't support
         with unittest.mock.patch("ddtrace.contrib.internal.fastapi.patch.get_version", return_value="0.0.0"):
