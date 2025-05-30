@@ -1884,7 +1884,7 @@ venv = Venv(
         ),
         Venv(
             name="algoliasearch",
-            command="pytest{cmdargs} tests/contrib/algoliasearch",
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
             pkgs={"urllib3": "~=1.26.15", "pytest-randomly": latest},
             venvs=[
                 Venv(
