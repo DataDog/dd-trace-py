@@ -376,20 +376,20 @@ def test_debugger_capture_decorator_outside_module(stuff):
     assert "179" in snapshot["debugger"]["snapshot"]["captures"]["lines"]
 
 
-def test_debugger_capture_decorator_double_wrapped_outside_module(stuff):
-    request = '{"coupon_code": "123456", "items": [1, 2, 3]}'
+def test_debugger_capture_decorator_repro_coupon_django(stuff):
+    request = '{"shipping_info": {"shipping_address": {"city": "123456"}}, "items": [1, 2, 3]}'
     snapshots = simple_debugger_test(
         create_snapshot_line_probe(
             probe_id="capture-decorator-double-wrapped-outside-module",
             source_file="tests/submod/stuff.py",
-            line=197,
+            line=203,
             condition=None,
         ),
-        lambda: stuff.test_json_loads(request),
+        lambda: stuff.checkout(request),
     )
 
     (snapshot,) = snapshots
-    assert "197" in snapshot["debugger"]["snapshot"]["captures"]["lines"]
+    assert "203" in snapshot["debugger"]["snapshot"]["captures"]["lines"]
 
 
 def test_debugger_captured_exception(stuff):

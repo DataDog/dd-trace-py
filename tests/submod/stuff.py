@@ -187,14 +187,17 @@ class TestObject(object):
 import json  # noqa:E402
 
 from django.views.decorators.csrf import csrf_exempt  # noqa:E402
+from unidecode import unidecode  # noqa:E402
 
 
-# Attempt to recreate this function:
-#   https://github.com/DataDog/shopist/blob/9f4c905d8a402ed1386d44568d6846d9d7b58ce2/coupon-django/coupons/views.py#L42-L46
-# Where probe creation succeeds on L42-44 and fails starting at L45...
+# Attempt to recreate this function where the probe fails on L161:
+#   https://github.com/DataDog/shopist/blob/9f4c905d8a402ed1386d44568d6846d9d7b58ce2/coupon-django/coupons/views.py#L161C4-L161C49
 @csrf_exempt
-def test_json_loads(request):
-    data = json.loads(request)
-    coupon_code = data.get("coupon_code")
-    items = data.get("items")
-    return coupon_code, items
+def checkout(request):
+    payload = json.loads(request or "{}")
+    shipping_info = payload.get("shipping_info", {})
+
+    # Retrieve or create a cart and populate it with line items
+    _ = payload.get("items", [])
+    shipping_info["shipping_address"]["city"] = unidecode(shipping_info.get("shipping_address", {}).get("city", ""))
+    _ = shipping_info["shipping_address"]["city"]
