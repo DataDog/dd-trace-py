@@ -446,6 +446,7 @@ class Tracer(object):
             # the writer before that point will raise a ServiceStatusError.
             pass
         # Re-create the background writer thread
+        rules = self._span_aggregator.sampling_processor.sampler._by_service_samplers
         self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
         self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
@@ -455,6 +456,7 @@ class Tracer(object):
             self._span_aggregator.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
+        self._span_aggregator.sampling_processor.sampler._by_service_samplers = rules.copy()
 
     def _start_span_after_shutdown(
         self,
