@@ -316,6 +316,7 @@ class LLMObs(Service):
 
         _llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if _llmobs_trace_id is None:
+            log.warning("Failed to extract LLMObs trace ID; using span trace ID instead.")
             _llmobs_trace_id = span.trace_id
         llmobs_trace_id = int(_llmobs_trace_id)
 
@@ -1559,6 +1560,9 @@ class LLMObs(Service):
         _llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
         if _llmobs_trace_id is None:
             log.warning("Failed to extract LLMObs trace ID from request headers.")
+            llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+            cls._instance._llmobs_context_provider.activate(llmobs_context)
             return "missing_llmobs_trace_id"
         try:
             llmobs_trace_id = str(_llmobs_trace_id)
