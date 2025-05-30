@@ -100,7 +100,7 @@ class APIManager(Service):
             False: if sampled
             True: if we should collect
         """
-        if priority <= 0:
+        if priority <= 0 and asm_config._apm_tracing_enabled:
             return False
 
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
