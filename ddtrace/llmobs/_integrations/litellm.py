@@ -102,7 +102,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
                     inner_metadata[key] = value
             metadata["metadata"] = inner_metadata
         if "proxy_server_request" in metadata:
-            metadata["proxy_server_request"] = self._select_keys(metadata["proxy_server_request"], PROXY_SERVER_REQUEST_KEYS)
+            metadata["proxy_server_request"] = self._select_keys(
+                metadata["proxy_server_request"], PROXY_SERVER_REQUEST_KEYS
+            )
 
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
@@ -182,7 +184,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if self.is_router_operation(operation) or base_url:
             return "workflow"
         return "llm"
-    
+
     def _select_keys(self, data: Dict[str, Any], keys_to_select: Tuple[str]) -> Dict[str, Any]:
         new_data = {}
         for key in keys_to_select:
