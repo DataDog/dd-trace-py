@@ -18,6 +18,7 @@ from django.shortcuts import redirect
 from django.shortcuts import render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
+from django.views.decorators.csrf import csrf_exempt
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -347,6 +348,7 @@ def view_insecure_cookies_insecure_special_chars(request):
     return res
 
 
+@csrf_exempt
 def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
@@ -381,11 +383,20 @@ def xss_secure_mark(request):
     return render(request, "index.html", {"user_input": mark_safe(value_secure)})
 
 
+@csrf_exempt
 def header_injection(request):
     value = request.body.decode()
 
-    response = HttpResponse("OK", status=200)
+    response = HttpResponse(f"OK:{value}", status=200)
     # label iast_header_injection
+    response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
+    return response
+
+
+def header_injection_secure(request):
+    value = request.body.decode()
+
+    response = HttpResponse("OK", status=200)
     response.headers["Header-Injection"] = value
     return response
 
