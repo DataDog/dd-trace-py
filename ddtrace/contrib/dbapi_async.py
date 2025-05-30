@@ -6,7 +6,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
 
-from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -80,10 +79,6 @@ class TracedAsyncCursor(TracedCursor):
                 from ddtrace.appsec._iast.taint_sinks.sql_injection import check_and_report_sqli
 
                 check_and_report_sqli(args, kwargs, self._self_config.integration_name, method)
-
-            # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedAsyncCursor):
-                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             # dispatch DBM
             if dbm_propagator:
