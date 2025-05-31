@@ -191,6 +191,20 @@ stack_v2_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_v2_set_max_nframes(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int max_nframes;
+
+    if (!PyArg_ParseTuple(args, "i", &max_nframes)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_nframes(max_nframes);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
@@ -201,6 +215,7 @@ static PyMethodDef _stack_v2_methods[] = {
       reinterpret_cast<PyCFunction>(stack_v2_link_span),
       METH_VARARGS | METH_KEYWORDS,
       "Link a span to a thread" },
+    { "set_max_nframes", stack_v2_set_max_nframes, METH_VARARGS, "Set the maximum number of frames to unwind" },
     // asyncio task support
     { "track_asyncio_loop", stack_v2_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
