@@ -1,5 +1,5 @@
 dependency,integration,minimum_tracer_supported,max_tracer_supported,auto-instrumented
-aiobotocore,aiobotocore,1.4.2,2.16.0,False
+aiobotocore,aiobotocore,1.0.7,2.16.0,False
 aiohttp,aiohttp,3.10.5,3.10.9,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True

@@ -1,4 +1,6 @@
 import os
+from typing import Collection
+from typing import Dict
 
 import aiobotocore.client
 import wrapt
@@ -43,6 +45,10 @@ config._add(
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
+
+
+def _supported_versions() -> Dict[str, Collection[str]]:
+    return {"aiobotocore": ">=1.0.0"}
 
 
 def get_version():

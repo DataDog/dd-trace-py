@@ -2,11 +2,13 @@ import importlib
 import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Dict  # noqa:F401
 
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.version_specifier import VersionSpecifier
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
@@ -18,11 +20,11 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from types import ModuleType  # noqa:F401
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Union  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -178,6 +180,71 @@ class ModuleNotFoundException(PatchException):
     pass
 
 
+class IncompatibleModuleException(PatchException):
+    pass
+
+
+def is_version_compatible(version, supported_versions_spec):
+    # type: (str, str) -> bool
+    "Returns whether a given package version is compatible with the integration's supported version range."
+
+    if not supported_versions_spec:
+        return False
+
+    version_specifier = VersionSpecifier(supported_versions_spec)
+    return version_specifier.contains(version)
+
+
+def _get_installed_module_version(imported_module, hooked_module_name):
+    # type: (ModuleType, str) -> Union[str, None]
+    "Returns the installed version of a module."
+
+    if hasattr(imported_module, "get_versions"):
+        return imported_module.get_versions().get(hooked_module_name)
+    elif hasattr(imported_module, "get_version"):
+        return imported_module.get_version()
+    return None
+
+
+def _get_integration_supported_versions(integration_patch_module, integration_name, hooked_module_name):
+    # type: (ModuleType, str, str) -> Union[str, None]
+    "Returns the supported version range for an integration."
+    if not hasattr(integration_patch_module, "_supported_versions"):
+        return None
+
+    supported_versions = integration_patch_module._supported_versions()
+    if hooked_module_name in supported_versions:
+        return supported_versions[hooked_module_name]
+    elif integration_name in supported_versions:
+        return supported_versions[integration_name]
+    return None
+
+
+def check_module_compatibility(integration_patch_module, integration_name, hooked_module_name):
+    # type: (ModuleType, str, str) -> None
+    "Determines if a module should be patched based on installed version and the integration's supported version range."
+
+    # stdlib modules will not have an associated version and should always be patched
+    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name)
+    if not installed_version:
+        return
+
+    supported_version_spec = _get_integration_supported_versions(
+        integration_patch_module, integration_name, hooked_module_name
+    )
+    if not supported_version_spec:
+        # TODO: once all integrations have a supported version spec, we should raise an error here
+        return
+
+    if not is_version_compatible(installed_version, supported_version_spec):
+        message = (
+            f"Skipped patching '{integration_name}' integration, installed version: {installed_version} "
+            f"is not compatible with integration support spec: {supported_version_spec}."
+        )
+        raise IncompatibleModuleException(message)
+    return
+
+
 def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
     # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
@@ -186,11 +253,18 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
         # Import and patch module
         try:
             imported_module = importlib.import_module(path_f % (module,))
+
+            # if safe instrumentation is enabled, we check if the module's version
+            # is compatible with the integration's supported version range, and throw an error if it is not
+            if config._trace_safe_instrumentation_enabled:
+                check_module_compatibility(imported_module, module, hook.__name__)
+
             imported_module.patch()
             if hasattr(imported_module, "patch_submodules"):
                 imported_module.patch_submodules(patch_indicator)
         except Exception as e:
-            if raise_errors:
+            # don't raise errors for incompatible integration versions
+            if raise_errors and not isinstance(e, IncompatibleModuleException):
                 raise
             log.error(
                 "failed to enable ddtrace support for %s: %s",
@@ -198,12 +272,15 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 str(e),
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS,
-                "integration_errors",
-                1,
-                (("integration_name", module), ("error_type", type(e).__name__)),
-            )
+
+            # don't send telemetry for incompatible integration versions
+            if not isinstance(e, IncompatibleModuleException):
+                telemetry.telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.TRACERS,
+                    "integration_errors",
+                    1,
+                    (("integration_name", module), ("error_type", type(e).__name__)),
+                )
         else:
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
