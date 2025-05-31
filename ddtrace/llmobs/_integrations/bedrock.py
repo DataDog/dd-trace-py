@@ -7,14 +7,28 @@ from typing import Tuple
 from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
+from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_custom_orchestration_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_failure_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_guardrail_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_orchestration_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_post_processing_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_pre_processing_trace
+from ddtrace.llmobs._integrations.bedrock_agents import _translate_routing_classifier_trace
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.trace import Span
@@ -23,10 +37,21 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 BEDROCK_URL_REGEX_PATTERN = "^bedrock-runtime[\\w.-]*.com$"
+BEDROCK_AGENTS_TRACE_CONVERSION_METHODS = {
+    "customOrchestrationTrace": _translate_custom_orchestration_trace,
+    "failureTrace": _translate_failure_trace,
+    "guardrailTrace": _translate_guardrail_trace,
+    "orchestrationTrace": _translate_orchestration_trace,
+    "postProcessingTrace": _translate_post_processing_trace,
+    "preProcessingTrace": _translate_pre_processing_trace,
+    "routingClassifierTrace": _translate_routing_classifier_trace,
+}
 
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
+    _spans = {}  # Maps LLMObs span ID to LLMObs span events
+    _active_span_by_step_id = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
@@ -51,6 +76,9 @@ class BedrockIntegration(BaseLLMIntegration):
             "llmobs.stop_reason": Optional[str],
         }
         """
+        if operation == "agent":
+            return self._llmobs_set_tags_agent(span, args, kwargs, response)
+
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
@@ -105,6 +133,57 @@ class BedrockIntegration(BaseLLMIntegration):
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+    def _llmobs_set_tags_agent(self, span, args, kwargs, response):
+        if not self.llmobs_enabled or not span:
+            return
+        input_value = args[1].get("inputText", "")
+        agent_id = args[1].get("agentId", "")
+        agent_alias_id = args[1].get("agentAliasId", "")
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "agent",
+                INPUT_VALUE: str(input_value),
+                TAGS: {"session_id": args[1].get("sessionId", [])},
+                METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
+            }
+        )
+        if not response:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, str(response))
+
+    def translate_bedrock_traces(self, traces, chunks, root_span) -> None:
+        """Translate bedrock agent traces to a format suitable for LLMObs."""
+        if not traces or not self.llmobs_enabled:
+            return
+        try:
+            for trace in traces:
+                trace_type = _extract_trace_type(trace) or ""
+                if trace_type not in BEDROCK_AGENTS_TRACE_CONVERSION_METHODS:
+                    log.warning("Unsupported trace type '%s' in Bedrock trace: %s", trace_type, trace)
+                    continue
+                trace_step_id = _extract_trace_step_id(trace)
+                current_active_span_event = self._active_span_by_step_id.pop(trace_step_id, None)
+                translated_span_event, finished = BEDROCK_AGENTS_TRACE_CONVERSION_METHODS[trace_type](
+                    trace,
+                    root_span,
+                    current_active_span_event,
+                    trace_step_id,
+                )
+                if translated_span_event:
+                    self._spans[translated_span_event["span_id"]] = translated_span_event
+                    if not finished:
+                        self._active_span_by_step_id[trace_step_id] = translated_span_event
+                _create_or_update_bedrock_trace_step_span(trace, translated_span_event, root_span, self._spans)
+            for (
+                _,
+                span_event,
+            ) in self._spans.items():
+                LLMObs._instance._llmobs_span_writer.enqueue(span_event)
+        except Exception as e:
+            log.error("Error translating Bedrock traces: %s", e)
+        self._spans.clear()
+        self._active_span_by_step_id.clear()
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):

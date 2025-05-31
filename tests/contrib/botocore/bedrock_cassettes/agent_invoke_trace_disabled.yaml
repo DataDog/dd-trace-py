@@ -1,0 +1,79 @@
+interactions:
+- request:
+    body: '{"enableTrace": false, "inputText": "I like beach vacations but also nature
+      and outdoor adventures. I''d like the trip to be 7 days, and include lounging
+      on the beach, something like an all-inclusive resort is nice too (but I prefer
+      luxury 4/5 star resorts)"}'
+    headers:
+      Content-Length:
+      - '258'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNC40OSBtZC9Cb3RvY29yZSMxLjM0LjQ5IHVhLzIuMCBvcy9tYWNvcyMyNC40LjAg
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjUgbWQvcHlpbXBsI0NQeXRob24gY2ZnL3Jl
+        dHJ5LW1vZGUjbGVnYWN5IEJvdG9jb3JlLzEuMzQuNDk=
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTA1MzBUMTUyMDQzWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        ZWU5ZmJkNzYtMjI4OC00MzFjLWE3M2ItMGZkMGYyZmRkMDU4
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-agent-runtime.us-east-1.amazonaws.com/agents/EITYAHSOCJ/agentAliases/NWGOFQESWP/sessions/test_session/text
+  response:
+    body:
+      string: !!binary |
+        AAAGawAAAEu8l+IwCzpldmVudC10eXBlBwAFY2h1bmsNOmNvbnRlbnQtdHlwZQcAEGFwcGxpY2F0
+        aW9uL2pzb24NOm1lc3NhZ2UtdHlwZQcABWV2ZW50eyJieXRlcyI6IlFtRnpaV1FnYjI0Z2VXOTFj
+        aUJ3Y21WbVpYSmxibU5sY3lCbWIzSWdZU0JpWldGamFDQjJZV05oZEdsdmJpQjNhWFJvSUc1aGRI
+        VnlaU0JoYm1RZ2IzVjBaRzl2Y2lCaFpIWmxiblIxY21WekxDQkpJSEpsWTI5dGJXVnVaQ0JoSURj
+        dFpHRjVJSFJ5YVhBZ2RHOGdUV0Z1ZFdWc0lFRnVkRzl1YVc4c0lFTnZjM1JoSUZKcFkyRXVJRlJv
+        YVhNZ1pHVnpkR2x1WVhScGIyNGdiMlptWlhKeklHSmxZWFYwYVdaMWJDQmlaV0ZqYUdWekxDQnNk
+        WE5vSUc1aGRIVnlaU3dnWVc1a0lIQnNaVzUwZVNCdlppQnZkWFJrYjI5eUlHRmpkR2wyYVhScFpY
+        TXVDZ3BVYUdVZ1ltVnpkQ0IwYVcxbElIUnZJSFpwYzJsMElFMWhiblZsYkNCQmJuUnZibWx2SUds
+        eklHUjFjbWx1WnlCMGFHVWdaSEo1SUhObFlYTnZiaXdnWm5KdmJTQkVaV05sYldKbGNpQjBieUJC
+        Y0hKcGJDNGdWR2hwY3lCd1pYSnBiMlFnYjJabVpYSnpJR2xrWldGc0lIZGxZWFJvWlhJZ1ptOXlJ
+        R0psWVdOb0lHRmpkR2wyYVhScFpYTWdZVzVrSUc5MWRHUnZiM0lnWVdSMlpXNTBkWEpsY3k0Z1ZH
+        aGxJR0YyWlhKaFoyVWdZMjl6ZENCbWIzSWdZU0EzTFdSaGVTQjBjbWx3SUdseklHRnliM1Z1WkNB
+        a01TdzFNREFnZEc4Z0pESXNNREF3SUhCbGNpQndaWEp6YjI0c0lIZG9hV05vSUdOaGJpQjJZWEo1
+        SUdSbGNHVnVaR2x1WnlCdmJpQjViM1Z5SUdOb2IybGpaU0J2WmlCaFkyTnZiVzF2WkdGMGFXOXVJ
+        R0Z1WkNCaFkzUnBkbWwwYVdWekxnb0tUV0Z1ZFdWc0lFRnVkRzl1YVc4Z2FYTWdhMjV2ZDI0Z1pt
+        OXlJR2wwY3lCemRIVnVibWx1WnlCaVpXRmphR1Z6SUdGdVpDQnVZWFJwYjI1aGJDQndZWEpyTENC
+        M2FHVnlaU0I1YjNVZ1kyRnVJR1Z1YW05NUlHSnZkR2dnY21Wc1lYaGhkR2x2YmlCaGJtUWdZV1Iy
+        Wlc1MGRYSmxMaUJVYUdWeVpTQmhjbVVnYzJWMlpYSmhiQ0JzZFhoMWNua2djbVZ6YjNKMGN5QnBi
+        aUIwYUdVZ1lYSmxZU0IwYUdGMElHOW1abVZ5SUdGc2JDMXBibU5zZFhOcGRtVWdjR0ZqYTJGblpY
+        TXNJR05oZEdWeWFXNW5JSFJ2SUhsdmRYSWdjSEpsWm1WeVpXNWpaU0JtYjNJZ05DODFJSE4wWVhJ
+        Z1lXTmpiMjF0YjJSaGRHbHZibk11Q2dwVGIyMWxJR0ZqZEdsMmFYUnBaWE1nZVc5MUlHMXBaMmgw
+        SUdWdWFtOTVJR2x1WTJ4MVpHVTZDakV1SUV4dmRXNW5hVzVuSUc5dUlFMWhiblZsYkNCQmJuUnZi
+        bWx2SUVKbFlXTm9Dakl1SUVWNGNHeHZjbWx1WnlCTllXNTFaV3dnUVc1MGIyNXBieUJPWVhScGIy
+        NWhiQ0JRWVhKckNqTXVJRnBwY0Mxc2FXNXBibWNnZEdoeWIzVm5hQ0IwYUdVZ2NtRnBibVp2Y21W
+        emRBbzBMaUJVWVd0cGJtY2dZU0J6ZFc1elpYUWdZMkYwWVcxaGNtRnVJR055ZFdselpRbzFMaUJG
+        Ym1wdmVXbHVaeUJ6Y0dFZ2RISmxZWFJ0Wlc1MGN5QmhkQ0I1YjNWeUlISmxjMjl5ZEFvS1VtVnRa
+        VzFpWlhJZ2RHOGdZbTl2YXlCNWIzVnlJR0ZqWTI5dGJXOWtZWFJwYjI1eklHRnVaQ0JoWTNScGRt
+        bDBhV1Z6SUdsdUlHRmtkbUZ1WTJVc0lHVnpjR1ZqYVdGc2JIa2dhV1lnZVc5MUozSmxJSFJ5WVha
+        bGJHbHVaeUJrZFhKcGJtY2dkR2hsSUhCbFlXc2djMlZoYzI5dUxnPT0ife6tOws=
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/vnd.amazon.eventstream
+      Date:
+      - Fri, 30 May 2025 15:20:43 GMT
+      Transfer-Encoding:
+      - chunked
+      x-amz-bedrock-agent-session-id:
+      - test_session
+      x-amzn-RequestId:
+      - 48bada98-5211-408c-a9e7-e68082ffd558
+      x-amzn-bedrock-agent-content-type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1
