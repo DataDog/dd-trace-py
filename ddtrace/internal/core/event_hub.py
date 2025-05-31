@@ -1,5 +1,7 @@
+import atexit
 import dataclasses
 import enum
+import os
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -90,6 +92,9 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
 
 def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
     """Call all hooks for the provided event_id with the provided args"""
+    if os.getenv("PYTEST_XDIST_WORKER") and event_id.startswith("test_visibility."):
+        return remote_dispatch(event_id, args)
+
     global _all_listeners
     global _listeners
 
@@ -115,6 +120,9 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
     """
+    if os.getenv("PYTEST_XDIST_WORKER") and event_id.startswith("test_visibility."):
+        return remote_dispatch_with_results(event_id, args)
+
     global _listeners
     global _all_listeners
 
@@ -138,3 +146,77 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
             results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, e)
 
     return results
+
+
+
+import pickle
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.request import urlopen
+from ddtrace.internal import core
+
+DD_CORE_HOST = "localhost"
+DD_CORE_PORT = 41414
+
+
+class DDCoreRequestHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get('content-length'))
+        body = self.rfile.read(length)
+        args = pickle.loads(body)
+
+        if self.path == "/dispatch":
+            method = core.dispatch
+        elif self.path == "/dispatch_with_results":
+            method = core.dispatch_with_results
+        else:
+            raise Exception("unknown core method")
+
+        #print("REQUEST:", args, flush=True)
+        result = method(*args)
+        if isinstance(result, EventResultDict):
+            result = {**result} # avoid mysterious "object is not callable" error from pickle.dumps
+        #print("RESULT:", result, flush=True)
+        body = pickle.dumps(result)
+
+        self.wfile.write(b"HTTP/1.0 200 OK\r\n")
+        self.wfile.write(b"content-length: " + (str(len(body)).encode('utf-8')) + b"\r\n\r\n")
+        self.wfile.write(body)
+
+class DDCoreServer:
+    server = None
+
+    @classmethod
+    def start(cls):
+        if os.getenv("PYTEST_XDIST_WORKER"):
+            return
+        print("ꙮ Starting core event hub server ꙮ")
+        def core_server_thread():
+            cls.server = HTTPServer((DD_CORE_HOST, DD_CORE_PORT), DDCoreRequestHandler)
+            cls.server.allow_reuse_address = True
+            cls.server.serve_forever()
+        threading.Thread(target=core_server_thread).start()
+
+    @classmethod
+    def stop(cls):
+        if os.getenv("PYTEST_XDIST_WORKER"):
+            return
+        print("ꙮ Stopping core event hub server ꙮ")
+        cls.server.shutdown()
+
+
+def remote_dispatch(*args):
+    if args[0] in ["test_visibility.enable", "test_visibility.disable"]:
+        return
+    print("ꙮ Remote dispatch: {args}", flush=True)
+    response = urlopen(f"http://{DD_CORE_HOST}:{DD_CORE_PORT}/dispatch", data=pickle.dumps(args))
+    result = pickle.loads(response.read())
+    print("ꙮ Remote dispatch result: {result}")
+    return result
+
+def remote_dispatch_with_results(*args):
+    print("ꙮ Remote dispatch_with_results: {args}", flush=True)
+    response = urlopen(f"http://{DD_CORE_HOST}:{DD_CORE_PORT}/dispatch_with_results", data=pickle.dumps(args))
+    result = EventResultDict(pickle.loads(response.read()))
+    print("ꙮ Remote dispatch_with_results result: {result}")
+    return result
