@@ -75,7 +75,6 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 # Targets to target dirs
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
-target_dirs["crashtracker"]="crashtracker"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
@@ -217,8 +216,6 @@ print_help() {
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
-  echo "  crashtracker (also builds dd_wrapper)"
-  echo "  crashtracker_test (also builds dd_wrapper_test)"
 }
 
 print_cmake_args() {
@@ -342,7 +339,6 @@ add_target() {
     all|--)
       targets+=("stack_v2")
       targets+=("ddup")
-      targets+=("crashtracker")
       ;;
     dd_wrapper)
       # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
@@ -354,9 +350,6 @@ add_target() {
       ;;
     ddup)
       targets+=("ddup")
-      ;;
-    crashtracker)
-      targets+=("crashtracker")
       ;;
     *)
       echo "Unknown target: $1"
