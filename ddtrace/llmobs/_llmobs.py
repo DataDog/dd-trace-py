@@ -1553,7 +1553,7 @@ class LLMObs(Service):
             return "missing_context"
         _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         if _parent_id is None:
-            log.warning("Failed to extract LLMObs parent ID from request headers.")
+            log.debug("Failed to extract LLMObs parent ID from request headers.")
             return "missing_parent_id"
         try:
             parent_id = int(_parent_id)
