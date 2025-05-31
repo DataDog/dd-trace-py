@@ -48,7 +48,6 @@ def configure_ddtrace_logger():
 def _configure_ddtrace_debug_logger(logger):
     if get_config("DD_TRACE_DEBUG", False, asbool):
         logger.setLevel(logging.DEBUG)
-        logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
 def _configure_ddtrace_file_logger(logger):

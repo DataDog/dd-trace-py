@@ -62,7 +62,6 @@ def fetch_config_from_endpoint() -> dict:
     config_endpoint = os.getenv(_CONFIG_ENDPOINT_ENV, None)
 
     if config_endpoint is None:
-        log.debug("Configuration endpoint not set. Skipping fetching configuration.")
         return {}
 
     try:
