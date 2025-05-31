@@ -85,6 +85,11 @@ class ModuleCodeCollector(ModuleWatchdog):
         if include_paths is None:
             include_paths = [Path(os.getcwd())]
 
+        # Include paths from _DD_CIVISIBILITY_COVERAGE_INCLUDE_PATHS environment variable
+        env_include_paths = os.environ.get("_DD_CIVISIBILITY_COVERAGE_INCLUDE_PATHS")
+        if env_include_paths:
+            include_paths.extend(Path(path.strip()) for path in env_include_paths.split(os.pathsep) if path.strip())
+
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
 
@@ -323,7 +328,9 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Not a code object we want to instrument
             return code
 
-        if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths):
+        if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths) and not any(
+            code_path.is_relative_to(include_path) for include_path in self._include_paths
+        ):
             # Don't instrument code from standard library/site packages/etc.
             return code
 
