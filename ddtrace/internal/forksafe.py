@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
 _registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
+_registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -26,16 +27,6 @@ _soft = True
 
 # Flag to determine, from the parent process, if fork has been called
 _forked = False
-
-
-def set_forked():
-    global _forked
-
-    _forked = True
-
-
-def has_forked():
-    return _forked
 
 
 def run_hooks(registry):
@@ -50,6 +41,17 @@ def run_hooks(registry):
 
 ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
 ddtrace_after_in_child = functools.partial(run_hooks, _registry)
+ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
+
+
+def set_forked():
+    global _forked
+
+    _forked = True
+
+
+def has_forked():
+    return _forked
 
 
 def register_hook(registry, hook):
@@ -59,6 +61,9 @@ def register_hook(registry, hook):
 
 register_before_fork = functools.partial(register_hook, _registry_before_fork)
 register = functools.partial(register_hook, _registry)
+register_after_parent = functools.partial(register_hook, _registry_after_parent)
+
+register_after_parent(set_forked)
 
 
 def unregister(after_in_child):
@@ -67,6 +72,14 @@ def unregister(after_in_child):
         _registry.remove(after_in_child)
     except ValueError:
         log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
+
+
+def unregister_parent(after_in_parent):
+    # type: (typing.Callable[[], None]) -> None
+    try:
+        _registry.remove(after_in_parent)
+    except ValueError:
+        log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
 
 
 def unregister_before_fork(before_fork):
@@ -78,7 +91,9 @@ def unregister_before_fork(before_fork):
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
+    os.register_at_fork(
+        before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
+    )
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 

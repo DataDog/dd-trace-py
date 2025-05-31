@@ -48,8 +48,8 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -127,15 +127,6 @@ def _default_span_processors_factory(
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         span_processors.append(AppSecIastSpanProcessor())
-
-    if config._trace_compute_stats:
-        # Inline the import to avoid pulling in ddsketch or protobuf
-        # when importing ddtrace.
-        from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-
-        span_processors.append(
-            SpanStatsProcessorV06(),
-        )
 
     span_processors.append(profiling_span_processor)
 
@@ -218,6 +209,7 @@ class Tracer(object):
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        forksafe.register_after_parent(self._parent_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -280,6 +272,8 @@ class Tracer(object):
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
+        if isinstance(self._writer, NativeWriter):
+            self._writer._exporter.stop_worker()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -388,7 +382,7 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
-        if isinstance(self._span_aggregator.writer, AgentWriter):
+        if isinstance(self._span_aggregator.writer, NativeWriter):
             if appsec_enabled:
                 self._span_aggregator.writer._api_version = "v0.4"
 
@@ -434,6 +428,11 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate()
         self._new_process = True
+
+    def _parent_after_fork(self):
+        if isinstance(self._writer, NativeWriter):
+            pass
+            # self._writer.start_worker_thread()
 
     def _recreate(self):
         """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
@@ -766,7 +765,7 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
+        if isinstance(self._span_aggregator.writer, NativeWriter):
             return self._span_aggregator.writer.agent_url
 
         return None
@@ -889,4 +888,5 @@ class Tracer(object):
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
+                forksafe.unregister(self._parent_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]

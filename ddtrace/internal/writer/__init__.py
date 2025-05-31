@@ -7,3 +7,4 @@ from .writer import Response  # noqa:F401
 from .writer import TraceWriter  # noqa:F401
 from .writer import _human_size  # noqa:F401
 from .writer_client import WriterClientBase  # noqa:F401
+from .writer import NativeWriter  # noqa:I001,F401
