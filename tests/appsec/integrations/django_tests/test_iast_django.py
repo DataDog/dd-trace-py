@@ -966,25 +966,44 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_header_injection_secure(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/appsec/header-injection-secure/",
+        payload="master",
+        content_type="application/json",
+    )
+    assert response.headers["Header-Injection"] == "master"
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, iast_span, tracer):
-    root_span, _ = _aux_appsec_get_root_span(
+    root_span, response = _aux_appsec_get_root_span(
         client,
         iast_span,
         tracer,
         url="/appsec/header-injection/",
-        payload="master",
+        payload="master\r\nInjected-Header: 1234",
         content_type="application/json",
     )
-
+    # Response.headers are ok in the tests, but if django call to response.serialize_headers() the result is
+    # b'Content-Type: text/html; charset=utf-8\r\nHeader-Injection: master\r\nInjected-Header: 1234'
+    assert response.headers["Header-Injection"] == "master\r\nInjected-Header: 1234"
     loaded = json.loads(root_span.get_tag(IAST.JSON))
 
     line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
 
-    assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
+    assert loaded["sources"] == [
+        {"origin": "http.request.body", "name": "http.request.body", "value": "master\r\nInjected-Header: 1234"}
+    ]
     assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
     assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
-        "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
+        "valueParts": [{"value": "Header-Injection: "}, {"value": "master\r\nInjected-Header: 1234", "source": 0}]
     }
     assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE

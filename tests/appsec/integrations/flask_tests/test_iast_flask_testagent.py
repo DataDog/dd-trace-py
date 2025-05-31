@@ -105,7 +105,21 @@ def test_iast_cmdi_secure():
     clear_session(token)
 
 
-def test_iast_header_injection():
+def test_iast_header_injection_secure():
+    """Test that header injection is prevented in a real Flask application.
+
+    This test demonstrates the secure behavior of Flask's header handling in a real application
+    environment. When setting headers using response.headers['Header-Name'] = value, Flask uses
+    Werkzeug's header handling mechanism which calls werkzeug.datastructures.headers._str_header_value
+    internally. This method sanitizes header values and prevents header injection attacks by:
+
+    1. Validating the header value format
+    2. Removing or escaping potentially dangerous characters
+    3. Raising exceptions for invalid header values
+
+    This is in contrast to the test client behavior (test_flask_header_injection) where header
+    values can be set directly without going through Werkzeug's sanitization.
+    """
     token = "test_iast_header_injection"
     _ = start_trace(token)
     with flask_server(
@@ -113,7 +127,7 @@ def test_iast_header_injection():
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get("/iast-header-injection-vulnerability?header=header_injection_param")
+        response = flask_client.get("/iast-header-injection-vulnerability-secure?header=header_injection_param")
 
         assert response.status_code == 200
 
@@ -130,18 +144,7 @@ def test_iast_header_injection():
     clear_session(token)
 
     assert len(spans_with_iast) == 2
-    assert len(vulnerabilities) == 1
-    assert len(vulnerabilities[0]) == 1
-    vulnerability = vulnerabilities[0][0]
-    assert vulnerability["type"] == VULN_HEADER_INJECTION
-    assert vulnerability["evidence"]["valueParts"] == [
-        {"value": "Header-Injection: "},
-        {"value": "header_injection_param", "source": 0},
-    ]
-    assert vulnerability["location"]["spanId"]
-    assert not vulnerability["location"]["path"].startswith("werkzeug")
-    assert vulnerability["location"]["stackId"]
-    assert vulnerability["hash"]
+    assert len(vulnerabilities) == 0
 
 
 def test_iast_code_injection_with_stacktrace():

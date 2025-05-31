@@ -6,6 +6,7 @@ from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_saniti
 from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
+from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 
 
@@ -60,6 +61,13 @@ def patch_iast(patch_modules=IAST_PATCH):
     when_imported("werkzeug.utils")(
         lambda _: try_wrap_function_wrapper(
             "werkzeug.datastructures.headers", "_str_header_value", header_injection_sanitizer
+        )
+    )
+
+    # Header Injection validators
+    when_imported("django.http.response")(
+        lambda _: try_wrap_function_wrapper(
+            "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
         )
     )
 
