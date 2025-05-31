@@ -1,0 +1,83 @@
+interactions:
+- request:
+    body: '{"input":"Hello world","model":"gpt-4.1","user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '63'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"error\": {\n    \"message\": \"Incorrect API key provided: <not-a-r****key>.
+        You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \   \"type\": \"invalid_request_error\",\n    \"param\": null,\n    \"code\":
+        \"invalid_api_key\"\n  }\n}"
+    headers:
+      CF-RAY:
+      - 942d3bb7ad0d9026-BOS
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '245'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 20 May 2025 16:33:00 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=TjsfMMTGKzTpz7Ftw_CUUep8epqREDmOXPNmM7BU7U4-1747758780-1.0.1.1-bNcdGpJjgi5Sp1jyUcgR7XZgEX01xyHRf83JscWiL2mkpaMgdM_VTSjbTmJJvZUahWLrkwhmJA0c2H13ippQ45zGAGL2Dp2hlkUQChYsEwk;
+        path=/; expires=Tue, 20-May-25 17:03:00 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=QymvPBKcMKRAO8vi5mQs_HKwsqoIDJ6nEfJqFzUMo8s-1747758780279-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-processing-ms:
+      - '43'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      www-authenticate:
+      - Bearer realm="OpenAI API"
+      x-request-id:
+      - req_a2233fd9185402ec4253a4bfff19c965
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

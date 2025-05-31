@@ -94,22 +94,22 @@ class _EndpointHook:
 class _BaseCompletionHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
 
-    def _handle_streamed_response(self, integration, span, kwargs, resp, is_completion=False):
-        """Handle streamed response objects returned from completions/chat endpoint calls.
+    def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
+        """Handle streamed response objects returned from completions/chat/response endpoint calls.
 
         This method returns a wrapped version of the OpenAIStream/OpenAIAsyncStream objects
         to trace the response while it is read by the user.
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
-                return TracedOpenAIAsyncStream(resp, integration, span, kwargs, is_completion)
+                return TracedOpenAIAsyncStream(resp, integration, span, kwargs, operation_type)
             elif _is_generator(resp):
-                return TracedOpenAIStream(resp, integration, span, kwargs, is_completion)
+                return TracedOpenAIStream(resp, integration, span, kwargs, operation_type)
 
         def shared_gen():
             try:
                 streamed_chunks = yield
-                _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=is_completion)
+                _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=operation_type)
             finally:
                 span.finish()
 
@@ -119,7 +119,7 @@ class _BaseCompletionHook(_EndpointHook):
                 g = shared_gen()
                 g.send(None)
                 n = kwargs.get("n", 1) or 1
-                if is_completion:
+                if operation_type == "completion":
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
                         n *= len(prompts)
@@ -142,7 +142,7 @@ class _BaseCompletionHook(_EndpointHook):
                 g = shared_gen()
                 g.send(None)
                 n = kwargs.get("n", 1) or 1
-                if is_completion:
+                if operation_type == "completion":
                     prompts = kwargs.get("prompt", "")
                     if isinstance(prompts, list) and not isinstance(prompts[0], int):
                         n *= len(prompts)
@@ -200,7 +200,7 @@ class _CompletionHook(_BaseCompletionHook):
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
             return
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=True)
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="completion")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
@@ -268,7 +268,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
             return
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="chat")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
         for choice in resp.choices:
             idx = choice.index
@@ -754,8 +754,10 @@ class _ResponseHook(_BaseCompletionHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
+            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
             return resp
         if kwargs.get("stream") and error is None:
-            return self._handle_streamed_response(integration, span, kwargs, resp, is_completion=False)
+            return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
         integration.record_usage(span, resp.usage)
         return resp
