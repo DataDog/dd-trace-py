@@ -1,10 +1,10 @@
+# Scenarios should be consistent with dd-trace-py/benchmarks/span/config.yml
 start: &base
   nspans: 1000
   ntags: 0
   ltags: 0
   nmetrics: 0
   finishspan: false
-  traceid128: false
   telemetry: false
   add_event: false
   add_link: false
@@ -13,9 +13,6 @@ start: &base
   record_exception: false
   set_status: false
   update_name: false
-start-traceid128:
-  <<: *base
-  traceid128: true
 add-tags:
   <<: *base
   ntags: 100
@@ -26,10 +23,9 @@ add-metrics:
 add-event:
   <<: *base
   add_event: true
-# Run add-link scenario when the API is implemented in the Datadog Tracing API
-# add-link:
-#   <<: *base
-#   add_link: true
+add-link:
+  <<: *base
+  add_link: true
 get-context:
   <<: *base
   get_context: true
@@ -48,10 +44,6 @@ update-name:
 start-finish:
   <<: *base
   finishspan: true
-start-finish-traceid128:
-  <<: *base
-  finishspan: true
-  traceid128: true
 start-finish-telemetry:
   <<: *base
   finishspan: true
