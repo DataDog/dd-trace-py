@@ -64,7 +64,7 @@ class Scheduler(periodic.PeriodicService):
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
         if self._export_libdd_enabled:
-            ddup.upload(self._tracer, self._enable_code_provenance)
+            ddup.upload(self._tracer, self._enable_code_provenance, config.output_pprof)
 
             # These are only used by the Python uploader, but set them here to keep logs/etc
             # consistent for now
