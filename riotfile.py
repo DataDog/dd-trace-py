@@ -239,7 +239,7 @@ venv = Venv(
             name="integration-civisibility",
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -n 2 --dist=loadscope --no-cov --no-ddtrace {cmdargs} "
+            command="pytest -n 2 --no-cov --no-ddtrace {cmdargs} "
             "tests/integration/test_integration_civisibility.py",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-xdist": latest},
             pys=select_pys(),
@@ -261,7 +261,7 @@ venv = Venv(
         ),
         Venv(
             name="datastreams",
-            command="pytest -n 2 --dist=loadscope --no-cov {cmdargs} tests/datastreams/",
+            command="pytest -n 2 --no-cov {cmdargs} tests/datastreams/",
             pkgs={
                 "msgpack": [latest],
                 "pytest-xdist": latest,
@@ -373,7 +373,7 @@ venv = Venv(
         ),
         Venv(
             name="runtime",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/runtime/",
+            command="pytest -n 2 {cmdargs} tests/runtime/",
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -428,7 +428,7 @@ venv = Venv(
         ),
         Venv(
             name="vendor",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/vendor/",
+            command="pytest -n 2 {cmdargs} tests/vendor/",
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
@@ -437,7 +437,7 @@ venv = Venv(
         ),
         Venv(
             name="vertica",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/contrib/vertica/",
+            command="pytest -n 2 {cmdargs} tests/contrib/vertica/",
             pys=select_pys(max_version="3.9"),
             pkgs={
                 "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
@@ -736,7 +736,7 @@ venv = Venv(
         ),
         Venv(
             name="django:djangorestframework",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/contrib/djangorestframework",
+            command="pytest -n 2 {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
                 "pytest-xdist": latest,
@@ -1136,7 +1136,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/contrib/pynamodb",
+            command="pytest -n 2 {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
@@ -2675,7 +2675,7 @@ venv = Venv(
         Venv(
             name="logbook",
             pys=select_pys(),
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/contrib/logbook",
+            command="pytest -n 2 {cmdargs} tests/contrib/logbook",
             pkgs={
                 "logbook": ["~=1.0.0", latest],
                 "pytest-xdist": latest,
@@ -2692,7 +2692,7 @@ venv = Venv(
         ),
         Venv(
             name="molten",
-            command="pytest -n 2 --dist=loadscope {cmdargs} tests/contrib/molten",
+            command="pytest -n 2 {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],
