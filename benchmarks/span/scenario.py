@@ -67,9 +67,9 @@ class Span(Scenario):
                     if add_link:
                         s.set_link(trace_id=1, span_id=2)
                     if get_context:
-                        result = s.context._is_remote
+                        _ = s.context
                     if is_recording:
-                        result = not s.finished
+                        _ = not s.finished
                     if record_exception:
                         s.record_exception(test_exception)
                     if set_status:

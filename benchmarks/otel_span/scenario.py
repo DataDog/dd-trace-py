@@ -2,7 +2,6 @@ import os
 
 import bm
 import bm.utils as utils
-from opentelemetry.trace import Link
 from opentelemetry.trace import SpanContext
 from opentelemetry.trace import get_tracer
 from opentelemetry.trace import set_tracer_provider
@@ -71,7 +70,6 @@ class OtelSpan(bm.Scenario):
             for _ in range(loops):
                 for i in range(self.nspans):
                     s = otel_tracer.start_span("test." + str(i))
-                    result = False
 
                     if settags:
                         s.set_attributes(tags)
@@ -82,9 +80,9 @@ class OtelSpan(bm.Scenario):
                     if add_link:
                         s.add_link(test_link_context)
                     if get_context:
-                        result = s.get_span_context().is_remote
+                        _ = s.get_span_context()
                     if is_recording:
-                        result = s.is_recording()
+                        _ = s.is_recording()
                     if record_exception:
                         s.record_exception(test_exception)
                     if set_status:
