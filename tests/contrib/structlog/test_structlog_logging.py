@@ -57,9 +57,6 @@ def global_config():
     env=dict(DD_SERVICE="moon", DD_ENV="global-env", DD_VERSION="global-version"),
 )
 def test_log_injection_enabled():
-    """
-    Check trace info includes global values over local span values
-    """
     import structlog
 
     from ddtrace import config
@@ -82,9 +79,6 @@ def test_log_injection_enabled():
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_LOGS_INJECTION="False"))
 def test_log_injection_disabled():
-    """
-    Check trace info includes global values over local span values
-    """
     import json
 
     import structlog
@@ -109,9 +103,6 @@ def test_log_injection_disabled():
 
 
 def test_log_trace_global_values():
-    """
-    Check trace info includes global values over local span values
-    """
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")

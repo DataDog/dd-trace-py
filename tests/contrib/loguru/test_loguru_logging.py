@@ -54,9 +54,6 @@ def global_config():
     err=None,
 )
 def test_log_injection_enabled():
-    """
-    Check trace info includes global values over local span values
-    """
     from loguru import logger
 
     from ddtrace import tracer
@@ -77,9 +74,6 @@ def test_log_injection_enabled():
     err=None,
 )
 def test_log_injection_disabled():
-    """
-    Check trace info includes global values over local span values
-    """
     import json
 
     from loguru import logger
@@ -98,9 +92,6 @@ def test_log_injection_disabled():
 
 
 def test_log_trace_global_values(captured_logs):
-    """
-    Check trace info includes global values over local span values
-    """
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
