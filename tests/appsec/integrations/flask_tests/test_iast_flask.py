@@ -1338,8 +1338,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_deduplication_enabled=False,
             )
         ):
-            with pytest.raises(ValueError):
+            if tuple(map(int, werkzeug_version.split("."))) <= (2, 0, 3):
                 self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
+            else:
+                with pytest.raises(ValueError):
+                    self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
