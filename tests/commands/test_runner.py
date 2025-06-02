@@ -522,6 +522,23 @@ def test_ddtrace_run_and_auto_sitecustomize():
     assert final_modules - starting_modules == set(["ddtrace.auto"])
 
 
+@pytest.mark.subprocess(env=dict(DD_TRACE_GLOBAL_TAGS="a:True"), err=None)
+def test_global_trace_tags_deprecation_warning():
+    """Ensure DD_TRACE_GLOBAL_TAGS deprecation warning shows"""
+    import warnings
+
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        import ddtrace.auto  # noqa: F401
+
+        assert len(warns) == 1
+        warning_message = str(warns[0].message)
+        assert (
+            warning_message
+            == "DD_TRACE_GLOBAL_TAGS is deprecated and will be removed in version '4.0.0': Please migrate to using DD_TAGS instead"  # noqa: E501
+        ), warning_message
+
+
 @pytest.mark.subprocess(ddtrace_run=False, err="")
 def test_ddtrace_auto_atexit():
     """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
