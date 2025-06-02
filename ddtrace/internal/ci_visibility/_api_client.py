@@ -592,6 +592,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
                     "commit_message": self._git_data.commit_message,
+                    "sha": self._git_data.commit_sha,
                 },
             }
         }
@@ -686,8 +687,9 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
+        evp_proxy_base_url: str = EVP_PROXY_AGENT_BASE_PATH,
     ):
-        base_url = combine_url_path(agent_url, EVP_PROXY_AGENT_BASE_PATH)
+        base_url = combine_url_path(agent_url, evp_proxy_base_url)
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
     def _get_headers(self):

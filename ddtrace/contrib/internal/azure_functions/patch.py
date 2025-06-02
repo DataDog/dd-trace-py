@@ -1,3 +1,7 @@
+import functools
+import inspect
+import os
+
 import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
@@ -5,6 +9,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
@@ -14,9 +19,10 @@ from .utils import wrap_function_with_tracing
 
 config._add(
     "azure_functions",
-    {
-        "_default_service": schematize_service_name("azure_functions"),
-    },
+    dict(
+        _default_service=schematize_service_name("azure_functions"),
+        distributed_tracing=asbool(os.getenv("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
+    ),
 )
 
 
@@ -58,8 +64,9 @@ def _patched_route(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
 
-        def context_factory():
-            return create_context("azure.functions.patched_route_request", pin)
+        def context_factory(kwargs):
+            req = kwargs.get(trigger_arg_name)
+            return create_context("azure.functions.patched_route_request", pin, headers=req.headers)
 
         def pre_dispatch(ctx, kwargs):
             req = kwargs.get(trigger_arg_name)
@@ -88,7 +95,7 @@ def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
 
-        def context_factory():
+        def context_factory(kwargs):
             resource_name = f"{trigger} {function_name}"
             return create_context("azure.functions.patched_service_bus", pin, resource_name)
 
@@ -116,7 +123,7 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
 
-        def context_factory():
+        def context_factory(kwargs):
             resource_name = f"{trigger} {function_name}"
             return create_context("azure.functions.patched_timer", pin, resource_name)
 

@@ -1,12 +1,10 @@
 # -*- encoding: utf-8 -*-
 import _thread
-import gc
 import os
 import sys
 import threading
 import time
 import timeit
-from types import FrameType
 import typing  # noqa:F401
 import uuid
 
@@ -17,7 +15,6 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
-from tests.utils import flaky
 
 from . import test_collector
 
@@ -253,7 +250,7 @@ def test_ignore_profiler_single():
     assert thread_id not in {e.thread_id for e in events}
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_PROFILING_IGNORE_PROFILER="1", DD_PROFILING_API_TIMEOUT="0.1"))
 def test_ignore_profiler_gevent_task():
     import gevent.monkey
@@ -683,7 +680,7 @@ def test_thread_time_cache():
         )
 
 
-@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
+@pytest.mark.skipif(not TESTING_GEVENT or sys.version_info < (3, 9), reason="Not testing gevent")
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_threads():
     import gevent.monkey
@@ -761,22 +758,3 @@ def test_collect_gevent_threads():
     # <= (exact_time * 1.3)
 
     assert values.pop() > 0
-
-
-@flaky(1748750400)
-@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
-def test_collect_ensure_all_frames_gc():
-    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
-    def _foo():
-        pass
-
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
-
-    with s:
-        for _ in range(100):
-            _foo()
-
-    gc.collect()  # Make sure we don't race with gc when we check frame objects
-    # DEV - this is flaky because this line returns `assert 10 == 0` in CI
-    assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0

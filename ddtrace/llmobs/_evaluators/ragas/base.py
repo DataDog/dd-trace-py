@@ -23,10 +23,10 @@ class RagasDependencies:
     that may or may not exist in a user's environment.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         import ragas
 
-        self.ragas_version = ragas.__version__  # type: str
+        self.ragas_version: str = ragas.__version__
 
         parsed_version = parse_version(ragas.__version__)
         if parsed_version >= (0, 2, 0) or parsed_version < (0, 1, 10):

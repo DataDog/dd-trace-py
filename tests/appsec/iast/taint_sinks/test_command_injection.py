@@ -8,8 +8,8 @@ import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
@@ -28,7 +28,7 @@ _PARAMS = ["/bin/ls", "-l"]
 _BAD_DIR_DEFAULT = "forbidden_dir/"
 
 
-def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function="", class_name=""):
+def _assert_vulnerability(label, value_parts=None, source_name="", check_value=False, function=None, class_name=None):
     function_name = label if not function else function
     if value_parts is None:
         value_parts = [
@@ -56,7 +56,7 @@ def _assert_vulnerability(label, value_parts=None, source_name="", check_value=F
     assert vulnerability["location"]["path"] == FIXTURES_PATH
     assert vulnerability["location"]["line"] == line
     assert vulnerability["location"]["method"] == function_name
-    assert vulnerability["location"]["class_name"] == class_name
+    assert vulnerability["location"].get("class") == class_name
     assert vulnerability["hash"] == hash_value
 
 

@@ -9,7 +9,7 @@ from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.trace import Pin
 
 
-def create_context(context_name, pin, resource=None):
+def create_context(context_name, pin, resource=None, headers=None):
     operation_name = schematize_cloud_faas_operation(
         "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
     )
@@ -20,6 +20,9 @@ def create_context(context_name, pin, resource=None):
         resource=resource,
         service=int_service(pin, config.azure_functions),
         span_type=SpanTypes.SERVERLESS,
+        distributed_headers=headers,
+        integration_config=config.azure_functions,
+        activate_distributed_headers=True,
     )
 
 
@@ -37,7 +40,7 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
 
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
-            with context_factory() as ctx, ctx.span:
+            with context_factory(kwargs) as ctx, ctx.span:
                 if pre_dispatch:
                     core.dispatch(*pre_dispatch(ctx, kwargs))
 
@@ -53,7 +56,7 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        with context_factory() as ctx, ctx.span:
+        with context_factory(kwargs) as ctx, ctx.span:
             if pre_dispatch:
                 core.dispatch(*pre_dispatch(ctx, kwargs))
 

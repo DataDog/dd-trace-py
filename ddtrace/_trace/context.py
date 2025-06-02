@@ -30,6 +30,7 @@ _ContextState = Tuple[
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
+    bool,  # _reactivate
 ]
 
 
@@ -52,6 +53,7 @@ class Context(object):
         "_span_links",
         "_baggage",
         "_is_remote",
+        "_reactivate",
         "__weakref__",
     ]
 
@@ -75,6 +77,7 @@ class Context(object):
         self.trace_id: Optional[int] = trace_id
         self.span_id: Optional[int] = span_id
         self._is_remote: bool = is_remote
+        self._reactivate: bool = False
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
@@ -102,11 +105,21 @@ class Context(object):
             self._span_links,
             self._baggage,
             self._is_remote,
+            self._reactivate,
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state: _ContextState) -> None:
-        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage, self._is_remote = state
+        (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            self._span_links,
+            self._baggage,
+            self._is_remote,
+            self._reactivate,
+        ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 

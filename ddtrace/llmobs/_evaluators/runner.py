@@ -1,6 +1,7 @@
 from concurrent import futures
 import os
-from typing import Dict
+from typing import List
+from typing import Tuple
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -12,6 +13,7 @@ from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevan
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
+from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
 
@@ -37,7 +39,7 @@ class EvaluatorRunner(PeriodicService):
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: list[tuple[Dict, Span]]
+        self._buffer: List[Tuple[LLMObsSpanEvent, Span]] = []
         self._buffer_limit = 1000
 
         self.llmobs_service = llmobs_service
@@ -96,7 +98,7 @@ class EvaluatorRunner(PeriodicService):
             evaluators=self.evaluators,
         )
 
-    def enqueue(self, span_event: Dict, span: Span) -> None:
+    def enqueue(self, span_event: LLMObsSpanEvent, span: Span) -> None:
         if self.status == ServiceStatus.STOPPED:
             return
         with self._lock:
@@ -107,7 +109,7 @@ class EvaluatorRunner(PeriodicService):
                 return
             self._buffer.append((span_event, span))
 
-    def periodic(self, _wait_sync=False) -> None:
+    def periodic(self, _wait_sync: bool = False) -> None:
         """
         :param bool _wait_sync: if `True`, each evaluator is run for each span in the buffer
         synchronously. This param is only set to `True` for when the evaluator runner is stopped by the LLM Obs
@@ -116,7 +118,7 @@ class EvaluatorRunner(PeriodicService):
         with self._lock:
             if not self._buffer:
                 return
-            span_events_and_spans = self._buffer  # type: list[tuple[Dict, Span]]
+            span_events_and_spans = self._buffer
             self._buffer = []
 
         try:
