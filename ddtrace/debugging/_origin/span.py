@@ -225,7 +225,12 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
                 # Get the module and function name from the frame and code object. In Python3.11+ qualname
                 # is available, otherwise we'll fallback to the unqualified name.
-                (mod, name) = frame.f_globals.get("__name__"), getattr(code, "co_qualname", code.co_name)
+                try:
+                    name = code.co_qualname  # type: ignore[attr-defined]
+                except AttributeError:
+                    name = code.co_name
+
+                mod = frame.f_globals.get("__name__")
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.type", mod) if mod else None
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.method", name) if name else None
 
