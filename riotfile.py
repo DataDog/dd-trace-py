@@ -155,7 +155,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} tests/tracer/ --ignore=tests/tracer/test_monkey.py",
+            command="pytest -v {cmdargs} tests/tracer/",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -184,42 +184,6 @@ venv = Venv(
                         "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
                     },
                 ),
-                Venv(
-                    name="tracer-python-optimize",
-                    env={"PYTHONOPTIMIZE": "1"},
-                    # Test with the latest version of Python only
-                    pys=MAX_PYTHON_VERSION,
-                ),
-                Venv(
-                    name="tracer-legacy-attrs",
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
-                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
-                    pys=MIN_PYTHON_VERSION,
-                ),
-            ],
-        ),
-        Venv(
-            name="tracer-monkey",
-            command="pytest -v {cmdargs} tests/tracer/test_monkey.py",
-            pkgs={
-                "msgpack": latest,
-                "coverage": latest,
-                "attrs": latest,
-                "structlog": latest,
-                "httpretty": latest,
-                "wheel": latest,
-                "fastapi": latest,
-                "httpx": latest,
-                "pytest-randomly": latest,
-                "setuptools": latest,
-                "packaging": ["~=16.0.0", latest],
-            },
-            env={
-                "DD_CIVISIBILITY_LOG_LEVEL": "none",
-                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-            },
-            venvs=[
-                Venv(pys=select_pys()),
                 Venv(
                     name="tracer-python-optimize",
                     env={"PYTHONOPTIMIZE": "1"},
@@ -310,13 +274,6 @@ venv = Venv(
                     },
                 ),
             ],
-        ),
-        # Internal coverage (dd_coverage to distinguish from regular coverage)
-        # has version-specific code so tests are run across all supported versions
-        Venv(
-            name="dd_coverage",
-            command="pytest --no-cov {cmdargs} tests/coverage -s",
-            pys=select_pys(max_version="3.12"),
         ),
         Venv(
             name="internal",
@@ -2695,7 +2652,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [">=0.102.0", "~=0.121.0"],
+                "crewai": [latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -2870,7 +2827,6 @@ venv = Venv(
             },
             pkgs={
                 "gunicorn": latest,
-                "lz4": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

@@ -263,18 +263,6 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     runner: riot
-  tracer-monkey:
-    env:
-      DD_TRACE_AGENT_URL: http://localhost:8126
-    parallelism: 2
-    paths:
-      - '@tracing'
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - tests/tracer/test_monkey.py
-    retry: 2
-    runner: riot
   vendor:
     parallelism: 1
     paths:
