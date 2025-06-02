@@ -15,6 +15,12 @@ create_exception!(
 );
 create_exception!(
     trace_exporter_exceptions,
+    InternalError,
+    PyException,
+    "Internal error"
+);
+create_exception!(
+    trace_exporter_exceptions,
     DeserializationError,
     PyException,
     "Deserialization error"
@@ -28,15 +34,21 @@ create_exception!(
 );
 create_exception!(
     trace_exporter_exceptions,
+    TimeoutError,
+    PyException,
+    "Timeout error"
+);
+create_exception!(
+    trace_exporter_exceptions,
     RequestError,
     PyException,
     "Request error"
 );
 create_exception!(
     trace_exporter_exceptions,
-    EncodingNotSupportedError,
+    HTTPError,
     PyException,
-    "Encoding not supported"
+    "HTTP error code received"
 );
 create_exception!(
     trace_exporter_exceptions,
@@ -52,6 +64,7 @@ impl From<TraceExporterErrorPy> for PyErr {
         match value.0 {
             TraceExporterError::Agent(error) => AgentError::new_err(error.to_string()),
             TraceExporterError::Builder(error) => BuilderError::new_err(error.to_string()),
+            TraceExporterError::Internal(error) => InternalError::new_err(error.to_string()),
             TraceExporterError::Deserialization(error) => {
                 DeserializationError::new_err(error.to_string())
             }
@@ -59,7 +72,7 @@ impl From<TraceExporterErrorPy> for PyErr {
             TraceExporterError::Network(error) => NetworkError::new_err(error.to_string()),
             TraceExporterError::Request(error) => {
                 if error.status().as_u16() == 404 || error.status().as_u16() == 415 {
-                    EncodingNotSupportedError::new_err(error.to_string())
+                    HTTPError::new_err(error.status().to_string())
                 } else {
                     RequestError::new_err(error.to_string())
                 }
@@ -80,6 +93,7 @@ impl From<TraceExporterError> for TraceExporterErrorPy {
 pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("AgentError", m.py().get_type::<AgentError>())?;
     m.add("BuilderError", m.py().get_type::<BuilderError>())?;
+    m.add("InternalError", m.py().get_type::<InternalError>())?;
     m.add(
         "DeserializationError",
         m.py().get_type::<DeserializationError>(),
