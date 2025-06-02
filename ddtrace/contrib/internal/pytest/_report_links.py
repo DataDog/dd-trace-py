@@ -1,3 +1,4 @@
+import os
 import re
 from urllib.parse import quote
 
@@ -22,7 +23,7 @@ def print_test_report_links(terminalreporter):
     env = ddconfig.env
 
     redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
-    test_runs_url = _build_test_runs_url(base_url, ci_tags, service)
+    test_runs_url = _build_test_runs_url(base_url, ci_tags)
 
     if not (redirect_test_commit_url or test_runs_url):
         return
@@ -89,6 +90,6 @@ def _build_test_runs_url(base_url, ci_tags):
 
     query = "@ci.job.name:{} @ci.pipeline.id:{}".format(_quote_for_query(ci_job_name), _quote_for_query(ci_pipeline_id))
 
-    url_format = "ci/test-runs?query={query}&index=citest"
+    url_format = "/ci/test-runs?query={query}&index=citest"
     url = base_url + url_format.format(query=quote(query, safe=""))
     return url
