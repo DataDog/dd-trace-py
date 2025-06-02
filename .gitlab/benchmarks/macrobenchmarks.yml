@@ -406,9 +406,9 @@ notify-slo-breaches:
   script:
     - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
     - |
-      if [ -f platform/artifacts/threshold_breaches_detected ]; then
+      if [ -f platform/artifacts/threshold_breach_detected ]; then
         MESSAGE_TEXT=":x: $CI_COMMIT_REF_NAME - Performance SLOs in $CI_PROJECT_NAME were breached in <$BUILD_URL|$CI_PIPELINE_ID>. Please look into it."
-      elif [ -f platform/artifacts/warning_breaches_detected ]; then
+      elif [ -f platform/artifacts/warning_breach_detected ]; then
         MESSAGE_TEXT=":warning: $CI_COMMIT_REF_NAME - Performance SLOs in $CI_PROJECT_NAME are about to be breached. A warning threshold in <$BUILD_URL|$CI_PIPELINE_ID> was triggered. Please look into it."
       fi
     - if [ -n "${MESSAGE_TEXT:-}" ]; then postmessage "pre-release-gate-prototype" "$MESSAGE_TEXT"; fi
