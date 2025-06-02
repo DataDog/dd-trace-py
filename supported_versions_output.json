@@ -162,8 +162,9 @@
     {
         "dependency": "crewai",
         "integration": "crewai",
-        "minimum_tracer_supported": "0.108.0",
-        "max_tracer_supported": "0.108.0",
+        "minimum_tracer_supported": "0.121.0",
+        "max_tracer_supported": "0.121.0",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -524,7 +525,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.1.1",
+        "max_tracer_supported": "8.3.5",
         "auto-instrumented": false
     },
     {

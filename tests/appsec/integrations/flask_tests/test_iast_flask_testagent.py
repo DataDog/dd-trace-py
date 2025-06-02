@@ -3,37 +3,13 @@ import json
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
+from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from tests.appsec.appsec_utils import flask_server
-from tests.appsec.integrations.flask_tests.test_flask_remoteconfig import _get_agent_client
-
-
-def start_trace(token):
-    client = _get_agent_client()
-    client.request(
-        "GET", "/test/session/start?test_session_token=%s" % (token,), headers={"X-Datadog-Test-Session-Token": token}
-    )
-    resp = client.getresponse()
-    return resp.read()
-
-
-def clear_session(token):
-    client = _get_agent_client()
-    client.request(
-        "GET", "/test/session/clear?test_session_token=%s" % (token,), headers={"X-Datadog-Test-Session-Token": token}
-    )
-    resp = client.getresponse()
-    return resp.read()
-
-
-def _get_span(token):
-    client = _get_agent_client()
-    client.request(
-        "GET", "/test/session/traces?test_session_token=%s" % (token,), headers={"X-Datadog-Test-Session-Token": token}
-    )
-    resp = client.getresponse()
-    return json.loads(resp.read())
+from tests.appsec.integrations.utils_testagent import _get_span
+from tests.appsec.integrations.utils_testagent import clear_session
+from tests.appsec.integrations.utils_testagent import start_trace
 
 
 @pytest.mark.skip(reason="Stacktrace error in debug mode doesn't work outside the request APPSEC-56862")
@@ -55,12 +31,14 @@ def test_iast_stacktrace_error():
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled"):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = span["meta"].get("_dd.iast.json")
             if iast_data:
                 vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
     clear_session(token)
+
+    assert len(spans_with_iast) == 2
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -88,12 +66,14 @@ def test_iast_cmdi():
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled"):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = span["meta"].get("_dd.iast.json")
             if iast_data:
                 vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
     clear_session(token)
+
+    assert len(spans_with_iast) == 2
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -142,12 +122,14 @@ def test_iast_header_injection():
     vulnerabilities = []
     for trace in response_tracer:
         for span in trace:
-            if span.get("metrics", {}).get("_dd.iast.enabled"):
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
             iast_data = span["meta"].get("_dd.iast.json")
             if iast_data:
                 vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
     clear_session(token)
+
+    assert len(spans_with_iast) == 2
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
@@ -160,3 +142,44 @@ def test_iast_header_injection():
     assert not vulnerability["location"]["path"].startswith("werkzeug")
     assert vulnerability["location"]["stackId"]
     assert vulnerability["hash"]
+
+
+def test_iast_code_injection_with_stacktrace():
+    token = "test_iast_code_injection_with_stacktrace"
+    _ = start_trace(token)
+    tainted_string = "code_injection_string"
+    with flask_server(
+        iast_enabled="true", token=token, port=8050, env={"FLASK_DEBUG": "true", "DD_TRACE_DEBUG": "true"}
+    ) as context:
+        _, flask_client, pid = context
+
+        response = flask_client.get(f"/iast-code-injection?filename={tainted_string}")
+
+        assert response.status_code == 200
+        assert response.content == b"OK:v0.4:" + bytes(tainted_string, "utf-8")
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    metastruct = {}
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = span["meta"].get("_dd.iast.json")
+            if iast_data:
+                metastruct = span.get("meta_struct", {})
+                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2
+    assert len(vulnerabilities) == 1
+    assert len(vulnerabilities[0]) == 1
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_CODE_INJECTION
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"value": "a + '"},
+        {"value": tainted_string, "source": 0},
+        {"value": "'"},
+    ]
+    assert vulnerability["hash"]
+    assert metastruct
