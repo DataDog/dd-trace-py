@@ -17,7 +17,7 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT, TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
@@ -203,9 +203,15 @@ class _ProfilerInstance(service.Service):
                 return []
             except Exception as e:
                 try:
-                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ddup.failure_msg)
+                    )
                 except Exception as ee:
-                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ee)
+                    )
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
 
