@@ -434,9 +434,10 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if asm_config.is_iast_request_enabled:
         try:
-            set_iast_request_endpoint(request.method, request.url_rule.rule)
+            if request.url_rule is not None:
+                set_iast_request_endpoint(request.method, request.url_rule.rule)
             request.cookies = taint_structure(
                 request.cookies,
                 OriginType.COOKIE_NAME,
@@ -462,12 +463,7 @@ def _on_set_request_tags_iast(request, span, flask_config):
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    if (
-        not response
-        or not asm_config._iast_enabled
-        or not asm_config.is_iast_request_enabled
-        or get_iast_stacktrace_reported()
-    ):
+    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
         return
 
     try:
@@ -496,12 +492,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    if (
-        not response
-        or not asm_config._iast_enabled
-        or not asm_config.is_iast_request_enabled
-        or get_iast_stacktrace_reported()
-    ):
+    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
         return
 
     try:
@@ -515,7 +506,7 @@ def _on_flask_finalize_request_post(response, _):
 
 
 def _on_asgi_finalize_response(body, _):
-    if not body or not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    if not body or not asm_config.is_iast_request_enabled:
         return
 
     try:
