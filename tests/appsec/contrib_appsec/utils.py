@@ -22,6 +22,13 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
+try:
+    from ddtrace.appsec import track_user_sdk as _track_user_sdk  # noqa: F401
+
+    USER_SDK_V2 = True
+except ImportError:
+    USER_SDK_V2 = False
+
 # patching asm_request_context to observe waf data internals
 
 _init_finalize = _asm_request_context.finalize_asm_env
@@ -1649,6 +1656,125 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize("auto_events_enabled", [True, False])
+    @pytest.mark.parametrize("local_mode", ["disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize("rc_mode", [None, "disabled", "identification", "anonymization"])
+    @pytest.mark.parametrize(
+        ("username", "password", "status_code", "user_id"),
+        [
+            ("test", "1234", 200, "social-security-id"),
+            ("testuuid", "12345", 401, "591dc126-8431-4d0f-9509-b23318d3dce4"),
+            ("zouzou", "12345", 401, ""),
+        ],
+    )
+    def test_auto_user_events_sdk_v2(
+        self,
+        interface,
+        root_span,
+        get_tag,
+        asm_enabled,
+        auto_events_enabled,
+        local_mode,
+        rc_mode,
+        username,
+        password,
+        status_code,
+        user_id,
+    ):
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
+
+        import ddtrace.internal.telemetry
+
+        if not USER_SDK_V2:
+            raise pytest.skip("SDK v2 not available")
+
+        with override_global_config(
+            dict(
+                _asm_enabled=asm_enabled,
+                _auto_user_instrumentation_local_mode=local_mode,
+                _auto_user_instrumentation_rc_mode=rc_mode,
+                _auto_user_instrumentation_enabled=auto_events_enabled,
+            )
+        ), mock_patch.object(ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()) as telemetry_mock:
+            self.update_tracer(interface)
+            metadata = json.dumps(
+                {
+                    "a": "a",
+                    "load_a": {
+                        "b": True,
+                        "load_b": {
+                            "c": 3,
+                            "load_c": {
+                                "d": "value",
+                                "load_d": {
+                                    "e": 1.32,
+                                    "load_e": {
+                                        "f": 3.1415926,
+                                        "load_f": {"g": "ghost", "load_g": {"h": "heavy", "load_h": {}}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                separators=(",", ":"),
+            )
+            response = interface.client.get(f"/login_sdk/?username={username}&password={password}&metadata={metadata}")
+            assert self.status(response) == status_code
+            assert get_tag("http.status_code") == str(status_code)
+            telemetry_calls = {
+                (c.value, f"{ns.value}.{nm}", t): v for (c, ns, nm, v, t), _ in telemetry_mock.add_metric.call_args_list
+            }
+            if status_code == 401:
+                assert get_tag("appsec.events.users.login.failure.track") == "true"
+                if user_id:
+                    assert get_tag("appsec.events.users.login.failure.usr.id") == user_id
+                assert get_tag("appsec.events.users.login.failure.usr.exists") == str(username == "testuuid").lower()
+                assert get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
+                assert any(
+                    t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_failure") == t[2][0]
+                    for t in telemetry_calls
+                ), telemetry_calls
+            else:
+                assert get_tag("appsec.events.users.login.success.track") == "true"
+                assert get_tag("usr.id") == user_id
+                assert get_tag("usr.id") == user_id, (user_id, get_tag("usr.id"))
+                assert any(tag.startswith("appsec.events.users.login") for tag in root_span()._meta)
+                assert get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
+                assert any(
+                    t[:2] == ("count", "appsec.sdk.event") and ("event_type", "login_success") == t[2][0]
+                    for t in telemetry_calls
+                ), telemetry_calls
+
+            # no auto instrumentation
+            assert not any(tag.startswith("_dd_appsec.events.users.login") for tag in root_span()._meta)
+
+            # check for fingerprints when user events
+            if asm_enabled:
+                assert get_tag(asm_constants.FINGERPRINTING.HEADER)
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK)
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT)
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION)
+            else:
+                # assert get_tag(asm_constants.FINGERPRINTING.HEADER) is None
+                assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
+                assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
+                assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+            # metadata
+            success = "success" if status_code == 200 else "failure"
+            assert get_tag(f"appsec.events.users.login.{success}.a") == "a", root_span()._meta
+            assert get_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", root_span()._meta
+            assert get_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", root_span()._meta
+            assert (
+                get_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32"
+            ), root_span()._meta
+            assert (
+                get_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
+            ), root_span()._meta
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("user_agent", ["dd-test-scanner-log-block", "UnitTestAgent"])

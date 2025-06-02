@@ -43,6 +43,7 @@ from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
@@ -219,6 +220,8 @@ class Debugger(Service):
         register_post_run_module_hook(cls._on_run_module)
 
         log.debug("%s enabled", cls.__name__)
+
+        core.dispatch("dynamic-instrumentation.enabled")
 
     @classmethod
     def disable(cls, join: bool = True) -> None:

@@ -11,9 +11,18 @@ from typing import Tuple
 from typing import Union
 from urllib.parse import urlparse
 
+from ddtrace._trace.span import Span
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
+from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
@@ -24,6 +33,24 @@ logger = get_logger(__name__)
 
 ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
 AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
+OPENAI_SKIPPED_COMPLETION_TAGS = (
+    "model",
+    "prompt",
+    "api_key",
+    "user_api_key",
+    "user_api_key_hash",
+    LITELLM_ROUTER_INSTANCE_KEY,
+)
+OPENAI_SKIPPED_CHAT_TAGS = (
+    "model",
+    "messages",
+    "tools",
+    "functions",
+    "api_key",
+    "user_api_key",
+    "user_api_key_hash",
+    LITELLM_ROUTER_INSTANCE_KEY,
+)
 
 
 def is_openai_default_base_url(base_url: Optional[str] = None) -> bool:
@@ -284,6 +311,181 @@ def get_messages_from_converse_content(role: str, content: list):
     return messages
 
 
+def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
+    """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
+    prompt = kwargs.get("prompt", "")
+    if isinstance(prompt, str):
+        prompt = [prompt]
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
+    output_messages = [{"content": ""}]
+    if not span.error and completions:
+        choices = getattr(completions, "choices", completions)
+        output_messages = [{"content": _get_attr(choice, "text", "")} for choice in choices]
+    span._set_ctx_items(
+        {
+            INPUT_MESSAGES: [{"content": str(p)} for p in prompt],
+            METADATA: parameters,
+            OUTPUT_MESSAGES: output_messages,
+        }
+    )
+
+
+def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+    """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
+    input_messages = []
+    for m in kwargs.get("messages", []):
+        tool_call_id = m.get("tool_call_id")
+        if tool_call_id:
+            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
+        input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
+    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
+    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
+
+    if span.error or not messages:
+        span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+        return
+    if isinstance(messages, list):  # streamed response
+        role = ""
+        output_messages = []
+        for streamed_message in messages:
+            # litellm roles appear only on the first choice, so store it to be used for all choices
+            role = streamed_message.get("role", "") or role
+            message = {"content": streamed_message.get("content", ""), "role": role}
+            tool_calls = streamed_message.get("tool_calls", [])
+            if tool_calls:
+                message["tool_calls"] = [
+                    {
+                        "name": tool_call.get("name", ""),
+                        "arguments": json.loads(tool_call.get("arguments", "")),
+                        "tool_id": tool_call.get("tool_id", ""),
+                        "type": tool_call.get("type", ""),
+                    }
+                    for tool_call in tool_calls
+                ]
+            output_messages.append(message)
+        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        return
+    choices = _get_attr(messages, "choices", [])
+    output_messages = []
+    for idx, choice in enumerate(choices):
+        tool_calls_info = []
+        choice_message = _get_attr(choice, "message", {})
+        role = _get_attr(choice_message, "role", "")
+        content = _get_attr(choice_message, "content", "") or ""
+        function_call = _get_attr(choice_message, "function_call", None)
+        if function_call:
+            function_name = _get_attr(function_call, "name", "")
+            arguments = json.loads(_get_attr(function_call, "arguments", ""))
+            function_call_info = {"name": function_name, "arguments": arguments}
+            output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
+            continue
+        tool_calls = _get_attr(choice_message, "tool_calls", []) or []
+        for tool_call in tool_calls:
+            tool_args = getattr(tool_call.function, "arguments", "")
+            tool_name = getattr(tool_call.function, "name", "")
+            tool_id = getattr(tool_call, "id", "")
+            tool_call_info = {
+                "name": tool_name,
+                "arguments": json.loads(tool_args),
+                "tool_id": tool_id,
+                "type": "function",
+            }
+            tool_calls_info.append(tool_call_info)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    tool_args,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
+        if tool_calls_info:
+            output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
+            continue
+        output_messages.append({"content": content, "role": role})
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
+def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
+    if not streamed_chunks:
+        return {"text": ""}
+    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
+    if streamed_chunks[-1].finish_reason is not None:
+        completion["finish_reason"] = streamed_chunks[-1].finish_reason
+    if hasattr(streamed_chunks[0], "usage"):
+        completion["usage"] = streamed_chunks[0].usage
+    return completion
+
+
+def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
+    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
+    if function_call_chunk:
+        if not stored_tool_calls:
+            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
+        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
+        return
+    if not tool_call_chunk:
+        return
+    tool_call_idx = getattr(tool_call_chunk, "index", None)
+    tool_id = getattr(tool_call_chunk, "id", None)
+    tool_type = getattr(tool_call_chunk, "type", None)
+    function_call = getattr(tool_call_chunk, "function", None)
+    function_name = getattr(function_call, "name", "")
+    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
+    list_idx = next(
+        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
+        None,
+    )
+    if list_idx is None:
+        stored_tool_calls.append(
+            {"name": function_name, "arguments": "", "index": tool_call_idx, "tool_id": tool_id, "type": tool_type}
+        )
+        list_idx = -1
+    stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
+
+
+def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
+    """Constructs a chat completion message dictionary from streamed chunks.
+    The resulting message dictionary is of form:
+    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    """
+    message: Dict[str, Any] = {"content": "", "tool_calls": []}
+    for chunk in streamed_chunks:
+        if getattr(chunk, "usage", None):
+            message["usage"] = chunk.usage
+        if not hasattr(chunk, "delta"):
+            continue
+        if getattr(chunk, "index", None) and not message.get("index"):
+            message["index"] = chunk.index
+        if getattr(chunk.delta, "role") and not message.get("role"):
+            message["role"] = chunk.delta.role
+        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
+            message["finish_reason"] = chunk.finish_reason
+        chunk_content = getattr(chunk.delta, "content", "")
+        if chunk_content:
+            message["content"] += chunk_content
+            continue
+        function_call = getattr(chunk.delta, "function_call", None)
+        if function_call:
+            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
+        tool_calls = getattr(chunk.delta, "tool_calls", None)
+        if not tool_calls:
+            continue
+        for tool_call in tool_calls:
+            openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
+    if message["tool_calls"]:
+        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
+    else:
+        message.pop("tool_calls", None)
+    message["content"] = message["content"].strip()
+    return message
+
+
 class OaiSpanAdapter:
     """Adapter for Oai Agents SDK Span objects that the llmobs integration code will use.
     This is to consolidate the code where we access oai library types which provides a clear starting point for
@@ -402,6 +604,13 @@ class OaiSpanAdapter:
         return self.response.output_text
 
     @property
+    def response_system_instructions(self) -> Optional[str]:
+        """Get the system instructions from the response."""
+        if not self.response:
+            return None
+        return getattr(self.response, "instructions", None)
+
+    @property
     def llmobs_model_name(self) -> Optional[str]:
         """Get the model name formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):
@@ -498,6 +707,9 @@ class OaiSpanAdapter:
         processed: List[Dict[str, Any]] = []
         tool_call_ids: List[str] = []
 
+        if self.response_system_instructions:
+            processed.append({"role": "system", "content": self.response_system_instructions})
+
         if not messages:
             return processed, tool_call_ids
 
@@ -546,12 +758,9 @@ class OaiSpanAdapter:
                     except json.JSONDecodeError:
                         output = {"output": output}
                 tool_call_ids.append(item["call_id"])
-                processed_item["tool_calls"] = [
-                    {
-                        "tool_id": item["call_id"],
-                        "type": item.get("type", "function_call_output"),
-                    }
-                ]
+                processed_item["role"] = "tool"
+                processed_item["content"] = item["output"]
+                processed_item["tool_id"] = item["call_id"]
             if processed_item:
                 processed.append(processed_item)
 
@@ -719,7 +928,7 @@ def get_final_message_converse_stream_message(
     Returns:
         Dict containing the processed message with content and optional tool calls
     """
-    indices = sorted(message.get("context_block_indices", []))
+    indices = sorted(message.get("content_block_indicies", []))
     message_output = {"role": message["role"]}
 
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
@@ -731,7 +940,7 @@ def get_final_message_converse_stream_message(
         if not tool_block:
             continue
         tool_call = {
-            "name": tool_block.get("toolName", ""),
+            "name": tool_block.get("name", ""),
             "tool_id": tool_block.get("toolUseId", ""),
         }
         tool_input = tool_block.get("input")

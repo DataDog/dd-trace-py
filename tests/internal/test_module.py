@@ -434,7 +434,7 @@ def test_module_watchdog_namespace_import_no_warnings():
     import namespace_test.ns_module  # noqa:F401
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)))
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)), err=None)
 def test_module_watchdog_pkg_resources_support():
     # Test that we can access resource files with pkg_resources without raising
     # an exception.
@@ -443,9 +443,12 @@ def test_module_watchdog_pkg_resources_support():
 
     sys.path.insert(0, os.getenv("NSPATH"))
 
-    import pkg_resources as p
+    try:
+        import pkg_resources as p
 
-    p.resource_listdir("namespace_test.ns_module", ".")
+        p.resource_listdir("namespace_test.ns_module", ".")
+    except Exception as e:
+        pytest.fail("Using pkg_resources raised exception", e)
 
 
 @pytest.mark.subprocess(
@@ -560,6 +563,8 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
+        "ddtrace.contrib.integration_registry.mappings",
+        "ddtrace.contrib.integration_registry.utils",
         "ddtrace.contrib.aiohttp",
         "ddtrace.contrib.dbapi_async",
         "ddtrace.contrib.wsgi",

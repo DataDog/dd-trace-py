@@ -59,6 +59,9 @@ def simple_debugger_test(probe, func):
 
         d.add_probes(probe)
 
+        # Check that we can still hash the code object
+        assert hash(func.__code__)
+
         try:
             func()
         except Exception:
@@ -1210,6 +1213,47 @@ def test_debugger_redacted_identifiers():
                 "throwable": None,
             },
         }
+
+
+def test_debugger_redaction_excluded_identifiers():
+    import tests.submod.stuff as stuff
+
+    with debugger(upload_flush_interval=float("inf"), redaction_excluded_identifiers=frozenset(["token"])) as d:
+        d.add_probes(
+            create_snapshot_line_probe(
+                probe_id="foo",
+                version=1,
+                source_file="tests/submod/stuff.py",
+                line=169,
+                **compile_template(
+                    "token=",
+                    {"dsl": "token", "json": {"ref": "token"}},
+                    " answer=",
+                    {"dsl": "answer", "json": {"ref": "answer"}},
+                    " pii_dict=",
+                    {"dsl": "pii_dict", "json": {"ref": "pii_dict"}},
+                    " pii_dict['jwt']=",
+                    {"dsl": "pii_dict['jwt']", "json": {"index": [{"ref": "pii_dict"}, "jwt"]}},
+                ),
+            ),
+            create_snapshot_function_probe(
+                probe_id="function-probe",
+                module="tests.submod.stuff",
+                func_qname="sensitive_stuff",
+                evaluate_at=ProbeEvalTiming.EXIT,
+            ),
+        )
+
+        stuff.sensitive_stuff("top secret")
+
+        msg_line, msg_func = d.uploader.wait_for_payloads(2)
+
+        # Only the token value be visible now because it's explicitly excluded from redaction
+        assert (
+            msg_line["message"] == f"token='deadbeef' answer=42 "
+            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
+            f"pii_dict['jwt']={REDACTED}"
+        )
 
 
 def test_debugger_exception_conditional_function_probe():

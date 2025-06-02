@@ -1,4 +1,6 @@
 import functools
+import inspect
+import os
 
 import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
@@ -7,6 +9,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
@@ -15,9 +18,10 @@ from .utils import get_function_name
 
 config._add(
     "azure_functions",
-    {
-        "_default_service": schematize_service_name("azure_functions"),
-    },
+    dict(
+        _default_service=schematize_service_name("azure_functions"),
+        distributed_tracing=asbool(os.getenv("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
+    ),
 )
 
 
@@ -57,10 +61,29 @@ def _patched_route(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
 
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrap_function(*args, **kwargs):
+                req = kwargs.get(trigger_arg_name)
+                with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
+                    ctx.set_item("req_span", ctx.span)
+                    core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
+                    res = None
+                    try:
+                        res = await func(*args, **kwargs)
+                        return res
+                    finally:
+                        core.dispatch(
+                            "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
+                        )
+
+            return wrapped(*args, **kwargs)(async_wrap_function)
+
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):
             req = kwargs.get(trigger_arg_name)
-            with create_context("azure.functions.patched_route_request", pin) as ctx, ctx.span:
+            with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
                 ctx.set_item("req_span", ctx.span)
                 core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
                 res = None
@@ -87,6 +110,20 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
         resource_name = f"{trigger} {function_name}"
+
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrap_function(*args, **kwargs):
+                with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
+                    ctx.set_item("trigger_span", ctx.span)
+                    core.dispatch(
+                        "azure.functions.trigger_call_modifier",
+                        (ctx, config.azure_functions, function_name, trigger),
+                    )
+                    await func(*args, **kwargs)
+
+            return wrapped(*args, **kwargs)(async_wrap_function)
 
         @functools.wraps(func)
         def wrap_function(*args, **kwargs):

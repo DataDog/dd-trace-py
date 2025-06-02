@@ -25,7 +25,6 @@ from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -54,9 +53,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.settings._config import config
-
-
-_NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
 
 
 class SpanEvent:
@@ -129,6 +125,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
+        "_parent_context",
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
@@ -211,6 +208,7 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
+        self._parent_context: Optional[Context] = context
         self._context = context.copy(self.trace_id, self.span_id) if context else None
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
@@ -376,20 +374,6 @@ class Span(object):
         # All floats should be set as a metric
         elif isinstance(value, float):
             self.set_metric(key, value)
-            return
-
-        # Key should explicitly be converted to a float if needed
-        elif key in _NUMERIC_TAGS:
-            if value is None:
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
-            try:
-                # DEV: `set_metric` will try to cast to `float()` for us
-                self.set_metric(key, value)
-            except (TypeError, ValueError):
-                log.warning("error setting numeric metric %s:%s", key, value)
-
             return
 
         elif key == MANUAL_KEEP_KEY:
