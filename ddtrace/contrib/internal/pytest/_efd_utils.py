@@ -340,13 +340,13 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
 
     if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.EARLY_FLAKE_DETECTION:
         efd_outcome = get_user_property(report, UserProperty.RETRY_FINAL_OUTCOME)
-        if efd_outcome == "passed":
+        if efd_outcome == EFDTestStatus.ALL_PASS.value:
             return (_EFD_RETRY_OUTCOMES.EFD_FINAL_PASSED, ".", ("EFD FINAL STATUS: PASSED", {"green": True}))
-        if efd_outcome == "failed":
+        if efd_outcome == EFDTestStatus.ALL_FAIL.value:
             return (_EFD_RETRY_OUTCOMES.EFD_FINAL_FAILED, "F", ("EFD FINAL STATUS: FAILED", {"red": True}))
-        if efd_outcome == "skipped":
+        if efd_outcome == EFDTestStatus.ALL_SKIP.value:
             return (_EFD_RETRY_OUTCOMES.EFD_FINAL_SKIPPED, "S", ("EFD FINAL STATUS: SKIPPED", {"yellow": True}))
-        if efd_outcome == "flaky":
+        if efd_outcome == EFDTestStatus.FLAKY.value:
             # Flaky tests are the only one that have a pretty string because they are intended to be displayed in the
             # final count of terminal summary
             return (_EFD_FLAKY_OUTCOME, "K", ("EFD FINAL STATUS: FLAKY", {"yellow": True}))

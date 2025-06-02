@@ -37,7 +37,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
@@ -128,7 +128,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
+            log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
 
         self._update_required()
 
