@@ -11,7 +11,6 @@ from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import flaky
 
 
 @pytest.mark.parametrize(
