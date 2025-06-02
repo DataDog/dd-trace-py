@@ -23,6 +23,7 @@ jobs:
             Bootstrap import analysis
             require-checklist
             Validate changelog
+            Report codeowners
             devflow/.*
             dd-gitlab/.*
 
