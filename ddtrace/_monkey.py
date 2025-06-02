@@ -182,7 +182,9 @@ class ModuleNotFoundException(PatchException):
 
 
 class IncompatibleModuleException(PatchException):
-    pass
+    def __init__(self, message, installed_version=None):
+        super().__init__(message)
+        self.installed_version = installed_version
 
 
 def is_version_compatible(version, supported_versions_spec):
@@ -245,7 +247,7 @@ def check_module_compatibility(integration_patch_module, integration_name, hooke
             f"Skipped patching '{integration_name}' integration, installed version: {installed_version} "
             f"is not compatible with integration support spec: {supported_version_spec}."
         )
-        raise IncompatibleModuleException(message)
+        raise IncompatibleModuleException(message, installed_version=installed_version)
     return
 
 
@@ -275,7 +277,9 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 module,
                 str(e),
             )
-            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
+            telemetry.telemetry_writer.add_integration(
+                module, False, PATCH_MODULES.get(module) is True, str(e), version=getattr(e, "installed_version", None)
+            )
 
             # don't send telemetry for incompatible integration versions
             if not isinstance(e, IncompatibleModuleException):

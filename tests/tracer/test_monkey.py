@@ -90,8 +90,8 @@ class TestPatching(SubprocessTestCase):
                     "fastapi",
                     False,
                     True,
-                    "Unable to patch integration: fastapi, installed version: 0.0.0 is not compatible with "
-                    + "integration support spec of %s" % fastapi_supported_version,
+                    "Skipped patching 'fastapi' integration, installed version: 0.0.0 is not compatible "
+                    + "with integration support spec: %s." % fastapi_supported_version,
                     version="0.0.0",
                 )
                 mock_add_integration.assert_any_call(
