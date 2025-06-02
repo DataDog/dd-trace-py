@@ -20,8 +20,13 @@ Flask (Werkzeug):
 ------------------
 - Safe usage: The `werkzeug.datastructures.Headers` class validates header values and
   prevents control characters by default (`ValueError` is raised).
-- Unsafe usage: Direct manipulation of internal structures (e.g., `response.headers._list`)
-  or monkeypatching `_validate_value` can bypass protections.
+- Unsafe usage (theoretical): Even if internal structures like `response.headers._list` are
+  modified directly, Werkzeug revalidates header values via `_str_header_value()` when
+  `to_wsgi_list()` is called during response finalization. This means that control characters
+  (`\r`, `\n`) are caught and raise a `ValueError`, preventing header injection.
+  Only by disabling or monkeypatching internal validation methods (e.g., `_validate_value`
+  or `_str_header_value`) could protections be bypassed — making this a non-exploitable
+  vector under normal circumstances.
 - Werkzeug has enforced these validations since version 0.8.
 - No known CVEs for header injection via public APIs, but misuse or internal manipulation
   can make injection possible.

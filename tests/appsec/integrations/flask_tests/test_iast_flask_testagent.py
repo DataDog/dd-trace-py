@@ -158,11 +158,13 @@ def test_iast_header_injection():
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get("/iast-header-injection-vulnerability?header=value\r\nInject-Header: 1234")
+        response = flask_client.post(
+            "/iast-header-injection-vulnerability", data={"header": "value\r\nInject-Header: 1234"}
+        )
 
-        assert response.status_code == 200
-        assert response.headers["X-Vulnerable-Header"] == "valueInject-Header: 1234"
-        assert response.headers.get("Strict-Transport-Security") is None
+        assert response.status_code == 500
+        assert response.headers.get("X-Vulnerable-Header") is None
+        assert response.headers.get("Inject-Header") is None
 
     response_tracer = _get_span(token)
     spans_with_iast = []
