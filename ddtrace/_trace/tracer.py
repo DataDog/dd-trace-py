@@ -904,7 +904,7 @@ class Tracer(object):
                     resource=resource,
                     span_type=span_type,
                 )
-           elif iscoroutinefunction(f):
+            elif iscoroutinefunction(f):
                 # create an async wrapper that awaits the coroutine and traces it
                 @functools.wraps(f)
                 async def func_wrapper(*args, **kwargs):
