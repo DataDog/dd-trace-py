@@ -419,12 +419,3 @@ notify-slo-breaches:
         MESSAGE_TEXT=":warning: $CI_COMMIT_REF_NAME - Performance SLOs in $CI_PROJECT_NAME are about to be breached. A warning threshold in <$BUILD_URL|$CI_PIPELINE_ID> was triggered. Please look into it."
       fi
     - if [ -n "${MESSAGE_TEXT:-}" ]; then postmessage "pre-release-gate-prototype" "$MESSAGE_TEXT"; fi
-
-notify-warning-breaches:
-  extends: .slack-notifier-base
-  needs: ["check-warning-breaches"]
-  when: on_failure
-  script:
-    # Ideally add the SLACK_AUTHOR once dd-trace-py can access SDS: https://datadoghq.atlassian.net/wiki/spaces/SDA/pages/3175317505/Accessing+SDS+data+externally+via+Graphql
-    - 'MESSAGE_TEXT=":warning: $CI_COMMIT_REF_NAME - Performance SLOs in $CI_PROJECT_NAME are about to be breached. A warning threshold in <$BUILD_URL|$CI_PIPELINE_ID> was triggered. Please look into it."'
-    - postmessage "pre-release-gate-prototype" "$MESSAGE_TEXT"
