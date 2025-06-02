@@ -551,6 +551,16 @@ def test_traced_websocket(test_spans, snapshot_app):
             websocket.send_text("ping")
 
 
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_traced_websocket_sampling_not_inherited(test_spans, snapshot_app):
+    client = TestClient(snapshot_app)
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+        with client.websocket_connect("/ws") as websocket:
+            data = websocket.receive_json()
+            assert data == {"test": "Hello WebSocket"}
+            websocket.send_text("ping")
+
+
 # @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 # def test_traced_websocket_sampling_not_inherited(ddtrace_run_python_code_in_subprocess):
 #     code = """
@@ -581,7 +591,7 @@ def test_traced_websocket(test_spans, snapshot_app):
 #     assert status == 0, out.decode()
 
 
-# @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_long_running_websocket_session(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
 

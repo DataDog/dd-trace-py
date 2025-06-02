@@ -141,7 +141,7 @@ class TraceMiddleware:
             if not self.integration_config._trace_asgi_websocket:
                 return await self.app(scope, receive, send)
 
-            method = "WEBSOCKET"
+            method = "websocket"
         else:
             return await self.app(scope, receive, send)
         try:
@@ -181,9 +181,6 @@ class TraceMiddleware:
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             ctx.set_item("req_span", span)
-
-            # set span.kind to the type of request being performed
-            # question: should this be network.client.ip or
 
             span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
@@ -259,6 +256,8 @@ class TraceMiddleware:
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
 
+            global_root_span = span_from_scope(scope)
+
             async def wrapped_send(message):
                 """
                 websocket.message.type
@@ -273,7 +272,7 @@ class TraceMiddleware:
                         with self.tracer.trace(
                             "websocket.send",
                             service=span.service,
-                            resource=f"websocket {scope.get('path', '')}",
+                            resource=f"{method} {scope.get('path', '')}",
                             span_type="websocket",
                         ) as send_span:
                             send_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -304,6 +303,15 @@ class TraceMiddleware:
                                 send_span.set_tag_str("websocket.message.type", "binary")
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
 
+                            if self.integration_config._asgi_websockets_inherit_sampling:
+                                send_span.set_metric("_dd.dm.inherited", 1)
+
+                                # if the service and resource are different
+                                if send_span.service != global_root_span.service:
+                                    send_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                                if send_span.resource != global_root_span.resource:
+                                    send_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
                         and message.get("type") == "websocket.close"
@@ -317,7 +325,7 @@ class TraceMiddleware:
                         with self.tracer.trace(
                             "websocket.close",
                             service=span.service,
-                            resource=f"websocket {scope.get('path', '')}",
+                            resource=f"{method} {scope.get('path', '')}",
                             span_type="websocket",
                         ) as close_span:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -399,7 +407,7 @@ class TraceMiddleware:
                         with self.tracer.start_span(
                             name="websocket.receive",
                             service=span.service,
-                            resource=f"websocket {scope.get('path', '')}",
+                            resource=f"{method} {scope.get('path', '')}",
                             span_type="websocket",
                             child_of=None,
                         ) as recv_span:
@@ -424,8 +432,11 @@ class TraceMiddleware:
 
                             if self.integration_config._asgi_websockets_inherit_sampling:
                                 recv_span.set_metric("_dd.dm.inherited", 1)
-                                recv_span.set_tag_str("_dd.dm.service", span.service)
-                                recv_span.set_tag_str("_dd.dm.resource", span.resource)
+
+                                if global_root_span.service != recv_span.service:
+                                    recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                                if global_root_span.resource != recv_span.resource:
+                                    recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -436,7 +447,7 @@ class TraceMiddleware:
                         with self.tracer.start_span(
                             name="websocket.close",
                             service=span.service,
-                            resource=f"websocket {scope.get('path', '')}",
+                            resource=f"{method} {scope.get('path', '')}",
                             span_type="websocket",
                             child_of=None,
                         ) as close_span:
@@ -445,8 +456,10 @@ class TraceMiddleware:
 
                             if self.integration_config._asgi_websockets_inherit_sampling:
                                 close_span.set_metric("_dd.dm.inherited", 1)
-                                close_span.set_tag_str("_dd.dm.service", span.service)
-                                close_span.set_tag_str("_dd.dm.resource", span.resource)
+                                if global_root_span.service != close_span.service:
+                                    close_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                                if global_root_span.resource != close_span.resource:
+                                    close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
 
                             code = message.get("code")
                             reason = message.get("reason")
