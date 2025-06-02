@@ -52,7 +52,6 @@ _OTelDatadogMapping = {
     "service.name": "service",
     "resource.name": "resource",
     "span.type": "span_type",
-    "analytics.event": "metrics['_dd1.sr.eausr']",
     "http.response.status_code": "meta['http.status_code']",
 }
 
