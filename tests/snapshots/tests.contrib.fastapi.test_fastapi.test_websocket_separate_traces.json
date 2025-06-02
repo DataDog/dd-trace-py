@@ -1,0 +1,125 @@
+[
+  [
+    {
+      "name": "fastapi.request",
+      "service": "fastapi",
+      "resource": "websocket /ws",
+      "trace_id": 0,
+      "span_id": 1,
+      "parent_id": 0,
+      "type": "web",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "tests.contrib.fastapi",
+        "_dd.p.dm": "-0",
+        "_dd.p.tid": "683de32300000000",
+        "component": "fastapi",
+        "http.upgraded": "websocket",
+        "http.url": "ws://testserver/ws",
+        "http.useragent": "testclient",
+        "language": "python",
+        "runtime-id": "262c0bda92ff4215ba00b7344e2ade70",
+        "span.kind": "server"
+      },
+      "metrics": {
+        "_dd.top_level": 1,
+        "_dd.tracer_kr": 1.0,
+        "_sampling_priority_v1": 1,
+        "process_id": 61212
+      },
+      "duration": 697000,
+      "start": 1748886307449441000
+    },
+    {
+      "name": "websocket.send",
+      "service": "fastapi",
+      "resource": "websocket /ws",
+      "trace_id": 0,
+      "span_id": 2,
+      "parent_id": 1,
+      "type": "websocket",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "tests.contrib.fastapi",
+        "_dd.span_links": "[{\"trace_id\": \"683de32300000000e5348300a269ba96\", \"span_id\": \"dee225add6c20ef2\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+        "component": "fastapi",
+        "out.host": "testclient",
+        "span.kind": "producer",
+        "websocket.message.type": "text"
+      },
+      "metrics": {
+        "websocket.message.frames": 1,
+        "websocket.message.length": 27
+      },
+      "duration": 143000,
+      "start": 1748886307449742000
+    },
+    {
+      "name": "websocket.receive",
+      "service": "fastapi",
+      "resource": "websocket /ws",
+      "trace_id": 0,
+      "span_id": 3,
+      "parent_id": 1,
+      "type": "websocket",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "tests.contrib.fastapi",
+        "_dd.span_links": "[{\"trace_id\": \"683de32300000000e5348300a269ba96\", \"span_id\": \"dee225add6c20ef2\", \"attributes\": {\"dd.kind\": \"executed_by\"}}]",
+        "component": "fastapi",
+        "span.kind": "consumer",
+        "websocket.message.type": "text"
+      },
+      "metrics": {
+        "websocket.message.frames": 1,
+        "websocket.message.length": 4
+      },
+      "duration": 32000,
+      "start": 1748886307450000000
+    },
+    {
+      "name": "websocket.send",
+      "service": "fastapi",
+      "resource": "websocket /ws",
+      "trace_id": 0,
+      "span_id": 4,
+      "parent_id": 1,
+      "type": "websocket",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "tests.contrib.fastapi",
+        "_dd.span_links": "[{\"trace_id\": \"683de32300000000e5348300a269ba96\", \"span_id\": \"dee225add6c20ef2\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+        "component": "fastapi",
+        "out.host": "testclient",
+        "span.kind": "producer",
+        "websocket.message.type": "text"
+      },
+      "metrics": {
+        "websocket.message.frames": 1,
+        "websocket.message.length": 9
+      },
+      "duration": 34000,
+      "start": 1748886307450056000
+    },
+    {
+      "name": "websocket.close",
+      "service": "fastapi",
+      "resource": "websocket /ws",
+      "trace_id": 0,
+      "span_id": 5,
+      "parent_id": 1,
+      "type": "websocket",
+      "error": 0,
+      "meta": {
+        "_dd.base_service": "tests.contrib.fastapi",
+        "component": "fastapi",
+        "span.kind": "consumer"
+      },
+      "metrics": {
+        "websocket.close.code": 1000
+      },
+      "duration": 27000,
+      "start": 1748886307450121000
+    }
+  ]
+]

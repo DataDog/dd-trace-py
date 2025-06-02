@@ -42,6 +42,9 @@ config._add(
         _asgi_websockets_inherit_sampling=asbool(
             os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         ),
+        _websocket_messages_separate=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+        ),
     ),
 )
 
@@ -272,7 +275,7 @@ class TraceMiddleware:
                         with self.tracer.trace(
                             "websocket.send",
                             service=span.service,
-                            resource=f"{method} {scope.get('path', '')}",
+                            resource=f"websocket {scope.get('path', '')}",
                             span_type="websocket",
                         ) as send_span:
                             send_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -303,7 +306,7 @@ class TraceMiddleware:
                                 send_span.set_tag_str("websocket.message.type", "binary")
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
 
-                            if self.integration_config._asgi_websockets_inherit_sampling:
+                            if self.integration_config._websocket_messages_separate and self.integration_config._asgi_websockets_inherit_sampling:
                                 send_span.set_metric("_dd.dm.inherited", 1)
 
                                 # if the service and resource are different
@@ -325,7 +328,7 @@ class TraceMiddleware:
                         with self.tracer.trace(
                             "websocket.close",
                             service=span.service,
-                            resource=f"{method} {scope.get('path', '')}",
+                            resource=f"websocket {scope.get('path', '')}",
                             span_type="websocket",
                         ) as close_span:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -404,13 +407,23 @@ class TraceMiddleware:
                         self.integration_config._trace_asgi_websocket_messages
                         and message["type"] == "websocket.receive"
                     ):
-                        with self.tracer.start_span(
-                            name="websocket.receive",
-                            service=span.service,
-                            resource=f"{method} {scope.get('path', '')}",
-                            span_type="websocket",
-                            child_of=None,
-                        ) as recv_span:
+
+                        if self.integration_config._websocket_messages_separate:
+                            span_context_manager = self.tracer.start_span(
+                                name="websocket.receive",
+                                service=span.service,
+                                resource=f"websocket {scope.get('path', '')}",
+                                span_type="websocket",
+                                child_of=None,
+                            )
+                        else:
+                            span_context_manager = self.tracer.trace(
+                                name="websocket.receive",
+                                service=span.service,
+                                resource=f"websocket {scope.get('path', '')}",
+                                span_type="websocket",
+                            )
+                        with span_context_manager as recv_span:
                             recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
                             core.dispatch("asgi.websocket.receive", (message,))
@@ -430,7 +443,7 @@ class TraceMiddleware:
                             # since asgi is a high level framework, frames is always 1
                             recv_span.set_metric("websocket.message.frames", 1)
 
-                            if self.integration_config._asgi_websockets_inherit_sampling:
+                            if self.integration_config._websocket_messages_separate and self.integration_config._asgi_websockets_inherit_sampling:
                                 recv_span.set_metric("_dd.dm.inherited", 1)
 
                                 if global_root_span.service != recv_span.service:
@@ -444,17 +457,27 @@ class TraceMiddleware:
                     ):
                         # peer closes the connection
                         # in this case the span will be trace root (will behave like the websocket.receive use case)
-                        with self.tracer.start_span(
+                        if self.integration_config._websocket_messages_separate:
+                            span_context_manager = self.tracer.start_span(
                             name="websocket.close",
                             service=span.service,
-                            resource=f"{method} {scope.get('path', '')}",
+                            resource=f"websocket {scope.get('path', '')}",
                             span_type="websocket",
                             child_of=None,
-                        ) as close_span:
+                        )
+                        else:
+                            span_context_manager = self.tracer.trace(
+                                name="websocket.close",
+                                service=span.service,
+                                resource=f"websocket {scope.get('path', '')}",
+                                span_type="websocket",
+                            )
+                        
+                        with span_context_manager as close_span:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             close_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
-                            if self.integration_config._asgi_websockets_inherit_sampling:
+                            if self.integration_config._websocket_messages_separate and self.integration_config._asgi_websockets_inherit_sampling:
                                 close_span.set_metric("_dd.dm.inherited", 1)
                                 if global_root_span.service != close_span.service:
                                     close_span.set_tag_str("_dd.dm.service", global_root_span.service)
