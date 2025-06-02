@@ -55,6 +55,7 @@ class PriorityCategory(object):
     RULE_CUSTOMER = "rule_customer"
     RULE_DYNAMIC = "rule_dynamic"
 
+
 SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
