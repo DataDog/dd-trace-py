@@ -20,7 +20,7 @@ def print_test_report_links(terminalreporter):
     ci_tags = CIVisibility.get_ci_tags()
     settings = CIVisibility.get_session_settings()
     service = settings.test_service
-    env = ddconfig.env
+    env = os.getenv("_CI_DD_ENV", ddconfig.env)
 
     redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
     test_runs_url = _build_test_runs_url(base_url, ci_tags)
