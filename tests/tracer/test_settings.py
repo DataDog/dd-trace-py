@@ -19,6 +19,10 @@ class TestConfig(BaseTestCase):
             config = Config()
             self.assertFalse(config._logs_injection)
 
+        with self.override_env(dict(), replace_os_env=True):
+            config = Config()
+            self.assertIsNone(config._logs_injection)
+
     def test_service(self):
         # If none is provided the default should be ``None``
         with self.override_env(dict()):

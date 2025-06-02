@@ -46,17 +46,6 @@ def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
             if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                 tracer.enabled = True
 
-    if "_logs_injection" in items:
-        # TODO: Refactor the logs injection code to import from a core component
-        if config._logs_injection:
-            from ddtrace.contrib.internal.logging.patch import patch
-
-            patch()
-        else:
-            from ddtrace.contrib.internal.logging.patch import unpatch
-
-            unpatch()
-
 
 def post_preload():
     if _config.enabled:

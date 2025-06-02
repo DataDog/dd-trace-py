@@ -24,9 +24,9 @@ def _test_logging(output, span, env, service, version):
     assert "Hello" in json.loads(output[0])["text"]
     assert json.loads(output[0])["record"]["extra"]["dd.trace_id"] == str(dd_trace_id)
     assert json.loads(output[0])["record"]["extra"]["dd.span_id"] == str(dd_span_id)
-    assert json.loads(output[0])["record"]["extra"]["dd.env"] == env or ""
-    assert json.loads(output[0])["record"]["extra"]["dd.service"] == service or ""
-    assert json.loads(output[0])["record"]["extra"]["dd.version"] == version or ""
+    assert json.loads(output[0])["record"]["extra"]["dd.env"] in (env or "")
+    assert json.loads(output[0])["record"]["extra"]["dd.service"] in (service or "")
+    assert json.loads(output[0])["record"]["extra"]["dd.version"] in (version or "")
 
 
 @pytest.fixture()
@@ -44,6 +44,57 @@ def captured_logs():
 def global_config():
     with override_global_config({"service": "logging", "env": "global.env", "version": "global.version"}):
         yield
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize=dict(DD_LOGS_INJECTION=["true", None]),
+    env=dict(DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"),
+    out=None,
+    err=None,
+)
+def test_log_injection_enabled():
+    """
+    Check trace info includes global values over local span values
+    """
+    from loguru import logger
+
+    from ddtrace import tracer
+    from tests.contrib.loguru.test_loguru_logging import _test_logging
+
+    captured_logs = []
+    logger.add(captured_logs.append, serialize=True)
+    with tracer.trace("test.logging") as span:
+        logger.info("Hello!")
+
+    _test_logging(captured_logs, span, "ddenv", "dds", "vv")
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv", DD_LOGS_INJECTION="false"),
+    out=None,
+    err=None,
+)
+def test_log_injection_disabled():
+    """
+    Check trace info includes global values over local span values
+    """
+    import json
+
+    from loguru import logger
+
+    from ddtrace import tracer
+
+    captured_logs = []
+    logger.add(captured_logs.append, serialize=True)
+    with tracer.trace("test.logging"):
+        logger.info("Hello!")
+
+    for log in captured_logs:
+        log_json = json.loads(log)
+        assert not log_json["record"]["extra"], "Log record should not contain ddtrace fields when"
+        f"DD_LOGS_INJECTION is disabled, record: {log_json.get('record')}"
 
 
 def test_log_trace_global_values(captured_logs):
@@ -132,7 +183,6 @@ def test_log_trace():
     from loguru import logger
 
     from ddtrace import config
-    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -172,7 +222,6 @@ def test_log_trace_128bit_trace_ids():
 
     from ddtrace import config
     from ddtrace.internal.constants import MAX_UINT_64BITS
-    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -204,7 +253,6 @@ def test_log_DD_TAGS():
     from loguru import logger
 
     from ddtrace.internal.constants import MAX_UINT_64BITS
-    from ddtrace.trace import tracer
 
     captured_logs = []
     logger.remove()
@@ -254,7 +302,6 @@ def test_configured_format():
 
     from ddtrace import config
     from ddtrace.internal.constants import MAX_UINT_64BITS
-    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"

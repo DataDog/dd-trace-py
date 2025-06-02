@@ -68,6 +68,9 @@ def _get_tracer(tracer=None):
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
+    if not config._logs_injection:
+        # log injection is opt-in for non-structured logging
+        return record
 
     setattr(record, RECORD_ATTR_VERSION, config.version or RECORD_ATTR_VALUE_EMPTY)
     setattr(record, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
@@ -93,6 +96,9 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
+    if not config._logs_injection:
+        # log injection is opt-in for structured logging
+        return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
     # has a "service" property

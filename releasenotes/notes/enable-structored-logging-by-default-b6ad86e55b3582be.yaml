@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    loguru,structlog,logbook: Enable trace log correlation for structured loggers by default.

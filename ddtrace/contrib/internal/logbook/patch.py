@@ -40,8 +40,10 @@ def _tracer_injection(event_dict):
 
 def _w_process_record(func, instance, args, kwargs):
     # patch logger to include datadog info before logging
-    record = get_argument_value(args, kwargs, 0, "record")
-    _tracer_injection(record.extra)
+    if config._logs_injection in (True, None):
+        # log injection is opt-out for structured logging
+        record = get_argument_value(args, kwargs, 0, "record")
+        _tracer_injection(record.extra)
     return func(*args, **kwargs)
 
 
