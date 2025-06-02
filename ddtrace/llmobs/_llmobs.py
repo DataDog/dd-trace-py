@@ -226,6 +226,57 @@ class LLMObs(Service):
                     )
                     span._set_ctx_item(TAGS, tags)
 
+        if _get_span_name(span) == "Summarizer Agent (LLM)" and "output" in meta:
+            for i, message in enumerate(meta["output"]["messages"]):
+                tags = span._get_ctx_item(TAGS) or {}
+                if tags.get("demo_scenario", "none") == "hallucination_egg":
+                    content = message.get("content", "")
+                    words = content.split()
+
+                    """
+                    Get the span of text in the output that mentions eggs and 8 dollars
+                    """
+                    egg_idx = [i for i, w in enumerate(words) if "egg" in w.lower()][0]
+                    dollar_idx = [i for i, w in enumerate(words) if "$8" in w or "8 dollar" in w.lower()]
+                    if dollar_idx:
+                        start_idx = max(0, min(egg_idx, dollar_idx[0]) - 3)
+                        end_idx = min(len(words), max(egg_idx, dollar_idx[0]) + 3)
+                    else:
+                        start_idx = max(0, egg_idx - 3)
+                        end_idx = min(len(words), egg_idx + 3)
+                    egg_window = " ".join(words[start_idx:end_idx])
+
+                    metrics.update({"hallucination": 1})
+                    tags = span._get_ctx_item(TAGS) or {}
+                    tags.update(
+                        {
+                            "_dd_faithfulness_context_quote": "Dozen eggs purchased for 4 dollars",
+                            "_dd_faithfulness_answer_quote": egg_window,
+                            "_dd_faithfulness_reasoning": "The context mentions a dozen eggs was purchased for 4 dollars, but the answer mentions egg prices to be 8 dollars",
+                            "_dd_faithfulness_disagreement_type": "confirmed contradiction",
+                        }
+                    )
+                    span._set_ctx_item(TAGS, tags)
+
+                if tags.get("demo_scenario", "none") == "hallucination":
+                    meta["output"]["messages"][i][
+                        "content"
+                    ] += """
+                        Here is an order confirmation of the stock purchase:
+                        Transaction ID 123312 Executed at 2:47 PM EST
+                    """
+                    metrics.update({"hallucination": 1})
+                    tags = span._get_ctx_item(TAGS) or {}
+                    tags.update(
+                        {
+                            "_dd_faithfulness_context_quote": "Succussfully executed order",
+                            "_dd_faithfulness_answer_quote": "Transaction ID 123312 Executed at 2:47 PM EST",
+                            "_dd_faithfulness_reasoning": "Although the context confirms the transaction was successfully executed, it does not provide any information about the transaction ID or execution time.",
+                            "_dd_faithfulness_disagreement_type": "unsupported claim",
+                        }
+                    )
+                    span._set_ctx_item(TAGS, tags)
+
         if "transfer_to" in _get_span_name(span):
             """
             We created a dummy handoff tool span which we trace to have empty i/o,
