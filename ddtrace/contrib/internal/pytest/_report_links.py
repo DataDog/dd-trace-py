@@ -43,7 +43,7 @@ def print_test_report_links(terminalreporter):
 
 
 def _get_base_url(dd_site, dd_subdomain):
-    # Based on <https://github.com/DataDog/datadog-ci/blob/v3.7.0/master/src/helpers/app.ts>.
+    # Based on <https://github.com/DataDog/datadog-ci/blob/v3.7.0/src/helpers/app.ts>.
     subdomain = dd_subdomain or DEFAULT_DATADOG_SUBDOMAIN
     dd_site_parts = dd_site.split(".")
     if len(dd_site_parts) == 3:
