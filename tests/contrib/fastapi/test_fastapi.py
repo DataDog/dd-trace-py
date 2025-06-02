@@ -545,11 +545,12 @@ def test_table_query_snapshot(snapshot_client):
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 # TODO: look into why one message is only 26 chars
 def test_traced_websocket(test_spans, snapshot_app):
-    import fastapi
+    import fastapi  # noqa: F401
     from fastapi.testclient import TestClient
-    from tests.contrib.fastapi import app
+
     from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
-    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch   
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
 
     fastapi_patch()
     try:
@@ -561,15 +562,17 @@ def test_traced_websocket(test_spans, snapshot_app):
                 websocket.send_text("close")
     finally:
         fastapi_unpatch()
+
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES="false"))
 @snapshot(ignores=["meta._dd.span_links"])
 def test_websocket_sampling_not_inherited(test_spans, snapshot_app):
-    import fastapi
+    import fastapi  # noqa: F401
     from fastapi.testclient import TestClient
-    from tests.contrib.fastapi import app
+
     from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
-    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch   
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
 
     fastapi_patch()
     try:
@@ -582,14 +585,18 @@ def test_websocket_sampling_not_inherited(test_spans, snapshot_app):
     finally:
         fastapi_unpatch()
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false"))
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false")
+)
 @snapshot(ignores=["meta._dd.span_links"])
 def test_websocket_separate_traces(test_spans, snapshot_app):
-    import fastapi
+    import fastapi  # noqa: F401
     from fastapi.testclient import TestClient
-    from tests.contrib.fastapi import app
+
     from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
-    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch   
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
 
     fastapi_patch()
     try:

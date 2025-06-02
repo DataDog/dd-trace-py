@@ -32,8 +32,7 @@ config._add(
         _asgi_websockets_inherit_sampling=asbool(
             os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         ),
-        _websocket_messages_separate=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
-        ),
+        _websocket_messages_separate=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
     ),
 )
 
