@@ -83,7 +83,7 @@ def test_patch():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
 @pytest.mark.subprocess(err=None)
-# Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread

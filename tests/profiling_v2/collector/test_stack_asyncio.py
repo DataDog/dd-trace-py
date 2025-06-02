@@ -7,7 +7,7 @@ import pytest
     ),
     err=None,
 )
-# err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
+# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio():
     import asyncio
     import os
