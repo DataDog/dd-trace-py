@@ -443,7 +443,7 @@ def _cmpkey(epoch, release, pre, post, dev, local):
 
 class _TrimmedRelease(Version):
     @property
-    def release(self) -> tuple[int, ...]:
+    def release(self):
         """
         Release segment without any trailing zeros.
 
