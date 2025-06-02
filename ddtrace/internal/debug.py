@@ -140,7 +140,6 @@ def collect(tracer):
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
-        analytics_enabled=ddtrace.config._analytics_enabled,
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
@@ -188,7 +187,6 @@ def pretty_collect(tracer, color=True):
     Debug logging: {debug}
     Writing traces to: {agent_url}
     Agent error: {agent_error}
-    App Analytics enabled(deprecated): {analytics_enabled}
     Log injection enabled: {log_injection_enabled}
     Health metrics enabled: {health_metrics_enabled}
     Priority sampling enabled: {priority_sampling_enabled}
@@ -208,7 +206,6 @@ def pretty_collect(tracer, color=True):
         debug=info.get("debug"),
         agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
         agent_error=info.get("agent_error") or "None",
-        analytics_enabled=info.get("analytics_enabled"),
         log_injection_enabled=info.get("log_injection_enabled"),
         health_metrics_enabled=info.get("health_metrics_enabled"),
         priority_sampling_enabled=info.get("priority_sampling_enabled"),
