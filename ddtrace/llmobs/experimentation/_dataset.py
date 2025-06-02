@@ -421,12 +421,11 @@ class Dataset:
 
         There are only two behaviours:
             • new_version=True  (default): create a brand-new remote version based on the local
-              state.  Internally this is done by sending the first chunk with ``overwrite=False`` so
-              the backend increments the version, followed by additional chunks (if any) with
-              ``overwrite=True`` to append to that same version.
+              state. The first chunk uses create_new_version=True to establish the new version,
+              and subsequent chunks append to that same version.
 
-            • new_version=False: mutate the latest remote version in-place.  In this mode all
-              chunks are sent with ``overwrite=True`` so we always operate on the same version.
+            • new_version=False: mutate the latest remote version in-place. All chunks use
+              create_new_version=False and overwrite=True to modify the existing version.
 
         All record mutations – creation, modification and deletion – are expressed through the
         standard ``insert_records``, ``update_records`` and ``delete_records`` attributes of the
@@ -592,6 +591,11 @@ class Dataset:
         if show_progress:
             _print_progress_bar(0, total_chunks, prefix="Pushing records:", suffix="Complete")
 
+        # Determine create_new_version for the entire operation
+        # first_chunk_overwrite=False means we want a new version (create_new_version=True)
+        # first_chunk_overwrite=True means we want to mutate existing version (create_new_version=False)
+        create_new_version = not first_chunk_overwrite
+
         for idx, ins_chunk in enumerate(insert_chunks):
             attrs: Dict[str, Any] = {}
             if ins_chunk:
@@ -601,9 +605,17 @@ class Dataset:
                     attrs["update_records"] = update_records
                 if delete_records:
                     attrs["delete_records"] = delete_records
-            # Overwrite rules – see docstring of *push* for rationale.
-            overwrite_value = first_chunk_overwrite if idx == 0 else True
-            attrs["overwrite"] = overwrite_value
+            
+            # Use create_new_version for first chunk, then overwrite=True for subsequent chunks
+            # to append to the version established by the first chunk
+            if idx == 0:
+                attrs["create_new_version"] = create_new_version
+                # For backward compatibility, also send overwrite (legacy field)
+                attrs["overwrite"] = first_chunk_overwrite
+            else:
+                # Subsequent chunks should append to the same version created/modified by first chunk
+                attrs["create_new_version"] = False  # Don't create another new version
+                attrs["overwrite"] = True  # Append to existing version
 
             payload = {
                 "data": {
@@ -614,7 +626,7 @@ class Dataset:
             }
 
             url = f"/api/unstable/llm-obs/v1/datasets/{self._datadog_dataset_id}/batch_update"
-            exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
+            resp = exp_http_request("POST", url, body=json.dumps(payload).encode("utf-8"))
 
             if show_progress:
                 _print_progress_bar(idx + 1, total_chunks, prefix="Pushing records:", suffix="Complete")
