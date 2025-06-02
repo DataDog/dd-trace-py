@@ -1,5 +1,3 @@
-import functools
-import inspect
 import os
 
 import azure.functions as azure_functions
