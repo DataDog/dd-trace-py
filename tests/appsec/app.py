@@ -209,11 +209,19 @@ def view_cmdi_secure():
     return Response("OK")
 
 
+@app.route("/iast-header-injection-vulnerability", methods=["GET"])
+def iast_header_injection_vulnerability():
+    header = request.args.get("header")
+    resp = Response("OK")
+    resp.headers._list.append(("X-Vulnerable-Header", header))
+    return resp
+
+
 @app.route("/iast-header-injection-vulnerability-secure", methods=["GET"])
 def iast_header_injection_vulnerability_secure():
     header = request.args.get("header")
     resp = Response("OK")
-    resp.headers["Header-Injection"] = header
+    resp.headers["X-Vulnerable-Header"] = "param={}".format(header)
     return resp
 
 

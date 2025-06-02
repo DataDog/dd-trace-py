@@ -1271,6 +1271,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
             assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test"
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
@@ -1283,7 +1284,60 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert vulnerability["evidence"] == {
                 "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "test"}]
             }
-            # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
+
+    def test_flask_header_injection_direct_access_to_header(self):
+        @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            # resp.headers["Vary"] = tainted_string
+
+            # label test_flask_header_injection_label
+            resp.headers._list.append(("Header-Injection", tainted_string))
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/header_injection_insecure/", data={"name": "test"})
+            assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            assert root_span.get_tag(IAST.JSON) is None
+
+    def test_flask_header_injection_direct_access_to_header_exception(self):
+        @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            # resp.headers["Vary"] = tainted_string
+
+            # label test_flask_header_injection_label
+            resp.headers._list.append(("Header-Injection", tainted_string))
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            with pytest.raises(ValueError):
+                self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_transfer_encoding(self):

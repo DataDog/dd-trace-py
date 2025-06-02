@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.utils_testagent import _get_span
@@ -127,9 +126,43 @@ def test_iast_header_injection_secure():
     ) as context:
         _, flask_client, pid = context
 
-        response = flask_client.get("/iast-header-injection-vulnerability-secure?header=header_injection_param")
+        response = flask_client.get(
+            "/iast-header-injection-vulnerability-secure?header=value%0d%0aStrict-Transport-Security%3a+max-age%3d0%0"
+        )
 
         assert response.status_code == 200
+        assert response.headers["X-Vulnerable-Header"] == "param=value%0D%0AStrict-Transport-Security%3A max-age%3D0%0"
+        assert response.headers.get("Strict-Transport-Security") is None
+
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = span["meta"].get("_dd.iast.json")
+            if iast_data:
+                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2
+    assert len(vulnerabilities) == 0
+
+
+def test_iast_header_injection():
+    token = "test_iast_header_injection"
+    _ = start_trace(token)
+    with flask_server(
+        iast_enabled="true", token=token, port=8050, env={"FLASK_DEBUG": "true", "DD_TRACE_DEBUG": "true"}
+    ) as context:
+        _, flask_client, pid = context
+
+        response = flask_client.get("/iast-header-injection-vulnerability?header=value\r\nInject-Header: 1234")
+
+        assert response.status_code == 200
+        assert response.headers["X-Vulnerable-Header"] == "valueInject-Header: 1234"
+        assert response.headers.get("Strict-Transport-Security") is None
 
     response_tracer = _get_span(token)
     spans_with_iast = []
