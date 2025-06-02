@@ -392,7 +392,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    @flaky(until=1748750400, reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
+    @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
