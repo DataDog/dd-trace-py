@@ -153,7 +153,6 @@ python = "3.10"
 extra-dependencies = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "hypothesis<6.45.1"
 ]
 [envs.meta-testing.env-vars]
@@ -161,7 +160,7 @@ DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
 test = [
-  "pytest -n logical {args} --no-ddtrace tests/meta"
+  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -634,7 +633,6 @@ template = "iast_aggregated_leak_testing"
 dependencies = [
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "hypothesis",
     "requests",
     "pytest-asyncio",
@@ -653,7 +651,7 @@ test = [
     "uname -a",
     "pip freeze",
     # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-    "python -m pytest -n logical --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
 [[envs.iast_aggregated_leak_testing.matrix]]
@@ -779,13 +777,12 @@ dependencies = [
     "freezegun{matrix:freezegun}",
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
     "hypothesis",
 ]
 
 [envs.freezegun.scripts]
 test = [
-    "pytest -n logical tests/contrib/freezegun {args:}",
+    "pytest tests/contrib/freezegun {args:}",
 ]
 
 [[envs.freezegun.matrix]]
