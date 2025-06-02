@@ -2,7 +2,6 @@ import os
 import re
 from urllib.parse import quote
 
-from ddtrace import config as ddconfig
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -20,7 +19,7 @@ def print_test_report_links(terminalreporter):
     ci_tags = CIVisibility.get_ci_tags()
     settings = CIVisibility.get_session_settings()
     service = settings.test_service
-    env = os.getenv("_CI_DD_ENV", ddconfig.env)
+    env = CIVisibility.get_dd_env()
 
     redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
     test_runs_url = _build_test_runs_url(base_url, ci_tags)

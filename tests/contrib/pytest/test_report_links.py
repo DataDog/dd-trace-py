@@ -1,5 +1,4 @@
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -102,7 +101,7 @@ def test_print_report_links_full(mocker):
         },
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -133,7 +132,7 @@ def test_print_report_links_only_commit_report(mocker):
         },
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -159,7 +158,7 @@ def test_print_report_links_only_test_runs_report(mocker):
         },
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -183,7 +182,7 @@ def test_print_report_links_no_report(mocker):
         lambda: {},
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -206,7 +205,7 @@ def test_print_report_links_escape_names(mocker):
         },
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -236,7 +235,7 @@ def test_print_report_links_commit_report_with_env(mocker):
         },
     )
     mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env="the_env"))
+    mocker.patch.object(CIVisibility, "get_dd_env", lambda: "the_env")
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -247,31 +246,4 @@ def test_print_report_links_commit_report_with_env(mocker):
         "",
         "* Commit report:",
         "  → https://app.datadoghq.com/ci/redirect/tests/https%3A%2F%2Fgithub.com%2Fsome-org%2Fsome-repo/-/the_test_service/-/main/-/abcd0123?env=the_env",
-    ]
-
-
-def test_print_report_links_commit_report_with_ci_env(mocker):
-    terminalreporter = TerminalReporterMock()
-
-    mocker.patch.object(
-        CIVisibility,
-        "get_ci_tags",
-        lambda: {
-            ci.git.REPOSITORY_URL: "https://github.com/some-org/some-repo",
-            ci.git.BRANCH: "main",
-            ci.git.COMMIT_SHA: "abcd0123",
-        },
-    )
-    mocker.patch.object(CIVisibility, "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(_report_links, "ddconfig", Mock(env=None))
-
-    with override_env({"_CI_DD_ENV": "ci_env"}):
-        _report_links.print_test_report_links(terminalreporter)
-
-    assert terminalreporter.lines == [
-        "=== Datadog Test Reports ===",
-        "View detailed reports in Datadog (they may take a few minutes to become available):",
-        "",
-        "* Commit report:",
-        "  → https://app.datadoghq.com/ci/redirect/tests/https%3A%2F%2Fgithub.com%2Fsome-org%2Fsome-repo/-/the_test_service/-/main/-/abcd0123?env=ci_env",
     ]
