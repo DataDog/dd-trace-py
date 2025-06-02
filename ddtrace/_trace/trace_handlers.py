@@ -14,7 +14,6 @@ from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -147,13 +146,6 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     span.set_tag(_SPAN_MEASURED_KEY)
-
-    analytics_enabled = ctx.get_item("analytics_enabled")
-    analytics_sample_rate = ctx.get_item("analytics_sample_rate", True)
-
-    # Configure trace search sample rate
-    if (config._analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sample_rate)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -454,10 +446,6 @@ def _on_request_span_modifier(
     span.resource = " ".join((request.method, request.path))
 
     span.set_tag(_SPAN_MEASURED_KEY)
-    # set analytics sample rate with global config enabled
-    sample_rate = flask_config.get_analytics_sample_rate(use_global_config=True)
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
     span.set_tag_str(flask_version, flask_version_str)
 

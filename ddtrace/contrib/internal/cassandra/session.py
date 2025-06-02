@@ -21,7 +21,6 @@ from cassandra.query import SimpleStatement
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -216,7 +215,6 @@ def _start_span_and_set_tags(
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tags(additional_tags)
-    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.cassandra.get_analytics_sample_rate())
     if query is not None:
         span.set_tag_str("cassandra.query", query)
     if statements_and_parameters is not None:
