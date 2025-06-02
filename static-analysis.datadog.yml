@@ -1,0 +1,15 @@
+rulesets:
+  - python-best-practices:
+    rules:
+      any-type-disallow:
+        ignore:
+          - "ddtrace/appsec/_iast/secure_marks/sanitizers.py"
+      no-silent-exception:
+        ignore:
+          - "tests/appsec/integrations/fixtures/sql_injection_sqlalchemy.py"
+  - python-security:
+    rules:
+      os-system:
+        ignore:
+          - "tests/appsec/integrations/*"
+          - "benchmarks/*"
