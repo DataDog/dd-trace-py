@@ -183,6 +183,7 @@ def test_log_trace():
     from loguru import logger
 
     from ddtrace import config
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -222,6 +223,7 @@ def test_log_trace_128bit_trace_ids():
 
     from ddtrace import config
     from ddtrace.internal.constants import MAX_UINT_64BITS
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -253,6 +255,7 @@ def test_log_DD_TAGS():
     from loguru import logger
 
     from ddtrace.internal.constants import MAX_UINT_64BITS
+    from ddtrace.trace import tracer
 
     captured_logs = []
     logger.remove()
@@ -302,6 +305,7 @@ def test_configured_format():
 
     from ddtrace import config
     from ddtrace.internal.constants import MAX_UINT_64BITS
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"

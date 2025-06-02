@@ -54,7 +54,7 @@ def global_config():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     parametrize=dict(DD_LOGS_INJECTION=["True", None]),
-    env=dict(DD_SERVICE="moon", DD_ENV="local-env", DD_VERSION="local-version"),
+    env=dict(DD_SERVICE="moon", DD_ENV="global-env", DD_VERSION="global-version"),
 )
 def test_log_injection_enabled():
     """
@@ -63,6 +63,7 @@ def test_log_injection_enabled():
     import structlog
 
     from ddtrace import config
+    from ddtrace.trace import tracer
     from tests.contrib.structlog.test_structlog_logging import _test_logging
 
     cf = structlog.testing.CapturingLoggerFactory()
@@ -87,6 +88,8 @@ def test_log_injection_disabled():
     import json
 
     import structlog
+
+    from ddtrace.trace import tracer
 
     gcf = structlog.testing.CapturingLoggerFactory()
 
@@ -142,6 +145,7 @@ def test_log_trace():
     from ddtrace import config
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -187,6 +191,7 @@ def test_log_trace_128bit_trace_ids():
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
     from ddtrace.internal.constants import MAX_UINT_64BITS
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -226,6 +231,9 @@ def test_log_DD_TAGS():
 
     import structlog
 
+    from ddtrace.constants import ENV_KEY
+    from ddtrace.constants import SERVICE_KEY
+    from ddtrace.constants import VERSION_KEY
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
     from ddtrace.trace import tracer
@@ -272,6 +280,7 @@ def test_tuple_processor_list():
     from ddtrace import config
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"
@@ -313,6 +322,7 @@ def test_no_configured_processor():
     from ddtrace import config
     from ddtrace.contrib.internal.structlog.patch import patch
     from ddtrace.contrib.internal.structlog.patch import unpatch
+    from ddtrace.trace import tracer
 
     config.service = "logging"
     config.env = "global.env"

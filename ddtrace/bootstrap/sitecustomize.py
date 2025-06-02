@@ -20,18 +20,11 @@ import sys
 import warnings  # noqa:F401
 
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import set_log_formatting
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
-
-
-if config._logs_injection is True:
-    # Only set the formatter is DD_LOGS_INJECTION is set to True. We do not want to modify
-    # unstructured logs if the user has not enabled logs injection.
-    set_log_formatting()
 
 
 log = get_logger(__name__)
