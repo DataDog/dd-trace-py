@@ -77,8 +77,8 @@ def _quote_for_query(text):
     if SAFE_FOR_QUERY.match(text):
         return text
 
-    text = text.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{text}"'
+    escaped_text = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped_text}"'
 
 
 def _build_test_runs_url(base_url, ci_tags):
