@@ -21,7 +21,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0d628ef0d9e1e7f58a0a62c770f723640f3175d4'
+          ref: 'bc5ac8df80c981de47ad258e066c26e2fc5ff4ee'
 
       - name: Build agent
         run: ./build.sh -i agent
@@ -69,7 +69,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0d628ef0d9e1e7f58a0a62c770f723640f3175d4'
+          ref: 'bc5ac8df80c981de47ad258e066c26e2fc5ff4ee'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -123,7 +123,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0d628ef0d9e1e7f58a0a62c770f723640f3175d4'
+          ref: 'bc5ac8df80c981de47ad258e066c26e2fc5ff4ee'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -220,6 +220,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE
 
+      - name: Run APPSEC_STANDALONE_API_SECURITY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_STANDALONE_API_SECURITY
+
       - name: Run IAST_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh IAST_STANDALONE
@@ -306,7 +310,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0d628ef0d9e1e7f58a0a62c770f723640f3175d4'
+          ref: 'bc5ac8df80c981de47ad258e066c26e2fc5ff4ee'
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
