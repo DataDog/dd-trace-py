@@ -28,8 +28,8 @@ variables:
     # else
     #   bp-runner bp-runner.simple.yml --debug
     # fi
-    cp .gitlab/benchmarks/macrobenchmark-artifacts/* platform/artifacts/
-    ls -la platform/artifacts/
+    cp .gitlab/benchmarks/macrobenchmark-artifacts/* ./platform/artifacts/
+    ls -la ./platform/artifacts/
   artifacts:
     name: "artifacts"
     when: always
