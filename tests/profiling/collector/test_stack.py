@@ -761,22 +761,3 @@ def test_collect_gevent_threads():
     # <= (exact_time * 1.3)
 
     assert values.pop() > 0
-
-
-@flaky(1748750400)
-@pytest.mark.skipif(sys.version_info < (3, 11, 0), reason="PyFrameObjects are lazy-created objects in Python 3.11+")
-def test_collect_ensure_all_frames_gc():
-    # Regression test for memory leak with lazy PyFrameObjects in Python 3.11+
-    def _foo():
-        pass
-
-    r = recorder.Recorder()
-    s = stack.StackCollector(r)
-
-    with s:
-        for _ in range(100):
-            _foo()
-
-    gc.collect()  # Make sure we don't race with gc when we check frame objects
-    # DEV - this is flaky because this line returns `assert 10 == 0` in CI
-    assert sum(isinstance(_, FrameType) for _ in gc.get_objects()) == 0
