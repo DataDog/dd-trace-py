@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
-from packaging.specifiers import SpecifierSet
-from packaging.version import Version
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -15,6 +13,8 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.vendor.packaging.specifiers import SpecifierSet
+from ddtrace.vendor.packaging.version import Version
 
 from .internal import telemetry
 from .internal.logger import get_logger
