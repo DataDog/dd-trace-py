@@ -36,6 +36,7 @@ include:
   - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
+  - local: ".gitlab/native.yml"
 
 tests-gen:
   stage: tests

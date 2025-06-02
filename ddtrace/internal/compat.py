@@ -1,4 +1,3 @@
-import functools
 import ipaddress
 import sys
 from types import TracebackType
@@ -45,27 +44,6 @@ def is_integer(obj: Any) -> bool:
     # >>> isinstance(True, int)
     # True
     return isinstance(obj, int) and not isinstance(obj, bool)
-
-
-def make_async_decorator(tracer, coro, *params, **kw_params):
-    """
-    Decorator factory that creates an asynchronous wrapper that yields
-    a coroutine result. This factory is required to handle Python 2
-    compatibilities.
-
-    :param object tracer: the tracer instance that is used
-    :param function f: the coroutine that must be executed
-    :param tuple params: arguments given to the Tracer.trace()
-    :param dict kw_params: keyword arguments given to the Tracer.trace()
-    """
-
-    @functools.wraps(coro)
-    async def func_wrapper(*args, **kwargs):
-        with tracer.trace(*params, **kw_params):
-            result = await coro(*args, **kwargs)
-            return result
-
-    return func_wrapper
 
 
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
