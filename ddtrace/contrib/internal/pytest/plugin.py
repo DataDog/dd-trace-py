@@ -23,6 +23,8 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.settings.asm import config as asm_config
 
 
+os.environ["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+
 if asm_config._iast_enabled:
     from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 
