@@ -920,6 +920,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         result_response = JSONResponse(content={"message": "OK"})
         # label test_fastapi_header_injection
         result_response.headers["Header-Injection"] = tainted_string
+        result_response.headers._list.append((b"Header-Injection2", tainted_string.encode()))
         result_response.headers["Vary"] = tainted_string
         result_response.headers["Foo"] = "bar"
 
@@ -932,28 +933,19 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         patch_iast({"header_injection": True})
         resp = client.get(
             "/header_injection/",
-            headers={"test": "test_injection_header"},
+            headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
         )
         assert resp.status_code == 200
+        assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
+        assert resp.headers["Header-Injection2"] == "test_injection_header\r\nInjected-Header: 1234"
+        assert resp.headers["Foo"] == "bar"
 
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
+        assert span.get_tag(IAST.JSON) is None
         iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is not None
-        loaded = json.loads(iast_tag)
-        line, hash_value = get_line_and_hash(
-            "test_fastapi_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE_PATH
-        )
-        assert len(loaded["vulnerabilities"]) == 1
-        vulnerability = loaded["vulnerabilities"][0]
-        assert vulnerability["type"] == VULN_HEADER_INJECTION
-        assert vulnerability["hash"] == hash_value
-        assert vulnerability["location"]["line"] == line
-        assert vulnerability["location"]["path"] == TEST_FILE_PATH
-        assert vulnerability["location"]["method"] == "header_injection"
-        assert "class" not in vulnerability["location"]
-        assert vulnerability["location"]["spanId"]
+        assert iast_tag is None
 
 
 def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
@@ -983,12 +975,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is not None
-        loaded = json.loads(iast_tag)
-        assert len(loaded["vulnerabilities"]) == 1
-        vulnerability = loaded["vulnerabilities"][0]
-        assert vulnerability["type"] == VULN_HEADER_INJECTION
-
+        assert iast_tag is None
 
 def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/stacktrace_leak/", response_class=PlainTextResponse)

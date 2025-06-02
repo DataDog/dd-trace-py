@@ -1259,7 +1259,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             resp = Response("OK")
             resp.headers["Vary"] = tainted_string
 
-            # label test_flask_header_injection_label
             resp.headers["Header-Injection"] = tainted_string
             return resp
 
@@ -1275,15 +1274,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"origin": "http.request.parameter", "name": "name", "value": "test"}]
-
-            vulnerability = loaded["vulnerabilities"][0]
-            assert vulnerability["type"] == VULN_HEADER_INJECTION
-            assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "test"}]
-            }
+            assert root_span.get_tag(IAST.JSON) is None
 
     def test_flask_header_injection_direct_access_to_header(self):
         @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
@@ -1294,9 +1285,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             tainted_string = request.form.get("name")
             assert is_pyobject_tainted(tainted_string)
             resp = Response("OK")
-            # resp.headers["Vary"] = tainted_string
-
-            # label test_flask_header_injection_label
             resp.headers._list.append(("Header-Injection", tainted_string))
             return resp
 
@@ -1313,9 +1301,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            # TODO: This test fails in the CI in some scenarios with with this location:
-            #  {'spanId': 2149503346182698386, 'path': 'tests/contrib/flask/__init__.py', 'line': 21, 'method': 'open'}
-            #  assert root_span.get_tag(IAST.JSON) is None
+            assert root_span.get_tag(IAST.JSON) is None
 
     def test_flask_header_injection_direct_access_to_header_exception(self):
         @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
@@ -1346,10 +1332,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
-
-            # TODO: This test fails in the CI in some scenarios with with this location:
-            #  {'spanId': 2149503346182698386, 'path': 'tests/contrib/flask/__init__.py', 'line': 21, 'method': 'open'}
-            #  assert root_span.get_tag(IAST.JSON) is None
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_transfer_encoding(self):

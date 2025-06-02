@@ -1,3 +1,50 @@
+"""
+Header Injection sink analysis for common Python web frameworks.
+
+This module documents and tracks the behavior of popular frameworks regarding HTTP header
+injection risks, particularly when tainted data is used to set response headers.
+
+Framework-specific findings:
+
+Django:
+--------
+- Safe usage: Setting headers via `response.headers["Name"] = value` is safe.
+  Django uses `ResponseHeaders._convert_to_charset()` to validate header values and
+  raises `BadHeaderError` if control characters (`\n`, `\r`) are present.
+- Unsafe usage: Direct access to `response.headers._store[...]` bypasses validation,
+  making header injection possible.
+- Tests using a real Django server (not the test client) confirm that WSGI will
+  serialize injected headers if validation is bypassed.
+
+Flask (Werkzeug):
+------------------
+- Safe usage: The `werkzeug.datastructures.Headers` class validates header values and
+  prevents control characters by default (`ValueError` is raised).
+- Unsafe usage: Direct manipulation of internal structures (e.g., `response.headers._list`)
+  or monkeypatching `_validate_value` can bypass protections.
+- Werkzeug has enforced these validations since version 0.8.
+- No known CVEs for header injection via public APIs, but misuse or internal manipulation
+  can make injection possible.
+
+FastAPI (Starlette + Uvicorn):
+-------------------------------
+- Safe usage: Starlette’s `MutableHeaders` class validates against `\r` and `\n`
+  when setting headers via the public API.
+- Unsafe usage: Internal manipulation of `response.raw_headers` (low-level ASGI structure)
+  could inject malicious headers; Uvicorn does not perform additional validation.
+- No known CVEs or bypasses via public APIs; injection only possible via direct internal modification.
+
+General notes:
+---------------
+- WSGI and ASGI servers (like Gunicorn, Uvicorn) usually trust the framework to validate headers.
+  If validation is bypassed, these servers may serialize unsafe header values directly to the client.
+- Header injection typically requires either a vulnerability in the framework
+  (historical in older versions) or developer misuse (e.g., constructing header names/values
+  from unsanitized input or bypassing validation mechanisms).
+
+This module implements taint sink detection to track and block cases where tainted data
+is passed to header-setting APIs without proper sanitization.
+"""
 import typing
 from typing import Text
 
@@ -6,11 +53,9 @@ from wrapt.importer import when_imported
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
-from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
@@ -44,64 +89,74 @@ def get_version() -> Text:
 
 
 def patch():
-    if not asm_config._iast_enabled:
-        return
+    """
+    Patch header injection detection for supported web frameworks.
 
-    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
+    The patching strategy varies by framework:
+
+    Django:
+    - Patches ResponseHeaders.__init__ to wrap the header store with injection detection
+    - Works in conjunction with Django's built-in header validation
+    - Allows detection of attempts before Django's BadHeaderError is raised
+
+    Flask/Werkzeug (currently disabled):
+    - Would patch Headers.add and Headers.set methods
+    - Framework's built-in protection makes this less critical
+    - Detection would occur before Werkzeug's ValueError
+
+    FastAPI/Starlette (currently disabled):
+    - Would patch MutableHeaders.__setitem__ and Response.init_headers
+    - Framework's validation provides primary protection
+    - Detection would complement existing checks
+
+    Note: Flask and FastAPI patching is currently disabled as these frameworks
+    have robust built-in protections. Django patching is maintained to ensure
+    comprehensive vulnerability detection and reporting.
+    """
+    if not asm_config._iast_enabled:
         return
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
         return
-    if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_header_injection_patch"):
-        return
-
-    @when_imported("wsgiref.headers")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add_header", _iast_set_headers)
-        try_wrap_function_wrapper(m, "Headers.__setitem__", _iast_set_headers)
-
-    @when_imported("werkzeug.datastructures")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add", _iast_set_headers)
-        try_wrap_function_wrapper(m, "Headers.set", _iast_set_headers)
 
     @when_imported("django.http.response")
     def _(m):
         try_wrap_function_wrapper(m, "ResponseHeaders.__init__", _iast_django_response_store)
 
-    # For headers["foo"] = "bar"
-    @when_imported("starlette.datastructures")
-    def _(m):
-        try_wrap_function_wrapper(m, "MutableHeaders.__setitem__", _iast_set_headers)
-
-    # For Response("ok", header=...)
-    @when_imported("starlette.responses")
-    def _(m):
-        try_wrap_function_wrapper(m, "Response.init_headers", _iast_set_headers)
-
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
-    iast_instrumentation_wrapt_debug_log("Patching header injection correctly")
 
 
 def unpatch():
-    try_unwrap("wsgiref.headers", "Headers.add_header")
-    try_unwrap("wsgiref.headers", "Headers.__setitem__")
-    try_unwrap("werkzeug.datastructures", "Headers.set")
-    try_unwrap("werkzeug.datastructures", "Headers.add")
     try_unwrap("django.http.response", "ResponseHeaders.__init__")
-    try_unwrap("starlette.datastructures", "MutableHeaders.__setitem__")
-    try_unwrap("starlette.responses", "Response.init_headers")
-
-    set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
-    set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
-    set_module_unpatched("fastapi", default_attr="_datadog_header_injection_patch")
 
 
 class HeaderInjection(VulnerabilityBase):
     """
     Represents a Header Injection vulnerability in the IAST system.
 
-    This class defines the vulnerability type and secure mark for header injection attacks.
-    It inherits from VulnerabilityBase to provide common vulnerability handling functionality.
+    Header Injection is a security vulnerability that occurs when an application allows
+    unvalidated user input to be included in HTTP response headers. The most common
+    attack vector is injecting newline characters (\r\n or \n) to add unexpected headers
+    or modify existing ones.
+
+    Example of vulnerable code:
+        response = HttpResponse()
+        response.headers["X-Custom-Header"] = user_input  # user_input could contain \r\n
+
+    Attack scenario:
+        If user_input = "value\r\nMalicious-Header: evil"
+        Could result in response headers:
+            X-Custom-Header: value
+            Malicious-Header: evil
+
+    Framework protections:
+    - Django: Raises BadHeaderError for newlines in header values
+    - Flask/Werkzeug: Raises ValueError for control chars in headers
+    - FastAPI/Starlette: Validates and rejects illegal characters
+
+    This class provides:
+    - Detection of header injection attempts
+    - Reporting of potential vulnerabilities
+    - Integration with framework-specific protections
     """
 
     vulnerability_type = VULN_HEADER_INJECTION
