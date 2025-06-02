@@ -161,7 +161,7 @@ DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
 
 [envs.meta-testing.scripts]
 test = [
-  "pytest -n auto {args} --no-ddtrace tests/meta"
+  "pytest -n 8 {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -400,7 +400,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv -s -n auto --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -653,7 +653,7 @@ test = [
     "uname -a",
     "pip freeze",
     # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-    "python -m pytest -n auto --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+    "python -m pytest -n 8 --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
 ]
 
 [[envs.iast_aggregated_leak_testing.matrix]]
@@ -785,7 +785,7 @@ dependencies = [
 
 [envs.freezegun.scripts]
 test = [
-    "pytest -n auto tests/contrib/freezegun {args:}",
+    "pytest -n 8 tests/contrib/freezegun {args:}",
 ]
 
 [[envs.freezegun.matrix]]
