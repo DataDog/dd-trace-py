@@ -1,12 +1,10 @@
 # -*- encoding: utf-8 -*-
 import _thread
-import gc
 import os
 import sys
 import threading
 import time
 import timeit
-from types import FrameType
 import typing  # noqa:F401
 import uuid
 
@@ -17,7 +15,6 @@ from ddtrace.profiling import _threading
 from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
-from tests.utils import flaky
 
 from . import test_collector
 
