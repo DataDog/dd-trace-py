@@ -1245,7 +1245,7 @@ def request_token(request):
     token = ""
     token += request.module.__name__
     token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
+    token += ".%s" % request.node.name.split("[", 1)[0]
     return token
 
 
