@@ -5,7 +5,6 @@ import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -138,9 +137,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 request_headers = {}
                 kwargs["headers"] = request_headers
             HTTPPropagator.inject(span.context, request_headers)
-
-        if config.urllib3.analytics_enabled:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
 
         retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 

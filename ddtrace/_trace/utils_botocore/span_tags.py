@@ -6,7 +6,6 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils_botocore.aws_payload_tagging import AWSPayloadTagging
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -51,9 +50,6 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     if region_name is not None:
         span.set_tag_str("aws.region", region_name)
         span.set_tag_str("region", region_name)
-
-    # set analytics sample rate
-    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
 
 def set_botocore_response_metadata_tags(
