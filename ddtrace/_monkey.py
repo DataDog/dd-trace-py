@@ -286,12 +286,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 module,
                 str(e),
             )
-            telemetry.telemetry_writer.add_integration(
-                module,
-                False,
-                PATCH_MODULES.get(module) is True,
-                str(e),
-            )
+            telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.TRACERS,
                 "integration_errors",
