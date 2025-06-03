@@ -294,26 +294,17 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 (("integration_name", module), ("error_type", type(e).__name__)),
             )
         else:
-            error_message = ""
-            if should_patch is False:
-                installed_version = _get_installed_version(imported_module, module)
-                supported_version_spec = _get_supported_versions(imported_module, module, hook)
-                error_message = (
-                    f"Unable to patch integration: {module}, installed version: {installed_version} is not "
-                    f"compatible with integration support spec of {supported_version_spec}"
-                )
-
             if hasattr(imported_module, "get_versions"):
                 versions = imported_module.get_versions()
                 for name, v in versions.items():
                     telemetry.telemetry_writer.add_integration(
-                        name, should_patch, PATCH_MODULES.get(module) is True, error_message, version=v
+                        name, True, PATCH_MODULES.get(module) is True, "", version=v
                     )
             elif hasattr(imported_module, "get_version"):
                 # Some integrations/iast patchers do not define get_version
                 version = imported_module.get_version()
                 telemetry.telemetry_writer.add_integration(
-                    module, should_patch, PATCH_MODULES.get(module) is True, error_message, version=version
+                    module, True, PATCH_MODULES.get(module) is True, "", version=version
                 )
 
     return on_import

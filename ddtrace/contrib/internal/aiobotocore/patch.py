@@ -46,10 +46,6 @@ config._add(
 )
 
 
-def _supported_versions() -> Dict[str, str]:
-    return {"aiobotocore": ">=1.0.0"}
-
-
 def get_version():
     # type: () -> str
     return aiobotocore_version_str
