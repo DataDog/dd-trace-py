@@ -377,7 +377,7 @@ check-slo-breaches:
   when: always
   tags: ["arch:amd64"]
   # https://gitlab.ddbuild.io/DataDog/benchmarking-platform-tools/-/jobs/964847672
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:pre-release-gate-prototype
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
     name: "artifacts"
     when: always
@@ -385,12 +385,8 @@ check-slo-breaches:
       - platform/artifacts/
     expire_in: 3 months
   script:
-    # TODO: Revert branch, keep only one configuration file
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/testing/improve-pre-release-gates-tooling)
-    - echo "Running loose check"
-    - bp-runner bp-runner.fail-on-breach.loose.yml
-    - echo "Running strict check"
-    - bp-runner bp-runner.fail-on-breach.strict.yml
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin python/macrobenchmarks)
+    - bp-runner bp-runner.fail-on-breach.yml
 
 notify-slo-breaches:
   stage: notify
