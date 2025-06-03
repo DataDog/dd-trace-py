@@ -5,6 +5,7 @@
     "FUNCTIONS_EXTENSION_VERSION": "~4",
     "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "CONNECTION_SETTING": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
     "WEBSITE_SITE_NAME": "test-func"
   }
 }
