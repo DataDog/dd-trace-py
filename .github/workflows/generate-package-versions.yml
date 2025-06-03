@@ -79,6 +79,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install packaging
           pip install requests
+          pip install wrapt
+          pip install envier
+          pip install bytecode
           pip install riot==0.20.1
 
       - name: Run regenerate-riot-latest
