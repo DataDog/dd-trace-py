@@ -644,11 +644,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         report_metrics: bool = True,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
         test_session_token: Optional[str] = None,
+        # Mark stats as computed skipping trace exporter stats computation
+        apm_opt_out: Optional[bool] = False,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
-            timeout = agent.config.trace_agent_timeout_seconds
+            timeout = agent_config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -660,11 +662,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         #      as a safety precaution.
         #      https://docs.python.org/3/library/sys.html#sys.platform
         is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+
         default_api_version = "v0.5"
-        if is_windows or in_gcp_function() or in_azure_function() or asm_config._asm_enabled:
+        if (
+            is_windows
+            or in_gcp_function()
+            or in_azure_function()
+            or asm_config._asm_enabled
+            or asm_config._iast_enabled
+        ):
             default_api_version = "v0.4"
 
-        self._api_version = "v0.4"
+        self._api_version = api_version or config._trace_api or default_api_version
+
+        if agent_config.trace_native_span_events:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+            self._api_version = "v0.4"
+
         if is_windows and self._api_version == "v0.5":
             raise RuntimeError(
                 "There is a known compatibility issue with v0.5 API and Windows, "
