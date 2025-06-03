@@ -203,6 +203,7 @@ venv = Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
             pys=select_pys(),
+            env={"DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": "true"},
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
