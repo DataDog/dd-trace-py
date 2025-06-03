@@ -1,4 +1,4 @@
 ---
 fixes:
   - | 
-    tracing: This fix resolves an issue where logging message fails to decode for supported sampling mechanisms: "failed to decode _dd.p.dm: ..."
+    tracing: This fix resolves an issue where the library fails to decode a supported sampling mechanism, resulting in the log line: "failed to decode _dd.p.dm: ..."
