@@ -17,8 +17,9 @@
 
 using namespace Datadog;
 
-Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
-  : ddog_exporter{ _ddog_exporter }
+Datadog::Uploader::Uploader(std::string_view _output_filename, ddog_prof_ProfileExporter _ddog_exporter)
+  : output_filename{ _output_filename }
+  , ddog_exporter{ _ddog_exporter }
 {
     // Increment the upload sequence number every time we build an uploader.
     // Upoloaders are use-once-and-destroy.
@@ -26,18 +27,8 @@ Datadog::Uploader::Uploader(ddog_prof_ProfileExporter _ddog_exporter)
 }
 
 bool
-Datadog::Uploader::export_to_file(std::string_view output_filename, ddog_prof_Profile& profile)
+Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile* encoded)
 {
-    // Serialize the profile
-    ddog_prof_Profile_SerializeResult serialize_result = ddog_prof_Profile_serialize(&profile, nullptr, nullptr);
-    if (serialize_result.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
-        auto err = serialize_result.err;
-        std::cerr << "Error serializing pprof: " << err_to_msg(&err, "Error serializing pprof") << std::endl;
-        ddog_Error_drop(&err);
-        return false;
-    }
-    ddog_prof_EncodedProfile* encoded = &serialize_result.ok;
-
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
@@ -77,6 +68,12 @@ Datadog::Uploader::upload(ddog_prof_Profile& profile)
         return false;
     }
     ddog_prof_EncodedProfile* encoded = &serialize_result.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+
+    if (!output_filename.empty()) {
+        bool ret = export_to_file(encoded);
+        ddog_prof_EncodedProfile_drop(encoded);
+        return ret;
+    }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
 

@@ -127,9 +127,12 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
 def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps")
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup
+    # Give some time to child to actually startup and output a profile
     time.sleep(3)
     proc.terminate()
     assert proc.wait() == 0
@@ -142,9 +145,12 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
 def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup
+    # Give some time to child to actually startup and output a profile
     time.sleep(3)
     # The processes are started without a master/parent so killing one does not kill the other:
     # Kill them all and wait until they die.

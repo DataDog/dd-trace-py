@@ -121,6 +121,12 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
+{
+    Datadog::UploaderBuilder::set_output_filename(output_filename);
+}
+
+void
 ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_sample_pool_capacity(capacity);
@@ -349,23 +355,6 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // * Uploading cancels inflight uploads. There are better ways to do this, but this is what
     //   we have for now.
     uploader.upload(Datadog::Sample::profile_borrow());
-    Datadog::Sample::profile_release();
-    Datadog::Sample::profile_clear_state();
-    return true;
-}
-
-bool
-ddup_export_to_file(std::string_view output_filename)
-{
-    static bool already_warned = false;
-    if (!is_ddup_initialized) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "ddup_export_to_file() called before ddup_start()" << std::endl;
-        }
-        return false;
-    }
-    Datadog::Uploader::export_to_file(output_filename, Datadog::Sample::profile_borrow());
     Datadog::Sample::profile_release();
     Datadog::Sample::profile_clear_state();
     return true;
