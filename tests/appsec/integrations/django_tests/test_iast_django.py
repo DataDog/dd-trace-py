@@ -1,5 +1,6 @@
 import json
 from urllib.parse import urlencode
+
 from django import VERSION as DJANGO_VERSION
 import pytest
 
@@ -975,7 +976,7 @@ def test_django_header_injection_secure(client, iast_span, tracer):
         content_type="application/json",
     )
     if DJANGO_VERSION < (3, 2, 0):
-        assert response._headers["header-injection"] == ('Header-Injection', 'master')
+        assert response._headers["header-injection"] == ("Header-Injection", "master")
     else:
         assert response.headers["Header-Injection"] == "master"
     loaded = root_span.get_tag(IAST.JSON)
@@ -995,7 +996,7 @@ def test_django_header_injection(client, iast_span, tracer):
     # Response.headers are ok in the tests, but if django call to response.serialize_headers() the result is
     # b'Content-Type: text/html; charset=utf-8\r\nHeader-Injection: master\r\nInjected-Header: 1234'
     if DJANGO_VERSION < (3, 2, 0):
-        assert response._headers["header-injection"] == ('Header-Injection', 'master\r\nInjected-Header: 1234')
+        assert response._headers["header-injection"] == ("Header-Injection", "master\r\nInjected-Header: 1234")
     else:
         assert response.headers["Header-Injection"] == "master\r\nInjected-Header: 1234"
     loaded = json.loads(root_span.get_tag(IAST.JSON))
@@ -1377,13 +1378,11 @@ def test_django_xss_autoscape(client, iast_span, tracer):
         assert (
             response.content
             == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
-
         ), f"Error. content is {response.content}"
     else:
         assert (
             response.content
-            == b'<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n'
-
+            == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
         ), f"Error. content is {response.content}"
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
@@ -1401,12 +1400,13 @@ def test_django_xss_secure(client, iast_span, tracer):
     if DJANGO_VERSION > (3, 1, 0):
         assert (
             response.content
-            == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>", f"Error. content is {response.content}"
+            == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
         )
+
     else:
         assert (
             response.content
-            == b'<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n', f"Error. content is {response.content}"
+            == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
         )
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None

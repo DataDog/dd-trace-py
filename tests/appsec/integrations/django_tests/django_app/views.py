@@ -11,14 +11,12 @@ import shlex
 import subprocess
 from typing import Any
 
-
 from django import VERSION as DJANGO_VERSION
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
-
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 
@@ -29,12 +27,15 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
 
+
 print(f"DJANGO_VERSION: {DJANGO_VERSION}")
 if DJANGO_VERSION < (3, 2, 0):
     from unittest.mock import MagicMock
+
     url_has_allowed_host_and_scheme = MagicMock()
 else:
     from django.utils.http import url_has_allowed_host_and_scheme
+
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
     assert is_pyobject_tainted(parameter)

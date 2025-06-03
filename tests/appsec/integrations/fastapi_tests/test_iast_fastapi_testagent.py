@@ -1,15 +1,13 @@
 import json
 
 import pytest
+from requests.exceptions import ConnectionError  # noqa: A004
 
-from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.constants import VULN_CMDI
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from tests.appsec.appsec_utils import uvicorn_server
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
-from requests.exceptions import ConnectionError
 
 
 def test_iast_header_injection_secure_attack():
@@ -159,7 +157,9 @@ def test_iast_cmdi_form_uvicorn():
     assert len(vulnerabilities[0]) == 1
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_CMDI
-    assert vulnerability["evidence"]["valueParts"] == [{'value': 'ls '},
- {'redacted': True},
- {'pattern': 'abcdefghijklmnopqrstuvwxyzABCDE', 'redacted': True, 'source': 0}]
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"value": "ls "},
+        {"redacted": True},
+        {"pattern": "abcdefghijklmnopqrstuvwxyzABCDE", "redacted": True, "source": 0},
+    ]
     assert vulnerability["hash"]

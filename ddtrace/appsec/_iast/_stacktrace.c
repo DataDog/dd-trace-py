@@ -144,7 +144,8 @@ _is_ddtrace_filename(const char* filename)
 static inline bool
 _is_site_packages_filename(const char* filename)
 {
-    const bool res = filename && PURELIB_PATH && (strstr(filename, "site-packages/") || strncmp(filename, PURELIB_PATH, PURELIB_PATH_LEN) == 0);
+    const bool res = filename && PURELIB_PATH &&
+                     (strstr(filename, "site-packages/") || strncmp(filename, PURELIB_PATH, PURELIB_PATH_LEN) == 0);
     return res;
 }
 

@@ -53,7 +53,7 @@ General notes:
 
 This module implements taint sink detection to track and block cases where tainted data
 is passed to header-setting APIs without proper sanitization.
-"""
+"""  # noqa: D301
 import typing
 from typing import Text
 
@@ -151,18 +151,12 @@ class HeaderInjection(VulnerabilityBase):
 
     Header Injection is a security vulnerability that occurs when an application allows
     unvalidated user input to be included in HTTP response headers. The most common
-    attack vector is injecting newline characters (\r\n or \n) to add unexpected headers
+    attack vector is injecting newline characters (backslash r, backslash n or backslash n) to add unexpected headers
     or modify existing ones.
 
     Example of vulnerable code:
         response = HttpResponse()
-        response.headers["X-Custom-Header"] = user_input  # user_input could contain \r\n
-
-    Attack scenario:
-        If user_input = "value\r\nMalicious-Header: evil"
-        Could result in response headers:
-            X-Custom-Header: value
-            Malicious-Header: evil
+        response.headers["X-Custom-Header"] = user_input  # user_input could contain backslash r, backslash n
 
     Framework protections:
     - Django: Raises BadHeaderError for newlines in header values
@@ -182,6 +176,7 @@ class HeaderInjection(VulnerabilityBase):
 def _iast_django_response_store(wrapped, instance, args, kwargs):
     try:
         from django import VERSION as DJANGO_VERSION
+
         wrapped.__func__(instance, *args, **kwargs)
         if DJANGO_VERSION < (3, 2, 0):
             print("TAINT HEADERS!!")

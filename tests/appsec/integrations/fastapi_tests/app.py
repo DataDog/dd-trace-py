@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Form
-from fastapi.responses import Response
-from ddtrace import tracer
-import uvicorn
 import subprocess
+
+from fastapi import FastAPI
+from fastapi import Form
+from fastapi.responses import Response
+import uvicorn
+
+from ddtrace import tracer
 
 
 def get_app():
