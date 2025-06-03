@@ -521,13 +521,13 @@ uWSGI
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
 - Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
-Example with CLI arguments for uwsgi>=2.0.30:
+Example with CLI arguments for uWSGI>=2.0.30:
 
 .. code-block:: bash
 
   uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
 
-Example with CLI arguments for uwsgi<2.0.30:
+Example with CLI arguments for uWSGI<2.0.30:
 
 .. code-block:: bash
 
