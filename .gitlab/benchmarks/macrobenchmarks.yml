@@ -405,6 +405,9 @@ notify-slo-breaches:
       - platform/artifacts/
     expire_in: 3 months
   script:
+    - |
+      echo "Checking artifacts"
+      ls -la platform/artifacts/
     - BRANCH_URL="https://github.com/DataDog/$CI_PROJECT_NAME/tree/$CI_COMMIT_REF_NAME"
     - COMMIT_URL="https://github.com/DataDog/$CI_PROJECT_NAME/commit/$CI_COMMIT_SHA"
     - BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
@@ -415,4 +418,7 @@ notify-slo-breaches:
       elif [ -f platform/artifacts/warning_breach_detected ]; then
         MESSAGE_TEXT=":warning: <$BRANCH_URL|$CI_COMMIT_REF_NAME> <$COMMIT_URL|$CI_COMMIT_SHORT_SHA> - Performance SLOs in $CI_PROJECT_NAME are about to be breached! A warning threshold in <$BUILD_URL|$CI_PIPELINE_ID> was triggered. Please look into it."
       fi
+    - |
+      echo "MESSAGE_TEXT: $MESSAGE_TEXT"
+      echo "CHANNEL: $CHANNEL"
     - if [ -n "${MESSAGE_TEXT:-}" ]; then postmessage "$CHANNEL" "$MESSAGE_TEXT"; fi
