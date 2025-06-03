@@ -5,7 +5,9 @@ import pytest
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
     ),
+    err=None,
 )
+# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio():
     import asyncio
     import os

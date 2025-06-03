@@ -1,5 +1,3 @@
-import functools
-import inspect
 import os
 
 import azure.functions as azure_functions
@@ -7,13 +5,14 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.internal import core
+from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
 from .utils import get_function_name
+from .utils import wrap_function_with_tracing
 
 
 config._add(
@@ -42,6 +41,8 @@ def patch():
     Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.function_name", _patched_function_name)
     _w("azure.functions", "FunctionApp.route", _patched_route)
+    _w("azure.functions", "FunctionApp.service_bus_queue_trigger", _patched_service_bus_trigger)
+    _w("azure.functions", "FunctionApp.service_bus_topic_trigger", _patched_service_bus_trigger)
     _w("azure.functions", "FunctionApp.timer_trigger", _patched_timer_trigger)
 
 
@@ -61,39 +62,49 @@ def _patched_route(wrapped, instance, args, kwargs):
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
 
-        if inspect.iscoroutinefunction(func):
-
-            @functools.wraps(func)
-            async def async_wrap_function(*args, **kwargs):
-                req = kwargs.get(trigger_arg_name)
-                with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
-                    ctx.set_item("req_span", ctx.span)
-                    core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
-                    res = None
-                    try:
-                        res = await func(*args, **kwargs)
-                        return res
-                    finally:
-                        core.dispatch(
-                            "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
-                        )
-
-            return wrapped(*args, **kwargs)(async_wrap_function)
-
-        @functools.wraps(func)
-        def wrap_function(*args, **kwargs):
+        def context_factory(kwargs):
             req = kwargs.get(trigger_arg_name)
-            with create_context("azure.functions.patched_route_request", pin, headers=req.headers) as ctx, ctx.span:
-                ctx.set_item("req_span", ctx.span)
-                core.dispatch("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
-                res = None
-                try:
-                    res = func(*args, **kwargs)
-                    return res
-                finally:
-                    core.dispatch(
-                        "azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger)
-                    )
+            return create_context("azure.functions.patched_route_request", pin, headers=req.headers)
+
+        def pre_dispatch(ctx, kwargs):
+            req = kwargs.get(trigger_arg_name)
+            ctx.set_item("req_span", ctx.span)
+            return ("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
+
+        def post_dispatch(ctx, res):
+            return ("azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger))
+
+        wrap_function = wrap_function_with_tracing(
+            func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch
+        )
+
+        return wrapped(*args, **kwargs)(wrap_function)
+
+    return _wrapper
+
+
+def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
+    trigger = "ServiceBus"
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    def _wrapper(func):
+        function_name = get_function_name(pin, instance, func)
+
+        def context_factory(kwargs):
+            resource_name = f"{trigger} {function_name}"
+            return create_context("azure.functions.patched_service_bus", pin, resource_name)
+
+        def pre_dispatch(ctx, kwargs):
+            ctx.set_item("trigger_span", ctx.span)
+            return (
+                "azure.functions.trigger_call_modifier",
+                (ctx, config.azure_functions, function_name, trigger, SpanKind.CONSUMER),
+            )
+
+        wrap_function = wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
         return wrapped(*args, **kwargs)(wrap_function)
 
@@ -109,31 +120,19 @@ def _patched_timer_trigger(wrapped, instance, args, kwargs):
 
     def _wrapper(func):
         function_name = get_function_name(pin, instance, func)
-        resource_name = f"{trigger} {function_name}"
 
-        if inspect.iscoroutinefunction(func):
+        def context_factory(kwargs):
+            resource_name = f"{trigger} {function_name}"
+            return create_context("azure.functions.patched_timer", pin, resource_name)
 
-            @functools.wraps(func)
-            async def async_wrap_function(*args, **kwargs):
-                with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
-                    ctx.set_item("trigger_span", ctx.span)
-                    core.dispatch(
-                        "azure.functions.trigger_call_modifier",
-                        (ctx, config.azure_functions, function_name, trigger),
-                    )
-                    await func(*args, **kwargs)
+        def pre_dispatch(ctx, kwargs):
+            ctx.set_item("trigger_span", ctx.span)
+            return (
+                "azure.functions.trigger_call_modifier",
+                (ctx, config.azure_functions, function_name, trigger, SpanKind.INTERNAL),
+            )
 
-            return wrapped(*args, **kwargs)(async_wrap_function)
-
-        @functools.wraps(func)
-        def wrap_function(*args, **kwargs):
-            with create_context("azure.functions.patched_timer", pin, resource_name) as ctx, ctx.span:
-                ctx.set_item("trigger_span", ctx.span)
-                core.dispatch(
-                    "azure.functions.trigger_call_modifier",
-                    (ctx, config.azure_functions, function_name, trigger),
-                )
-                func(*args, **kwargs)
+        wrap_function = wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
         return wrapped(*args, **kwargs)(wrap_function)
 

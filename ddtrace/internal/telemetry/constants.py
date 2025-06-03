@@ -8,6 +8,7 @@ class TELEMETRY_NAMESPACE(Enum):
     CIVISIBILITY = "civisibility"
     MLOBS = "mlobs"
     DD_TRACE_API = "ddtraceapi"
+    PROFILER = "profiler"
 
 
 TELEMETRY_TYPE_GENERATE_METRICS = "generate-metrics"

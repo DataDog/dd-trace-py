@@ -119,6 +119,14 @@ def iast_span_defaults(tracer):
             yield span
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "skip_iast_check_logs: mark test to remove _DD_IAST_DEBUG environment variable and skip logs checks to validate"
+        "if the propagation is not running outside the context",
+    )
+
+
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
