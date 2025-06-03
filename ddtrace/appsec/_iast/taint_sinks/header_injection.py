@@ -128,9 +128,15 @@ def patch():
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
         return
 
+    # Header injection for > Django 3.2
     @when_imported("django.http.response")
     def _(m):
         try_wrap_function_wrapper(m, "ResponseHeaders.__init__", _iast_django_response_store)
+
+    # Header injection for <= Django 2.2
+    @when_imported("django.http.response")
+    def _(m):
+        try_wrap_function_wrapper(m, "HttpResponseBase.__init__", _iast_django_response_store)
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
@@ -174,13 +180,22 @@ class HeaderInjection(VulnerabilityBase):
 
 
 def _iast_django_response_store(wrapped, instance, args, kwargs):
-    wrapped.__func__(instance, *args, **kwargs)
-    instance._store = HeaderInjectionDict()
+    try:
+        from django import VERSION as DJANGO_VERSION
+        wrapped.__func__(instance, *args, **kwargs)
+        if DJANGO_VERSION < (3, 2, 0):
+            print("TAINT HEADERS!!")
+            instance._headers = HeaderInjectionDict()
+        else:
+            instance._store = HeaderInjectionDict()
+    except Exception as e:
+        iast_error(f"propagation::sink_point::Error in _iast_django_response_store. {e}")
 
 
 class HeaderInjectionDict(dict):
     def __setitem__(self, key, value):
         if asm_config.is_iast_request_enabled:
+            print(f"HeaderInjectionDict!! {key} {value}")
             _check_type_headers_and_report_header_injection(value)
         dict.__setitem__(self, key, value)
 
@@ -221,11 +236,11 @@ def _iast_report_header_injection(headers_args):
     if header_name is None:
         return
     try:
+        header_name_lower = header_name.lower()
+        if header_name_lower == "location":
+            _iast_report_unvalidated_redirect(header_value)
+            return
         for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
-            header_name_lower = header_name.lower()
-            if header_name_lower == "location":
-                _iast_report_unvalidated_redirect(header_value)
-                return
             if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
                 return
 

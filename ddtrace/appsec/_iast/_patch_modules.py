@@ -65,9 +65,16 @@ def patch_iast(patch_modules=IAST_PATCH):
     )
 
     # Header Injection validators
+    # Header injection for > Django 3.2
     when_imported("django.http.response")(
         lambda _: try_wrap_function_wrapper(
             "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
+        )
+    )
+    # Header injection for <= Django 2.2
+    when_imported("django.http.response")(
+        lambda _: try_wrap_function_wrapper(
+            "django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator
         )
     )
 

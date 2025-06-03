@@ -11,12 +11,14 @@ import shlex
 import subprocess
 from typing import Any
 
+
+from django import VERSION as DJANGO_VERSION
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.utils.http import url_has_allowed_host_and_scheme
+
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
 
@@ -27,6 +29,12 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
 
+print(f"DJANGO_VERSION: {DJANGO_VERSION}")
+if DJANGO_VERSION < (3, 2, 0):
+    from unittest.mock import MagicMock
+    url_has_allowed_host_and_scheme = MagicMock()
+else:
+    from django.utils.http import url_has_allowed_host_and_scheme
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
     assert is_pyobject_tainted(parameter)
@@ -388,8 +396,13 @@ def header_injection(request):
     value = request.body.decode()
 
     response = HttpResponse(f"OK:{value}", status=200)
-    # label iast_header_injection
-    response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
+    if DJANGO_VERSION < (3, 2, 0):
+        # label iast_header_injection
+        response._headers["Header-Injection".lower()] = ("Header-Injection", value)
+
+    else:
+        # label iast_header_injection
+        response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
     return response
 
 
@@ -397,7 +410,10 @@ def header_injection_secure(request):
     value = request.body.decode()
 
     response = HttpResponse("OK", status=200)
-    response.headers["Header-Injection"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        response["Header-Injection"] = value
+    else:
+        response.headers["Header-Injection"] = value
     return response
 
 
@@ -442,8 +458,12 @@ def unvalidated_redirect_path_multiple_sources(request):
 def unvalidated_redirect_url_header(request):
     value = request.GET.get("url")
     response = HttpResponse("OK", status=200)
-    # label unvalidated_redirect_url_header
-    response.headers["Location"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        # label unvalidated_redirect_url_header
+        response["Location"] = value
+    else:
+        # label unvalidated_redirect_url_header
+        response.headers["Location"] = value
     return response
 
 
