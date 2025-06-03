@@ -97,6 +97,7 @@ venv = Venv(
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
+        "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": "false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
     },
