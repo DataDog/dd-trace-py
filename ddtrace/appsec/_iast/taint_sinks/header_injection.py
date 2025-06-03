@@ -35,8 +35,12 @@ FastAPI (Starlette + Uvicorn):
 -------------------------------
 - Safe usage: Starlette’s `MutableHeaders` class validates against `\r` and `\n`
   when setting headers via the public API.
-- Unsafe usage: Internal manipulation of `response.raw_headers` (low-level ASGI structure)
-  could inject malicious headers; Uvicorn does not perform additional validation.
+- Unsafe usage (blocked at runtime): Although it's theoretically possible to manipulate
+  `response.raw_headers` to insert invalid values (e.g., with `\r\n`), Uvicorn and its
+  HTTP backend (`h11`) validate headers at the point of serialization. If a header
+  contains illegal characters, `h11` raises a `LocalProtocolError`, preventing the
+  header injection from reaching the client. Therefore, header injection is not feasible
+  even with low-level tampering, unless the ASGI server or HTTP stack itself is modified.
 - No known CVEs or bypasses via public APIs; injection only possible via direct internal modification.
 
 General notes:
@@ -121,6 +125,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
+        return
+    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
         return
 
     @when_imported("django.http.response")

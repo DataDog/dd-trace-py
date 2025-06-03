@@ -939,6 +939,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
         assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
         assert resp.headers["Header-Injection2"] == "test_injection_header\r\nInjected-Header: 1234"
         assert resp.headers["Foo"] == "bar"
+        assert resp.headers.get("Injected-Header") is None
 
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
@@ -967,15 +968,18 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
         patch_iast({"header_injection": True})
         resp = client.get(
             "/header_injection_inline_response/",
-            headers={"test": "test_injection_header"},
+            headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
         )
         assert resp.status_code == 200
+        assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
+        assert resp.headers.get("Injected-Header") is None
 
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
         iast_tag = span.get_tag(IAST.JSON)
         assert iast_tag is None
+
 
 def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans):
     @fastapi_application.get("/stacktrace_leak/", response_class=PlainTextResponse)
