@@ -305,6 +305,7 @@ def is_stream_ok(stream, expected):
 
 def run_function_from_file(item, params=None):
     file, _, func = item.location
+    func = func.split("[", 1)[0]
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
@@ -426,7 +427,7 @@ def pytest_pyfunc_call(pyfuncitem):
             for name in marker.kwargs.get("parametrize", {})
             if name in pyfuncitem.funcargs
         }
-        run_function_from_file(pyfuncitem, **param_dict)
+        run_function_from_file(pyfuncitem, params=param_dict)
         return True  # Prevent regular test call
 
 
