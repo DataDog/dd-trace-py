@@ -509,7 +509,7 @@ def test_stress_threads_run_as_thread(tmp_path):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     quit_thread = threading.Event()
@@ -792,7 +792,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -802,7 +802,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
         span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
         for _ in range(10):
             time.sleep(0.1)
-    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
+    ddup.upload(tracer=tracer)
     span.finish()
 
     profile = pprof_utils.parse_profile(output_filename)
@@ -833,7 +833,7 @@ def test_resource_not_collected(tmp_path, tracer):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     with stack.StackCollector(endpoint_collection_enabled=False, tracer=tracer):
@@ -842,7 +842,7 @@ def test_resource_not_collected(tmp_path, tracer):
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
             for _ in range(10):
                 time.sleep(0.1)
-    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     pprof_utils.assert_profile_has_sample(
@@ -869,7 +869,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
     tracer._endpoint_call_counter_span_processor.enable()
@@ -880,7 +880,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
             with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as child_span:
                 for _ in range(10):
                     time.sleep(0.1)
-    ddup.upload(tracer=tracer, output_filename=pprof_prefix)
+    ddup.upload(tracer=tracer)
 
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")

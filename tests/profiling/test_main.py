@@ -51,8 +51,8 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
+    hello, interval, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    utils.check_pprof_file(filename + "." + str(pid))
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")

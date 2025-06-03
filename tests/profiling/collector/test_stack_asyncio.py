@@ -5,6 +5,7 @@ import pytest
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
     ),
+    err=None,
 )
 def test_asyncio():
     import asyncio
