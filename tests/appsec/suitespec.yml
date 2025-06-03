@@ -65,7 +65,7 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: hatch
-  iast_aggregated_leak_testing:
+  appsec_iast_aggregated_leak_testing:
     parallelism: 3
     paths:
       - '@appsec_iast'
