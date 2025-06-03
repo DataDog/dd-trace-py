@@ -122,7 +122,7 @@ def test_otel_trace_across_fork():
     ddtrace_run=True,
     err=None,
 )
-def test_sampling_decisions_across_processes():
+def test_sampling_decisions_across_processes(SAMPLING_DECISION):
     # sampling decision in the subprocess task should be the same as the parent
     import multiprocessing
     import os

@@ -510,7 +510,7 @@ def test_span_link_v04_encoding():
 @pytest.mark.subprocess(
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
-def test_span_event_encoding_msgpack():
+def test_span_event_encoding_msgpack(DD_TRACE_API_VERSION):
     import os
 
     import mock

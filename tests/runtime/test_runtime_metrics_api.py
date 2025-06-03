@@ -229,7 +229,7 @@ def test_runtime_metrics_experimental_runtime_tag(DD_TRACE_EXPERIMENTAL_RUNTIME_
     parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
     err=None,
 )
-def test_runtime_metrics_experimental_metric_type():
+def test_runtime_metrics_experimental_metric_type(DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED):
     """
     When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
         Runtime metrics worker starts and submits gauge metrics instead of distribution metrics
