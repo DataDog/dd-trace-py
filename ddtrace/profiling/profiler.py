@@ -219,6 +219,10 @@ class _ProfilerInstance(service.Service):
                 # also disable other features that might be enabled
                 if self._stack_v2_enabled:
                     LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Disabling stack_v2 as libdd collector failed to initialize",
+                    )
                     self._stack_v2_enabled = False
                     profiling_config.stack.v2_enabled = False
 
@@ -226,11 +230,19 @@ class _ProfilerInstance(service.Service):
                 # protobuf, breaking some environments.
                 if profiling_config._injected:
                     LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Profiling failures occurred in an injected instance of ddtrace, disabling profiling",
+                    )
                     return []
 
                 # pytorch collector relies on libdd exporter
                 if self._pytorch_collector_enabled:
                     LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Disabling pytorch profiler as libdd collector failed to initialize",
+                    )
                     config.pytorch.enabled = False
                     self._pytorch_collector_enabled = False
 
