@@ -252,9 +252,9 @@ class SpanExceptionHandler:
                 frame = _tb.tb_frame
                 code = frame.f_code
                 seq_nr = next(seq)
-                frames_captured += self._capture_tb_frame_for_span(span, _tb, exc_id, next(seq))
 
                 if is_user_code(Path(frame.f_code.co_filename)):
+                    snapshot = None
                     snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
                     if snapshot_id is None:
                         # We don't have a snapshot for the frame so we create one
@@ -284,6 +284,7 @@ class SpanExceptionHandler:
                     span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
                     span.set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
                     span.set_tag_str(FRAME_LINE_TAG % seq_nr, str(_tb.tb_lineno))
+                    frames_captured += snapshot is not None
 
                 # Move up the stack
                 _tb = _tb.tb_next
