@@ -1,8 +1,5 @@
 import os
 
-from anthropic.types import Message
-from anthropic.types import TextBlock
-from anthropic.types import Usage
 import vcr
 
 
@@ -43,13 +40,3 @@ tools = [
     }
 ]
 
-MOCK_MESSAGES_CREATE_REQUEST = Message(
-    id="chatcmpl-0788cc8c-bdee-4bb3-8952-ef1ff3243af5",
-    content=[TextBlock(text='THE BEST-SELLING BOOK OF ALL TIME IS "DON', type="text")],
-    model="claude-3-opus-20240229",
-    role="assistant",
-    stop_reason="max_tokens",
-    stop_sequence=None,
-    type="message",
-    usage=Usage(input_tokens=32, output_tokens=15),
-)
