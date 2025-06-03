@@ -742,7 +742,8 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-mock"
 ]
 
 [envs.pytest_plugin_v2.env-vars]
