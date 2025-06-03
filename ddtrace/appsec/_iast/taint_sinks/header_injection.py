@@ -124,9 +124,8 @@ def patch():
     """
     if not asm_config._iast_enabled:
         return
+
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
-        return
-    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
         return
 
     @when_imported("django.http.response")
