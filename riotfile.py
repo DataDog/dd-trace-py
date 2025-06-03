@@ -1128,7 +1128,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest {cmdargs} tests/contrib/pynamodb",
+            command="pytest -n 8 {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
@@ -1138,7 +1138,7 @@ venv = Venv(
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.10.0",
-                        "pytest-randomly": latest,
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
