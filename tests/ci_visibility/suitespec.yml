@@ -45,7 +45,7 @@ suites:
       - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
-    runner: hatch
+    runner: riot
     snapshot: true
   pytest:
     parallelism: 12

@@ -481,8 +481,6 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
-        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
@@ -652,6 +650,7 @@ class Config(object):
         self._lib_was_injected = False
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

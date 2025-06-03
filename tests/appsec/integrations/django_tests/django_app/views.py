@@ -4,18 +4,25 @@ Class based views used for Django tests.
 
 import hashlib
 from html import escape
+import json
 import os
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
 import subprocess
 from typing import Any
+import urllib
+from urllib.parse import quote
 
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.shortcuts import render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
+import requests
+from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -182,6 +189,43 @@ def sqli_http_path_parameter(request, q_http_path_parameter):
         cursor.execute(query)
 
     return HttpResponse(request.META["HTTP_USER_AGENT"], status=200)
+
+
+def iast_sampling(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_2(request):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}", status=200)
+
+
+def iast_sampling_by_route_method(request, q_http_path_parameter):
+    param_tainted = request.GET.get("param")
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT '{param_tainted}', '1'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '2'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '3'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '4'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '5'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '6'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '7'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '8'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '9'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '10'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '11'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '12'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '13'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '14'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '15'  FROM sqlite_master")
+        cursor.execute(f"SELECT '{param_tainted}', '16'  FROM sqlite_master")
+    return HttpResponse(f"OK:{param_tainted}:{q_http_path_parameter}", status=200)
 
 
 def taint_checking_enabled_view(request):
@@ -351,6 +395,52 @@ def header_injection(request):
     return response
 
 
+def unvalidated_redirect_url(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_url
+    return redirect(value)
+
+
+def unvalidated_redirect_url_validator(request):
+    value = request.GET.get("url")
+    if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+        return redirect(value)
+    return redirect(value)
+
+
+def unvalidated_redirect_path(request):
+    value = request.GET.get("url")
+    # label unvalidated_redirect_path
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_safe_source_cookie(request):
+    value = request.COOKIES["url"]
+    # label unvalidated_redirect_safe_source_cookie
+    return redirect(value)
+
+
+def unvalidated_redirect_safe_source_header(request):
+    value = request.META["url"]
+    # label unvalidated_redirect_safe_source_header
+    return redirect("http://localhost:8080/" + value)
+
+
+def unvalidated_redirect_path_multiple_sources(request):
+    value1 = request.GET.get("url")
+    value2 = request.META["url"]
+    # label unvalidated_redirect_path_multiple_sources
+    return redirect(value1 + value2)
+
+
+def unvalidated_redirect_url_header(request):
+    value = request.GET.get("url")
+    response = HttpResponse("OK", status=200)
+    # label unvalidated_redirect_url_header
+    response.headers["Location"] = value
+    return response
+
+
 def validate_querydict(request):
     qd = request.GET
     res = qd.getlist("x")
@@ -387,3 +477,65 @@ def signup(request):
         User.objects.create_user(username=login, password=passwd)
         return HttpResponse("OK", status=200)
     return HttpResponse("Error", status=400)
+
+
+def ssrf_requests(request):
+    value = request.GET.get("url")
+    option = request.GET.get("option")
+    try:
+        if option == "path":
+            # label ssrf_requests_path
+            _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
+        elif option == "protocol":
+            # label ssrf_requests_protocol
+            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
+        elif option == "host":
+            # label ssrf_requests_host
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
+        elif option == "query":
+            # label ssrf_requests_query
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+        elif option == "query_with_fragment":
+            # label ssrf_requests_query_with_fragment
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+        elif option == "port":
+            # label ssrf_requests_port
+            _ = requests.get(f"http://localhost:{value}/", timeout=1)
+        elif option == "fragment1":
+            _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
+        elif option == "fragment2":
+            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
+        elif option == "fragment3":
+            _ = requests.get(
+                "http://localhost:8080/path-to-something/object_identifier?"
+                f"param1=value1&param2=value2#section3={value}",
+                timeout=1,
+            )
+        elif option == "query_param":
+            _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+        elif option == "urlencode_single":
+            params = urllib.parse.urlencode({"key1": value})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_multiple":
+            params = urllib.parse.urlencode({"key1": value, "key2": "static_value", "key3": "another_value"})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_nested":
+            nested_data = {"user": value, "filters": {"type": "report", "format": "json"}}
+            params = urllib.parse.urlencode({"data": json.dumps(nested_data)})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_with_fragment":
+            params = urllib.parse.urlencode({"search": value})
+            _ = requests.get(f"http://localhost:8080/?{params}#results", timeout=1)
+        elif option == "urlencode_doseq":
+            params = urllib.parse.urlencode({"ids": [value, "id2", "id3"]}, doseq=True)
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "safe_host":
+            if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                _ = requests.get(f"http://{value}:8080/", timeout=1)
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
+        elif option == "safe_path":
+            safe_path = quote(value)
+            _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
+    except ConnectionError:
+        pass
+    return HttpResponse("OK", status=200)
