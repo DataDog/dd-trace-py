@@ -1096,6 +1096,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize("apm_tracing_enabled", [True, False])
     @pytest.mark.parametrize(
         ("name", "expected_value"),
         [
@@ -1167,6 +1168,7 @@ class Contrib_TestClass_For_Threats:
         get_tag,
         root_span,
         apisec_enabled,
+        apm_tracing_enabled,
         name,
         expected_value,
         headers,
@@ -1181,7 +1183,9 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
         import ddtrace.internal.telemetry
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch.object(
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+        ), mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer,
             "_namespace",
             MagicMock(),
@@ -1225,6 +1229,16 @@ class Contrib_TestClass_For_Threats:
                     "appsec.api_security.request.schema",
                     (("framework", interface.name),),
                 ) in telemetry_calls
+
+                if not apm_tracing_enabled:
+                    span_sampling_priority = root_span()._span.context.sampling_priority
+                    sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
+                    assert (
+                        span_sampling_priority == constants.USER_KEEP
+                    ), f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
+                    assert (
+                        sampling_decision == f"-{constants.SamplingMechanism.APPSEC}"
+                    ), f"Expected '-5' (APPSEC), got {sampling_decision}"
             else:
                 assert value is None, name
 

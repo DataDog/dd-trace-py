@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import functools
+import inspect
 from inspect import iscoroutinefunction
 from itertools import chain
 import logging
@@ -446,6 +447,7 @@ class Tracer(object):
             # the writer before that point will raise a ServiceStatusError.
             pass
         # Re-create the background writer thread
+        rules = self._span_aggregator.sampling_processor.sampler._by_service_samplers
         self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
         self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
@@ -455,6 +457,7 @@ class Tracer(object):
             self._span_aggregator.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
+        self._span_aggregator.sampling_processor.sampler._by_service_samplers = rules.copy()
 
     def _start_span_after_shutdown(
         self,
@@ -773,6 +776,56 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._span_aggregator.writer.flush_queue()
 
+    def _wrap_generator(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        def func_wrapper(*args, **kwargs):
+            if getattr(self, "_wrap_executor", None):
+                return self._wrap_executor(
+                    self,
+                    f,
+                    args,
+                    kwargs,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                gen = f(*args, **kwargs)
+                for value in gen:
+                    yield value
+
+        return func_wrapper
+
+    def _wrap_generator_async(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        async def func_wrapper(*args, **kwargs):
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                agen = f(*args, **kwargs)
+                async for value in agen:
+                    yield value
+
+        return func_wrapper
+
     def wrap(
         self,
         name: Optional[str] = None,
@@ -810,6 +863,15 @@ class Tracer(object):
             def coroutine():
                 return 'executed'
 
+        >>> # or use it on generators
+            @tracer.wrap()
+            def gen():
+                yield 'executed'
+
+        >>> @tracer.wrap()
+            async def gen():
+                yield 'executed'
+
         You can access the current span using `tracer.current_span()` to set
         tags:
 
@@ -823,10 +885,26 @@ class Tracer(object):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
-            # detect if the the given function is a coroutine to use the
-            # right decorator; this initial check ensures that the
+            # detect if the the given function is a coroutine and/or a generator
+            # to use the right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if iscoroutinefunction(f):
+            if inspect.isgeneratorfunction(f):
+                func_wrapper = self._wrap_generator(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif inspect.isasyncgenfunction(f):
+                func_wrapper = self._wrap_generator_async(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif iscoroutinefunction(f):
                 # create an async wrapper that awaits the coroutine and traces it
                 @functools.wraps(f)
                 async def func_wrapper(*args, **kwargs):
