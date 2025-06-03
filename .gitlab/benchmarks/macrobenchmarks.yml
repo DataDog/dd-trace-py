@@ -386,7 +386,7 @@ check-slo-breaches:
     expire_in: 3 months
   script:
     # TODO: Revert branch, keep only one configuration file
-    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/testing/pre-release-gate-prototype)
+    - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin igoragoli/testing/improve-pre-release-gates-tooling)
     - echo "Running loose check"
     - bp-runner bp-runner.fail-on-breach.loose.yml
     - echo "Running strict check"
