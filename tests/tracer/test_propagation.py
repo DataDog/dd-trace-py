@@ -85,7 +85,7 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
-def test_inject_128bit_trace_id_datadog():
+def test_inject_128bit_trace_id_datadog(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
@@ -115,7 +115,7 @@ def test_inject_128bit_trace_id_datadog():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
-def test_inject_128bit_trace_id_b3multi():
+def test_inject_128bit_trace_id_b3multi(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from tests.utils import DummyTracer
@@ -137,7 +137,7 @@ def test_inject_128bit_trace_id_b3multi():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
-def test_inject_128bit_trace_id_b3_single_header():
+def test_inject_128bit_trace_id_b3_single_header(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from tests.utils import DummyTracer
@@ -159,7 +159,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
-def test_inject_128bit_trace_id_tracecontext():
+def test_inject_128bit_trace_id_tracecontext(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from tests.utils import DummyTracer
@@ -724,7 +724,7 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
-def test_extract_128bit_trace_ids_datadog():
+def test_extract_128bit_trace_ids_datadog(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace import config
     from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
@@ -760,7 +760,7 @@ def test_extract_128bit_trace_ids_datadog():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_MULTI),
 )
-def test_extract_128bit_trace_ids_b3multi():
+def test_extract_128bit_trace_ids_b3multi(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -787,7 +787,7 @@ def test_extract_128bit_trace_ids_b3multi():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_B3_SINGLE),
 )
-def test_extract_128bit_trace_ids_b3_single_header():
+def test_extract_128bit_trace_ids_b3_single_header(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -813,7 +813,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
-def test_extract_128bit_trace_ids_tracecontext():
+def test_extract_128bit_trace_ids_tracecontext(DD_TRACE_PROPAGATION_STYLE):
     from ddtrace.propagation.http import HTTPPropagator
     from tests.utils import DummyTracer
 
@@ -3528,7 +3528,7 @@ def test_http_propagator_baggage_extract(headers):
     env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
     parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
 )
-def test_opentracer_propagator_baggage_extract():
+def test_opentracer_propagator_baggage_extract(DD_TRACE_PROPAGATION_EXTRACT_FIRST):
     from ddtrace.propagation.http import HTTPPropagator
 
     headers = {
@@ -3553,7 +3553,7 @@ def test_baggage_span_tags_default():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_BAGGAGE_TAG_KEYS=""),
 )
-def test_baggage_span_tags_empty():
+def test_baggage_span_tags_empty(DD_TRACE_BAGGAGE_TAG_KEYS):
     from ddtrace.propagation.http import HTTPPropagator
 
     headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
