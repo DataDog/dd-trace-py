@@ -1,10 +1,9 @@
 import importlib
 import os
 import threading
-from types import ModuleType  # noqa:F401
+from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Union
 
 from wrapt.importer import when_imported
 
@@ -23,11 +22,10 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from types import ModuleType  # noqa:F401
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
     from typing import List  # noqa:F401
-    from typing import Union  # noqa:F401
+
 
 log = get_logger(__name__)
 
@@ -281,7 +279,6 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 module, False, PATCH_MODULES.get(module) is True, str(e), version=e.installed_version
             )
         except Exception as e:
-            # don't raise errors for incompatible integration versions
             if raise_errors:
                 raise
             log.error(
