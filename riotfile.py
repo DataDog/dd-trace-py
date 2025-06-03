@@ -97,7 +97,6 @@ venv = Venv(
         "DD_INJECTION_ENABLED": "1",
         "DD_INJECT_FORCE": "1",
         "DD_PATCH_MODULES": "unittest:false",
-        "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": "false",
         "CMAKE_BUILD_PARALLEL_LEVEL": "12",
         "CARGO_BUILD_JOBS": "12",
     },
@@ -203,7 +202,6 @@ venv = Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
             pys=select_pys(),
-            env={"DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": "true"},
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
