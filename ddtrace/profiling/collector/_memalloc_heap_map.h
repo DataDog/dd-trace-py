@@ -1,7 +1,5 @@
 #include <stdbool.h>
 
-#include <Python.h>
-
 #include "_memalloc_tb.h"
 
 /* memalloc_heap_map_t tracks sampled allocations by their address.
@@ -10,6 +8,8 @@
  * C code only works with pointers to this map.
  */
 typedef struct memalloc_heap_map_t memalloc_heap_map_t;
+
+typedef struct memalloc_heap_map_iter_t memalloc_heap_map_iter_t;
 
 /* Construct an empty map */
 memalloc_heap_map_t*
@@ -32,8 +32,14 @@ memalloc_heap_map_contains(memalloc_heap_map_t* m, void* key);
 traceback_t*
 memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key);
 
-PyObject*
-memalloc_heap_map_export(memalloc_heap_map_t* m);
+memalloc_heap_map_iter_t*
+memalloc_heap_map_iter_new(memalloc_heap_map_t* m);
+
+bool
+memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb);
+
+void
+memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it);
 
 /* Copy the contents of src into dst, removing the items from src */
 void

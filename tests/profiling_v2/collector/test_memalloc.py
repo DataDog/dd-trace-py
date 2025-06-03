@@ -58,10 +58,12 @@ def test_memory_collector(tmp_path):
     )
     ddup.start()
 
-    mc = memalloc.MemoryCollector()
+    mc = memalloc.MemoryCollector(heap_sample_size=8)
     with mc:
         _allocate_1k()
-        mc.periodic()
+        # periodic and collect don't do anything now (should they?)
+        #mc.periodic()
+        mc.snapshot()
 
     ddup.upload()
 
@@ -194,7 +196,9 @@ class HeapInfo:
 
 def get_heap_info(heap, funcs):
     got = {}
-    for (frames, _, _), size in heap:
+    for (frames, _, _), size, count, in_use in heap:
+        if not in_use:
+            continue
         func = frames[0].function_name
         if func in funcs:
             v = got.get(func, HeapInfo(0, 0))
@@ -302,15 +306,17 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
         assert abs(rel - actual_rel) < 0.10
 
 
-@pytest.mark.skip(reason="too slow, indeterministic")
+#@pytest.mark.skip(reason="too slow, indeterministic")
 @pytest.mark.subprocess(
     env=dict(
         # Turn off other profilers so that we're just testing memalloc
         DD_PROFILING_STACK_ENABLED="false",
+        DD_PROFILING_EXPORT_LIBDD_ENABLED="true",
         DD_PROFILING_LOCK_ENABLED="false",
         # Upload a lot, since rotating out memalloc profiler state can race with profiling
         DD_PROFILING_UPLOAD_INTERVAL="1",
     ),
+    err=None,
 )
 def test_memealloc_data_race_regression():
     import gc

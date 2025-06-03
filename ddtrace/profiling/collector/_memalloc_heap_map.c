@@ -82,6 +82,11 @@ typedef struct memalloc_heap_map_t
     HeapSamples map;
 } memalloc_heap_map_t;
 
+typedef struct memalloc_heap_map_iter_t
+{
+    HeapSamples_CIter it;
+} memalloc_heap_map_iter_t;
+
 memalloc_heap_map_t*
 memalloc_heap_map_new()
 {
@@ -133,28 +138,34 @@ memalloc_heap_map_remove(memalloc_heap_map_t* m, void* key)
     return res;
 }
 
-PyObject*
-memalloc_heap_map_export(memalloc_heap_map_t* m)
+memalloc_heap_map_iter_t*
+memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
 {
-    PyObject* heap_list = PyList_New(HeapSamples_size(&m->map));
-    if (heap_list == NULL) {
+    memalloc_heap_map_iter_t* it = calloc(1, sizeof(memalloc_heap_map_iter_t));
+    if (!it) {
         return NULL;
     }
+    it->it = HeapSamples_citer(&m->map);
+    return it;
+}
 
-    int i = 0;
-    HeapSamples_CIter it = HeapSamples_citer(&m->map);
-    for (const HeapSamples_Entry* e = HeapSamples_CIter_get(&it); e != NULL; e = HeapSamples_CIter_next(&it)) {
-        traceback_t* tb = e->val;
-
-        PyObject* tb_and_size = PyTuple_New(2);
-        PyTuple_SET_ITEM(tb_and_size, 0, traceback_to_tuple(tb));
-        PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
-        PyList_SET_ITEM(heap_list, i, tb_and_size);
-        i++;
-
-        memalloc_debug_gil_release();
+bool
+memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb)
+{
+    const HeapSamples_Entry* e = HeapSamples_CIter_get(&it->it);
+    if (e == NULL) {
+        return false;
     }
-    return heap_list;
+    *key = e->key;
+    *tb = e->val;
+    HeapSamples_CIter_next(&it->it);
+    return true;
+}
+
+void
+memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it)
+{
+    free(it);
 }
 
 void

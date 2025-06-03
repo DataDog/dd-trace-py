@@ -91,10 +91,16 @@ class MemoryCollector(collector.PeriodicCollector):
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
             return tuple()
 
-        for (frames, _, thread_id), size in events:
+        for (frames, nframes, thread_id), size, count, in_use in events:
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 handle = ddup.SampleHandle()
-                handle.push_heap(size)
+                if in_use:
+                    handle.push_heap(size)
+                else:
+                    # needed? I think it'll just default to 0
+                    handle.push_heap(0)
+                handle.push_alloc(size, count)
+
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
@@ -107,38 +113,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
         return tuple()
-
+ 
     def collect(self):
-        # TODO: The event timestamp is slightly off since it's going to be the time we copy the data from the
-        # _memalloc buffer to our Recorder. This is fine for now, but we might want to store the nanoseconds
-        # timestamp in C and then return it via iter_events.
-        try:
-            events_iter, count, alloc_count = _memalloc.iter_events()
-        except RuntimeError:
-            # DEV: This can happen if either _memalloc has not been started or has been stopped.
-            LOG.debug("Unable to collect memory events from process %d", os.getpid(), exc_info=True)
-            return tuple()
-
-        # `events_iter` is a consumable view into `iter_events()`; copy it so we can send it to both pyprof
-        # and libdatadog. This will be changed if/when we ever return to only a single possible exporter
-        events = list(events_iter)
-        thread_id_ignore_set = self._get_thread_id_ignore_set()
-
-        for (frames, _, thread_id), size, _ in events:
-            if thread_id in thread_id_ignore_set:
-                continue
-            handle = ddup.SampleHandle()
-            handle.push_monotonic_ns(time.monotonic_ns())
-            handle.push_alloc(int((ceil(size) * alloc_count) / count), count)  # Roundup to help float precision
-            handle.push_threadinfo(
-                thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
-            )
-            try:
-                for frame in frames:
-                    handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                handle.flush_sample()
-            except AttributeError:
-                # DEV: This might happen if the memalloc sofile is unlinked and relinked without module
-                #      re-initialization.
-                LOG.debug("Invalid state detected in memalloc module, suppressing profile")
+        # Not implemented. See snapshot
         return tuple()

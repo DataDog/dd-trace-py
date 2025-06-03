@@ -33,10 +33,15 @@ typedef struct
     void* ptr;
     /* Memory size allocated in bytes */
     size_t size;
+    /* TODO: compute this? */
+    size_t count;
     /* Domain allocated */
     PyMemAllocatorDomain domain;
     /* Thread ID */
     unsigned long thread_id;
+    /* Whether this has been reported in the allocation profile
+     * (vs live heap) */
+    bool reported;
     /* List of frames, top frame first */
     frame_t frames[1];
 } traceback_t;
