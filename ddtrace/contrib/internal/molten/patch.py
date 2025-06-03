@@ -102,7 +102,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
         integration_config=config.molten,
         activate_distributed_headers=True,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))

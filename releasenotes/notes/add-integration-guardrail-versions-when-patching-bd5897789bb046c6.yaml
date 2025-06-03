@@ -1,5 +1,12 @@
 ---
 other:
   - |
-    Adds guardrail versions to integrations which prevent patching of incompatible versions via a new `_supported_versions` function.
-    Adds an error message to integration telemetry when an incompatible version is detected.
+    Adds a new configuration option ``DD_TRACE_SAFE_INSTRUMENTATION_ENABLED`` to enable safer patching of integrations.
+    
+    When enabled, the tracer will check if the installed version of an integration is compatible with the explicit version range
+    supported by that integration. If an incompatible version is detected, the integration will not be patched 
+    and an error message will be logged.
+
+    This feature is currently disabled by default, but will be enabled by default in a future version.
+
+    Currently the only supported integrations for this feature are: ``aiobotocore`` (>=1.0.0), ``fastapi`` (>=0.57.0), and ``elasticsearch`` (>=1.10).

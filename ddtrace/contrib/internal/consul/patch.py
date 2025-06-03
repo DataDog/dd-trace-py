@@ -4,7 +4,6 @@ import consul
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -80,9 +79,6 @@ def wrap_function(name):
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             span.set_tag(_SPAN_MEASURED_KEY)
-            rate = config.consul.get_analytics_sample_rate()
-            if rate is not None:
-                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
             span.set_tag_str(consulx.KEY, path)
             span.set_tag_str(consulx.CMD, resource)
             return wrapped(*args, **kwargs)

@@ -86,14 +86,12 @@ class TestPatching(SubprocessTestCase):
 
                 fastapi_supported_version = ddtrace.contrib.internal.fastapi.patch._supported_versions().get("fastapi")
 
-                print(mock_add_integration.call_args_list)
-
                 mock_add_integration.assert_any_call(
                     "fastapi",
                     False,
                     True,
-                    "Unable to patch integration: fastapi, installed version: 0.0.0 is not compatible with "
-                    + "integration support spec of %s" % fastapi_supported_version,
+                    "Skipped patching 'fastapi' integration, installed version: 0.0.0 is not compatible "
+                    + "with integration support spec: %s." % fastapi_supported_version,
                     version="0.0.0",
                 )
                 mock_add_integration.assert_any_call(

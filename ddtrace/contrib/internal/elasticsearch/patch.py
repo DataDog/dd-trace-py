@@ -1,13 +1,11 @@
 from importlib import import_module
 from typing import Dict
-from typing import List  # noqa:F401
 from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace import _limits
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
@@ -25,6 +23,14 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
 
 
+try:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as get_package_version
+except ImportError:
+    from importlib_metadata import PackageNotFoundError
+    from importlib_metadata import version as get_package_version
+
+
 log = get_logger(__name__)
 
 config._add(
@@ -34,30 +40,29 @@ config._add(
     },
 )
 
+ES_MODULE_VERSIONS = {}
+ES_PACKAGE_TO_MODULE_NAME = {
+    "elasticsearch": "elasticsearch",
+    "elasticsearch1": "elasticsearch1",
+    "elasticsearch2": "elasticsearch2",
+    "elasticsearch5": "elasticsearch5",
+    "elasticsearch6": "elasticsearch6",
+    "elasticsearch7": "elasticsearch7",
+    # Starting with version 8, the default transport which is what we
+    # actually patch is found in the separate elastic_transport package
+    "elastic-transport": "elastic_transport",
+    "opensearch-py": "opensearchpy",
+}
+
 
 def _es_modules():
-    module_names = (
-        "elasticsearch",
-        "elasticsearch1",
-        "elasticsearch2",
-        "elasticsearch5",
-        "elasticsearch6",
-        "elasticsearch7",
-        # Starting with version 8, the default transport which is what we
-        # actually patch is found in the separate elastic_transport package
-        "elastic_transport",
-        "opensearchpy",
-    )
-    for module_name in module_names:
+    for module_name in ES_PACKAGE_TO_MODULE_NAME.values():
         try:
             module = import_module(module_name)
-            versions[module_name] = getattr(module, "__versionstr__", "")
+            ES_MODULE_VERSIONS[module_name] = getattr(module, "__versionstr__", "")
             yield module
         except ImportError:
             pass
-
-
-versions = {}
 
 
 def get_version_tuple(elasticsearch):
@@ -70,12 +75,18 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"elasticsearch": ">=1.10,<8.0"}
+    return {"elasticsearch": ">=1.10"}
 
 
 def get_versions():
-    # type: () -> List[str]
-    return versions
+    # type: () -> Dict[str, str]
+    if not ES_MODULE_VERSIONS:
+        for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
+            try:
+                ES_MODULE_VERSIONS[es_module] = get_package_version(es_module)
+            except PackageNotFoundError:
+                pass
+    return ES_MODULE_VERSIONS
 
 
 def _get_transport_module(elasticsearch):
@@ -198,9 +209,6 @@ def _get_perform_request_coro(transport):
                         "<body size %s exceeds limit of %s>" % (len(ser_body), _limits.MAX_SPAN_META_VALUE_LEN),
                     )
             status = None
-
-            # set analytics sample rate
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.elasticsearch.get_analytics_sample_rate())
 
             span = quantize(span)
 

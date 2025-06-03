@@ -5,7 +5,6 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -45,6 +44,10 @@ config._add(
         "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiobotocore": ">=1.0.0"}
 
 
 def get_version():
@@ -178,8 +181,5 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         request_id2 = response_headers.get("x-amz-id-2")
         if request_id2:
             span.set_tag_str("aws.requestid2", request_id2)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
 
         return result

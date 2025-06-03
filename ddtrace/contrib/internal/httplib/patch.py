@@ -8,7 +8,6 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
@@ -172,8 +171,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
 
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
     except Exception:
         log.debug("error applying request tags", exc_info=True)
 

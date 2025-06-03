@@ -6,10 +6,12 @@ import litellm
 from ddtrace import config
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMAsyncStream
 from ddtrace.contrib.internal.litellm.utils import TracedLiteLLMStream
+from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.trace import Pin
 
@@ -28,33 +30,13 @@ def _supported_versions() -> Dict[str, str]:
 
 @with_traced_module
 def traced_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_completion(litellm, pin, func, instance, args, kwargs, False)
-
-
-@with_traced_module
-async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, False)
-
-
-@with_traced_module
-def traced_text_completion(litellm, pin, func, instance, args, kwargs):
-    return _traced_completion(litellm, pin, func, instance, args, kwargs, True)
-
-
-@with_traced_module
-async def traced_atext_completion(litellm, pin, func, instance, args, kwargs):
-    return await _traced_acompletion(litellm, pin, func, instance, args, kwargs, True)
-
-
-def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion):
+    operation = func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
-        func.__name__,
+        operation,
         model=model,
         host=host,
         submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
@@ -64,7 +46,7 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMStream(resp, integration, span, kwargs, is_completion)
+            return TracedLiteLLMStream(resp, integration, span, kwargs)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -73,21 +55,19 @@ def _traced_completion(litellm, pin, func, instance, args, kwargs, is_completion
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
-                )
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
-async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_completion):
+@with_traced_module
+async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
+    operation = func.__name__
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
-    host = None
-    if "host" in kwargs.get("metadata", {}).get("headers", {}):
-        host = kwargs["metadata"]["headers"]["host"]
+    host = extract_host_tag(kwargs)
     span = integration.trace(
         pin,
-        func.__name__,
+        operation,
         model=model,
         host=host,
         submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
@@ -97,7 +77,7 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs, is_completion)
+            return TracedLiteLLMAsyncStream(resp, integration, span, kwargs)
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -106,9 +86,69 @@ async def _traced_acompletion(litellm, pin, func, instance, args, kwargs, is_com
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
             if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(
-                    span, args=args, kwargs=kwargs, response=resp, operation="completion" if is_completion else "chat"
-                )
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            span.finish()
+
+
+@with_traced_module
+def traced_router_completion(litellm, pin, func, instance, args, kwargs):
+    operation = f"router.{func.__name__}"
+    integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = extract_host_tag(kwargs)
+    span = integration.trace(
+        pin,
+        operation,
+        model=model,
+        host=host,
+        submit_to_llmobs=True,
+    )
+    stream = kwargs.get("stream", False)
+    resp = None
+    try:
+        resp = func(*args, **kwargs)
+        if stream:
+            resp._add_router_span_info(span, kwargs, instance)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            span.finish()
+
+
+@with_traced_module
+async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
+    operation = f"router.{func.__name__}"
+    integration = litellm._datadog_integration
+    model = get_argument_value(args, kwargs, 0, "model", None)
+    host = extract_host_tag(kwargs)
+    span = integration.trace(
+        pin,
+        operation,
+        model=model,
+        host=host,
+        submit_to_llmobs=True,
+    )
+    stream = kwargs.get("stream", False)
+    resp = None
+    try:
+        resp = await func(*args, **kwargs)
+        if stream:
+            resp._add_router_span_info(span, kwargs, instance)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
@@ -134,10 +174,14 @@ def patch():
 
     wrap("litellm", "completion", traced_completion(litellm))
     wrap("litellm", "acompletion", traced_acompletion(litellm))
-    wrap("litellm", "text_completion", traced_text_completion(litellm))
-    wrap("litellm", "atext_completion", traced_atext_completion(litellm))
+    wrap("litellm", "text_completion", traced_completion(litellm))
+    wrap("litellm", "atext_completion", traced_acompletion(litellm))
     wrap("litellm", "get_llm_provider", traced_get_llm_provider(litellm))
     wrap("litellm", "main.get_llm_provider", traced_get_llm_provider(litellm))
+    wrap("litellm", "router.Router.completion", traced_router_completion(litellm))
+    wrap("litellm", "router.Router.acompletion", traced_router_acompletion(litellm))
+    wrap("litellm", "router.Router.text_completion", traced_router_completion(litellm))
+    wrap("litellm", "router.Router.atext_completion", traced_router_acompletion(litellm))
 
 
 def unpatch():
@@ -152,5 +196,8 @@ def unpatch():
     unwrap(litellm, "atext_completion")
     unwrap(litellm, "get_llm_provider")
     unwrap(litellm.main, "get_llm_provider")
-
+    unwrap(litellm.router.Router, "completion")
+    unwrap(litellm.router.Router, "acompletion")
+    unwrap(litellm.router.Router, "text_completion")
+    unwrap(litellm.router.Router, "atext_completion")
     delattr(litellm, "_datadog_integration")
