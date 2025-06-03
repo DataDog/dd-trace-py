@@ -201,6 +201,7 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling.collector import stack  # noqa:F401
         from ddtrace.profiling.collector import stack_event  # noqa:F401
 
+
 @mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log")
 @mock.patch("ddtrace.internal.datadog.profiling.ddup.config")
 @mock.patch("ddtrace.internal.datadog.profiling.ddup.failure_msg", "mock failure message")
@@ -224,4 +225,3 @@ def test_libdd_failure_telemetry_logging(mock_ddup_config, mock_add_log):
     assert "falling back to legacy mode" in message
     assert "Test libdd failure" in message
     assert "mock failure message" in message
-
