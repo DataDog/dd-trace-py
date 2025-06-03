@@ -920,7 +920,7 @@ Other
 
       description: |
           A comma-separated list of baggage keys, sent via HTTP headers, to automatically tag as baggage.<key> on the local root span.
-          Only baggage extracted from incoming headers is supported—baggage set via ``Context.set_baggage_item(..., ...)`` is not included. Keys must have non-empty values. 
+          Only baggage extracted from incoming headers is supported. Baggage set via ``Context.set_baggage_item(..., ...)`` is not included. Keys must have non-empty values. 
           Set to * to tag all baggage keys (use with caution to avoid exposing sensitive data). Set to an empty string to disable the feature.
 
       version_added: 
