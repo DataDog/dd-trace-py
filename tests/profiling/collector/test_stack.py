@@ -1047,4 +1047,3 @@ def test_collect_gevent_threads():
             task_name="MainThread",
         ),
     )
-
