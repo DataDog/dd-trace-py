@@ -293,9 +293,10 @@ class TraceMiddleware:
                             # The link should have the attribute dd.kind set to resuming.
                             # If the instrumented library supports multicast or broadcast sending,
                             # there must be a link to the handshake span of every affected connection;
-                            send_span.set_link(
-                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
-                            )
+                            if self.integration_config._websocket_messages_separate:
+                                send_span.set_link(
+                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
+                                )
                             send_span.set_metric("websocket.message.frames", 1)
                             if "text" in message:
                                 send_span.set_tag_str("websocket.message.type", "text")
@@ -303,18 +304,6 @@ class TraceMiddleware:
                             elif "binary" in message:
                                 send_span.set_tag_str("websocket.message.type", "binary")
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
-
-                            if (
-                                self.integration_config._websocket_messages_separate
-                                and self.integration_config._asgi_websockets_inherit_sampling
-                            ):
-                                send_span.set_metric("_dd.dm.inherited", 1)
-
-                                # if the service and resource are different
-                                if send_span.service != global_root_span.service:
-                                    send_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                                if send_span.resource != global_root_span.resource:
-                                    send_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -448,11 +437,9 @@ class TraceMiddleware:
                                 and self.integration_config._asgi_websockets_inherit_sampling
                             ):
                                 recv_span.set_metric("_dd.dm.inherited", 1)
-
-                                if global_root_span.service != recv_span.service:
-                                    recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                                if global_root_span.resource != recv_span.resource:
-                                    recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                                recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                recv_span._meta["_dd.p.dm"] = global_root_span._meta["_dd.p.dm"]
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -485,10 +472,9 @@ class TraceMiddleware:
                                 and self.integration_config._asgi_websockets_inherit_sampling
                             ):
                                 close_span.set_metric("_dd.dm.inherited", 1)
-                                if global_root_span.service != close_span.service:
-                                    close_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                                if global_root_span.resource != close_span.resource:
-                                    close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                close_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                                close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                close_span._meta["_dd.p.dm"] = global_root_span._meta["_dd.p.dm"]
 
                             code = message.get("code")
                             reason = message.get("reason")
