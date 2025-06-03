@@ -974,7 +974,7 @@ def test_deregister_start_span_hooks():
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
-def test_enable():
+def test_enable(DD_TRACE_ENABLED):
     import os
 
     from ddtrace.trace import tracer as t2
@@ -1017,7 +1017,7 @@ def test_unfinished_span_warning_log():
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
-def test_threaded_import():
+def test_threaded_import(DD_TRACE_ENABLED):
     import threading
 
     def thread_target():
@@ -1732,7 +1732,7 @@ def test_tracer_api_version():
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
-def test_tracer_memory_leak_span_processors():
+def test_tracer_memory_leak_span_processors(DD_TRACE_ENABLED):
     """
     Test whether the tracer or span processors will hold onto
     span references after the trace is complete.

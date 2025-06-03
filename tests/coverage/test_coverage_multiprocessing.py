@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_multiprocessing_without_coverage():
+def test_coverage_multiprocessing_without_coverage(start_method):
     """Ensures that the coverage collector does not interfere with multiprocessing when it is not enabled."""
     import multiprocessing
 
@@ -30,7 +30,7 @@ def test_coverage_multiprocessing_without_coverage():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_multiprocessing_coverage_started():
+def test_coverage_multiprocessing_coverage_started(start_method):
     """Ensures that the coverage collector does not interfere with multiprocessing if started mid-execution"""
     import multiprocessing
 
@@ -60,7 +60,7 @@ def test_coverage_multiprocessing_coverage_started():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_multiprocessing_coverage_stopped():
+def test_coverage_multiprocessing_coverage_stopped(start_method):
     """Ensures that the coverage collector does not interfere with multiprocessing if stopped mid-execution"""
     import multiprocessing
 
@@ -91,7 +91,7 @@ def test_coverage_multiprocessing_coverage_stopped():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_multiprocessing_session():
+def test_coverage_multiprocessing_session(start_method):
     import multiprocessing
 
     if __name__ == "__main__":
@@ -131,7 +131,7 @@ def test_coverage_multiprocessing_session():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_multiprocessing_context():
+def test_coverage_multiprocessing_context(start_method):
     import multiprocessing
 
     if __name__ == "__main__":
@@ -174,7 +174,7 @@ def test_coverage_multiprocessing_context():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_concurrent_futures_processpool_session():
+def test_coverage_concurrent_futures_processpool_session(start_method):
     import multiprocessing
 
     if __name__ == "__main__":
@@ -216,7 +216,7 @@ def test_coverage_concurrent_futures_processpool_session():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
-def test_coverage_concurrent_futures_processpool_context():
+def test_coverage_concurrent_futures_processpool_context(start_method):
     import multiprocessing
 
     if __name__ == "__main__":
