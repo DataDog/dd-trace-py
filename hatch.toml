@@ -281,6 +281,7 @@ template = "appsec_iast_default"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "hypothesis",
     "requests",
     "urllib3",
