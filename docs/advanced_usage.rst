@@ -525,7 +525,7 @@ Example with CLI arguments:
 
 .. code-block:: bash
 
-  uwsgi --enable-threads --lazy-apps --skip-atexit --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
+  uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
 
 
 Example with uWSGI ini file:
