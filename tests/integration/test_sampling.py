@@ -92,6 +92,52 @@ def test_sampling_with_default_sample_rate_1_and_manual_drop(writer, tracer):
             span.set_tag(MANUAL_DROP_KEY)
 
 
+def test_supported_sampling_mechanism():
+    """
+    validate_sampling_decision should not give errors for supported sampling mechanisms
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.constants import SamplingMechanism
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    # This list can grow over time so we should test all of them
+    supported_mechanisms = {
+        name: getattr(SamplingMechanism, name) for name in dir(SamplingMechanism) if not name.startswith("_")
+    }
+
+    # The mechanisms we support should NOT return a decoding error
+    for mechanism, value in supported_mechanisms.items():
+        sampling_decision_validation = None
+        meta = {}
+        sampling_dm_value = "-" + str(value)
+        meta = {SAMPLING_DECISION_TRACE_TAG_KEY: sampling_dm_value}
+        sampling_decision_validation = validate_sampling_decision(meta)
+        decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+        assert sampling_decision_validation != decoding_error_result, f"{mechanism} returned {decoding_error_result}"
+
+
+def test_unsupported_sampling_mechanism():
+    """
+    Unsupported sampling mechanisms actually return a decoding error in validate_sampling_decision
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}
+    sampling_decision_validation = validate_sampling_decision(meta)
+    decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+    assert (
+        sampling_decision_validation == decoding_error_result
+    ), f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
+def test_extended_sampling_resource():
+    from ddtrace.trace import tracer
+    from tests.integration.test_sampling import RESOURCE
+
+
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1)
