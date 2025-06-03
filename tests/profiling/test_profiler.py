@@ -402,7 +402,7 @@ def test_libdd_failure_telemetry_logging(mock_ddup_config, mock_add_log):
     test_exception = Exception("Test libdd failure")
     mock_ddup_config.side_effect = test_exception
 
-    prof = profiler._ProfilerInstance()
+    profiler._ProfilerInstance()
 
     mock_add_log.assert_called_once()
     call_args = mock_add_log.call_args
