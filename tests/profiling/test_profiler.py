@@ -398,17 +398,17 @@ def test_profiler_ddtrace_deprecation():
 def test_libdd_failure_telemetry_logging(mock_ddup_config, mock_add_log):
     """Test that libdd initialization failures log to telemetry instead of standard logging"""
     from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-    
+
     test_exception = Exception("Test libdd failure")
     mock_ddup_config.side_effect = test_exception
-    
+
     prof = profiler._ProfilerInstance()
-    
+
     mock_add_log.assert_called_once()
     call_args = mock_add_log.call_args
-    
+
     assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-    
+
     message = call_args[0][1]
     assert "Failed to load libdd" in message
     assert "falling back to legacy mode" in message

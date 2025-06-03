@@ -205,12 +205,12 @@ class _ProfilerInstance(service.Service):
                 try:
                     telemetry_writer.add_log(
                         TELEMETRY_LOG_LEVEL.ERROR,
-                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ddup.failure_msg)
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ddup.failure_msg),
                     )
                 except Exception as ee:
                     telemetry_writer.add_log(
                         TELEMETRY_LOG_LEVEL.ERROR,
-                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ee)
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ee),
                     )
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
