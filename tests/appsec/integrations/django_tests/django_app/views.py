@@ -560,6 +560,7 @@ def ssrf_requests(request):
             _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
         elif option == "safe_host":
             if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                # label ssrf_requests_safe_host
                 _ = requests.get(f"http://{value}:8080/", timeout=1)
             _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "safe_path":

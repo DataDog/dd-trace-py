@@ -1,8 +1,13 @@
 from multiprocessing.pool import ThreadPool
 import time
 
+from importlib_metadata import version
+
 
 _PORT = 8040
+
+werkzeug_version = tuple(map(int, version("werkzeug").split(".")))
+flask_version = tuple([int(v) for v in version("flask").split(".")])
 
 
 def _multi_requests(client, url="/", debug_mode=False):

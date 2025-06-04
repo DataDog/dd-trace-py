@@ -2,7 +2,6 @@ import json
 import traceback
 
 from flask import request
-from importlib_metadata import version
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -24,14 +23,13 @@ from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.integrations.flask_tests.utils import flask_version
+from tests.appsec.integrations.flask_tests.utils import werkzeug_version
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/appsec/integrations/flask_tests/test_iast_flask.py"
-
-werkzeug_version = version("werkzeug")
-flask_version = tuple([int(v) for v in version("flask").split(".")])
 
 
 class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
@@ -443,7 +441,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         ):
             oce.reconfigure()
 
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
                 self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")
@@ -509,7 +507,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_deduplication_enabled=False,
             )
         ):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master2")
             else:
                 self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master2")
@@ -1323,7 +1321,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_deduplication_enabled=False,
             )
         ):
-            if tuple(map(int, werkzeug_version.split("."))) <= (2, 0, 3):
+            if werkzeug_version <= (2, 0, 3):
                 self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
             else:
                 with pytest.raises(ValueError):
@@ -2027,7 +2025,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(dict(_iast_enabled=False)):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
             else:
                 self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
@@ -2182,7 +2180,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
                 self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")

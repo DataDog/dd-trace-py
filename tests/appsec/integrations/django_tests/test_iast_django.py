@@ -1520,7 +1520,7 @@ def test_django_ssrf_safe_path(client, iast_span, tracer):
         ("urlencode_nested", "value1", None),
         ("urlencode_with_fragment", "value1", None),
         ("urlencode_doseq", "value1", None),
-        ("safe_host", "localhost", None),
+        ("safe_host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
         ("port", "8080", [{"value": "http://localhost:"}, {"value": "8080", "source": 0}, {"value": "/"}]),
         (
             "query",
@@ -1555,7 +1555,7 @@ def test_django_ssrf_url(client, iast_span, tracer, option, url, value_parts):
     assert response.status_code == 200
     assert response.content == b"OK"
 
-    if value_parts is None:
+    if value_parts is None and not (option == "safe_host" and DJANGO_VERSION < (3, 2)):
         assert root_span.get_tag(IAST.JSON) is None
     else:
         loaded = json.loads(root_span.get_tag(IAST.JSON))
