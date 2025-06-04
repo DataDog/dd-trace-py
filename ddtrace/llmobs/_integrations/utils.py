@@ -48,6 +48,7 @@ OPENAI_SKIPPED_CHAT_TAGS = (
     LITELLM_ROUTER_INSTANCE_KEY,
 )
 
+
 def extract_model_name_google(instance, model_name_attr):
     """Extract the model name from the instance.
     Model names are stored in the format `"models/{model_name}"`

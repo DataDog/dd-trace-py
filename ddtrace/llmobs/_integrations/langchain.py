@@ -725,4 +725,3 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
-

@@ -168,4 +168,3 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
-
