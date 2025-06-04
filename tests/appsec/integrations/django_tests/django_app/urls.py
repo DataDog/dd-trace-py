@@ -69,6 +69,7 @@ urlpatterns = [
         views.unvalidated_redirect_path_multiple_sources,
         name="unvalidated_redirect_path_multiple_sources",
     ),
+    handler("appsec/ssrf_requests/$", views.ssrf_requests, name="ssrf_requests"),
     handler("appsec/taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler(
         "appsec/taint-checking-disabled/$", views.taint_checking_disabled_view, name="taint_checking_disabled_view"

@@ -6,7 +6,7 @@ integrations:
   - aiobotocore
   tested_versions_by_dependency:
     aiobotocore:
-      min: 1.4.2
+      min: 1.0.7
       max: 2.16.0
 
 - integration_name: aiohttp
@@ -232,8 +232,8 @@ integrations:
   - crewai
   tested_versions_by_dependency:
     crewai:
-      min: 0.121.0
-      max: 0.121.0
+      min: 0.121.1
+      max: 0.121.1
 
 - integration_name: ddtrace_api
   is_external_package: false

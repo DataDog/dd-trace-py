@@ -6,7 +6,7 @@ PyYAML,0
 WebTest,0
 Werkzeug,<1.0
 ai21,0
-aiobotocore,~=1.4.2
+aiobotocore,~=1.0.0
 aiofiles,0
 aiohttp,~=3.7
 aiohttp_jinja2,~=1.5.0
@@ -132,6 +132,8 @@ psycopg,0
 psycopg2-binary,~=2.8.0
 py-cpuinfo,~=8.0.0
 pycryptodome,0
+pydantic,0
+pydantic-settings,0
 pyfakefs,0
 pylibmc,~=1.6.2
 pymemcache,~=3.4.2

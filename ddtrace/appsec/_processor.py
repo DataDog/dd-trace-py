@@ -25,7 +25,6 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -311,10 +310,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
-        # FingerPrinting
-        for key, value in waf_results.derivatives.items():
-            if key.startswith(FINGERPRINTING.PREFIX):
-                root_span.set_tag_str(key, value)
+        # Trace tagging
+        for key, value in waf_results.meta_tags.items():
+            root_span.set_tag_str(key, value)
+        for key, value in waf_results.metrics.items():
+            root_span.set_metric(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

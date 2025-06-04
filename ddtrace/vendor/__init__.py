@@ -64,6 +64,7 @@ License: Apache License 2.0
 Notes:
   - We only vendor the packaging.version sub-module as this is all we currently
     need.
+  - [06/2025] Added specifiers.py code to the already vendored packaging module
 
 
 ply

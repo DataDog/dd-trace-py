@@ -926,7 +926,7 @@ def test_extract_unicode(tracer):  # noqa: F811
         ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-10", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-13", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):

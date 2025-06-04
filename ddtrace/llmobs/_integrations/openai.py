@@ -18,7 +18,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
-from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._utils import _get_attr
@@ -53,10 +52,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        base_url = kwargs.get("base_url", None)
-        submit_to_llmobs = self.is_default_base_url(str(base_url) if base_url else None) and (
-            operation_id.endswith("Completion") or operation_id == "createEmbedding"
-        )
+        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
+            submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -171,6 +168,3 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
-
-    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
-        return is_openai_default_base_url(base_url)
