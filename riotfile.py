@@ -2669,11 +2669,10 @@ venv = Venv(
         Venv(
             name="logbook",
             pys=select_pys(),
-            command="pytest -n 8 {cmdargs} tests/contrib/logbook",
+            command="pytest {cmdargs} tests/contrib/logbook",
             pkgs={
                 "logbook": ["~=1.0.0", latest],
                 "pytest-randomly": latest,
-                "pytest-xdist": latest,
             },
         ),
         Venv(
