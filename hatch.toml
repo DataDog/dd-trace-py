@@ -319,6 +319,7 @@ template = "appsec_iast_memcheck"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "hypothesis",
     "requests",
     "urllib3",
