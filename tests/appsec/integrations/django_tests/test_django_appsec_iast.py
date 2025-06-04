@@ -4,12 +4,14 @@ import json
 import pytest
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.internal.compat import urlencode
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
@@ -736,9 +738,7 @@ def test_django_command_injection(client, test_spans, tracer):
     with override_global_config(dict(_iast_enabled=True, _iast_deduplication_enabled=False)):
         oce.reconfigure()
         patch_iast({"command_injection": True})
-        from ddtrace.appsec._common_module_patches import patch_common_modules
-
-        patch_common_modules()
+        cmdi_patch()
         root_span, _ = _aux_appsec_get_root_span(
             client,
             test_spans,
@@ -762,6 +762,45 @@ def test_django_command_injection(client, test_spans, tracer):
         }
         assert loaded["vulnerabilities"][0]["location"]["line"] == line
         assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_command_injection_span_metrics(client, test_spans, tracer):
+    cmdi_patch()
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        test_spans,
+        tracer,
+        url="/appsec/command-injection/",
+        payload="master",
+        content_type="application/json",
+    )
+    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") == 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
+    cmdi_patch()
+    root_span, _ = _aux_appsec_get_root_span(
+        client,
+        iast_spans_with_zero_sampling,
+        tracer,
+        url="/appsec/command-injection/",
+        payload="master",
+        content_type="application/json",
+    )
+    assert root_span.get_metric(IAST.ENABLED) == 0.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")

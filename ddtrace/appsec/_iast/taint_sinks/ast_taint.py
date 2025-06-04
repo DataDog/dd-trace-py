@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Callable
 
+from ddtrace.settings.asm import config as asm_config
+
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import increment_iast_span_metric
@@ -34,10 +36,15 @@ def ast_function(
         and cls_name == "Random"
         and func_name in DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
     ):
-        # Weak, run the analyzer
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakRandomness.vulnerability_type)
-        _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)
-        WeakRandomness.report(evidence_value=cls_name + "." + func_name)
+        if asm_config.is_iast_request_enabled:
+            if WeakRandomness.has_quota():
+                WeakRandomness.report(evidence_value=cls_name + "." + func_name)
+
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, WeakRandomness.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(WeakRandomness.vulnerability_type)
+
     elif hasattr(func, "__module__") and DEFAULT_PATH_TRAVERSAL_FUNCTIONS.get(func.__module__):
         if func_name in DEFAULT_PATH_TRAVERSAL_FUNCTIONS[func.__module__]:
             check_and_report_path_traversal(*args, **kwargs)

@@ -45,14 +45,22 @@ def _wrap_call(
         tags=tags,
     ) as ctx, ctx.span:
         if do_dispatch:
-            result = core.dispatch_with_results("flask.wrapped_view", (kwargs,)).callback_and_args
+            dispatch = core.dispatch_with_results("flask.wrapped_view", (kwargs,))
+
+            # Appsec blocks the request
+            result = dispatch.callbacks
             if result:
-                callback_block, _kwargs = result.value
+                callback_block = result.value
                 if callback_block:
                     return callback_block()
+            # IAST overrides the kwargs
+            result = dispatch.check_kwargs
+            if result:
+                _kwargs = result.value
                 if _kwargs:
                     for k in kwargs:
                         kwargs[k] = _kwargs[k]
+
         return wrapped(*args, **kwargs)
 
 

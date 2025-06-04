@@ -8,6 +8,8 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._deduplications import deduplication
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal import telemetry
 from ddtrace.internal.logger import get_logger
@@ -36,7 +38,7 @@ def metric_verbosity(lvl):
             try:
                 return f
             except Exception:
-                log.warning("[IAST] Error reporting metrics", exc_info=True)
+                log.warning("iast::metrics::error::metric_verbosity", exc_info=True)
         return lambda: None  # noqa: E731
 
     return wrapper
@@ -65,7 +67,7 @@ def _set_iast_error_metric(msg: Text) -> None:
         }
         telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace, tags=tags)
     except Exception:
-        log.warning("[IAST] Error reporting logs metrics", exc_info=True)
+        log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
@@ -139,11 +141,7 @@ def _set_span_tag_iast_executed_sink(span):
 
 
 def _metric_key_as_snake_case(key):
-    from ._taint_tracking import OriginType
-
     if isinstance(key, OriginType):
-        from ._taint_tracking import origin_to_str
-
         key = origin_to_str(key)
     key = key.replace(".", "_")
     return key.lower()

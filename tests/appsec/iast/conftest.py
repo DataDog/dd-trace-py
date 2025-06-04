@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import subprocess
 import time
 
@@ -29,6 +28,7 @@ from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -138,10 +138,6 @@ def iast_span_defaults(tracer):
             yield span
 
 
-# The log contains "[IAST]" but "[IAST] create_context" or "[IAST] reset_context" are valid
-IAST_VALID_LOG = re.compile(r"(?=.*\[IAST\] )(?!.*\[IAST\] (create_context|reset_context))")
-
-
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
@@ -173,15 +169,19 @@ def configuration_endpoint():
             os.path.join(current_dir, "fixtures", "integration", "http_config_server.py"),
             CONFIG_SERVER_PORT,
         ]
-        process = subprocess.Popen(cmd, cwd=current_dir)
-        time.sleep(0.2)
+        try:
+            process = subprocess.Popen(cmd, cwd=current_dir)
+            time.sleep(0.9)
 
-        url = f"http://localhost:{CONFIG_SERVER_PORT}/"
-        conn = get_connection(url)
-        conn.request("GET", "/")
-        response = conn.getresponse()
-        result = Response.from_http_response(response)
-        status = result.status
+            url = f"http://localhost:{CONFIG_SERVER_PORT}/"
+            conn = get_connection(url)
+
+            conn.request("GET", "/")
+            response = conn.getresponse()
+            result = Response.from_http_response(response)
+            status = result.status
+        except (OSError, ConnectionError, PermissionError):
+            pass
         retries += 1
 
     if retries == 5:
@@ -189,3 +189,11 @@ def configuration_endpoint():
 
     yield
     process.kill()
+
+
+@pytest.fixture(autouse=True)
+def clear_iast_env_vars():
+    os.environ[IAST.PATCH_MODULES] = "benchmarks.,tests.appsec."
+    if IAST.DENY_MODULES in os.environ:
+        os.environ.pop("_DD_IAST_DENY_MODULES")
+    yield

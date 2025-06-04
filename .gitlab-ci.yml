@@ -10,6 +10,10 @@ stages:
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
+  REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  DD_DISABLE_VPA: true  # disable only on 2.21/older release branches
   # CI_DEBUG_SERVICES: "true"
 
 default:
@@ -38,6 +42,11 @@ tests-gen:
 run-tests-trigger:
  stage: tests-trigger
  needs: [ tests-gen ]
+ # Allow the child job to fail if explicitly asked
+ rules:
+   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+     allow_failure: true
+   - allow_failure: false
  trigger:
    include:
      - artifact: .gitlab/tests-gen.yml
@@ -54,23 +63,70 @@ requirements_json_test:
 package-oci:
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
-onboarding_tests_installer:
-  parallel:
-    matrix:
-      - ONBOARDING_FILTER_WEBLOG: [test-app-python,test-app-python-container,test-app-python-alpine]
+promote-oci-to-prod:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
+promote-oci-to-prod-beta:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
 
-onboarding_tests_k8s_injection:
-  parallel:
-    matrix:
-      - WEBLOG_VARIANT:
-          - dd-lib-python-init-test-django
-          - dd-lib-python-init-test-django-gunicorn
-          - dd-lib-python-init-test-django-gunicorn-alpine
-          - dd-lib-python-init-test-django-preinstalled
-          - dd-lib-python-init-test-django-unsupported-package-force
-          - dd-lib-python-init-test-django-uvicorn
-          - dd-lib-python-init-test-protobuf-old
+promote-oci-to-staging:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+publish-lib-init-ghcr-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+
+publish-lib-init-pinned-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+    - job: generate-lib-init-pinned-tag-values
+      artifacts: true
+
+configure_system_tests:
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,docker-ssi,lib-injection"
+
+system_tests:
+  # Allow the child job to fail if explicitly asked
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+
+deploy_to_reliability_env:
+  needs: []
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
@@ -92,12 +148,20 @@ deploy_to_di_backend:manual:
 check_new_flaky_tests:
   stage: quality-gate
   extends: .testrunner
+  # Allow the child job to fail if explicitly asked
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH =~ /^main$/'
+      when: never
+    - if: '$CI_COMMIT_BRANCH =~ /^[0-9].[0-9]*/'
+      when: never
+    - if: '$CI_COMMIT_BRANCH =~ /^mq-working-branch.*/'
+      when: never
+    - allow_failure: false
+      when: always
   script:
     - export DD_SITE=datadoghq.com
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-api-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
-  except:
-    - main
-    - '[0-9].[0-9]*'
-    - 'mq-working-branch**'

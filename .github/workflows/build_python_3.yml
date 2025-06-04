@@ -19,10 +19,10 @@ jobs:
     outputs:
       include: ${{steps.set-matrix.outputs.include}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: '3.8'
       - run: pip install cibuildwheel==2.22.0
@@ -33,7 +33,7 @@ jobs:
           MATRIX_INCLUDE=$(
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux-ubuntu24.04"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | grep -v 313 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,universal2 | jq -cR '{only: ., os: "macos-13"}'
             } | jq -sc
@@ -50,44 +50,31 @@ jobs:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
-        if: matrix.os != 'arm-4core-linux'
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        if: matrix.os != 'arm-4core-linux-ubuntu24.04'
         name: Install Python
         with:
           python-version: '3.8'
 
-      - name: Install docker and pipx
-        if: matrix.os == 'arm-4core-linux'
-        # The ARM64 Ubuntu has less things installed by default
-        # We need docker, pip and venv for cibuildwheel
-        # acl allows us to use docker in the same session
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-          sudo usermod -a -G docker $USER
-          sudo apt install -y acl python3.10-venv python3-pip
-          sudo setfacl --modify user:runner:rw /var/run/docker.sock
-          python3 -m pip install pipx
-
       - name: Set up QEMU
-        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux'
-        uses: docker/setup-qemu-action@v2
+        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux-ubuntu24.04'
+        uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2.2.0
         with:
           platforms: all
 
       - name: Build wheels arm64
-        if: always() && matrix.os == 'arm-4core-linux'
-        run: /home/runner/.local/bin/pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
+        if: always() && matrix.os == 'arm-4core-linux-ubuntu24.04'
+        run: pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:cd6422aadb976a6c04c1c81f49bcfcc3f5f27c8f@sha256:1ff8f112d682a3d9df945b790089d773cd41e3d5ee374b1dca2d1c9594776ec0
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
@@ -116,17 +103,18 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: always() && matrix.os != 'arm-4core-linux'
-        uses: pypa/cibuildwheel@v2.22.0
+        if: always() && matrix.os != 'arm-4core-linux-ubuntu24.04'
+        uses: pypa/cibuildwheel@ee63bf16da6cddfb925f542f2c7b59ad50e93969 # v2.22.0
         with:
           only: ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
           CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:cd6422aadb976a6c04c1c81f49bcfcc3f5f27c8f@sha256:1ff8f112d682a3d9df945b790089d773cd41e3d5ee374b1dca2d1c9594776ec0
           CIBW_BEFORE_ALL: >
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]];
             then
+              yum install -y libatomic.i686
               curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
           CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
@@ -162,7 +150,7 @@ jobs:
         run: |
           chcp 65001 #set code page to utf-8
           echo "ARTIFACT_NAME=${{ matrix.only }}"  >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl

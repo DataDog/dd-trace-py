@@ -44,13 +44,14 @@ class JobSpec:
             for service in _services:
                 lines.append(f"    - {service}")
 
-        wait_for: t.Set[str] = services.copy()
+        wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
         if wait_for:
             lines.append("  before_script:")
             lines.append(f"    - !reference [{base}, before_script]")
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            if self.runner == "riot" and wait_for:
+                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = self.env
         if not env or "SUITE_NAME" not in env:
@@ -94,27 +95,47 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
-    # Exclude the suites that are run in CircleCI. These likely don't run in
-    # GitLab yet.
-    with YAML() as yaml:
-        circleci_config = yaml.load(ROOT / ".circleci" / "config.templ.yml")
-        circleci_jobs = set(circleci_config["jobs"].keys())
-
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            if suite.rsplit("::", maxsplit=1)[-1] in circleci_jobs:
-                LOGGER.debug("Skipping CircleCI suite %s", suite)
-                continue
-
             jobspec = JobSpec(suite, **suites[suite])
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
             print(str(jobspec), file=f)
+
+
+def gen_build_docs() -> None:
+    """Include the docs build step if the docs have changed."""
+    from needs_testrun import pr_matches_patterns
+
+    if pr_matches_patterns(
+        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+    ):
+        with TESTS_GEN.open("a") as f:
+            print("build_docs:", file=f)
+            print("  extends: .testrunner", file=f)
+            print("  stage: hatch", file=f)
+            print("  needs: []", file=f)
+            print("  variables:", file=f)
+            print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
+            print("    KUBERNETES_MEMORY_REQUEST: 4Gi", file=f)
+            print("    KUBERNETES_MEMORY_LIMIT: 4Gi", file=f)
+            print("  script:", file=f)
+            print("    - |", file=f)
+            print("      hatch run docs:build", file=f)
+            print("      mkdir -p /tmp/docs", file=f)
+            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
+            print("  cache:", file=f)
+            print("    key: v0-2.21-build_docs-pip-cache", file=f)
+            print("    paths:", file=f)
+            print("      - .cache", file=f)
+            print("  artifacts:", file=f)
+            print("    paths:", file=f)
+            print("      - '/tmp/docs'", file=f)
 
 
 def gen_pre_checks() -> None:
@@ -168,6 +189,38 @@ def gen_pre_checks() -> None:
     )
 
 
+def gen_appsec_iast_packages() -> None:
+    """Generate the list of jobs for the appsec_iast_packages tests."""
+    with TESTS_GEN.open("a") as f:
+        f.write(
+            """
+appsec_iast_packages:
+  extends: .test_base_hatch
+  timeout: 50m
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '0'
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    PYTEST_ADDOPTS: '-s'
+  cache:
+    # Share pip between jobs of the same Python version
+      key: v1.2-appsec_iast_packages-${PYTHON_VERSION}-cache
+      paths:
+        - .cache
+  before_script:
+    - !reference [.test_base_hatch, before_script]
+    - pyenv global "${PYTHON_VERSION}"
+  script:
+    - export PYTEST_ADDOPTS="${PYTEST_ADDOPTS} --ddtrace"
+    - export DD_FAST_BUILD="1"
+    - hatch run appsec_iast_packages.py${PYTHON_VERSION}:test
+        """
+        )
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is
@@ -180,7 +233,6 @@ from argparse import ArgumentParser  # noqa
 from pathlib import Path  # noqa
 from time import monotonic_ns as time  # noqa
 
-from ruamel.yaml import YAML  # noqa
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 LOGGER = logging.getLogger(__name__)

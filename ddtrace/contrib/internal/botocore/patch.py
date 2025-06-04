@@ -113,7 +113,10 @@ config._add(
             os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", default={"s3", "sns", "sqs", "kinesis", "eventbridge"})
+            service.strip()
+            for service in os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge").split(
+                ","
+            )
         ),
     },
 )

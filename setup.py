@@ -7,6 +7,7 @@ import subprocess
 import sys
 import sysconfig
 import tarfile
+import time
 
 import cmake
 from setuptools_rust import Binding
@@ -41,6 +42,14 @@ from urllib.request import urlretrieve
 HERE = Path(__file__).resolve().parent
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
+if FAST_BUILD:
+    print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
+else:
+    print("INFO: DD_FAST_BUILD not enabled")
+
+if FAST_BUILD:
+    os.environ["DD_COMPILE_ABSEIL"] = "0"
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
@@ -405,12 +414,62 @@ class CMakeBuild(build_ext):
                     "-DCMAKE_OSX_ARCHITECTURES={}".format(";".join(archs)),
                 ]
 
+        if CURRENT_OS != "Windows" and FAST_BUILD and ext.build_type:
+            cmake_args += [
+                "-DCMAKE_C_FLAGS_%s=-O0" % ext.build_type.upper(),
+                "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
+            ]
         cmake_command = (
             Path(cmake.CMAKE_BIN_DIR) / "cmake"
         ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
+
+
+class DebugMetadata:
+    start_ns = 0
+    enabled = "_DD_DEBUG_EXT" in os.environ
+    metadata_file = os.getenv("_DD_DEBUG_EXT_FILE", "debug_ext_metadata.txt")
+    build_times = {}
+
+    @classmethod
+    def dump_metadata(cls):
+        if not cls.enabled or not cls.build_times:
+            return
+
+        total_ns = time.time_ns() - cls.start_ns
+        total_s = total_ns / 1e9
+
+        build_total_ns = sum(cls.build_times.values())
+        build_total_s = build_total_ns / 1e9
+        build_percent = (build_total_ns / total_ns) * 100.0
+
+        with open(cls.metadata_file, "w") as f:
+            f.write(f"Total time: {total_s:0.2f}s\n")
+            f.write("Environment:\n")
+            f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
+            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
+            f.write(f"\tDD_COMPILE_DEBUG: {DEBUG_COMPILE}\n")
+            f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
+            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
+            f.write("Extension build times:\n")
+            f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
+            for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
+                elapsed_s = elapsed_ns / 1e9
+                ext_percent = (elapsed_ns / total_ns) * 100.0
+                f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+
+
+def debug_build_extension(fn):
+    def wrapper(self, ext, *args, **kwargs):
+        start = time.time_ns()
+        try:
+            return fn(self, ext, *args, **kwargs)
+        finally:
+            DebugMetadata.build_times[ext] = time.time_ns() - start
+
+    return wrapper
 
 
 class CMakeExtension(Extension):
@@ -482,10 +541,12 @@ if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
+    fast_build_args = []
 else:
     linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
+    fast_build_args = ["-O0"] if FAST_BUILD else []
     if DEBUG_COMPILE:
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
@@ -502,6 +563,7 @@ else:
     else:
         debug_compile_args = []
 
+
 if not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -511,30 +573,44 @@ if not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
                 "ddtrace/profiling/collector/_memalloc_reentrant.c",
+                "ddtrace/profiling/collector/_memalloc_heap_map.c",
             ],
-            extra_compile_args=debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
-            if CURRENT_OS != "Windows"
-            else ["/std:c11"],
+            extra_compile_args=(
+                debug_compile_args + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"] + fast_build_args
+                if CURRENT_OS != "Windows"
+                else ["/std:c11", "/experimental:c11atomics"]
+            ),
         ),
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
-            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] if CURRENT_OS != "Windows" else ["/std:c++20", "/MT"],
+            extra_compile_args=["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+            if CURRENT_OS != "Windows"
+            else ["/std:c++20", "/MT"],
         ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(
             Extension(
                 "ddtrace.appsec._iast._stacktrace",
-                # Sort source files for reproducibility
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=extra_compile_args + debug_compile_args,
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
-
-        ext_modules.append(CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR))
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec._iast._ast.iastpatch",
+                sources=[
+                    "ddtrace/appsec/_iast/_ast/iastpatch.c",
+                ],
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            )
+        )
+        ext_modules.append(
+            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+        )
 
     if (
         platform.system() == "Linux" or (platform.system() == "Darwin" and platform.machine() == "arm64")
