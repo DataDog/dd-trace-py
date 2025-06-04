@@ -2,6 +2,7 @@ import os
 
 import vcr
 
+
 multi_message_input = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Who won the world series in 2020?"},
