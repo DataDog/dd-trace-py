@@ -109,3 +109,9 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
+    
+    def _is_proxy_url(self, base_url: Optional[str] = None) -> bool:
+        if not base_url:
+            return False
+        proxy_urls = config._llmobs_proxy_urls or set()
+        return base_url in proxy_urls

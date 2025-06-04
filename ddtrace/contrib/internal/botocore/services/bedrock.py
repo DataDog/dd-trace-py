@@ -499,8 +499,8 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         integration.llmobs_enabled
         and "embed" not in model_name
     )
-    default_base_url = integration.is_default_base_url(str(endpoint_host) if endpoint_host else None)
-    span_name = function_vars.get("trace_operation") if default_base_url else f"proxy.{function_vars.get('trace_operation')}"
+    is_proxy_url = integration._is_proxy_url(str(endpoint_host) if endpoint_host else None)
+    span_name = f"proxy.{function_vars.get('trace_operation')}" if is_proxy_url else function_vars.get("trace_operation")
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,

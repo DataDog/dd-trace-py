@@ -15,7 +15,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
 )
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
@@ -26,7 +26,7 @@ class TestLLMObsOpenaiV1:
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
         model = "gpt-3.5-turbo"
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
+        client = openai.OpenAI(base_url="http://localhost:4000")
         client.completions.create(
             model=model,
             prompt="Hello world",
@@ -99,7 +99,7 @@ class TestLLMObsOpenaiV1:
         prompt = "Hello world"
         mock_completions_post.return_value = mock_openai_completions_response
         azure_client = openai.AzureOpenAI(
-            base_url="http://0.0.0.0:4000",
+            base_url="http://localhost:4000",
             api_key=azure_openai_config["api_key"],
             api_version=azure_openai_config["api_version"],
         )
@@ -227,7 +227,7 @@ class TestLLMObsOpenaiV1:
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
         input_messages = multi_message_input
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
+        client = openai.OpenAI(base_url="http://localhost:4000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -286,7 +286,7 @@ class TestLLMObsOpenaiV1:
         ]
         mock_completions_post.return_value = mock_openai_chat_completions_response
         azure_client = openai.AzureOpenAI(
-            base_url="http://0.0.0.0:4000",
+            base_url="http://localhost:4000",
             api_key=azure_openai_config["api_key"],
             api_version=azure_openai_config["api_version"],
         )

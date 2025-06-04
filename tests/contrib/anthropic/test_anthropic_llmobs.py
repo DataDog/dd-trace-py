@@ -29,7 +29,7 @@ Francisco, CA is 73°F."
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
 )
 class TestLLMObsAnthropic:
     @patch("anthropic._base_client.SyncAPIClient.post")
@@ -42,7 +42,6 @@ class TestLLMObsAnthropic:
         mock_tracer,
         request_vcr,
     ):
-        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
         llm = anthropic.Anthropic(base_url="http://localhost:4000")
         mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
         llm.messages.create(

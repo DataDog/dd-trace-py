@@ -45,8 +45,8 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     stream = False
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
-    default_base_url = integration.is_default_base_url(str(base_url) if base_url else None)
-    operation_id = "%s.%s" % (instance.__class__.__name__, func.__name__) if default_base_url else "proxy.%s.%s" % (instance.__class__.__name__, func.__name__)
+    is_proxy_url = integration._is_proxy_url(str(base_url) if base_url else None)
+    operation_id = "proxy.%s.%s" % (instance.__class__.__name__, func.__name__) if is_proxy_url else "%s.%s" % (instance.__class__.__name__, func.__name__)
 
     span = integration.trace(
         pin,
@@ -121,8 +121,8 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     stream = False
     client = getattr(instance, "_client", None)
     base_url = getattr(client, "_base_url", None) if client else None
-    default_base_url = integration.is_default_base_url(str(base_url) if base_url else None)
-    operation_id = "%s.%s" % (instance.__class__.__name__, func.__name__) if default_base_url else "proxy.%s.%s" % (instance.__class__.__name__, func.__name__)
+    is_proxy_url = integration._is_proxy_url(str(base_url) if base_url else None)
+    operation_id = "proxy.%s.%s" % (instance.__class__.__name__, func.__name__) if is_proxy_url else "%s.%s" % (instance.__class__.__name__, func.__name__)
 
     span = integration.trace(
         pin,

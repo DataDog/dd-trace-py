@@ -77,7 +77,7 @@ def bedrock_client_proxy(boto3):
         aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
         region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
-    bedrock_client = session.client("bedrock-runtime", endpoint_url="http://0.0.0.0:4000")
+    bedrock_client = session.client("bedrock-runtime", endpoint_url="http://localhost:4000")
     yield bedrock_client
 
 
@@ -151,7 +151,7 @@ def mock_invoke_model_response_error():
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
 )
 class TestLLMObsBedrock:
     @staticmethod

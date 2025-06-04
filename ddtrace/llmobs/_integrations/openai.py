@@ -18,7 +18,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
-from ddtrace.llmobs._integrations.utils import is_openai_default_base_url
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import update_input_output_value
@@ -173,5 +172,3 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return get_llmobs_metrics_tags("openai", span)
 
-    def is_default_base_url(self, base_url: Optional[str] = None) -> bool:
-        return is_openai_default_base_url(base_url)
