@@ -153,7 +153,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 25
+    parallelism: 22
     paths:
       - '@bootstrap'
       - '@core'
