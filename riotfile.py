@@ -106,12 +106,12 @@ venv = Venv(
             pys=["3.10"],
             command="pytest {cmdargs} --no-ddtrace tests/meta",
             env={
-              "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
         ),
         Venv(
             name="slotscheck",
-            command = "python -m slotscheck {cmdargs} -v ddtrace/",
+            command="python -m slotscheck {cmdargs} -v ddtrace/",
             pys=["3.10"],
             pkgs={"slotscheck": "==0.17.0"},
         ),
