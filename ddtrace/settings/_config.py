@@ -118,6 +118,7 @@ INTEGRATION_CONFIGS = frozenset(
         "snowflake",
         "pymemcache",
         "azure_functions",
+        "azure_servicebus",
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",

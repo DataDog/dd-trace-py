@@ -85,6 +85,7 @@ def _patched_route(wrapped, instance, args, kwargs):
 
 def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
     trigger = "ServiceBus"
+    trigger_arg_name = kwargs.get("arg_name", "msg")
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -95,7 +96,10 @@ def _patched_service_bus_trigger(wrapped, instance, args, kwargs):
 
         def context_factory(kwargs):
             resource_name = f"{trigger} {function_name}"
-            return create_context("azure.functions.patched_service_bus", pin, resource_name)
+            msg = kwargs.get(trigger_arg_name)
+            return create_context(
+                "azure.functions.patched_service_bus", pin, resource_name, headers=msg.application_properties
+            )
 
         def pre_dispatch(ctx, kwargs):
             ctx.set_item("trigger_span", ctx.span)
