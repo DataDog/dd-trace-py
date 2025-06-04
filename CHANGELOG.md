@@ -4,6 +4,48 @@ Changelogs for versions not listed here can be found at https://github.com/DataD
 
 ---
 
+## 3.9.0
+
+### New Features
+
+- DSM: Add support for context extraction for SQS -\> Lambda messsage events.
+- Add support for Python 3.13 on Windows.
+- azure_functions: Add distributed tracing support for http triggers.
+- Code Security (IAST): Unvalidated Redirect detection for Django, Flask and FastAPI applications, which will be displayed on your DataDog Vulnerability Explorer dashboard. See the [Application Vulnerability Management](https://docs.datadoghq.com/security/application_security/vulnerability_management/) documentation for more information about this feature.
+- AAP: This introduces the capability for the waf to decide of the sampling priority of the trace in case of a security event.
+- litellm: Adds APM and LLM Observability tracing support for LiteLLM's synchronous and asynchronous `completion` and `text_completion` router methods.
+- LLM Observability: add processor capability to process span inputs and outputs. See usage documentation \[here\](<https://docs.datadoghq.com/llm_observability/setup/sdk/python/#span-processing>).
+- LLM Observability: Propagate the `ml_app` of the most recent LLM Observability span (or the global `ml_app`) when injecting distributed headers. In distributed services, uses the `ml_app` from the distributed trace headers.
+- LLM Observability: This introduces tracing for system prompts in the OpenAI Agents SDK.
+- LLM Observability: This introduces tracing for the content of tool call outputs passed to LLM spans for the OpenAI Agents integration.
+- dynamic instrumentation: Add support for excluding identifiers from redaction with <span class="title-ref">DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS</span>
+### Upgrade Notes
+
+- AAP: Upgrade the WAF value regex obfuscator.
+### Deprecation Notes
+
+- tracing: Deprecates support for DD_TRACE_GLOBAL_TAGS in favor of <span class="title-ref">DD_TAGS</span>.
+- Deprecates starting the serverless mini agent from the tracer. Use the datadog-serverless-compat package instead.
+- tracing: Removes support for [APM Legacy App Analytics](https://docs.datadoghq.com/tracing/legacy_app_analytics/). There are still some remnants of App Analytics in the codebase, but they are not functional and output a deprecation warning.
+### Bug Fixes
+
+- LLM Observability: This fix resolves an issue where error type was being set to the full error message for OpenAI Agents SDK errors, resulting in long error types.
+- CI Visibility: This fix resolves an issue where the DD_CIVISIBILITY_ITR_ENABLED was not honored properly.
+- CI Visibility: This fix resolves an issue where running from a GitHub action triggered on a tag push would cause the branch name to be null, causing errors when fetching Test Optimization settings from the backend.
+- crewai: This fix resolves an issue where using crewai\>=1.120.0 with ddtrace caused a `TypeError` to be thrown due to empty task contexts.
+- tracing: fix issue where Trace Agent sampling rates were not being applied when using a <span class="title-ref">TraceFilter</span> and <span class="title-ref">tracer.configure</span>.
+- LLM Observability: This fix resolves an issue where parsing token usage from langchain AI message types causes an attribute error.
+- openai: Resolves an issue where streamed completions and chat completions immediately returning `None` would result in unfinished spans.
+- dynamic instrumentation: fixes an issue where only module scopes were being uploaded, preventing method probes from being created.
+- langgraph: Fixes an issue where using `astream_events` on a compiled graph would cause missing spans.
+- LLM Observability: Fixes an issue where using `astream_events` on a compiled graph would raise a `KeyError`.
+- tracing: Fixes a bug in distributed tracing where pickling <span class="title-ref">ddtrace.trace.Context</span> fails in coroutines. This regression was introduced in v3.7.0.
+- tracing: Resolves the "sample_before_fork was unregistered without first being registered" warning by removing tracer at_exit hooks from the product protocol, ensuring hooks are registered and unregistered exactly once.
+- tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently count the size of UTF-8 multibyte characters, leading to a `unicode string is too large` error.
+
+
+---
+
 ## 3.8.0
 
 ### New Features
