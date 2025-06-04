@@ -1474,8 +1474,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.8"),
+                    pkgs={"fastapi": "~=0.57.0"},
+                ),
+                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
-                    pkgs={"fastapi": ["~=0.57.0", "~=0.64.0", "~=0.90.0", latest]},
+                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
@@ -2659,6 +2663,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
                 "anthropic": ["~=0.28.0", latest],
+                "httpx": ["~=0.27.0", latest]
             },
         ),
         Venv(
