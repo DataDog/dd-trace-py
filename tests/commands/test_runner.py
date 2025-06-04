@@ -431,7 +431,7 @@ MODULES_TO_CHECK_PARAMS = dict(
     parametrize=MODULES_TO_CHECK_PARAMS,
     err=None,
 )
-def test_ddtrace_run_imports():
+def test_ddtrace_run_imports(DD_TRACE_ENABLED, DD_PROFILING_ENABLED, DD_DYNAMIC_INSTRUMENTATION_ENABLED):
     import os
     import sys
 
@@ -446,7 +446,7 @@ def test_ddtrace_run_imports():
     parametrize=MODULES_TO_CHECK_PARAMS,
     err=None,
 )
-def test_ddtrace_auto_imports():
+def test_ddtrace_auto_imports(DD_TRACE_ENABLED, DD_PROFILING_ENABLED, DD_DYNAMIC_INSTRUMENTATION_ENABLED):
     import os
     import sys
 

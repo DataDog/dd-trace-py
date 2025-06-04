@@ -353,7 +353,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
         ]
     }
 )
-def test_set_http_meta_with_http_header_tags_config():
+def test_set_http_meta_with_http_header_tags_config(DD_TRACE_HEADER_TAGS):
     from ddtrace import config
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.trace import Span

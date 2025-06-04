@@ -3528,7 +3528,7 @@ def test_http_propagator_baggage_extract(headers):
     env=dict(DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED="True"),
     parametrize=dict(DD_TRACE_PROPAGATION_EXTRACT_FIRST=["True", "False"]),
 )
-def test_opentracer_propagator_baggage_extract():
+def test_opentracer_propagator_baggage_extract(DD_TRACE_PROPAGATION_EXTRACT_FIRST):
     from ddtrace.propagation.http import HTTPPropagator
 
     headers = {

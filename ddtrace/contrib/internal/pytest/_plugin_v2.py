@@ -438,7 +438,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
         log.debug("encountered error during post-test", exc_info=True)
 
 
-@pytest.hookimpl(specname="pytest_runtest_protocol")
+@pytest.hookimpl(tryfirst=True, specname="pytest_runtest_protocol")
 def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None

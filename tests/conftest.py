@@ -24,8 +24,6 @@ from unittest import mock
 from urllib import parse
 import warnings
 
-from _pytest.runner import call_and_report
-from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
@@ -307,6 +305,7 @@ def is_stream_ok(stream, expected):
 
 def run_function_from_file(item, params=None):
     file, _, func = item.location
+    func = func.split("[", 1)[0]
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
@@ -412,47 +411,24 @@ def pytest_collection_modifyitems(session, config, items):
             item.add_marker(unskippable)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_protocol(item):
-    if item.get_closest_marker("skip"):
-        return default_pytest_runtest_protocol(item, None)
-
-    skipif = item.get_closest_marker("skipif")
-    if skipif and skipif.args[0]:
-        return default_pytest_runtest_protocol(item, None)
-
-    marker = item.get_closest_marker("subprocess")
+def pytest_generate_tests(metafunc):
+    marker = metafunc.definition.get_closest_marker("subprocess")
     if marker:
-        params = marker.kwargs.get("parametrize", None)
-        ihook = item.ihook
-        base_name = item.nodeid
+        param_dict = marker.kwargs.get("parametrize", {})
+        for param_name, values in param_dict.items():
+            metafunc.parametrize(param_name, values)
 
-        for ps in unwind_params(params):
-            nodeid = (base_name + str(ps)) if ps is not None else base_name
 
-            # Start
-            ihook.pytest_runtest_logstart(nodeid=nodeid, location=item.location)
-
-            # Setup
-            report = call_and_report(item, "setup", log=False)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Call
-            item.runtest = lambda: run_function_from_file(item, ps)  # noqa: B023
-            report = call_and_report(item, "call", log=False)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Teardown
-            report = call_and_report(item, "teardown", log=False, nextitem=None)
-            report.nodeid = nodeid
-            ihook.pytest_runtest_logreport(report=report)
-
-            # Finish
-            ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
-
-        return True
+def pytest_pyfunc_call(pyfuncitem):
+    marker = pyfuncitem.get_closest_marker("subprocess")
+    if marker:
+        param_dict = {
+            name: pyfuncitem.funcargs[name]
+            for name in marker.kwargs.get("parametrize", {})
+            if name in pyfuncitem.funcargs
+        }
+        run_function_from_file(pyfuncitem, params=param_dict)
+        return True  # Prevent regular test call
 
 
 def _run(cmd):
