@@ -156,3 +156,24 @@ def test_custom_decorated_stuff(no_pytest_loader):
 
     finally:
         DiscoveryModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess
+def test_discovery_after_external_wrapping_context():
+    from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.module import origin
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    DebuggerModuleWatchdog.install()
+
+    import tests.submod.stuff as stuff
+
+    f = stuff.modulestuff
+
+    def hook(module):
+        assert FunctionDiscovery.from_module(module).at_line(f.__code__.co_firstlineno + 1)
+
+    WrappingContext(f).wrap()  # type: ignore
+
+    DebuggerModuleWatchdog.register_origin_hook(origin(stuff), hook)  # type: ignore
