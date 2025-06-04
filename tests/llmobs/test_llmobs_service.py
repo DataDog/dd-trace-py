@@ -1372,7 +1372,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
-            mock_llmobs_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+            mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
             mock_activate.assert_called_once_with(dummy_context)
 
 
