@@ -422,15 +422,13 @@ def pytest_generate_tests(metafunc):
 def pytest_pyfunc_call(pyfuncitem):
     marker = pyfuncitem.get_closest_marker("subprocess")
     if marker:
-        kwargs = dict(marker.kwargs)
-        param_keys = kwargs.get("parametrize", {}).keys()
-        for k in param_keys:
-            if k in pyfuncitem.funcargs:
-                kwargs[k] = pyfuncitem.funcargs[k]
-        kwargs.pop("parametrize", None)
-
-        run_function_from_file(pyfuncitem, params=kwargs)
-        return True  # short-circuit the default test function call
+        param_dict = {
+            name: pyfuncitem.funcargs[name]
+            for name in marker.kwargs.get("parametrize", {})
+            if name in pyfuncitem.funcargs
+        }
+        run_function_from_file(pyfuncitem, params=param_dict)
+        return True  # Prevent regular test call
 
 
 def _run(cmd):
