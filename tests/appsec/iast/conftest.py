@@ -14,6 +14,7 @@ from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
@@ -59,9 +60,10 @@ def _start_iast_context_and_oce(span=None):
 def _end_iast_context_and_oce(span=None):
     end_iast_context(span)
     oce.release_request()
+    _reset_global_limit()
 
 
-def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False):
+def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
 
@@ -71,10 +73,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
             _iast_deduplication_enabled=deduplication,
+            _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
             _iast_request_sampling=request_sampling,
         )
     ), override_env(env):
-        _start_iast_context_and_oce(MockSpan())
+        span = MockSpan()
+        _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
         json_patch()
@@ -90,7 +94,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         cmdi_unpatch()
         header_injection_unpatch()
         code_injection_unpatch()
-        _end_iast_context_and_oce()
+        _end_iast_context_and_oce(span)
 
 
 @pytest.fixture
@@ -100,7 +104,12 @@ def iast_context_defaults():
 
 @pytest.fixture
 def iast_context_deduplication_enabled(tracer):
-    yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=True)
+    yield from iast_context(dict(DD_IAST_ENABLED="true"), deduplication=True, vulnerabilities_per_requests=2)
+
+
+@pytest.fixture
+def iast_context_2_vulnerabilities_per_requests(tracer):
+    yield from iast_context(dict(DD_IAST_ENABLED="true"), vulnerabilities_per_requests=2)
 
 
 @pytest.fixture
@@ -108,6 +117,14 @@ def iast_span_defaults(tracer):
     for _ in iast_context(dict(DD_IAST_ENABLED="true")):
         with tracer.trace("test") as span:
             yield span
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "skip_iast_check_logs: mark test to remove _DD_IAST_DEBUG environment variable and skip logs checks to validate"
+        "if the propagation is not running outside the context",
+    )
 
 
 @pytest.fixture(autouse=True)

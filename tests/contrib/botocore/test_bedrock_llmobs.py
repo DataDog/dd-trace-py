@@ -1,4 +1,3 @@
-from io import BytesIO
 import json
 import os
 
@@ -6,7 +5,6 @@ import botocore
 import mock
 from mock import patch as mock_patch
 import pytest
-import urllib3
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
@@ -71,7 +69,6 @@ def bedrock_client(boto3, request_vcr):
     bedrock_client = session.client("bedrock-runtime")
     yield bedrock_client
 
-
 @pytest.fixture
 def bedrock_client_proxy(boto3):
     session = boto3.Session(
@@ -95,7 +92,6 @@ def mock_tracer(bedrock_client):
     pin = Pin.get_from(bedrock_client)
     pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
-
 
 @pytest.fixture
 def mock_tracer_proxy(bedrock_client_proxy):

@@ -144,14 +144,14 @@ model_list = [
         "model_name": "gpt-3.5-turbo",
         "litellm_params": {
             "model": "gpt-3.5-turbo",
-            "api_key": os.getenv("<not-a-real-key>"),
+            "api_key": "<not-a-real-key>",
         },
     },
     {
         "model_name": "gpt-4",
         "litellm_params": {
             "model": "gpt-4",
-            "api_key": os.getenv("<not-a-real-key>"),
+            "api_key": "<not-a-real-key>",
         },
     },
 ]
@@ -188,20 +188,14 @@ expected_router_settings = {
         {
             "model_name": "gpt-3.5-turbo",
             "litellm_params": {
-                "use_in_pass_through": False,
-                "merge_reasoning_content_in_choices": False,
                 "model": "gpt-3.5-turbo",
             },
-            "model_info": {"id": "c9015295692caff343e5da390cef20930bbeb7bf78be9202763d0cf4ced22351", "db_model": False},
         },
         {
             "model_name": "gpt-4",
             "litellm_params": {
-                "use_in_pass_through": False,
-                "merge_reasoning_content_in_choices": False,
                 "model": "gpt-4",
             },
-            "model_info": {"id": "de074d9b469e7072548ae4dbe5758205cc13e9c1934a981d774cc974e83c177b", "db_model": False},
         },
     ],
 }

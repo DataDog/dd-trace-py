@@ -495,7 +495,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     integration = function_vars.get("integration")
     endpoint = getattr(instance, "_endpoint", None)
     endpoint_host = getattr(endpoint, "host", None) if endpoint else None
-    # only report LLM Obs spans if base_url has not been changed
     submit_to_llmobs = (
         integration.llmobs_enabled
         and "embed" not in model_name

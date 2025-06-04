@@ -240,7 +240,9 @@ class _TestOutcome(t.NamedTuple):
 
 
 def get_user_property(report, key, default=None):
-    for k, v in report.user_properties:
+    # DEV: `CollectReport` does not have `user_properties`.
+    user_properties = getattr(report, "user_properties", [])
+    for k, v in user_properties:
         if k == key:
             return v
     return default

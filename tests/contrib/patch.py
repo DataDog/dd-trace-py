@@ -792,3 +792,12 @@ class PatchTestCase(object):
                 emit_integration_and_version_to_test_agent(
                     self.__integration_name__, version, module_name=self.__module_name__
                 )
+
+        def test_supported_versions(self):
+            """
+            Test the integration's supported versions are correctly reported via the '_supported_versions()' method.
+            """
+            if hasattr(self, "_supported_versions") and self._supported_versions is not None:
+                versions = self._supported_versions()
+                assert self.__module_name__ in versions
+                assert versions[self.__module_name__] != ""
