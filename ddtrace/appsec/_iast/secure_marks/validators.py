@@ -97,3 +97,18 @@ def unvalidated_redirect_validator(wrapped: Callable, instance: Any, args: Seque
 
 def header_injection_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
     return create_validator(VulnerabilityType.HEADER_INJECTION, wrapped, instance, args, kwargs)
+
+
+def ssrf_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+    """Validator for ssrf functions.
+
+    Args:
+        wrapped: The original validator function
+        instance: The instance the function is bound to (if any)
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        True if validation passed, False otherwise
+    """
+    return create_validator(VulnerabilityType.SSRF, wrapped, instance, args, kwargs)

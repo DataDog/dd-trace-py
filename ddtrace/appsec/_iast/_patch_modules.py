@@ -7,6 +7,7 @@ from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitize
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
+from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 
 
@@ -33,12 +34,18 @@ def patch_iast(patch_modules=IAST_PATCH):
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
 
+    # CMDI sanitizers
     when_imported("shlex")(
         lambda _: try_wrap_function_wrapper(
             "shlex",
             "quote",
             cmdi_sanitizer,
         )
+    )
+
+    # SSRF
+    when_imported("django.utils.http")(
+        lambda _: try_wrap_function_wrapper("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
     )
 
     # SQL sanitizers
