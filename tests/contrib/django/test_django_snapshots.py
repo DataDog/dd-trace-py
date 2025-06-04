@@ -170,7 +170,7 @@ def psycopg2_patched(transactional_db):
 
 
 @pytest.mark.django_db
-def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched):
+def test_psycopg2_query_default(client, snapshot_context, psycopg2_patched): # ꙮꙮꙮ
     """Execute a psycopg2 query on a Django database wrapper.
 
     If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
