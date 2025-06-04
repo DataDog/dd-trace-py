@@ -564,7 +564,9 @@ def test_traced_websocket(test_spans, snapshot_app):
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES="false"))
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false")
+)
 @snapshot(ignores=["meta._dd.span_links"])
 def test_websocket_sampling_not_inherited(test_spans, snapshot_app):
     import fastapi  # noqa: F401
@@ -586,28 +588,15 @@ def test_websocket_sampling_not_inherited(test_spans, snapshot_app):
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(
-    env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false")
-)
-@snapshot(ignores=["meta._dd.span_links"])
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_separate_traces(test_spans, snapshot_app):
-    import fastapi  # noqa: F401
-    from fastapi.testclient import TestClient
+    client = TestClient(snapshot_app)
 
-    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
-    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
-    from tests.contrib.fastapi import app
-
-    fastapi_patch()
-    try:
-        application = app.get_app()
-        with TestClient(application) as client:
-            with client.websocket_connect("/ws") as websocket:
-                websocket.send_text("message")
-                websocket.receive_text()
-                websocket.send_text("close")
-    finally:
-        fastapi_unpatch()
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text("message")
+            websocket.receive_text()
+            websocket.send_text("close")
 
 
 @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
@@ -624,7 +613,7 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
                 websocket.send_text(f"ping {i}")
                 response = websocket.receive_text()
                 assert f"pong {i}" in response
-                time.sleep(0.2)
+                time.sleep(0.1)
 
             websocket.send_text("goodbye")
             farewell = websocket.receive_text()

@@ -20,6 +20,7 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
@@ -439,7 +440,7 @@ class TraceMiddleware:
                                 recv_span.set_metric("_dd.dm.inherited", 1)
                                 recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
                                 recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
-                                recv_span._meta["_dd.p.dm"] = global_root_span._meta["_dd.p.dm"]
+                                set_sampling_decision_maker(recv_span.context, 1)
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -474,7 +475,7 @@ class TraceMiddleware:
                                 close_span.set_metric("_dd.dm.inherited", 1)
                                 close_span.set_tag_str("_dd.dm.service", global_root_span.service)
                                 close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
-                                close_span._meta["_dd.p.dm"] = global_root_span._meta["_dd.p.dm"]
+                                set_sampling_decision_maker(close_span.context, 1)
 
                             code = message.get("code")
                             reason = message.get("reason")
