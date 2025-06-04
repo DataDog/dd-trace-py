@@ -259,6 +259,7 @@ class TraceMiddleware:
             span.set_tags(tags)
 
             global_root_span = span_from_scope(scope)
+            set_sampling_decision_maker(global_root_span.context, 1)
 
             async def wrapped_send(message):
                 """

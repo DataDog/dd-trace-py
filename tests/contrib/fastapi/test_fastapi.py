@@ -541,7 +541,6 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-
 @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 # TODO: look into why one message is only 26 chars
@@ -588,7 +587,10 @@ def test_websocket_sampling_not_inherited(test_spans, snapshot_app):
     finally:
         fastapi_unpatch()
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false"))
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true", DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false")
+)
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_not_separate_traces(test_spans, snapshot_app):
     import fastapi  # noqa: F401
