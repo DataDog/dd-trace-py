@@ -5,7 +5,7 @@ import contextlib
 import json
 import logging
 import typing
-from typing import Any
+from typing import Any, Union
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -61,7 +61,9 @@ class DDWaf_result:
         "total_runtime",
         "timeout",
         "truncation",
-        "derivatives",
+        "meta_tags",
+        "metrics",
+        "api_security",
         "keep",
     ]
 
@@ -84,7 +86,16 @@ class DDWaf_result:
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
-        self.derivatives = derivatives
+        self.metrics:Dict[str, Union[int, float]] = {}
+        self.meta_tags:Dict[str, str] = {}
+        self.api_security:Dict[str, str] = {}
+        for k, v in derivatives.items():
+            if k.startswith("_dd.appsec.s."):
+                self.api_security[k] = v
+            elif isinstance(v, str):
+                self.meta_tags[k] = v
+            else:
+                self.metrics[k] = v
         self.keep = keep
 
     def __repr__(self):
@@ -92,7 +103,8 @@ class DDWaf_result:
             f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
             f" actions: {self.actions}, runtime: {self.runtime},"
             f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
-            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+            f" truncation: {self.truncation}, meta_tags: {self.meta_tags})"
+            f" metrics: {self.metrics}, api_security: {self.api_security}, keep: {self.keep}"
         )
 
 
