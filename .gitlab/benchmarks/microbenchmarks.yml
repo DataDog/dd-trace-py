@@ -164,7 +164,6 @@ microbenchmarks:
         - "packages_update_imported_dependencies"
         - "telemetry_add_metric"
         - "startup"
-        - "ddtrace_run"
 
 "microbenchmarks flaky":
   extends: .benchmarks

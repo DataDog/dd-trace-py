@@ -82,4 +82,11 @@ class Span(Scenario):
                     if finishspan:
                         s.finish()
 
+            # If we are finishing spans, we need to ensure that the span aggregator is cleared
+            # to avoid memory leaks and errors on shutdown
+            if not finishspan:
+                if hasattr(tracer, "_span_aggregator"):
+                    if hasattr(tracer._span_aggregator, "_traces"):
+                        tracer._span_aggregator._traces.clear()
+
         yield _
