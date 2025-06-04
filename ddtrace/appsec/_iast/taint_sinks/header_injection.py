@@ -65,6 +65,7 @@ from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
+from ddtrace.appsec._iast._patch import set_module_unpatched
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
@@ -125,24 +126,55 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
+        return
     if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
         return
+    if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_header_injection_patch"):
+        return
+
+    # For headers["foo"] = "bar"
+    @when_imported("wsgiref.headers")
+    def _(m):
+        try_wrap_function_wrapper(m, "Headers.add_header", _iast_set_headers)
+        try_wrap_function_wrapper(m, "Headers.__setitem__", _iast_set_headers)
+
+    # For headers["foo"] = "bar"
+    @when_imported("werkzeug.datastructures")
+    def _(m):
+        try_wrap_function_wrapper(m, "Headers.add", _iast_set_headers)
+        try_wrap_function_wrapper(m, "Headers.set", _iast_set_headers)
 
     # Header injection for > Django 3.2
     @when_imported("django.http.response")
     def _(m):
-        try_wrap_function_wrapper(m, "ResponseHeaders.__init__", _iast_django_response_store)
+        try_wrap_function_wrapper(m, "ResponseHeaders.__init__", _iast_django_response)
 
     # Header injection for <= Django 2.2
     @when_imported("django.http.response")
     def _(m):
-        try_wrap_function_wrapper(m, "HttpResponseBase.__init__", _iast_django_response_store)
+        try_wrap_function_wrapper(m, "HttpResponseBase.__init__", _iast_django_response)
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
+    # For headers["foo"] = "bar"
+    @when_imported("starlette.datastructures")
+    def _(m):
+        try_wrap_function_wrapper(m, "MutableHeaders.__setitem__", _iast_set_headers)
+
 
 def unpatch():
+    try_unwrap("wsgiref.headers", "Headers.add_header")
+    try_unwrap("wsgiref.headers", "Headers.__setitem__")
+    try_unwrap("werkzeug.datastructures", "Headers.set")
+    try_unwrap("werkzeug.datastructures", "Headers.add")
     try_unwrap("django.http.response", "ResponseHeaders.__init__")
+    try_unwrap("django.http.response", "HttpResponseBase.__init__")
+    try_unwrap("starlette.datastructures", "MutableHeaders.__setitem__")
+
+    set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
+    set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
+    set_module_unpatched("fastapi", default_attr="_datadog_header_injection_patch")
 
 
 class HeaderInjection(VulnerabilityBase):
@@ -173,7 +205,7 @@ class HeaderInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.HEADER_INJECTION
 
 
-def _iast_django_response_store(wrapped, instance, args, kwargs):
+def _iast_django_response(wrapped, instance, args, kwargs):
     try:
         from django import VERSION as DJANGO_VERSION
 
@@ -183,7 +215,7 @@ def _iast_django_response_store(wrapped, instance, args, kwargs):
         else:
             instance._store = HeaderInjectionDict(instance._store)
     except Exception as e:
-        iast_error(f"propagation::sink_point::Error in _iast_django_response_store. {e}")
+        iast_error(f"propagation::sink_point::Error in _iast_django_response. {e}")
 
 
 class HeaderInjectionDict(dict):
@@ -206,12 +238,12 @@ def _iast_set_headers(wrapped, instance, args, kwargs):
         # contain validators and serializers that modify the `args` ranges.
         result = wrapped.__func__(instance, *args, **kwargs)
         if asm_config.is_iast_request_enabled:
-            _check_type_headers_and_report_header_injection(args)
+            _check_type_headers_and_report_header_injection(args, check_header_injection=False)
         return result
     return wrapped(*args, **kwargs)
 
 
-def _iast_report_header_injection(headers_args):
+def _iast_report_header_injection(headers_args, check_header_injection=True, check_unvalidated_redirect=True):
     """
     Process a header tuple to check for potential header injection vulnerabilities.
 
@@ -230,28 +262,31 @@ def _iast_report_header_injection(headers_args):
         return
     try:
         header_name_lower = header_name.lower()
-        if header_name_lower == "location":
+        if check_unvalidated_redirect and header_name_lower == "location":
             _iast_report_unvalidated_redirect(header_value)
             return
-        for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
-            if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
-                return
+        if check_header_injection:
+            for header_to_exclude in HEADER_INJECTION_EXCLUSIONS:
+                if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
+                    return
 
-        if HeaderInjection.has_quota() and (
-            HeaderInjection.is_tainted_pyobject(header_name) or HeaderInjection.is_tainted_pyobject(header_value)
-        ):
-            header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
-            HeaderInjection.report(evidence_value=header_evidence)
+            if HeaderInjection.has_quota() and (
+                HeaderInjection.is_tainted_pyobject(header_name) or HeaderInjection.is_tainted_pyobject(header_value)
+            ):
+                header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
+                HeaderInjection.report(evidence_value=header_evidence)
 
-        # Reports Span Metrics
-        increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
-        # Report Telemetry Metrics
-        _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
+            # Reports Span Metrics
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, HeaderInjection.vulnerability_type)
+            # Report Telemetry Metrics
+            _set_metric_iast_executed_sink(HeaderInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_report_header_injection. {e}")
 
 
-def _check_type_headers_and_report_header_injection(headers_or_args) -> None:
+def _check_type_headers_and_report_header_injection(
+    headers_or_args, check_header_injection=True, check_unvalidated_redirect=True
+) -> None:
     """
     Report potential header injection vulnerabilities found in headers.
 
@@ -264,7 +299,15 @@ def _check_type_headers_and_report_header_injection(headers_or_args) -> None:
         # when used with Response(..., headers={...})
         for headers_dict in headers_or_args:
             for header_name, header_value in headers_dict.items():
-                _iast_report_header_injection((header_name, header_value))
+                _iast_report_header_injection(
+                    (header_name, header_value),
+                    check_header_injection=check_header_injection,
+                    check_unvalidated_redirect=check_unvalidated_redirect,
+                )
     else:
         # (header_name, header_value), used in other cases
-        _iast_report_header_injection(headers_or_args)
+        _iast_report_header_injection(
+            headers_or_args,
+            check_header_injection=check_header_injection,
+            check_unvalidated_redirect=check_unvalidated_redirect,
+        )

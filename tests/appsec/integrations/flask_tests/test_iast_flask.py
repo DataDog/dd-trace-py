@@ -1812,6 +1812,43 @@ Lorem Ipsum Foobar
             # assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
             # assert "class" not in vulnerability["location"]
 
+    def test_flask_unvalidated_redirect_headers(self):
+        @self.app.route("/unvalidated_redirect_headers/", methods=["GET"])
+        def unvalidated_redirect_headers_view():
+            from flask import Response
+
+            url = request.args.get("url", "")
+
+            response = Response("OK")
+            response.headers["Location"] = url
+            return response
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/unvalidated_redirect_headers/?url=http://localhost:8080/malicious")
+            assert resp.status_code == 200
+            assert b"OK" in resp.data
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+            ]
+
+            get_line_and_hash("test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
+            assert vulnerability["evidence"] == {
+                "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
+            }
+
     def test_flask_xss_concat(self):
         @self.app.route("/xss/concat/", methods=["GET"])
         def xss_view():
