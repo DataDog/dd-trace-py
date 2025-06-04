@@ -25,9 +25,11 @@ Ensure you have followed the prerequisite steps above.
 
 2. If release >=x.x.1 and release branch doesn’t exist, create the release branch:
 
-    git pull
-    git checkout -b X.Y vX.Y.0
-    git push -u origin X.Y
+.. code-block:: bash
+
+    $ git pull
+    $ git checkout -b X.Y vX.Y.0
+    $ git push -u origin X.Y
 
 3. Set the target commit on the GitHub release draft. For release candidates, this should generally be the latest commit on main.
    For minor releases where the version ends with .0, the target commit must exactly match the commit of the latest relevant release candidate.
@@ -35,9 +37,11 @@ Ensure you have followed the prerequisite steps above.
 
 4. Generate release notes from the relevant branch. For release candidates, this is usually main, and for patch releases it’s usually the x.y release branch. Copypaste the latest section into the release’s description.
 
-    git pull
-    git checkout main
-    reno report --branch=origin/main | pandoc -f rst -t gfm | less
+.. code-block:: bash
+
+    $ git pull
+    $ git checkout <branch>
+    $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm | less
 
 5. Make sure the “Set as pre-release" box is CHECKED and the “Set as latest release" box is UNCHECKED. Click “save draft”.
 
