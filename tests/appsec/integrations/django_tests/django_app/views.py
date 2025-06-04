@@ -25,7 +25,6 @@ from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
 
-
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -34,7 +33,6 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
 
 
-print(f"DJANGO_VERSION: {DJANGO_VERSION}")
 if DJANGO_VERSION < (3, 2, 0):
     from unittest.mock import MagicMock
 
@@ -466,10 +464,8 @@ def unvalidated_redirect_url_header(request):
     value = request.GET.get("url")
     response = HttpResponse("OK", status=200)
     if DJANGO_VERSION < (3, 2, 0):
-        # label unvalidated_redirect_url_header
         response["Location"] = value
     else:
-        # label unvalidated_redirect_url_header
         response.headers["Location"] = value
     return response
 

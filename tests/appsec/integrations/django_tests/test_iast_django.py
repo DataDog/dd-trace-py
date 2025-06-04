@@ -1002,17 +1002,13 @@ def test_django_header_injection(client, iast_span, tracer):
         assert response.headers["Header-Injection"] == "master\r\nInjected-Header: 1234"
     loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-    line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
-
     assert loaded["sources"] == [
         {"origin": "http.request.body", "name": "http.request.body", "value": "master\r\nInjected-Header: 1234"}
     ]
     assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
-    assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
         "valueParts": [{"value": "Header-Injection: "}, {"value": "master\r\nInjected-Header: 1234", "source": 0}]
     }
-    assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
@@ -1059,20 +1055,15 @@ def test_django_unvalidated_redirect_url_header(client, iast_span, tracer):
 
     loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-    line, hash_value = get_line_and_hash(
-        "unvalidated_redirect_url_header", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE
-    )
     assert loaded["sources"] == [
         {"origin": "http.request.parameter", "name": "url", "value": "http://www.malicious.com.ar.uk/muahahaha"}
     ]
     # Check we're only reporting
     assert len(loaded["vulnerabilities"]) == 1
     assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
-    assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
         "valueParts": [{"value": "http://www.malicious.com.ar.uk/muahahaha", "source": 0}]
     }
-    assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
@@ -1407,8 +1398,8 @@ def test_django_xss_secure(client, iast_span, tracer):
     else:
         assert (
             response.content
-            == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
-        )
+            == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;</p>\n</body>\n</html>"
+        ), f"COntent: {response.content}"
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
 

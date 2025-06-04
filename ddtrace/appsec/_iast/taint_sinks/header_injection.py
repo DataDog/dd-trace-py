@@ -179,7 +179,6 @@ def _iast_django_response_store(wrapped, instance, args, kwargs):
 
         wrapped.__func__(instance, *args, **kwargs)
         if DJANGO_VERSION < (3, 2, 0):
-            print("TAINT HEADERS!!")
             instance._headers = HeaderInjectionDict()
         else:
             instance._store = HeaderInjectionDict()
@@ -190,7 +189,6 @@ def _iast_django_response_store(wrapped, instance, args, kwargs):
 class HeaderInjectionDict(dict):
     def __setitem__(self, key, value):
         if asm_config.is_iast_request_enabled:
-            print(f"HeaderInjectionDict!! {key} {value}")
             _check_type_headers_and_report_header_injection(value)
         dict.__setitem__(self, key, value)
 
