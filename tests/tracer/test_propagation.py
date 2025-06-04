@@ -3553,7 +3553,7 @@ def test_baggage_span_tags_default():
 @pytest.mark.subprocess(
     env=dict(DD_TRACE_BAGGAGE_TAG_KEYS=""),
 )
-def test_baggage_span_tags_empty(DD_TRACE_BAGGAGE_TAG_KEYS):
+def test_baggage_span_tags_empty():
     from ddtrace.propagation.http import HTTPPropagator
 
     headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
