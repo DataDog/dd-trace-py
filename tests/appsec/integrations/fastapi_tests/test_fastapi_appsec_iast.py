@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import typing
+import requests.utils
 
 from fastapi import Cookie
 from fastapi import Form
@@ -41,6 +42,35 @@ from tests.utils import override_global_config
 TEST_FILE_PATH = "tests/appsec/integrations/fastapi_tests/test_fastapi_appsec_iast.py"
 
 fastapi_version = tuple([int(v) for v in _fastapi_version.split(".")])
+
+
+def _mock_request_validations():
+    """Mock request validations for FastAPI 0.86.0 tests.
+
+    FastAPI 0.86.0's TestClient uses the requests library internally, which performs
+    additional header validations. These validations can interfere with the test cases,
+    so we need to mock them out to ensure consistent test behavior.
+
+    Note:
+        We silently catch AttributeError because the _validate_header_part function
+        might not exist in all versions of the requests library. This is intentional
+        as we only need to mock the validation when it exists.
+    """
+    original_validate = None
+    try:
+        original_validate = requests.utils._validate_header_part
+
+        def fake_validate_header_part(header, header_part, header_validator_index):
+            pass  # No hacer nada
+
+        requests.utils._validate_header_part = fake_validate_header_part
+    except AttributeError:
+        pass
+    return original_validate
+
+
+def _restore_request_validations(original_validate):
+    requests.utils._validate_header_part = original_validate
 
 
 def _aux_appsec_prepare_tracer(tracer):
@@ -925,27 +955,32 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
 
         return result_response
 
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        _aux_appsec_prepare_tracer(tracer)
-        patch_iast({"header_injection": True})
-        resp = client.get(
-            "/header_injection/",
-            headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
-        )
-        assert resp.status_code == 200
-        assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
-        assert resp.headers["Header-Injection2"] == "test_injection_header\r\nInjected-Header: 1234"
-        assert resp.headers["Foo"] == "bar"
-        assert resp.headers.get("Injected-Header") is None
+    original_validate = _mock_request_validations()
 
-        span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+    try:
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
+            _aux_appsec_prepare_tracer(tracer)
+            patch_iast({"header_injection": True})
+            resp = client.get(
+                "/header_injection/",
+                headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
+            )
+            assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
+            assert resp.headers["Header-Injection2"] == "test_injection_header\r\nInjected-Header: 1234"
+            assert resp.headers["Foo"] == "bar"
+            assert resp.headers.get("Injected-Header") is None
 
-        assert span.get_tag(IAST.JSON) is None
-        iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is None
+            span = test_spans.pop_traces()[0][0]
+            assert span.get_metric(IAST.ENABLED) == 1.0
+
+            assert span.get_tag(IAST.JSON) is None
+            iast_tag = span.get_tag(IAST.JSON)
+            assert iast_tag is None
+    finally:
+        _restore_request_validations(original_validate)
 
 
 def test_fastapi_header_injection_inline_response(fastapi_application, client, tracer, test_spans):
@@ -960,24 +995,29 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             headers={"Header-Injection": tainted_string, "Vary": tainted_string, "Foo": "bar"},
         )
 
-    with override_global_config(
-        dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
-    ):
-        _aux_appsec_prepare_tracer(tracer)
-        patch_iast({"header_injection": True})
-        resp = client.get(
-            "/header_injection_inline_response/",
-            headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
-        )
-        assert resp.status_code == 200
-        assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
-        assert resp.headers.get("Injected-Header") is None
+    original_validate = _mock_request_validations()
 
-        span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+    try:
+        with override_global_config(
+            dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
+        ):
+            _aux_appsec_prepare_tracer(tracer)
+            patch_iast({"header_injection": True})
+            resp = client.get(
+                "/header_injection_inline_response/",
+                headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
+            )
+            assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test_injection_header\r\nInjected-Header: 1234"
+            assert resp.headers.get("Injected-Header") is None
 
-        iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is None
+            span = test_spans.pop_traces()[0][0]
+            assert span.get_metric(IAST.ENABLED) == 1.0
+
+            iast_tag = span.get_tag(IAST.JSON)
+            assert iast_tag is None
+    finally:
+        _restore_request_validations(original_validate)
 
 
 def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans):

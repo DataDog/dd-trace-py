@@ -526,7 +526,7 @@ dependencies = [
     "python-multipart",
     "jinja2",
     "httpx<0.28.0",
-    "uvicorn==0.34.3",
+    "uvicorn==0.33.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]

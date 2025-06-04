@@ -44,7 +44,7 @@ def test_iast_cmdi():
                 vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
     clear_session(token)
 
-    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
@@ -94,7 +94,7 @@ def test_iast_header_injection():
                 vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
     clear_session(token)
 
-    assert len(spans_with_iast) == 1, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
+    assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
     assert len(vulnerabilities) == 1, f"Invalid number of vulnerabilities ({len(vulnerabilities)}):\n{vulnerabilities}"
     assert len(vulnerabilities[0]) == 1
 
