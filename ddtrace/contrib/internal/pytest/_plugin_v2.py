@@ -17,6 +17,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
@@ -708,6 +709,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
+    print_test_report_links(terminalreporter)
     return
 
 
@@ -745,13 +747,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
 def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
-
-    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.attempt_to_fix_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)

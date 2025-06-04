@@ -269,6 +269,12 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib._langchain
 
+.. _litellm:
+
+LiteLLM
+^^^^^^^
+.. automodule:: ddtrace.contrib._litellm
+
 .. _logbook:
 
 Logbook

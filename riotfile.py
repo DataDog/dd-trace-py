@@ -145,6 +145,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_aggregated_leak_testing",
+            pys=["3.10", "3.11", "3.12"],
+            # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+            pkgs={
+                "requests": latest,
+                "pytest-asyncio": latest,
+                "anyio": latest,
+                "pydantic": latest,
+                "pydantic-settings": latest,
+            },
+            env={
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
+                "DD_FAST_BUILD": "0",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -274,6 +292,13 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        # Internal coverage (dd_coverage to distinguish from regular coverage)
+        # has version-specific code so tests are run across all supported versions
+        Venv(
+            name="dd_coverage",
+            command="pytest --no-cov {cmdargs} tests/coverage -s",
+            pys=select_pys(max_version="3.12"),
         ),
         Venv(
             name="internal",
@@ -1415,7 +1440,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "aiobotocore": ["~=1.4.2", "~=2.0.0", latest],
+                        "aiobotocore": ["~=1.0.0", "~=1.4.2", "~=2.0.0", latest],
                     },
                 ),
                 Venv(
@@ -2652,7 +2677,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [latest],
+                "crewai": [">=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
             },
         ),

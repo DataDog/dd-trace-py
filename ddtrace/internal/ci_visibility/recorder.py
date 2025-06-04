@@ -234,14 +234,14 @@ class CIVisibility(Service):
 
         self._git_data: GitData = get_git_data_from_tags(self._tags)
 
-        dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
+        self._dd_env = os.getenv("_CI_DD_ENV", ddconfig.env)
         dd_env_msg = ""
 
         if ddconfig._ci_visibility_agentless_enabled:
             # In agentless mode, normalize an unset env to none (this is already done by the backend in most cases, so
             # it does not override default behavior)
-            if dd_env is None:
-                dd_env = "none"
+            if self._dd_env is None:
+                self._dd_env = "none"
                 dd_env_msg = " (not set in environment)"
             if not self._api_key:
                 raise EnvironmentError(
@@ -258,13 +258,13 @@ class CIVisibility(Service):
                 self._dd_site,
                 ddconfig._ci_visibility_agentless_url if ddconfig._ci_visibility_agentless_url else None,
                 self._service,
-                dd_env,
+                self._dd_env,
             )
         elif evp_proxy_base_url := self._agent_evp_proxy_base_url():
             # In EVP-proxy cases, if an env is not provided, we need to get the agent's default env in order to make
             # the correct decision:
-            if dd_env is None:
-                dd_env = self._agent_get_default_env()
+            if self._dd_env is None:
+                self._dd_env = self._agent_get_default_env()
                 dd_env_msg = " (default environment provided by agent)"
             self._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             requests_mode_str = "EVP Proxy"
@@ -274,7 +274,7 @@ class CIVisibility(Service):
                 self._configurations,
                 self.tracer._agent_url,
                 self._service,
-                dd_env,
+                self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
             )
         else:
@@ -294,7 +294,7 @@ class CIVisibility(Service):
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
-        log.info("Service: %s (env: %s%s)", self._service, dd_env, dd_env_msg)
+        log.info("Service: %s (env: %s%s)", self._service, self._dd_env, dd_env_msg)
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
@@ -991,6 +991,16 @@ class CIVisibility(Service):
             log.debug("Not setting library capabilities because no CIVisibilityEventClient is active")
             return
         client.set_metadata("test", capabilities.tags())
+
+    @classmethod
+    def get_ci_tags(cls):
+        instance = cls.get_instance()
+        return instance._tags
+
+    @classmethod
+    def get_dd_env(cls):
+        instance = cls.get_instance()
+        return instance._dd_env
 
     @classmethod
     def is_known_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
