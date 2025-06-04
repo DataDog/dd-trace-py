@@ -148,68 +148,6 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_router_completion(litellm, pin, func, instance, args, kwargs):
-    operation = f"router.{func.__name__}"
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        pin,
-        operation,
-        model=model,
-        host=host,
-        submit_to_llmobs=True,
-    )
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = func(*args, **kwargs)
-        if stream:
-            resp.add_router_span_info(span, kwargs, instance)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs["router_instance"] = instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
-
-
-@with_traced_module
-async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
-    operation = f"router.{func.__name__}"
-    integration = litellm._datadog_integration
-    model = get_argument_value(args, kwargs, 0, "model", None)
-    host = extract_host_tag(kwargs)
-    span = integration.trace(
-        pin,
-        operation,
-        model=model,
-        host=host,
-        submit_to_llmobs=True,
-    )
-    stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = await func(*args, **kwargs)
-        if stream:
-            resp.add_router_span_info(span, kwargs, instance)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs["router_instance"] = instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
-
-
-@with_traced_module
 def traced_get_llm_provider(litellm, pin, func, instance, args, kwargs):
     requested_model = get_argument_value(args, kwargs, 0, "model", None)
     integration = litellm._datadog_integration

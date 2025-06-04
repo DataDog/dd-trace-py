@@ -256,13 +256,10 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 2
         router_event = llmobs_events[1]
-<<<<<<< HEAD
-=======
         llm_event = llmobs_events[0]
 
         assert llm_event["meta"]["span.kind"] == "llm"
         assert llm_event["name"] == "completion"
->>>>>>> main
         assert router_event == _expected_llmobs_non_llm_span_event(
             router_span,
             span_kind="workflow",
