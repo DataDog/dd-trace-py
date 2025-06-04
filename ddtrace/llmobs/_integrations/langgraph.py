@@ -73,8 +73,6 @@ class LangGraphIntegration(BaseLLMIntegration):
                 SPAN_LINKS: current_span_links + span_links,
             }
         )
-        if operation == "graph" and not _is_subgraph(span):
-            self._graph_nodes_by_task_id.clear()
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
