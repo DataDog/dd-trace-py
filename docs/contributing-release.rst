@@ -1,7 +1,7 @@
 Release Process
 ===============
 
-“Release candidates” are releases of dd-trace-py that are tagged with version strings including rc and marked in GitHub as “pre-releases”.
+“Release candidates” are releases of dd-trace-py that are tagged with version strings including `rc` and marked in GitHub as “pre-releases”.
 Most of the time spent “running the release” is actually spent creating and testing release candidates.
 We create a release candidate, test it, and repeat until the test shows no errors or regressions.
 
@@ -21,9 +21,9 @@ Instructions
 
 Ensure you have followed the prerequisite steps above.
 
-1. Draft a new Github release https://github.com/DataDog/dd-trace-py/releases/new
+1. Draft a new GitHub release https://github.com/DataDog/dd-trace-py/releases/new
 
-2. If release >=x.x.1 and release branch doesn’t exist, create the release branch:
+2. If release >=x.x.1 and release branch does not exist, create the release branch:
 
 .. code-block:: bash
 
@@ -35,7 +35,7 @@ Ensure you have followed the prerequisite steps above.
    For minor releases where the version ends with .0, the target commit must exactly match the commit of the latest relevant release candidate.
    For patch releases, the target should usually be the current head of the release branch.
 
-4. Generate release notes from the relevant branch. For release candidates, this is usually main, and for patch releases it’s usually the x.y release branch. Copypaste the latest section into the release’s description.
+4. Generate release notes from the relevant branch. For release candidates, this is usually main, and for patch releases it’s usually the x.y release branch. Copy and paste the latest section into the release’s description.
 
 .. code-block:: bash
 
