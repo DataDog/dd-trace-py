@@ -20,6 +20,7 @@ from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.utils.time import HourGlass
+from ddtrace.settings.exception_replay import config
 from ddtrace.trace import Span
 
 
@@ -38,6 +39,7 @@ DEBUG_INFO_TAG = "error.debug_info_captured"
 
 # used to rate limit decision on the entire local trace (stored at the root span)
 CAPTURE_TRACE_TAG = "_dd.debug.error.trace_captured"
+SNAPSHOT_COUNT_TAG = "_dd.debug.error.snapshot_count"
 
 # unique exception id
 EXCEPTION_HASH_TAG = "_dd.debug.error.exception_hash"
@@ -201,6 +203,18 @@ def can_capture(span: Span) -> bool:
     raise ValueError(msg)
 
 
+def get_snapshot_count(span: Span) -> int:
+    root = span._local_root
+    if root is None:
+        return 0
+
+    count = root.get_metric(SNAPSHOT_COUNT_TAG)
+    if count is None:
+        return 0
+
+    return int(count)
+
+
 class SpanExceptionHandler:
     __uploader__ = LogsIntakeUploaderV1
 
@@ -225,7 +239,8 @@ class SpanExceptionHandler:
 
         seq = count(1)  # 1-based sequence number
 
-        while chain:
+        frames_captured = get_snapshot_count(span)
+        while chain and frames_captured <= config.max_frames:
             exc, _tb = chain.pop()  # LIFO: reverse the chain
 
             if _tb is None or _tb.tb_frame is None:
@@ -233,12 +248,13 @@ class SpanExceptionHandler:
                 continue
 
             # DEV: We go from the handler up to the root exception
-            while _tb:
+            while _tb and frames_captured < config.max_frames:
                 frame = _tb.tb_frame
                 code = frame.f_code
                 seq_nr = next(seq)
 
                 if is_user_code(Path(frame.f_code.co_filename)):
+                    snapshot = None
                     snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
                     if snapshot_id is None:
                         # We don't have a snapshot for the frame so we create one
@@ -263,6 +279,9 @@ class SpanExceptionHandler:
                         # Memoize
                         frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
+                        # Count
+                        frames_captured += 1
+
                     # Add correlation tags on the span
                     span.set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
                     span.set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
@@ -275,6 +294,11 @@ class SpanExceptionHandler:
             span.set_tag_str(DEBUG_INFO_TAG, "true")
             span.set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
             span.set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
+
+            # Update the snapshot count
+            root = span._local_root
+            if root is not None:
+                root.set_metric(SNAPSHOT_COUNT_TAG, frames_captured)
 
     @classmethod
     def enable(cls) -> None:
