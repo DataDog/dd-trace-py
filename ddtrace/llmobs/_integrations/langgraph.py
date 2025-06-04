@@ -74,6 +74,12 @@ class LangGraphIntegration(BaseLLMIntegration):
             }
         )
 
+        if operation == "graph":
+            config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+            subgraph = config.get("metadata", {}).get("_dd.subgraph", False)
+            if not subgraph:
+                self._graph_nodes_by_task_id.clear()
+
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
     ):
