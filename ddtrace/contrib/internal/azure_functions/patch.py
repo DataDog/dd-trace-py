@@ -64,7 +64,7 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
         elif trigger_type == "timerTrigger":
             function._func = _wrap_timer_trigger(pin, func, function_name)
         elif trigger_type == "serviceBusTrigger":
-            function._func = _wrap_service_bus_trigger(pin, func, function_name)
+            function._func = _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name)
 
     return functions
 
@@ -87,12 +87,15 @@ def _wrap_http_trigger(pin, func, function_name, trigger_arg_name):
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch)
 
 
-def _wrap_service_bus_trigger(pin, func, function_name):
+def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name):
     trigger_type = "ServiceBus"
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context("azure.functions.patched_service_bus", pin, resource_name)
+        msg = kwargs.get(trigger_arg_name)
+        return create_context(
+            "azure.functions.patched_service_bus", pin, resource_name, headers=msg.application_properties
+        )
 
     def pre_dispatch(ctx, kwargs):
         ctx.set_item("trigger_span", ctx.span)
