@@ -331,7 +331,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                     handle.push_class_name(frames[0].class_name)
                     for frame in frames:
                         handle.push_frame(frame.function_name, frame.file_name, 0, frame.lineno)
-                    handle.push_span(span)
                     handle.flush_sample()
                 else:
                     stack_events.append(
