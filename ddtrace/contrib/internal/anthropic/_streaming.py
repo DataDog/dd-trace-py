@@ -185,10 +185,7 @@ def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
     }
     chunk_type = _get_attr(chunk, "type", "")
     transformation = TRANSFORMATIONS_BY_BLOCK_TYPE.get(chunk_type)
-    if transformation is not None:
-        message = transformation(chunk, message)
-
-    return message
+    return transformation(chunk, message) if transformation is not None else message
 
 
 def _on_message_start_chunk(chunk, message):
@@ -221,20 +218,28 @@ def _on_content_block_start_chunk(chunk, message):
 def _on_content_block_delta_chunk(chunk, message):
     # delta events contain new content for the current message.content block
     delta_block = _get_attr(chunk, "delta", "")
-    if delta_block:
-        chunk_content_text = _get_attr(delta_block, "text", "")
-        if chunk_content_text:
-            message["content"][-1]["text"] += chunk_content_text
+    if delta_block is None:
+        return message
+    
+    if len(message["content"]) == 0:
+        return message
+    
+    chunk_content_text = _get_attr(delta_block, "text", "")
+    if chunk_content_text:
+        message["content"][-1]["text"] += chunk_content_text
 
-        chunk_content_json = _get_attr(delta_block, "partial_json", "")
-        if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
-            # we have a json content block, most likely a tool input dict
-            message["content"][-1]["input"] += chunk_content_json
+    chunk_content_json = _get_attr(delta_block, "partial_json", "")
+    if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
+        # we have a json content block, most likely a tool input dict
+        message["content"][-1]["input"] += chunk_content_json
     return message
 
 
 def _on_content_block_stop_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
+    if len(message["content"]) == 0:
+        return message
+    
     content_type = _get_attr(message["content"][-1], "type", "")
     if content_type == "tool_use":
         input_json = _get_attr(message["content"][-1], "input", "{}")
