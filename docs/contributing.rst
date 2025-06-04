@@ -101,7 +101,7 @@ directory, hooking our code into the internal logic of a given Python library. I
 that is specific to the library being integrated with, and no code related to Products.
 
 The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
-separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace>`_
+separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace>`_
 and in the `internal` module. As an implementation detail, the core logic also happens to directly support
 `Application Performance Monitoring <https://docs.datadoghq.com/tracing/>`_.
 
@@ -114,6 +114,12 @@ Tests
 
 If your change touches Python code, it should probably include at least one test. See the
 `testing guidelines <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_ for details.
+
+Releases
+--------
+
+If you're managing a new release of the library, follow the instructions
+`here <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-release.rst>`_.
 
 Documentation
 -------------
@@ -145,4 +151,5 @@ Keep the following in mind when writing logging code:
     contributing-integrations
     contributing-testing
     contributing-tracing
+    contributing-release
     releasenotes
