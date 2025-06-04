@@ -26,7 +26,7 @@ def get_version():
 
 def _tracer_injection(event_dict):
     if config._logs_injection is False:
-        # log injection is opt out for structured logging
+        # log injection is opt-out for structured logging
         return event_dict
     trace_details = ddtrace.tracer.get_log_correlation_context()
 
