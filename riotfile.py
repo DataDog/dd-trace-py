@@ -705,7 +705,7 @@ venv = Venv(
                 Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.8"),
-                    command="pytest {cmdargs} tests/contrib/django --ignore=tests/contrib/django/test_django_appsec_snapshots.py --ignore=tests/contrib/django/test_django_snapshots.py",
+                    command="pytest {cmdargs} tests/contrib/django --ignore=*snapshots.py",
                     pkgs={
                         "django": ["~=2.2.8"],
                         "channels": latest,
