@@ -148,21 +148,6 @@ needs_testrun = [
   "scripts/needs_testrun.py {args}",
 ]
 
-[envs.meta-testing]
-python = "3.10"
-extra-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis<6.45.1"
-]
-[envs.meta-testing.env-vars]
-DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
-
-[envs.meta-testing.scripts]
-test = [
-  "pytest {args} --no-ddtrace tests/meta"
-]
-
 [envs.integration_test]
 template = "integration_test"
 extra-dependencies = [
