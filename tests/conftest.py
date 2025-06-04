@@ -418,7 +418,7 @@ def pytest_runtest_protocol(item):
         return default_pytest_runtest_protocol(item, None)
 
     skipif = item.get_closest_marker("skipif")
-    if skipif and skipif.args[0]:
+    if skipif:
         return default_pytest_runtest_protocol(item, None)
 
     marker = item.get_closest_marker("subprocess")
