@@ -145,7 +145,7 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_iast_aggregated_leak_testing",
+            name="iast_aggregated_leak_testing",
             pys=["3.10", "3.11", "3.12"],
             # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
             command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
