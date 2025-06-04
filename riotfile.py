@@ -735,6 +735,7 @@ venv = Venv(
             command="pytest -n 8 {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
+                "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
             venvs=[
@@ -1138,6 +1139,7 @@ venv = Venv(
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.10.0",
+                        "pytest-randomly": latest,
                         "pytest-xdist": latest,
                     },
                 ),
@@ -2670,6 +2672,7 @@ venv = Venv(
             command="pytest -n 8 {cmdargs} tests/contrib/logbook",
             pkgs={
                 "logbook": ["~=1.0.0", latest],
+                "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
         ),
@@ -2689,6 +2692,7 @@ venv = Venv(
             pkgs={
                 "cattrs": ["<23.1.1"],
                 "molten": [">=1.0,<1.1", latest],
+                "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
         ),
