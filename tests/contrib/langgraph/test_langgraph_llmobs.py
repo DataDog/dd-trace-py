@@ -271,6 +271,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(d_span, e_second_finish, "output", "input")
         _assert_span_link(e_first_finish, graph_span, "output", "output")
         _assert_span_link(e_second_finish, graph_span, "output", "output")
+
     async def test_astream_events(self, simple_graph, llmobs_events):
         async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
             pass
