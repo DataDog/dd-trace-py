@@ -42,41 +42,35 @@ def patch():
 
 
 def _patched_get_functions(wrapped, instance, args, kwargs):
-    functions = wrapped(*args, **kwargs)
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
+    functions = wrapped(*args, **kwargs)
+
     for function in functions:
         trigger = function.get_trigger()
-
         if not trigger:
             continue
 
         trigger_type = trigger.get_binding_name()
-
-        bindings = function.get_bindings()
-        input_binding = next((binding for binding in bindings if binding.direction == 0), None)  # IN
-        if not input_binding:
-            continue
+        trigger_arg_name = trigger.name
 
         function_name = function.get_function_name()
         func = function.get_user_function()
 
         if trigger_type == "httpTrigger":
-            function._func = _patched_http_trigger(pin, func, function_name, input_binding)
+            function._func = _wrap_http_trigger(pin, func, function_name, trigger_arg_name)
         elif trigger_type == "timerTrigger":
-            function._func = _patched_timer_trigger(pin, func, function_name)
+            function._func = _wrap_timer_trigger(pin, func, function_name)
         elif trigger_type == "serviceBusTrigger":
-            function._func = _patched_service_bus_trigger(pin, func, function_name)
+            function._func = _wrap_service_bus_trigger(pin, func, function_name)
 
     return functions
 
 
-def _patched_http_trigger(pin, func, function_name, input_binding):
-    trigger = "Http"
-    trigger_arg_name = input_binding.name
+def _wrap_http_trigger(pin, func, function_name, trigger_arg_name):
+    trigger_type = "Http"
 
     def context_factory(kwargs):
         req = kwargs.get(trigger_arg_name)
@@ -88,40 +82,40 @@ def _patched_http_trigger(pin, func, function_name, input_binding):
         return ("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
 
     def post_dispatch(ctx, res):
-        return ("azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger))
+        return ("azure.functions.start_response", (ctx, config.azure_functions, res, function_name, trigger_type))
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch)
 
 
-def _patched_service_bus_trigger(pin, func, function_name):
-    trigger = "ServiceBus"
+def _wrap_service_bus_trigger(pin, func, function_name):
+    trigger_type = "ServiceBus"
 
     def context_factory(kwargs):
-        resource_name = f"{trigger} {function_name}"
+        resource_name = f"{trigger_type} {function_name}"
         return create_context("azure.functions.patched_service_bus", pin, resource_name)
 
     def pre_dispatch(ctx, kwargs):
         ctx.set_item("trigger_span", ctx.span)
         return (
             "azure.functions.trigger_call_modifier",
-            (ctx, config.azure_functions, function_name, trigger, SpanKind.CONSUMER),
+            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
-def _patched_timer_trigger(pin, func, function_name):
-    trigger = "Timer"
+def _wrap_timer_trigger(pin, func, function_name):
+    trigger_type = "Timer"
 
     def context_factory(kwargs):
-        resource_name = f"{trigger} {function_name}"
+        resource_name = f"{trigger_type} {function_name}"
         return create_context("azure.functions.patched_timer", pin, resource_name)
 
     def pre_dispatch(ctx, kwargs):
         ctx.set_item("trigger_span", ctx.span)
         return (
             "azure.functions.trigger_call_modifier",
-            (ctx, config.azure_functions, function_name, trigger, SpanKind.INTERNAL),
+            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.INTERNAL),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
