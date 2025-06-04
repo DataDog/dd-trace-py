@@ -706,7 +706,7 @@ venv = Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "django": ["~=4.0"],
+                        "django": ["~=2.2.8", "~=3.0.0", "~=4.0"],
                         "channels": latest,
                     },
                 ),
@@ -1466,7 +1466,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
-                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},
+                    pkgs={"fastapi": ["~=0.57.0", "~=0.64.0", "~=0.90.0", latest]},
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
@@ -1959,6 +1959,7 @@ venv = Venv(
                     latest,
                 ],
                 "aiohttp_jinja2": [
+                    "~=1.2.0",
                     "~=1.5.0",
                     latest,
                 ],
@@ -2649,7 +2650,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": ["~=0.40.0", latest],
+                "anthropic": ["~=0.17.0", "~=0.28.0", latest],
             },
         ),
         Venv(

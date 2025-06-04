@@ -104,7 +104,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"django": ">=2.2"}
+    return {"django": ">=2.2.8"}
 
 
 def patch_conn(django, conn):

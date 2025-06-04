@@ -362,13 +362,6 @@ Mongoengine
 .. automodule:: ddtrace.contrib._mongoengine
 
 
-.. _mysql:
-
-MySQL
-^^^^^
-.. automodule:: ddtrace.contrib._mysql
-
-
 .. _mysql-connector:
 
 mysql-connector

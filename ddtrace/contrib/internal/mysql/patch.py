@@ -35,7 +35,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"mysql": "*"}
+    return {"mysql": ">=8.0.5"}
 
 
 CONN_ATTR_BY_TAG = {

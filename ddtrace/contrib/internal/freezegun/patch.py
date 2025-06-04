@@ -41,7 +41,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"freezegun": ">=1.0.0"}
+    return {"freezegun": "*"}
 
 
 def patch() -> None:
