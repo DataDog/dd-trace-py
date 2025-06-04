@@ -196,11 +196,43 @@ class EntrySpanWrappingContext(WrappingContext):
 
 
 @dataclass
-class SpanCodeOriginProcessor(SpanProcessor):
+class SpanCodeOriginProcessorEntry(SpanProcessor):
     __uploader__ = LogsIntakeUploaderV1
 
-    _instance: t.Optional["SpanCodeOriginProcessor"] = None
+    _entry_instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
     _handler: t.Optional[t.Callable] = None
+
+    @classmethod
+    def enable(cls):
+        if cls._entry_instance is not None:
+            return
+
+        cls._entry_instance = cls()
+
+        # Register code origin for span with the snapshot uploader
+        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        # Register the entrypoint wrapping for entry spans
+        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__.get_collector())
+        core.on("service_entrypoint.patch", handler)
+
+    @classmethod
+    def disable(cls):
+        if cls._entry_instance is None:
+            return
+
+        # Unregister the entrypoint wrapping for entry spans
+        core.reset_listeners("service_entrypoint.patch", cls._handler)
+        # Unregister code origin for span with the snapshot uploader
+        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        cls._handler = None
+        cls._entry_instance = None
+
+
+@dataclass
+class SpanCodeOriginProcessor(SpanCodeOriginProcessorEntry):
+    _instance: t.Optional["SpanCodeOriginProcessor"] = None
 
     def on_span_start(self, span: Span) -> None:
         if span.span_type not in EXIT_SPAN_TYPES:
@@ -264,29 +296,21 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
         instance = cls._instance = cls()
 
-        # Register code origin for span with the snapshot uploader
-        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
-
         # Register the processor for exit spans
         instance.register()
 
-        # Register the entrypoint wrapping for entry spans
-        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__.get_collector())
-        core.on("service_entrypoint.patch", handler)
+        # Enable entry spans. This is idempotent so multiple calls are safe if CO is enabled
+        # after DI via remote configuration.
+        super().enable()
 
     @classmethod
     def disable(cls):
         if cls._instance is None:
             return
 
-        # Unregister the entrypoint wrapping for entry spans
-        core.reset_listeners("service_entrypoint.patch", cls._handler)
-        cls._handler = None
+        # Disable entry spans
+        super().disable()
 
         # Unregister the processor for exit spans
         cls._instance.unregister()
-
-        # Unregister code origin for span with the snapshot uploader
-        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
-
         cls._instance = None
