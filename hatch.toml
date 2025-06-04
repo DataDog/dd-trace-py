@@ -436,7 +436,7 @@ test = [
 ]
 
 [[envs.appsec_integrations_django.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=5.1"]
 
 [[envs.appsec_integrations_django.matrix]]

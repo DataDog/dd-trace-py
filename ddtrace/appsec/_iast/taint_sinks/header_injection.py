@@ -179,9 +179,9 @@ def _iast_django_response_store(wrapped, instance, args, kwargs):
 
         wrapped.__func__(instance, *args, **kwargs)
         if DJANGO_VERSION < (3, 2, 0):
-            instance._headers = HeaderInjectionDict()
+            instance._headers = HeaderInjectionDict(instance._headers)
         else:
-            instance._store = HeaderInjectionDict()
+            instance._store = HeaderInjectionDict(instance._store)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_django_response_store. {e}")
 
