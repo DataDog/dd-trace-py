@@ -6,8 +6,6 @@ from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings._config import _get_config
 
-from .constants import SETTINGS_ANALYTICS_ENABLED
-from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
 from .constants import SETTINGS_SERVICE
 from .trace import DD_TWEEN_NAME
@@ -48,19 +46,10 @@ def patch():
 def traced_init(wrapped, instance, args, kwargs):
     settings = kwargs.pop("settings", {})
     service = config._get_service(default="pyramid")
-    # DEV: integration-specific analytics flag can be not set but still enabled
-    # globally for web frameworks
-    old_analytics_enabled = _get_config("DD_PYRAMID_ANALYTICS_ENABLED")
-    analytics_enabled = _get_config("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", default=old_analytics_enabled)
-    if analytics_enabled is not None:
-        analytics_enabled = asbool(analytics_enabled)
-    analytics_sample_rate = _get_config("DD_TRACE_PYRAMID_ANALYTICS_SAMPLE_RATE")
 
     trace_settings = {
         SETTINGS_SERVICE: service,
         SETTINGS_DISTRIBUTED_TRACING: config.pyramid.distributed_tracing,
-        SETTINGS_ANALYTICS_ENABLED: analytics_enabled,
-        SETTINGS_ANALYTICS_SAMPLE_RATE: analytics_sample_rate,
     }
     # Update over top of the defaults
     # DEV: If we did `settings.update(trace_settings)` then we would only ever

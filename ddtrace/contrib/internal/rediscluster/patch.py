@@ -6,7 +6,6 @@ import wrapt
 
 # project
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -105,8 +104,5 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.set_tag(_SPAN_MEASURED_KEY)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
-
-        # set analytics sample rate if enabled
-        s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.rediscluster.get_analytics_sample_rate())
 
         return func(*args, **kwargs)

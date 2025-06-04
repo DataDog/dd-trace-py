@@ -12,6 +12,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
+from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -26,18 +27,17 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
-        asm_config._bypass_instrumentation_for_waf = True
-        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+        with unpatching_popen():
+            ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-    finally:
-        asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
 
 # 32-bit-Python on 64-bit-Windows
 
-ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+with unpatching_popen():
+    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
@@ -275,33 +275,6 @@ class ddwaf_config(ctypes.Structure):
 
 ddwaf_config_p = ctypes.POINTER(ddwaf_config)
 
-
-class ddwaf_result(ctypes.Structure):
-    _fields_ = [
-        ("timeout", ctypes.c_bool),
-        ("events", ddwaf_object),
-        ("actions", ddwaf_object),
-        ("derivatives", ddwaf_object),
-        ("total_runtime", ctypes.c_uint64),
-    ]
-
-    def __repr__(self):
-        return "total_runtime=%r, events=%r, timeout=%r, action=[%r]" % (
-            self.total_runtime,
-            self.events.struct,
-            self.timeout.struct,
-            self.actions,
-        )
-
-    def __del__(self):
-        try:
-            ddwaf_result_free(self)
-        except TypeError:
-            log.debug("Failed to free result", exc_info=True)
-
-
-ddwaf_result_p = ctypes.POINTER(ddwaf_result)
-
 ddwaf_handle = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
 ddwaf_builder = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
@@ -350,7 +323,7 @@ ddwaf_known_addresses = ctypes.CFUNCTYPE(
 
 def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
-    obj = ddwaf_known_addresses(handle.handle, ctypes.byref(size))
+    obj = ddwaf_known_addresses(handle.handle, size)
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
@@ -365,7 +338,7 @@ def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule
 
 
 ddwaf_run = ctypes.CFUNCTYPE(
-    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64
+    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64
 )(("ddwaf_run", ddwaf), ((1, "context"), (1, "persistent_data"), (1, "ephemeral_data"), (1, "result"), (1, "timeout")))
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
@@ -373,10 +346,6 @@ ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ((1, "context"),),
 )
 
-ddwaf_result_free = ctypes.CFUNCTYPE(None, ddwaf_result_p)(
-    ("ddwaf_result_free", ddwaf),
-    ((1, "result"),),
-)
 
 ## ddwf_builder
 

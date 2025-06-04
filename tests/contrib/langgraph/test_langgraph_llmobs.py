@@ -271,3 +271,17 @@ class TestLangGraphLLMObs:
         _assert_span_link(d_span, e_second_finish, "output", "input")
         _assert_span_link(e_first_finish, graph_span, "output", "output")
         _assert_span_link(e_second_finish, graph_span, "output", "output")
+    async def test_astream_events(self, simple_graph, llmobs_events):
+        async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
+            pass
+        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
+        a_span = _find_span_by_name(llmobs_events, "a")
+        b_span = _find_span_by_name(llmobs_events, "b")
+
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+
+        assert a_span["meta"]["output"]["value"] is not None
+        assert b_span["meta"]["output"]["value"] is not None
