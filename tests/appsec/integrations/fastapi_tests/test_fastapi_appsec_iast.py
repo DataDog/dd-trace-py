@@ -3,7 +3,6 @@ import json
 import logging
 import sys
 import typing
-import requests.utils
 
 from fastapi import Cookie
 from fastapi import Form
@@ -13,6 +12,7 @@ from fastapi import UploadFile
 from fastapi import __version__ as _fastapi_version
 from fastapi.responses import JSONResponse
 import pytest
+import requests.utils
 from starlette.responses import PlainTextResponse
 
 from ddtrace.appsec._constants import IAST
