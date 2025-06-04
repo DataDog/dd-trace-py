@@ -131,13 +131,6 @@ def test_unsupported_sampling_mechanism():
     ), f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
 
 
-@pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
-def test_extended_sampling_resource():
-    from ddtrace.trace import tracer
-    from tests.integration.test_sampling import RESOURCE
-
-
 @snapshot_parametrized_with_writers
 def test_sampling_with_default_sample_rate_1_and_manual_keep(writer, tracer):
     sampler = DatadogSampler(default_sample_rate=1)
