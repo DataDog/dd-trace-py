@@ -704,9 +704,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
+                    pys=select_pys(min_version="3.8", max_version="3.8"),
+                    command="pytest {cmdargs} tests/contrib/django --ignore=tests/contrib/django/test_django_appsec_snapshots.py --ignore=tests/contrib/django/test_django_snapshots.py",
+                    pkgs={
+                        "django": ["~=2.2.8"],
+                        "channels": latest,
+                    },
+                ),
+                Venv(
+                    # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "django": ["~=2.2.8", "~=3.0.0", "~=4.0"],
+                        "django": ["~=3.0.0", "~=4.0"],
                         "channels": latest,
                     },
                 ),
@@ -1959,8 +1968,7 @@ venv = Venv(
                     latest,
                 ],
                 "aiohttp_jinja2": [
-                    "~=1.2.0",
-                    "~=1.5.0",
+                    "~=1.3.0",
                     latest,
                 ],
                 "jinja2": latest,
@@ -2650,7 +2658,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": ["~=0.17.0", "~=0.28.0", latest],
+                "anthropic": ["~=0.28.0", latest],
             },
         ),
         Venv(

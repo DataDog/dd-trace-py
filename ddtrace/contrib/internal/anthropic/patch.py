@@ -31,7 +31,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"anthropic": ">=0.17.0"}
+    return {"anthropic": ">=0.28.0"}
 
 
 config._add(
