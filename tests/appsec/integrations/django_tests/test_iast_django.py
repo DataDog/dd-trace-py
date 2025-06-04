@@ -1555,7 +1555,7 @@ def test_django_ssrf_url(client, iast_span, tracer, option, url, value_parts):
     assert response.status_code == 200
     assert response.content == b"OK"
 
-    if value_parts is None and not (option == "safe_host" and DJANGO_VERSION < (3, 1)):
+    if value_parts is None:
         assert root_span.get_tag(IAST.JSON) is None
     elif option == "safe_host" and DJANGO_VERSION >= (3, 1):
         assert root_span.get_tag(IAST.JSON) is None
