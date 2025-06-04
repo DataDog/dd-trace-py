@@ -4,7 +4,7 @@ from time import sleep
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.settings.asm import config as asm_config
 from tests.utils import override_global_config
 
@@ -43,7 +43,7 @@ def function_with_vulnerabilities_1(tracer):
 
 
 @pytest.mark.skip_iast_check_logs
-def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
+def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled):
     import hashlib
 
     m = hashlib.md5()
@@ -58,7 +58,7 @@ def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
 
 
 @pytest.mark.skip_iast_check_logs
-def test_oce_reset_vulnerabilities_report(iast_context_defaults):
+def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
     import hashlib
 
     m = hashlib.md5()
@@ -66,7 +66,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_defaults):
     m.digest()
     m.digest()
     m.digest()
-    oce.vulnerabilities_reset_quota()
+    reset_request_vulnerabilities()
     m.digest()
 
     span_report = get_iast_reporter()
