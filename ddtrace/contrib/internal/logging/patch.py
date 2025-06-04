@@ -97,7 +97,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
     if not config._logs_injection:
-        # log injection is opt-in for structured logging
+        # log injection is opt out for structured logging
         return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
