@@ -5,10 +5,11 @@ import contextlib
 import json
 import logging
 import typing
-from typing import Any, Union
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -86,9 +87,9 @@ class DDWaf_result:
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
-        self.metrics:Dict[str, Union[int, float]] = {}
-        self.meta_tags:Dict[str, str] = {}
-        self.api_security:Dict[str, str] = {}
+        self.metrics: Dict[str, Union[int, float]] = {}
+        self.meta_tags: Dict[str, str] = {}
+        self.api_security: Dict[str, str] = {}
         for k, v in derivatives.items():
             if k.startswith("_dd.appsec.s."):
                 self.api_security[k] = v
