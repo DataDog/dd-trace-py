@@ -24,6 +24,7 @@ from unittest import mock
 from urllib import parse
 import warnings
 
+from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
@@ -409,6 +410,12 @@ def pytest_collection_modifyitems(session, config, items):
                 continue
             unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
             item.add_marker(unskippable)
+
+
+def pytest_runtest_protocol(item):
+    skipif = item.get_closest_marker("skipif")
+    if skipif and skipif.args[0]:
+        return default_pytest_runtest_protocol(item, None)
 
 
 def pytest_generate_tests(metafunc):
