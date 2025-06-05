@@ -46,7 +46,6 @@ SNAPSHOT_IGNORES_PATCH_ALL = SNAPSHOT_IGNORES + ["meta.http.useragent"]
 SNAPSHOT_IGNORES_ITR_COVERAGE = ["metrics.test.source.start", "metrics.test.source.end", "meta.test.source.file"]
 
 
-@pytest.mark.skip(reason="Tests become flaky with the distributed support")
 class PytestXdistSnapshotTestCase(TracerTestCase):
     @pytest.fixture(autouse=True)
     def fixtures(self, testdir, monkeypatch, git_repo):
@@ -54,7 +53,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
     def test_pytest_xdist_will_include_lines_pct(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
@@ -87,7 +86,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
@@ -99,7 +98,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                 ),
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
     def test_pytest_xdist_wont_include_lines_pct_if_report_empty(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
@@ -132,7 +131,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
@@ -144,7 +143,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                 ),
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
+    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL, wait_for_num_traces=3)
     def test_pytest_xdist_with_ddtrace_patch_all(self):
         call_httpx = """
                 import httpx
@@ -167,7 +166,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["pytest", "--ddtrace", "--ddtrace-patch-all", "-n", "2"],
+                ["pytest", "--ddtrace", "--ddtrace-patch-all", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
