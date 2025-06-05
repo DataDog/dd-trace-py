@@ -7,8 +7,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from cassandra import __version__
-
 
 try:
     import cassandra.cluster as cassandra_cluster
@@ -51,11 +49,6 @@ PAGE_NUMBER = "_ddtrace_page_number"
 
 # Original connect connect function
 _connect = cassandra_cluster.Cluster.connect
-
-
-def get_version():
-    # type: () -> str
-    return __version__
 
 
 def patch():

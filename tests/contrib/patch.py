@@ -886,7 +886,7 @@ class PatchTestCase(object):
                         if not supported_versions_called and (
                             getattr(mod, "__datadog_patch", False) or getattr(mod, "_datadog_patch", False)
                         ):
-                            sys.stdout.write("K")
+                            sys.stdout.write("KK")
                         """
                         % (
                             self.__integration_name__,

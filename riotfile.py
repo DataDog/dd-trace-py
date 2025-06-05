@@ -1972,7 +1972,7 @@ venv = Venv(
                     latest,
                 ],
                 "aiohttp_jinja2": [
-                    "~=1.3.0",
+                    "~=1.5.0",
                     latest,
                 ],
                 "jinja2": latest,
