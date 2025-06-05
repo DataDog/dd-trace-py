@@ -2662,9 +2662,17 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": ["~=0.28.0", latest],
-                "httpx": ["~=0.27.0", latest]
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={"anthropic": "~=0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={"anthropic": latest, "httpx": latest},
+                ),
+            ],
         ),
         Venv(
             name="google_generativeai",
