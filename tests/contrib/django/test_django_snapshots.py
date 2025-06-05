@@ -198,6 +198,9 @@ def psycopg3_patched(transactional_db):
     # as we test Django>=4.2 with psycopg2 solely installed and not psycopg3 to ensure both work.
     if django.VERSION < (4, 2, 0):
         pytest.skip(reason="Psycopg3 not supported in django<4.2")
+    elif not package_installed("psycopg"):
+        # skip test if psycopg3 is not installed as we need to test psycopg2 standalone with Django>=4.2.0
+        pytest.skip(reason="Psycopg3 not installed. Focusing on testing psycopg2 with Django>=4.2.0")
     else:
         from django.db import connections
 

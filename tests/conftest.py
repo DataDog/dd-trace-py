@@ -412,6 +412,7 @@ def pytest_collection_modifyitems(session, config, items):
             item.add_marker(unskippable)
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     skipif = item.get_closest_marker("skipif")
     if skipif and skipif.args[0]:
