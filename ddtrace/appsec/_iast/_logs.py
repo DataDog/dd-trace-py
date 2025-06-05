@@ -47,4 +47,3 @@ def iast_error(msg, default_prefix="iast::"):
     if _is_iast_debug_enabled():
         log.debug(p_msg, exc_info=True)
     _set_iast_error_metric(p_msg)
-
