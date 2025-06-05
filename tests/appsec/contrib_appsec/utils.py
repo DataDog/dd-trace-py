@@ -1207,7 +1207,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_triggers(root_span()) is None
             value = get_tag(name)
-            if apisec_enabled:
+            if apisec_enabled and not (name.startswith("_dd.appsec.s.res") and blocked):
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
