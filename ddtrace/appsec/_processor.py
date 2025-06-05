@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
 
 from ddtrace._trace.processor import SpanProcessor
-from ddtrace._trace.processor import in_aws_lambda
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
@@ -180,9 +179,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
 
-        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC} and not (
-            in_aws_lambda() and span.span_type == SpanTypes.SERVERLESS
-        ):
+        if span.span_type not in asm_config._asm_processed_span_types:
             return
 
         _asm_request_context.start_context(span)
