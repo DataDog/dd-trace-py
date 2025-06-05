@@ -154,24 +154,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="iast_aggregated_leak_testing",
-            pys=["3.10", "3.11", "3.12"],
-            # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
-            pkgs={
-                "requests": latest,
-                "pytest-asyncio": latest,
-                "anyio": latest,
-                "pydantic": latest,
-                "pydantic-settings": latest,
-            },
-            env={
-                "DD_IAST_ENABLED": "true",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
-                "DD_FAST_BUILD": "0",
-            },
-        ),
-        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -2860,7 +2842,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 "CPUCOUNT": "12",
             },
             pkgs={

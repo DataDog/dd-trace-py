@@ -176,7 +176,7 @@ class APIManager(Service):
         if result is None:
             return
         nb_schemas = 0
-        for meta, schema in result.derivatives.items():
+        for meta, schema in result.api_security.items():
             b64_gzip_content = b""
             try:
                 b64_gzip_content = base64.b64encode(
