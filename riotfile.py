@@ -1436,7 +1436,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
+            command="pytest --junitxml=test-results/junit.xml --no-ddtrace --no-cov {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
             },
