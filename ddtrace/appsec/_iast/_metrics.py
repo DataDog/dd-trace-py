@@ -47,7 +47,9 @@ def metric_verbosity(lvl):
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
 @deduplication
 def _set_iast_error_metric(msg: Text) -> None:
-    # Due to format_exc and format_exception returns the error and the last frame
+    """This was originally implemented to analyze which services were triggering this issue, and we used that insight
+    to refactor how IAST creates and destroys context. However, after that refactor, this information no longer
+    provides value and only adds noise. So now, those telemetry metrics are only emitted if IAST is in debug mode"""
     try:
         if _is_iast_debug_enabled():
             exception_type, exception_instance, _traceback_list = sys.exc_info()
@@ -62,8 +64,6 @@ def _set_iast_error_metric(msg: Text) -> None:
             stack_trace = "".join(res)
 
             telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
-
-            log.debug(msg, exc_info=True)
     except Exception:
         log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
