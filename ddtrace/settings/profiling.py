@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 # in order to guarantee uniformity.
 ddup_failure_msg = ""
 stack_v2_failure_msg = ""
+ddup_is_available = False
 
 
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
@@ -54,7 +55,7 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 def _check_for_ddup_available():
     global ddup_failure_msg
-    ddup_is_available = False
+    global ddup_is_available
     try:
         from ddtrace.internal.datadog.profiling import ddup
 
@@ -84,22 +85,6 @@ def _check_for_stack_v2_available():
     return stack_v2_is_available
 
 
-def _is_libdd_required(config):
-    # This function consolidates the logic for force-enabling the libdd uploader.  Otherwise this will get enabled in
-    # a bunch of separate places and it'll be tough to manage.
-    # v2 requires libdd because it communicates over a pure-native channel
-    # libdd... requires libdd
-    # injected environments _cannot_ deploy protobuf, so they must use libdd
-    # timeline requires libdd
-    return (
-        config.stack.v2_enabled
-        or config.export._libdd_enabled
-        or config._injected
-        or config.timeline_enabled
-        or config.pytorch.enabled
-    )
-
-
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
 # indicate whether profiling was enabled.
 _profiling_injected = False
@@ -107,6 +92,9 @@ _profiling_injected = False
 
 def _parse_profiling_enabled(raw: str) -> bool:
     global _profiling_injected
+
+    if not _check_for_ddup_available():
+        return False
 
     # Before we do anything else, check the tracer configuration
     _profiling_injected = core_config._lib_was_injected
@@ -432,25 +420,12 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
-class ProfilingConfigExport(DDConfig):
-    __item__ = __prefix__ = "export"
-
-    _libdd_enabled = DDConfig.v(
-        bool,
-        "libdd_enabled",
-        default=False,
-        help_type="Boolean",
-        help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
-    )
-
-
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
-ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
 report_configuration(config)
@@ -461,18 +436,9 @@ report_configuration(config)
 #   (this is done in the _is_libdd_required function)
 config._injected = _check_for_injected()
 
-# Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
-# configuration too intentionally and we'll need to change the API too much over time.
-config.export.libdd_enabled = _is_libdd_required(config)
-
-# AFTER checking for libdd enablement, we process the override (_force_legacy_exporter), which will disable libdd.
-# This is done because we currently test in an injected posture, but the new exporter doesn't have the same
-# introspection capabilities as the legacy one.
-if config._force_legacy_exporter:
-    config.export.libdd_enabled = False
 
 # Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
-if config.stack.v2_enabled and not config.export.libdd_enabled:
+if config.stack.v2_enabled and not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
     logger.warning("The v2 stack profiler cannot be used (%s)", msg)
     config.stack.v2_enabled = False
@@ -502,10 +468,8 @@ def config_str(config):
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
-    if config.export.libdd_enabled:
+    if ddup_is_available:
         configured_features.append("exp_dd")
-    else:
-        configured_features.append("exp_py")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))
     return "_".join(configured_features)
