@@ -128,7 +128,7 @@ def test_discovery_after_external_wrapping(stuff):
     assert isinstance(stuff.Stuff.instancestuff, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper))
 
     code = stuff.Stuff.instancestuff.__code__
-    f, *_ = FunctionDiscovery(stuff).at_line(36)
+    f, *_ = FunctionDiscovery.from_module(stuff).at_line(36)
 
     assert f is original_function or isinstance(f, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper)), f
     assert f.__code__ is code
