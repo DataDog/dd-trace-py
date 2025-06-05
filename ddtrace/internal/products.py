@@ -52,8 +52,9 @@ class ProductManager:
 
     def __init__(self) -> None:
         self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
-
         self._failed: t.Set[str] = set()
+
+    def _load_products(self) -> None:
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
@@ -136,6 +137,16 @@ class ProductManager:
                 log.exception("Failed to start product '%s'", name)
                 failed.add(name)
 
+    def before_fork(self) -> None:
+        for name, product in self.products:
+            try:
+                if (hook := getattr(product, "before_fork", None)) is None:
+                    continue
+                hook()
+                log.debug("Before-fork hook for product '%s' executed", name)
+            except Exception:
+                log.exception("Failed to execute before-fork hook for product '%s'", name)
+
     def restart_products(self, join: bool = False) -> None:
         failed: t.Set[str] = set()
 
@@ -185,6 +196,9 @@ class ProductManager:
         # Start all products
         self.start_products()
 
+        # Execute before fork hooks
+        forksafe.register_before_fork(self.before_fork)
+
         # Restart products on fork
         forksafe.register(self.restart_products)
 
@@ -192,6 +206,8 @@ class ProductManager:
         atexit.register(self.exit_products)
 
     def run_protocol(self) -> None:
+        self._load_products()
+
         # uWSGI support
         try:
             check_uwsgi(worker_callback=forksafe.ddtrace_after_in_child)

@@ -159,10 +159,10 @@ class ProbeRegistry(dict):
                 self._log_probe_status_unlocked(entry)
 
     def _remove_pending(self, probe: Probe) -> None:
-        location = _get_probe_location(probe)
-
-        # Pending probes must have valid location information
-        assert location is not None, probe  # nosec
+        if (location := _get_probe_location(probe)) is None:
+            # If the probe has no location information, then it cannot be
+            # pending.
+            return
 
         pending_probes = self._pending[location]
         try:

@@ -26,8 +26,6 @@ try:
 except ImportError:
     langchain_pinecone = None
 
-from ddtrace.settings.asm import config as asm_config
-
 
 try:
     from langchain.callbacks.openai_info import get_openai_token_cost_for_model
@@ -41,7 +39,6 @@ import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.langchain.constants import API_KEY
-from ddtrace.contrib.internal.langchain.constants import agent_output_parser_classes
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
@@ -49,6 +46,7 @@ from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
@@ -173,8 +171,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -196,6 +193,9 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = func(*args, **kwargs)
+
+        core.dispatch("langchain.llm.generate.after", (prompts, completions))
+
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
 
@@ -229,8 +229,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -252,6 +251,9 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         completions = await func(*args, **kwargs)
+
+        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
+
         if _is_openai_llm_instance(instance):
             _tag_openai_token_usage(span, completions.llm_output)
 
@@ -284,8 +286,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
@@ -321,6 +322,9 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = func(*args, **kwargs)
+
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
 
@@ -378,8 +382,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
@@ -415,6 +418,9 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
                 span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
 
         chat_completions = await func(*args, **kwargs)
+
+        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
+
         if _is_openai_chat_instance(instance):
             _tag_openai_token_usage(span, chat_completions.llm_output)
 
@@ -1078,18 +1084,7 @@ def patch():
     if langchain_community:
         _patch_embeddings_and_vectorstores()
 
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        def wrap_output_parser(module, parser):
-            # Ensure not double patched
-            if not isinstance(deep_getattr(module, "%s.parse" % parser), wrapt.ObjectProxy):
-                wrap(module, "%s.parse" % parser, taint_parser_output)
-
-        try:
-            with_agent_output_parser(wrap_output_parser)
-        except Exception as e:
-            _set_iast_error_metric("IAST propagation error. langchain wrap_output_parser. {}".format(e))
+    core.dispatch("langchain.patch", tuple())
 
 
 def unpatch():
@@ -1122,47 +1117,6 @@ def unpatch():
     if langchain_community:
         _unpatch_embeddings_and_vectorstores()
 
+    core.dispatch("langchain.unpatch", tuple())
+
     delattr(langchain, "_datadog_integration")
-
-
-def taint_parser_output(func, instance, args, kwargs):
-    from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-    result = func(*args, **kwargs)
-    try:
-        try:
-            from langchain_core.agents import AgentAction
-            from langchain_core.agents import AgentFinish
-        except ImportError:
-            from langchain.agents import AgentAction
-            from langchain.agents import AgentFinish
-        ranges = get_tainted_ranges(args[0])
-        if ranges:
-            source = ranges[0].source
-            if isinstance(result, AgentAction):
-                result.tool_input = taint_pyobject(result.tool_input, source.name, source.value, source.origin)
-            elif isinstance(result, AgentFinish) and "output" in result.return_values:
-                values = result.return_values
-                values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
-    except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain taint_parser_output. {}".format(e))
-
-    return result
-
-
-def with_agent_output_parser(f):
-    import langchain.agents
-
-    queue = [(langchain.agents, agent_output_parser_classes)]
-
-    while len(queue) > 0:
-        module, current = queue.pop(0)
-        if isinstance(current, str):
-            if hasattr(module, current):
-                f(module, current)
-        elif isinstance(current, dict):
-            for name, value in current.items():
-                if hasattr(module, name):
-                    queue.append((getattr(module, name), value))
