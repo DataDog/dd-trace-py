@@ -1,7 +1,7 @@
 ---
 other:
   - |
-    profiling: he native profile exporter is now the default profile exporter,
+    profiling: The native profile exporter is now the default profile exporter,
     and the legacy Python exporter is removed. The
     ``DD_PROFILING_EXPORT_LIBDD_ENABLED`` configuration variable is removed.
     As a result of this change, profiling for 32-bit Linux is not supported.
