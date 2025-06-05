@@ -102,9 +102,18 @@ venv = Venv(
     },
     venvs=[
         Venv(
-            pys=["3"],
             name="meta-testing",
-            command="pytest {cmdargs} tests/meta",
+            pys=["3.10"],
+            command="pytest {cmdargs} --no-ddtrace tests/meta",
+            env={
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
+            },
+        ),
+        Venv(
+            name="slotscheck",
+            command="python -m slotscheck -v ddtrace/",
+            pys=["3.10"],
+            pkgs={"slotscheck": "==0.17.0"},
         ),
         Venv(
             name="gitlab-gen-config",
@@ -142,24 +151,6 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
-            },
-        ),
-        Venv(
-            name="iast_aggregated_leak_testing",
-            pys=["3.10", "3.11", "3.12"],
-            # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
-            pkgs={
-                "requests": latest,
-                "pytest-asyncio": latest,
-                "anyio": latest,
-                "pydantic": latest,
-                "pydantic-settings": latest,
-            },
-            env={
-                "DD_IAST_ENABLED": "true",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
-                "DD_FAST_BUILD": "0",
             },
         ),
         Venv(
