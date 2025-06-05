@@ -116,20 +116,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.slotscheck]
-template = "slotscheck"
-python = "3.10"
-features = ["opentracing"]
-extra-dependencies = [
-    "slotscheck==0.17.0",
-]
-
-[envs.slotscheck.scripts]
-test = [
-    "python -m slotscheck -v ddtrace/",
-]
-
-
 [envs.scripts]
 detached = true
 python = "3.10"
@@ -146,21 +132,6 @@ test = [
 ]
 needs_testrun = [
   "scripts/needs_testrun.py {args}",
-]
-
-[envs.meta-testing]
-python = "3.10"
-extra-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis<6.45.1"
-]
-[envs.meta-testing.env-vars]
-DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
-
-[envs.meta-testing.scripts]
-test = [
-  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -206,8 +177,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -251,8 +222,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -377,6 +348,7 @@ template = "appsec_integrations_packages"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "SQLAlchemy",
@@ -399,7 +371,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -607,8 +579,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter

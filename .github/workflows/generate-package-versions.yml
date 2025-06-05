@@ -80,6 +80,8 @@ jobs:
           pip install packaging
           pip install requests
           pip install riot==0.20.1
+          pip install PyYAML
+          pip install ddtrace
 
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
