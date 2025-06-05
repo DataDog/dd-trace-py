@@ -6,6 +6,9 @@ download_ddtrace_artifacts:
     - aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
     - gh auth login --with-token < token
     - rm token
+    # Prevent git operation errors:
+    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
     paths:
