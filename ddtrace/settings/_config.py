@@ -647,7 +647,7 @@ class Config(object):
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
-        # Telemetetry for whether ssi was used is tracked by the `instrumentation_source` config
+        # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
