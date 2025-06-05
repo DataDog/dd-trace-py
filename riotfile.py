@@ -1019,7 +1019,7 @@ venv = Venv(
                         "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
-                        "pytest": "~=4.0",
+                        "pytest": "~=6.0",
                         "pytest-mock": "==2.0.0",
                         "pytest-cov": "~=3.0",
                         "Jinja2": "~=2.10.0",
