@@ -49,7 +49,6 @@ def metric_verbosity(lvl):
 def _set_iast_error_metric(msg: Text) -> None:
     # Due to format_exc and format_exception returns the error and the last frame
     try:
-        stack_trace = ""
         if _is_iast_debug_enabled():
             exception_type, exception_instance, _traceback_list = sys.exc_info()
             res = []
@@ -61,7 +60,10 @@ def _set_iast_error_metric(msg: Text) -> None:
             res.extend(result[1:])
 
             stack_trace = "".join(res)
-        telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
+
+            telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, msg, stack_trace=stack_trace)
+
+            log.debug(msg, exc_info=True)
     except Exception:
         log.warning("iast::metrics::error::_set_iast_error_metric", exc_info=True)
 
