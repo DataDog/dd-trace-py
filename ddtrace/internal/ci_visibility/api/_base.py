@@ -374,6 +374,8 @@ class TestVisibilityItemBase(abc.ABC):
         raise NotImplementedError("This method must be implemented by the subclass")
 
     def start(self, context: Optional[Context] = None) -> None:
+        log.debug("Test Visibility: starting %s", self)
+
         if self.is_started():
             if self._session_settings.reject_duplicates:
                 error_msg = f"Item {self} has already been started"
