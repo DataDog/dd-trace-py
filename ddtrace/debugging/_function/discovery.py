@@ -142,6 +142,10 @@ class _FunctionCodePair:
         self.code = function.__code__ if function is not None else code
 
     def resolve(self) -> FullyNamedFunction:
+        if self.code is None:
+            msg = "Cannot resolve pair with no code object"
+            raise ValueError(msg)
+
         if self.function is not None:
             return cast(FullyNamedFunction, self.function)
 

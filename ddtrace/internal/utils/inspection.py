@@ -142,13 +142,19 @@ def link_function_to_code(code: CodeType, function: FunctionType) -> None:
 
 
 @lru_cache(maxsize=(1 << 14))  # 16k entries
+def _functions_for_code_gc(code: CodeType) -> List[FunctionType]:
+    import gc
+
+    return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+
+
 def functions_for_code(code: CodeType) -> List[FunctionType]:
     global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
 
     try:
-        # Try to get the function from the cache
+        # Try to get the function from the original code-to-function mapping
         return [_CODE_TO_ORIGINAL_FUNCTION_MAPPING[code]]
     except KeyError:
-        import gc
-
-        return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+        # If the code is not in the mapping, we fall back to the garbage
+        # collector
+        return _functions_for_code_gc(code)
