@@ -177,8 +177,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -222,8 +222,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -579,8 +579,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
