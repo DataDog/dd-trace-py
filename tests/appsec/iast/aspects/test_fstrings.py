@@ -135,6 +135,7 @@ def test_int_fstring_zero_padding_integers(integers_to_test):
     assert result == f"{integers_to_test:05d}"
 
 
+@pytest.mark.skip_iast_check_logs
 @given(
     text(),
     sampled_from(
