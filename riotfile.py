@@ -704,15 +704,6 @@ venv = Venv(
             venvs=[
                 Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
-                    pys=select_pys(min_version="3.8", max_version="3.8"),
-                    command="pytest {cmdargs} tests/contrib/django --ignore=*snapshots.py",
-                    pkgs={
-                        "django": ["~=2.2.8"],
-                        "channels": latest,
-                    },
-                ),
-                Venv(
-                    # django dropped support for Python 3.8/3.9 in 5.0
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
                         "django": ["~=3.0.0", "~=4.0"],
@@ -1473,10 +1464,6 @@ venv = Venv(
                 "aiofiles": latest,
             },
             venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.8"),
-                    pkgs={"fastapi": "~=0.57.0"},
-                ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},

@@ -38,7 +38,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"fastapi": ">=0.57.0"}
+    return {"fastapi": ">=0.64.0"}
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):

@@ -19,7 +19,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"agents": "*"}
+    return {"agents": ">=0.0.2"}
 
 
 def patch():
