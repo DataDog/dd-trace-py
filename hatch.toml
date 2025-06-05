@@ -116,20 +116,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.slotscheck]
-template = "slotscheck"
-python = "3.10"
-features = ["opentracing"]
-extra-dependencies = [
-    "slotscheck==0.17.0",
-]
-
-[envs.slotscheck.scripts]
-test = [
-    "python -m slotscheck -v ddtrace/",
-]
-
-
 [envs.scripts]
 detached = true
 python = "3.10"

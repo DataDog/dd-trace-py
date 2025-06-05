@@ -111,7 +111,7 @@ venv = Venv(
         ),
         Venv(
             name="slotscheck",
-            command="python -m slotscheck {cmdargs} -v ddtrace/",
+            command="python -m slotscheck -v ddtrace/",
             pys=["3.10"],
             pkgs={"slotscheck": "==0.17.0"},
         ),
