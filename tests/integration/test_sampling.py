@@ -97,7 +97,7 @@ def test_supported_sampling_mechanism():
     validate_sampling_decision should not give errors for supported sampling mechanisms
     """
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.constants import SamplingMechanism
+    from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import validate_sampling_decision
 
     # This list can grow over time so we should test all of them
