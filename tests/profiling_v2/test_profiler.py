@@ -168,83 +168,97 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling.collector import stack  # noqa:F401
 
 
-@mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.config")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.failure_msg", "mock failure message")
-def test_libdd_failure_telemetry_logging(mock_ddup_config, mock_add_log):
-    """Test that libdd initialization failures log to telemetry instead of standard logging"""
-    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load ddup module (mock failure message), disabling profiling\n",
+)
+def test_libdd_failure_telemetry_logging():
+    """Test that libdd initialization failures log to telemetry. This mimics
+    one of the two scenarios where profiling can be configured.
+    1) using ddtrace-run with DD_PROFILNG_ENABLED=true
+    2) import ddtrace.profiling.auto
+    """
 
-    test_exception = Exception("Test libdd failure")
-    mock_ddup_config.side_effect = test_exception
+    import mock
 
-    profiler._ProfilerInstance(_stack_v2_enabled=False)
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.ddup",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace.settings.profiling import config  # noqa:F401
 
-    mock_add_log.assert_called_once()
-    call_args = mock_add_log.call_args
-
-    assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-
-    message = call_args[0][1]
-    assert "Failed to load libdd" in message
-    assert "falling back to legacy mode" in message
-    assert "Test libdd failure" in message
-    assert "mock failure message" in message
-
-
-@mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.config")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.failure_msg", "mock failure message")
-@mock.patch("ddtrace.settings.profiling.config.stack.v2_enabled", True)
-def test_libdd_failure_stack_v2_telemetry_logging(mock_ddup_config, mock_add_log):
-    """Test that libdd initialization failures with stack v2 enabled log both failures to telemetry"""
-    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-
-    test_exception = Exception("Test libdd failure")
-    mock_ddup_config.side_effect = test_exception
-
-    profiler._ProfilerInstance(_stack_v2_enabled=True)
-
-    assert mock_add_log.call_count == 2
-
-    first_call = mock_add_log.call_args_list[0]
-    assert first_call[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-    libdd_message = first_call[0][1]
-    assert "Failed to load libdd" in libdd_message
-    assert "falling back to legacy mode" in libdd_message
-    assert "Test libdd failure" in libdd_message
-    assert "mock failure message" in libdd_message
-
-    second_call = mock_add_log.call_args_list[1]
-    assert second_call[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-    stack_v2_message = second_call[0][1]
-    assert "Disabling stack_v2 as libdd collector failed to initialize" in stack_v2_message
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
 
 
-@mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.config")
-@mock.patch("ddtrace.internal.datadog.profiling.ddup.failure_msg", "mock failure message")
-@mock.patch("ddtrace.settings.profiling.config._injected", True)
-def test_libdd_failure_injected_telemetry_logging(mock_ddup_config, mock_add_log):
-    """Test that libdd initialization failures in injected environments log both failures to telemetry"""
-    from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+@pytest.mark.subprocess()
+def test_libdd_failure_telemetry_logging_with_auto():
+    import mock
 
-    test_exception = Exception("Test libdd failure")
-    mock_ddup_config.side_effect = test_exception
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.ddup",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
 
-    profiler._ProfilerInstance(_stack_v2_enabled=False)
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
 
-    assert mock_add_log.call_count == 2
 
-    first_call = mock_add_log.call_args_list[0]
-    assert first_call[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-    libdd_message = first_call[0][1]
-    assert "Failed to load libdd" in libdd_message
-    assert "falling back to legacy mode" in libdd_message
-    assert "Test libdd failure" in libdd_message
-    assert "mock failure message" in libdd_message
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load stack_v2 module (mock failure message), falling back to v1 stack sampler\n",
+)
+def test_stack_v2_failure_telemetry_logging():
+    # Test that stack_v2 initialization failures log to telemetry. This is
+    # mimicking the behavior of ddtrace-run, where the config is imported to
+    # determine if profiling/stack_v2 is enabled
 
-    second_call = mock_add_log.call_args_list[1]
-    assert second_call[0][0] == TELEMETRY_LOG_LEVEL.ERROR
-    injection_message = second_call[0][1]
-    assert "Profiling failures occurred in an injected instance of ddtrace, disabling profiling" in injection_message
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.stack_v2",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace.settings.profiling import config  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack_v2 module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess()
+def test_stack_v2_failure_telemetry_logging_with_auto():
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.stack_v2",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack_v2 module" in message
+        assert "mock failure message" in message

@@ -11,19 +11,13 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import report_configuration
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._core import DDConfig
 
 
 logger = get_logger(__name__)
-
-
-# Stash the reason why a transitive dependency failed to load; since we try to load things safely in order to guide
-# configuration, these errors won't bubble up naturally.  All of these components should use the same pattern
-# in order to guarantee uniformity.
-ddup_failure_msg = ""
-stack_v2_failure_msg = ""
-ddup_is_available = False
 
 
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
@@ -54,35 +48,20 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 
 def _check_for_ddup_available():
-    global ddup_failure_msg
-    global ddup_is_available
-    try:
-        from ddtrace.internal.datadog.profiling import ddup
+    # NB: importing ddup module results in importing _ddup.so file which could
+    # raise an Exception within the ddup module, but we catch it there and
+    # we don't propagate up to here. And regardless of whether ddup is available,
+    # failure_msg and is_available are set to appropriate values.
+    from ddtrace.internal.datadog.profiling import ddup
 
-        ddup_is_available = ddup.is_available
-        ddup_failure_msg = ddup.failure_msg
-    except Exception:
-        pass  # nosec
-    return ddup_is_available
+    return (ddup.failure_msg, ddup.is_available)
 
 
 def _check_for_stack_v2_available():
-    global stack_v2_failure_msg
-    stack_v2_is_available = False
+    # NB: ditto for stack_v2 module as ddup.
+    from ddtrace.internal.datadog.profiling import stack_v2
 
-    # stack_v2 will use libdd; in order to prevent two separate collectors from running, it then needs to force
-    # libdd to be enabled as well; that means it depends on the libdd interface (ddup)
-    if not _check_for_ddup_available():
-        return False
-
-    try:
-        from ddtrace.internal.datadog.profiling import stack_v2
-
-        stack_v2_is_available = stack_v2.is_available
-        stack_v2_failure_msg = stack_v2.failure_msg
-    except Exception:
-        pass  # nosec
-    return stack_v2_is_available
+    return (stack_v2.failure_msg, stack_v2.is_available)
 
 
 # This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
@@ -92,9 +71,6 @@ _profiling_injected = False
 
 def _parse_profiling_enabled(raw: str) -> bool:
     global _profiling_injected
-
-    if not _check_for_ddup_available():
-        return False
 
     # Before we do anything else, check the tracer configuration
     _profiling_injected = core_config._lib_was_injected
@@ -327,7 +303,7 @@ class ProfilingConfigStack(DDConfig):
     )
 
     # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
-    v2_enabled = DDConfig.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
+    v2_enabled = DDConfig.d(bool, lambda c: c._v2_enabled and c.enabled)
 
     v2_adaptive_sampling = DDConfig.v(
         bool,
@@ -436,17 +412,28 @@ report_configuration(config)
 #   (this is done in the _is_libdd_required function)
 config._injected = _check_for_injected()
 
+ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
-# Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
-if config.stack.v2_enabled and not ddup_is_available:
+# We need to check if ddup is available, and turn off profiling if it is not.
+if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
-    config.stack.v2_enabled = False
+    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+    )
+    config.enabled = False
 
-# Loading stack_v2 can fail for similar reasons
-if config.stack.v2_enabled and not _check_for_stack_v2_available():
+# We also need to check if stack_v2 module is available, and turn if off
+# if it s not.
+stack_v2_failure_msg, stack_v2_is_available = _check_for_stack_v2_available()
+if config.stack.v2_enabled and not stack_v2_is_available:
     msg = stack_v2_failure_msg or "stack_v2 not available"
-    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
+    logger.warning("Failed to load stack_v2 module (%s), falling back to v1 stack sampler", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        "Failed to load stack_v2 module (%s), falling back to v1 stack sampler" % msg,
+    )
     config.stack.v2_enabled = False
 
 # Enrich tags with git metadata and DD_TAGS
@@ -468,8 +455,7 @@ def config_str(config):
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
-    if ddup_is_available:
-        configured_features.append("exp_dd")
+    configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))
     return "_".join(configured_features)
