@@ -137,7 +137,6 @@ def test_int_fstring_zero_padding_integers(integers_to_test):
     assert result == f"{integers_to_test:05d}"
 
 
-@pytest.mark.skip_iast_check_logs
 @given(
     text(),
     sampled_from(
@@ -155,7 +154,6 @@ def test_int_fstring_zero_padding_integers(integers_to_test):
     ),
 )
 def test_int_fstring_zero_padding_text(text, spec):
-    print(f"{text}: {spec}")
     with pytest.raises(ValueError) as excinfo:
         f"{text:{spec}}"
     assert str(excinfo.value) == f"Unknown format code '{spec}' for object of type 'str'"
