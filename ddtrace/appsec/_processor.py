@@ -179,7 +179,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
 
-        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type not in asm_config._asm_processed_span_types:
             return
 
         _asm_request_context.start_context(span)

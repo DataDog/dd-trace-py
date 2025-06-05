@@ -1,24 +1,18 @@
-import os
-
 import bm
 import bm.utils as utils
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import SpanContext
 from opentelemetry.trace import get_tracer
 from opentelemetry.trace import set_tracer_provider
 from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 
-from ddtrace import config
-from ddtrace.opentelemetry import TracerProvider  # Requires ``ddtrace>=1.11``
-from ddtrace.trace import tracer
-
 
 set_tracer_provider(TracerProvider())
-os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
 otel_tracer = get_tracer(__name__)
 
 
-class OtelSpan(bm.Scenario):
+class OtelSdkSpan(bm.Scenario):
     nspans: int
     ntags: int
     ltags: int
@@ -46,7 +40,7 @@ class OtelSpan(bm.Scenario):
         # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
         # (ex: tracer.configure(filter) is called)
         finishspan = self.finishspan
-        config._telemetry_enabled = self.telemetry
+        # config._telemetry_enabled = self.telemetry
         add_event = self.add_event
         add_link = self.add_link
         get_context = self.get_context
@@ -54,10 +48,6 @@ class OtelSpan(bm.Scenario):
         record_exception = self.record_exception
         set_status = self.set_status
         update_name = self.update_name
-
-        # Recreate span processors and configure global tracer to avoid sending traces to the agent
-        utils.drop_traces(tracer)
-        utils.drop_telemetry_events()
 
         # Pre-allocate all of the unique strings we'll need, that way the baseline memory overhead
         # is held constant throughout all tests.
@@ -91,12 +81,5 @@ class OtelSpan(bm.Scenario):
                         s.update_name("test.renamed." + str(i))
                     if finishspan:
                         s.end()
-
-            # If we are finishing spans, we need to ensure that the span aggregator is cleared
-            # to avoid memory leaks and errors on shutdown
-            if not finishspan:
-                if hasattr(tracer, "_span_aggregator"):
-                    if hasattr(tracer._span_aggregator, "_traces"):
-                        tracer._span_aggregator._traces.clear()
 
         yield _
