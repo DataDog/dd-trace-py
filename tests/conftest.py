@@ -24,7 +24,7 @@ from unittest import mock
 from urllib import parse
 import warnings
 
-# from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
+from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
