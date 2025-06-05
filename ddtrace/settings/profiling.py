@@ -3,7 +3,6 @@ import math
 import os
 import typing as t
 
-from ddtrace import config as core_config
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
@@ -64,44 +63,22 @@ def _check_for_stack_v2_available():
     return (stack_v2.failure_msg, stack_v2.is_available)
 
 
-# This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
-# indicate whether profiling was enabled.
-_profiling_injected = False
-
-
 def _parse_profiling_enabled(raw: str) -> bool:
-    global _profiling_injected
-
-    # Before we do anything else, check the tracer configuration
-    _profiling_injected = core_config._lib_was_injected
-
-    # Try to derive two bits of information
-    # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
+    # Try to derive whether we're enabled via DD_INJECTION_ENABLED
+    # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
     if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        _profiling_injected = True
         for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
             if tok.strip().lower() == "profiler":
                 return True
 
     # This is the normal check
     raw_lc = raw.lower()
-    if raw_lc in ("1", "true", "yes", "on"):
-        return True
-
-    # In addition to everything else, we have to check for the `auto` value of `DD_PROFILING_ENABLED`.
-    # This value simultaneously enables the profiler and indicates the environment is injected.
-    if raw_lc == "auto":
-        _profiling_injected = True
+    if raw_lc in ("1", "true", "yes", "on", "auto"):
         return True
 
     # If it wasn't enabled, then disable it
     return False
-
-
-def _check_for_injected():
-    global _profiling_injected
-    return _profiling_injected
 
 
 def _update_git_metadata_tags(tags):
@@ -405,12 +382,6 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 
 config = ProfilingConfig()
 report_configuration(config)
-
-# If during processing we discover that the configuration was injected, we need to do a few things
-# - Mark it as such
-# - Force libdd to be enabled, disabling the profiler otherwise the service might crash
-#   (this is done in the _is_libdd_required function)
-config._injected = _check_for_injected()
 
 ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
