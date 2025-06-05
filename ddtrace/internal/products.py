@@ -228,5 +228,14 @@ class ProductManager:
         else:
             self._do_products()
 
+    def is_enabled(self, product_name: str) -> bool:
+        if (product := self.__products__.get(product_name)) is None:
+            return False
+
+        if (config := getattr(product, "config", None)) is None:
+            return False
+
+        return config.enabled
+
 
 manager = ProductManager()

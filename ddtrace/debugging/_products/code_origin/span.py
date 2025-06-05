@@ -1,7 +1,10 @@
+from ddtrace.internal.products import manager as product_manager
 from ddtrace.settings._core import ValueSource
 from ddtrace.settings.code_origin import config
-from ddtrace.settings.dynamic_instrumentation import config as di_config
 
+
+CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
+DI_PRODUCT_KEY = "dynamic-instrumentation"
 
 # TODO[gab]: Uncomment this when the feature is ready
 # requires = ["tracer"]
@@ -18,7 +21,7 @@ def start():
         SpanCodeOriginProcessor.enable()
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
     # we'll enable entry spans only.
-    elif di_config.enabled and config.value_source("DD_CODE_ORIGIN_FOR_SPANS_ENABLED") == ValueSource.DEFAULT:
+    elif product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
         SpanCodeOriginProcessorEntry.enable()
@@ -33,7 +36,7 @@ def stop(join=False):
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
 
         SpanCodeOriginProcessor.disable()
-    elif di_config.enabled:
+    elif product_manager.is_enabled(DI_PRODUCT_KEY):
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
         SpanCodeOriginProcessorEntry.disable()
