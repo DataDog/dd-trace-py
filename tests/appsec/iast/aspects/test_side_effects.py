@@ -10,6 +10,7 @@ from tests.appsec.iast.iast_utils_side_effects import MagicMethodsException
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+mod_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
 
 STRING_TO_TAINT = "abc"
 
@@ -363,7 +364,7 @@ def test_format_value_aspect_side_effects():
     result = f"{object_with_side_effects} + {b} = {object_with_side_effects + b}"
     assert result == "abc + bar = abcbar"
 
-    result_tainted = mod.do_fstring(object_with_side_effects, b)
+    result_tainted = mod_py3.do_fstring_operations(object_with_side_effects, b)
     assert result_tainted == result
 
     setattr(MagicMethodsException, "__format__", _old_method_format)

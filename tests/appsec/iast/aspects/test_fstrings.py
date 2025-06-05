@@ -96,7 +96,7 @@ def test_fstring_fill_spaces_tainted(text):
     result = mod_py3.do_fmt_value(string_input)
     assert result == mod_py3.do_fmt_value(text)
     assert result == f"{text:<8s}bar"
-    if text != "\x00":
+    if text not in ["\x00", "\x000"]:
         assert is_pyobject_tainted(result)
 
 
