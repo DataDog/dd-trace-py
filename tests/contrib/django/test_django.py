@@ -45,6 +45,9 @@ from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
+pytestmark = pytest.mark.django_db
+
+
 @pytest.fixture(autouse=True)
 def cleanup_connections():
     yield

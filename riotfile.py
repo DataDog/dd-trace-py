@@ -662,7 +662,7 @@ venv = Venv(
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
-            command="pytest {cmdargs} tests/contrib/django",
+            command="pytest -v -s --randomly-seed=3713185364 {cmdargs} tests/contrib/django",
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
