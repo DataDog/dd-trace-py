@@ -116,7 +116,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`google_generativeai`                       | >= 0.7.2      | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`grpc`                                      | >= 1.34       | Yes [5]_       |
+| :ref:`grpc`                                      | >= 1.34       | Yes [4]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`graphene <graphql>`                        | >= 3.0.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -140,7 +140,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`logbook`                                   | >= 1.0.0      | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`logging`                                   | \*            | Yes [6]_       |
+| :ref:`logging`                                   | \*            | Yes [5]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`loguru`                                    | >= 0.3.0      | No             |
 +--------------------------------------------------+---------------+----------------+
@@ -162,7 +162,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`opensearch-py <elasticsearch>`             | >= 1.1        | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`protobuf`                                  | \*            | Yes [7]_       |
+| :ref:`protobuf`                                  | \*            | Yes [6]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`psycopg`                                   | >= 2.8        | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -243,11 +243,11 @@ contacting support.
 
 .. [3] only in Python 3.8 and above.
 
-.. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
+.. [4] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
-.. [6] logging integrations are enabled if ``config._logs_injection or [DD_LOGS_INJECTION]`` is ``True``.
+.. [5] logging integrations are enabled if ``config._logs_injection or [DD_LOGS_INJECTION]`` is ``True``.
 
-.. [7] ``protobuf`` integration is enabled if ``config._data_streams_enabled or [DD_DATA_STREAMS_ENABLED]`` is ``True``.
+.. [6] ``protobuf`` integration is enabled if ``config._data_streams_enabled or [DD_DATA_STREAMS_ENABLED]`` is ``True``.
 
 .. _`Instrumentation Telemetry`:
 

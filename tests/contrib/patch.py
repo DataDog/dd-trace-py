@@ -839,6 +839,7 @@ class PatchTestCase(object):
                         from wrapt import wrap_function_wrapper as wrap
 
                         supported_versions_called = False
+                        patch_module = None
 
                         def patch_hook(module):
                             def supported_versions_wrapper(wrapped, _, args, kwrags):
@@ -849,37 +850,32 @@ class PatchTestCase(object):
                                 return result
 
                             def patch_wrapper(wrapped, _, args, kwrags):
-                                global patched
-
                                 result = wrapped(*args, **kwrags)
                                 sys.stdout.write("K")
-                                patched = True
                                 return result
 
                             patch_module = module
                             if 'patch' not in module.__name__:
                                 patch_module = module.patch
 
-                            # try to get the module installed version via the patch file and get_version function
-                            installed_version = patch_module.get_version()
-                            if not installed_version:
-                                # wrap the patch function and ensure it's called if no installed version is found
-                                # (due to being a stdlib module)
-                                wrap(module.__name__, module.patch.__name__, patch_wrapper)
-                            else:
-                                # if the installed version is found, wrap the supported_versions function and assert
-                                # its called
-                                wrap(
-                                    patch_module.__name__,
-                                    patch_module._supported_versions.__name__,
-                                    supported_versions_wrapper,
-                                )
+                            wrap(module.__name__, module.patch.__name__, patch_wrapper)
+                            wrap(
+                                patch_module.__name__,
+                                patch_module._supported_versions.__name__,
+                                supported_versions_wrapper,
+                            )
 
                         ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
 
                         import %s as mod
+
+                        installed_version = patch_module.get_version()
+                        if not installed_version:
+                            # if installed version is None, the module is a stdlib module
+                            # and ``_supported_versions`` will not have been called
+                            sys.stdout.write("K")
 
                         # If the module was already loaded during the sitecustomize
                         # we check that the module was marked as patched.
