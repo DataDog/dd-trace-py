@@ -20,8 +20,6 @@
       "openai.request.method": "POST",
       "openai.request.model": "gpt-4.1",
       "openai.request.stream": "True",
-      "openai.response.choices.0.message.content": "Hello! 🌍 How can I help you today?",
-      "openai.response.choices.0.message.role": "assistant",
       "openai.request.tools": "[{'type': 'web_search_preview'}]",
       "openai.response.model": "gpt-4.1-2025-04-14",
       "openai.user.api_key": "sk-...key>",

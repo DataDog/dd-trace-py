@@ -2325,7 +2325,7 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": "==4.2.1",
+                "vcrpy": latest,
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,

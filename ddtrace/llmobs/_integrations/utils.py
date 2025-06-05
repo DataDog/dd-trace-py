@@ -330,7 +330,6 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
 
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
-        breakpoint()
         return
     if isinstance(messages, list):  # streamed response
         role = ""
@@ -459,7 +458,7 @@ def openai_get_input_messages_from_response_input(
                 except json.JSONDecodeError:
                     output = {"output": output}
             processed_item["role"] = "tool"
-            processed_item["content"] = item["output"]
+            processed_item["content"] = output
             processed_item["tool_id"] = item["call_id"]
         if processed_item:
             processed.append(processed_item)

@@ -894,8 +894,8 @@ class TestLLMObsOpenaiV1:
                                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                                 },
                                 "required": ["location", "unit"],
+                                "strict": True,
                             },
-                            "strict": True,
                         }
                     ],
                     "tool_choice": "auto",
