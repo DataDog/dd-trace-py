@@ -224,9 +224,18 @@ class ASMConfig(DDConfig):
 
     def __init__(self):
         super().__init__()
+
+        if in_aws_lambda():
+            # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
+            tracer_config._remote_config_enabled = False
+            self._api_security_enabled = False
+            self._ep_enabled = False
+            self._iast_supported = False
+
         if not self._iast_supported:
             self._iast_enabled = False
-        if not self._asm_libddwaf_available or in_aws_lambda():
+
+        if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
             self._iast_enabled = False
