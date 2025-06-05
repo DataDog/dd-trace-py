@@ -167,7 +167,6 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        #  If initialization fails, disable the libdd collector and fall back to the legacy exporter
         try:
             ddup.config(
                 env=self.env,
