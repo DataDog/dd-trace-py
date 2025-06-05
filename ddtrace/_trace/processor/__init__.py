@@ -320,7 +320,7 @@ class SpanAggregator(SpanProcessor):
             trace.spans.append(span)
             integration_name = span._meta.get(COMPONENT, span._span_api)
 
-            self._span_metrics["spans_created"][(integration_name)] += 1
+            self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span: Span) -> None:
