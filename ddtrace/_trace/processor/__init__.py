@@ -284,11 +284,9 @@ class SpanAggregator(SpanProcessor):
                 agent_url=agent_config.trace_agent_url,
                 dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
-                headers=(
-                    {"Datadog-Client-Computed-Stats": "yes"}
-                    if (config._trace_compute_stats or asm_config._apm_opt_out)
-                    else {}
-                ),
+                headers={"Datadog-Client-Computed-Stats": "yes"}
+                if (config._trace_compute_stats or asm_config._apm_opt_out)
+                else {},
                 report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
             )
