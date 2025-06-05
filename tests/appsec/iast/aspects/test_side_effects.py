@@ -349,8 +349,6 @@ def test_repr_aspect_side_effects():
 
 def test_format_value_aspect_side_effects():
     def __format__(self, *args, **kwargs):
-        print(args)
-        print(kwargs)
         return self._data
 
     def __add__(self, b):
