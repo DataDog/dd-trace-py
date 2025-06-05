@@ -837,11 +837,6 @@ class PatchTestCase(object):
                         import sys
                         from ddtrace.internal.module import ModuleWatchdog
                         from wrapt import wrap_function_wrapper as wrap
-                        try:
-                            from ddtrace.contrib.internal.%s.patch import get_versions
-                        except ImportError:
-                            get_versions = None
-                            from ddtrace.contrib.internal.%s.patch import get_version
 
                         supported_versions_called = False
 
@@ -873,6 +868,12 @@ class PatchTestCase(object):
 
                         import %s as mod
 
+                        try:
+                            from ddtrace.contrib.internal.%s.patch import get_versions
+                        except ImportError:
+                            get_versions = None
+                            from ddtrace.contrib.internal.%s.patch import get_version
+
                         installed_version = get_versions().get('%s') if get_versions else get_version()
 
                         if not installed_version:
@@ -889,9 +890,9 @@ class PatchTestCase(object):
                         """
                         % (
                             self.__integration_name__,
-                            self.__integration_name__,
-                            self.__integration_name__,
                             self.__module_name__,
+                            self.__integration_name__,
+                            self.__integration_name__,
                             self.__module_name__,
                         )
                     )
