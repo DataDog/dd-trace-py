@@ -326,7 +326,7 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
-            self._span_metrics["spans_finished"][(integration_name)] += 1
+            self._span_metrics["spans_finished"][integration_name] += 1
 
             # Calling finish on a span that we did not see the start for
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
