@@ -13,6 +13,7 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
@@ -66,7 +67,7 @@ def _expected_langchain_llmobs_llm_span(
     )
 
 
-def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=None, span_links=False):
+def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=None, span_links=False, metadata=None):
     return _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -74,6 +75,7 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
+        metadata=metadata,
     )
 
 
@@ -85,6 +87,21 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_compl
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(span, mock_token_metrics=True)
 
+
+@mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_completion):
+    mock_generate.return_value = mock_langchain_llm_generate_response
+    with get_request_vcr(ignore_localhost=False).use_cassette("openai_llm_proxy.yaml"):
+        llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+        span,
+        input_value=json.dumps([{"content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}]),
+        metadata={"temperature": 0.7, "max_tokens": 256},
+    )
 
 def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_chat_completion):
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)

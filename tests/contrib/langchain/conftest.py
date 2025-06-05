@@ -38,7 +38,7 @@ def llmobs(
     tracer,
     llmobs_span_writer,
 ):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
+    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_proxy_urls="http://localhost:4000")):
         llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service

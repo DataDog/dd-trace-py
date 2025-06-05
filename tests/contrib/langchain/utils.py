@@ -1,7 +1,13 @@
 import os
+from uuid import UUID
+
+from langchain_core.outputs.llm_result import LLMResult
+from langchain_core.outputs.generation import Generation
+from langchain_core.outputs.run_info import RunInfo
 
 import vcr
 
+mock_langchain_llm_generate_response = LLMResult(generations=[[Generation(text='I am a helpful assistant.', generation_info={'finish_reason': 'length', 'logprobs': None})]], llm_output={'token_usage': {'completion_tokens': 5, 'total_tokens': 10, 'prompt_tokens': 5}, 'model_name': 'gpt-3.5-turbo-instruct'}, run=[RunInfo(run_id=UUID('2f5f3cb3-e2aa-4092-b1e6-9ae1f1b2794b'))])
 
 # VCR is used to capture and store network requests made to OpenAI and other APIs.
 # This is done to avoid making real calls to the API which could introduce
