@@ -88,6 +88,10 @@ def get_versions():
     return PATCHED_VERSIONS
 
 
+def format_version(version: str) -> str:
+    return ".".join(map(lambda x: x.split(" ")[0], version.split(".")[:3]))
+
+
 def _psycopg_modules():
     module_names = (
         "psycopg",
@@ -96,7 +100,7 @@ def _psycopg_modules():
     for module_name in module_names:
         try:
             module = import_module(module_name)
-            PATCHED_VERSIONS[module_name] = getattr(module, "__version__", "")
+            PATCHED_VERSIONS[module_name] = format_version(getattr(module, "__version__", ""))
             yield module
         except ImportError:
             pass

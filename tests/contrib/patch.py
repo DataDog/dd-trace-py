@@ -837,9 +837,13 @@ class PatchTestCase(object):
                         import sys
                         from ddtrace.internal.module import ModuleWatchdog
                         from wrapt import wrap_function_wrapper as wrap
+                        try:
+                            from ddtrace.contrib.internal.%s.patch import get_versions
+                        except ImportError:
+                            get_versions = None
+                            from ddtrace.contrib.internal.%s.patch import get_version
 
                         supported_versions_called = False
-                        patch_module = None
 
                         def patch_hook(module):
                             def supported_versions_wrapper(wrapped, _, args, kwrags):
@@ -854,9 +858,7 @@ class PatchTestCase(object):
                                 sys.stdout.write("K")
                                 return result
 
-                            patch_module = module
-                            if 'patch' not in module.__name__:
-                                patch_module = module.patch
+                            patch_module = module if 'patch' in module.__name__ else module.patch
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
                             wrap(
@@ -871,7 +873,8 @@ class PatchTestCase(object):
 
                         import %s as mod
 
-                        installed_version = patch_module.get_version()
+                        installed_version = get_versions().get('%s') if get_versions else get_version()
+
                         if not installed_version:
                             # if installed version is None, the module is a stdlib module
                             # and ``_supported_versions`` will not have been called
@@ -884,7 +887,13 @@ class PatchTestCase(object):
                         ):
                             sys.stdout.write("K")
                         """
-                        % (self.__integration_name__, self.__module_name__)
+                        % (
+                            self.__integration_name__,
+                            self.__integration_name__,
+                            self.__integration_name__,
+                            self.__module_name__,
+                            self.__module_name__,
+                        )
                     )
                 )
                 f.flush()
