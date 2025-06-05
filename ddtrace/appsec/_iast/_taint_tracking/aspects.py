@@ -449,7 +449,7 @@ def format_value_aspect(
         return format(new_text)
 
     if format_spec:
-        new_new_text = f"{new_text:{format_spec}}"
+        new_new_text = f"{new_text:{format_spec}}"  # type: ignore[str-bytes-safe]
         try:
             # Apply formatting
             text_ranges = get_tainted_ranges(new_text)

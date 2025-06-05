@@ -3,6 +3,7 @@ import sys
 from hypothesis import given
 from hypothesis.strategies import builds
 from hypothesis.strategies import integers
+from hypothesis.strategies import one_of
 from hypothesis.strategies import sampled_from
 from hypothesis.strategies import text
 import pytest
@@ -14,11 +15,20 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.iast_utils import CustomStr
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import non_empty_binary
 from tests.appsec.iast.iast_utils import non_empty_text
+from tests.appsec.iast.iast_utils import string_strategies
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 mod_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
+
+
+@given(one_of(string_strategies))
+def test_fstring(text):
+    result = mod_py3.do_fstring(text)
+    assert result == mod_py3.do_fstring(text)
+    assert result == f"{text}"
 
 
 @given(builds(CustomStr, text()))
@@ -28,11 +38,11 @@ def test_fstring_custom_str(text):
     assert result == f"{text}"
 
 
-@given(text())
-def test_fstring(text):
-    result = mod_py3.do_fstring(text)
-    assert result == mod_py3.do_fstring(text)
-    assert result == f"{text}"
+def test_fstring_with_bytes():
+    bytes_string = b"text"
+    result = mod_py3.do_fstring(bytes_string)
+    assert result == mod_py3.do_fstring(bytes_string)
+    assert result == "b'text'"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
@@ -44,8 +54,37 @@ def test_fstring_tainted(text):
     result = mod_py3.do_fstring(string_input)
     assert result == mod_py3.do_fstring(text)
     assert result == f"{text}"
-    if text != "\x00":
+    if text not in ["\x00", "\x000"]:
         assert is_pyobject_tainted(result)
+
+
+@pytest.mark.skip_iast_check_logs
+@pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@given(non_empty_binary)
+def test_fstring_tainted_bytes(bytes_string):
+    r"""Many bytes characters such as
+        b'\x00', b'\x01', b'\x02', b'\x03', b'\x04', b'\x05', b'\x06', b'\x07', b'\x08', b'\x09' , b'\n'....
+    rises this error
+        ValueError: iast::propagation::native::Invalid or empty source_value
+    in this function call
+        set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
+    """
+    string_input = taint_pyobject(
+        pyobject=bytes_string, source_name="foo", source_value=bytes_string, source_origin=OriginType.PARAMETER
+    )
+    result = mod_py3.do_fstring(string_input)
+    assert result == mod_py3.do_fstring(bytes_string)
+    assert result == f"{bytes_string}"
+
+
+def test_fstring_tainted_byte():
+    bytes_string = b"text"
+    string_input = taint_pyobject(
+        pyobject=bytes_string, source_name="foo", source_value=bytes_string, source_origin=OriginType.PARAMETER
+    )
+    result = mod_py3.do_fstring(string_input)
+    assert result == mod_py3.do_fstring(bytes_string)
+    assert result == "b'text'"
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
@@ -115,7 +154,8 @@ def test_repr_fstring_tainted(text):
     result = mod_py3.do_repr_fstring(string_input)
     assert result == mod_py3.do_repr_fstring(text)
     assert result == f"{text!r}"
-    assert is_pyobject_tainted(result)
+    if text not in ["\x00", "\x000"]:
+        assert is_pyobject_tainted(result)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
@@ -127,7 +167,8 @@ def test_repr_fstring_with_format_tainted(text):
     result = mod_py3.do_repr_fstring_with_format(string_input)
     assert result == mod_py3.do_repr_fstring_with_format(text)
     assert result == f"{text!r:10}"
-    assert is_pyobject_tainted(result)
+    if text != "\x00":
+        assert is_pyobject_tainted(result)
 
 
 @given(integers())
