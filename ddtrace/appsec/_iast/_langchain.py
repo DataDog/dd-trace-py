@@ -334,5 +334,5 @@ def _propagante_agentoutput_parse(args, kwargs, result):
                 values = result.return_values
                 values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
     except Exception as e:
-        iast_error("propagation::source::langchain taint_parser_output. {e}")
+        iast_error(f"propagation::source::langchain taint_parser_output. {e}")
     return result
