@@ -197,7 +197,11 @@ def test_libdd_failure_telemetry_logging():
         assert "mock failure message" in message
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS
+    err=None
+)
 def test_libdd_failure_telemetry_logging_with_auto():
     import mock
 
@@ -244,7 +248,11 @@ def test_stack_v2_failure_telemetry_logging():
         assert "mock failure message" in message
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS.
+    err=None,
+)
 def test_stack_v2_failure_telemetry_logging_with_auto():
     import mock
 
