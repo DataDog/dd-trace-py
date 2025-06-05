@@ -400,6 +400,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    if not InternalTest.is_finished(test_id):
+        log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
+        InternalTest.finish(test_id)
+
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
 
@@ -438,7 +442,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
         log.debug("encountered error during post-test", exc_info=True)
 
 
-@pytest.hookimpl(tryfirst=True, specname="pytest_runtest_protocol")
+@pytest.hookimpl(specname="pytest_runtest_protocol")
 def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None
