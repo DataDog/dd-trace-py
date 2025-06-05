@@ -894,7 +894,8 @@ class PatchTestCase(object):
                 f.flush()
 
                 env = os.environ.copy()
+                env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
                 env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
                 out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
-                assert "OK" in out.decode(), "stderr:\n%s" % err.decode()
+                assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()

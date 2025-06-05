@@ -110,9 +110,8 @@ if not patched and (
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
     def test_supported_versions_function_allows_valid_imports(self):
-        """
-        Test the integration's supported versions allows valid imports.
-        """
+        # Overriding the base test case due to langgraph's code structure not allowing
+        # langgraph to be patched by a direct import.
         with NamedTemporaryFile(mode="w", suffix=".py") as f:
             f.write(
                 """
@@ -147,6 +146,7 @@ def patch_hook(module):
         patch_module._supported_versions.__name__,
         supported_versions_wrapper,
     )
+    wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
 ModuleWatchdog.register_module_hook("ddtrace.contrib.internal.%s.patch", patch_hook)
 
@@ -166,7 +166,8 @@ if not supported_versions_called and (
             f.flush()
 
             env = os.environ.copy()
+            env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
             env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
             out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
-            assert "OK" in out.decode(), "stderr:\n%s" % err.decode()
+            assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()
