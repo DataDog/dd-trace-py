@@ -1,7 +1,4 @@
-import inspect
-
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal.logger import get_logger
 
 
