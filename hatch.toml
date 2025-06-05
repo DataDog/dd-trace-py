@@ -627,6 +627,37 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
+## ASM Appsec Aggregated Leak Testing
+
+[envs.iast_aggregated_leak_testing]
+template = "iast_aggregated_leak_testing"
+dependencies = [
+    "pytest",
+    "pytest-cov",
+    "hypothesis",
+    "requests",
+    "pytest-asyncio",
+    "anyio",
+    "pydantic",
+    "pydantic-settings",
+]
+
+[envs.iast_aggregated_leak_testing.env-vars]
+DD_IAST_ENABLED = "true"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
+DD_FAST_BUILD = "0"
+
+[envs.iast_aggregated_leak_testing.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    "python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+]
+
+[[envs.iast_aggregated_leak_testing.matrix]]
+python = ["3.10", "3.11", "3.12"]
+
 ## pytorch profiling test
 
 [envs.profiling_pytorch]
