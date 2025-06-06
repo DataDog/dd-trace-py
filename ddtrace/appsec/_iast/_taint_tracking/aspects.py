@@ -1,3 +1,4 @@
+import _io
 from builtins import bytearray as builtin_bytearray
 from builtins import bytes as builtin_bytes
 import codecs
@@ -16,8 +17,6 @@ from typing import Optional
 from typing import Text
 from typing import Tuple
 from typing import Union
-
-import _io
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
@@ -450,11 +449,11 @@ def format_value_aspect(
         return format(new_text)
 
     if format_spec:
+        new_new_text = f"{new_text:{format_spec}}"  # type: ignore[str-bytes-safe]
         try:
             # Apply formatting
             text_ranges = get_tainted_ranges(new_text)
             if text_ranges:
-                new_new_text = ("{:%s}" % format_spec).format(new_text)
                 try:
                     new_ranges = list()
                     for text_range in text_ranges:
@@ -463,12 +462,12 @@ def format_value_aspect(
                         taint_pyobject_with_ranges(new_new_text, tuple(new_ranges))
                     return new_new_text
                 except ValueError:
-                    return ("{:%s}" % format_spec).format(new_text)
+                    return new_new_text
             else:
-                return ("{:%s}" % format_spec).format(new_text)
+                return new_new_text
         except Exception as e:
             iast_propagation_error_log(f"format_value_aspect. {e}")
-            return ("{:%s}" % format_spec).format(new_text)
+            return new_new_text
 
     return format(new_text)
 

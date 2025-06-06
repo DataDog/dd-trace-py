@@ -25,7 +25,6 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -37,7 +36,7 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
@@ -128,7 +127,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
+            log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
 
         self._update_required()
 
@@ -180,7 +179,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
 
-        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type not in asm_config._asm_processed_span_types:
             return
 
         _asm_request_context.start_context(span)
@@ -311,10 +310,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
-        # FingerPrinting
-        for key, value in waf_results.derivatives.items():
-            if key.startswith(FINGERPRINTING.PREFIX):
-                root_span.set_tag_str(key, value)
+        # Trace tagging
+        for key, value in waf_results.meta_tags.items():
+            root_span.set_tag_str(key, value)
+        for key, value in waf_results.metrics.items():
+            root_span.set_metric(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)

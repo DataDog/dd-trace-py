@@ -1,3 +1,4 @@
+import _io
 from collections import namedtuple
 from enum import Enum
 import functools
@@ -20,8 +21,6 @@ from typing import Sequence
 from typing import Text
 from typing import Tuple
 import urllib.parse
-
-import _io
 
 
 def methodcaller(*args, **kwargs):
@@ -1262,10 +1261,6 @@ def do_customspec_ascii():
 def do_customspec_formatspec():
     c = CustomSpec()
     return f"{c!s:<20s}"
-
-
-def do_fstring(a, b):
-    return f"{a} + {b} = {a + b}"
 
 
 def _preprocess_lexer_input(text):

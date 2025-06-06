@@ -207,7 +207,11 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
 def debugger(**config_overrides: Any) -> Generator[TestDebugger, None, None]:
     """Test with the debugger enabled."""
     with _debugger(di_config, config_overrides) as debugger:
-        yield debugger
+        debugger.__watchdog__.install()
+        try:
+            yield debugger
+        finally:
+            debugger.__watchdog__.uninstall()
 
 
 class MockSpanExceptionHandler(SpanExceptionHandler):
