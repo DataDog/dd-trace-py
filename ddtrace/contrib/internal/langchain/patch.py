@@ -168,15 +168,15 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
-    span_name = integration.get_span_name(instance)
     span = integration.trace(
         pin,
-        span_name,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
     completions = None
 
@@ -227,15 +227,15 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
-    span_name = integration.get_span_name(instance)
     span = integration.trace(
         pin,
-        span_name,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -285,15 +285,15 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
-    span_name = integration.get_span_name(instance)
     span = integration.trace(
         pin,
-        span_name,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -382,15 +382,15 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     llm_provider = instance._llm_type.split("-")[0]
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
-    span_name = integration.get_span_name(instance)
     span = integration.trace(
         pin,
-        span_name,
+        "%s.%s" % (instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)

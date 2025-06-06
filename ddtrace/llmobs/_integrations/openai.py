@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -111,8 +112,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         operation: str = "",  # oneof "completion", "chat", "embedding"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        proxy_request = "proxy" in span.resource
-        span_kind = "workflow" if proxy_request else "embedding" if operation == "embedding" else "llm"
+        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "embedding" if operation == "embedding" else "llm"
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
         model_provider = "openai"
@@ -172,3 +172,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return get_llmobs_metrics_tags("openai", span)
 
+    def _get_base_url(self, kwargs: Dict[str, Any]) -> str:
+        instance = kwargs.get("instance", None)
+        client = getattr(instance, "_client", None)
+        base_url = getattr(client, "_base_url", None) if client else None
+        return str(base_url) if base_url else None

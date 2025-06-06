@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings import IntegrationConfig
 from ddtrace.trace import Pin
@@ -64,6 +65,10 @@ class BaseLLMIntegration:
             service=int_service(pin, self.integration_config),
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
         )
+        # determine if the span represents a proxy request
+        base_url = self._get_base_url(kwargs)
+        if self._is_proxy_url(base_url):
+            span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span.set_tag(_SPAN_MEASURED_KEY)
         self._set_base_span_tags(span, **kwargs)
@@ -109,6 +114,9 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
+
+    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
+        return None
     
     def _is_proxy_url(self, base_url: Optional[str] = None) -> bool:
         if not base_url:

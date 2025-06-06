@@ -43,19 +43,16 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-    is_proxy_url = integration._is_proxy_url(str(base_url) if base_url else None)
-    operation_id = "proxy.%s.%s" % (instance.__class__.__name__, func.__name__) if is_proxy_url else "%s.%s" % (instance.__class__.__name__, func.__name__)
 
     span = integration.trace(
         pin,
-        operation_id,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None
@@ -119,19 +116,16 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-    is_proxy_url = integration._is_proxy_url(str(base_url) if base_url else None)
-    operation_id = "proxy.%s.%s" % (instance.__class__.__name__, func.__name__) if is_proxy_url else "%s.%s" % (instance.__class__.__name__, func.__name__)
 
     span = integration.trace(
         pin,
-        operation_id,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
         submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None

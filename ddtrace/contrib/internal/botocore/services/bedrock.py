@@ -493,18 +493,14 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     model_id = params.get("modelId")
     model_provider, model_name = _parse_model_id(model_id)
     integration = function_vars.get("integration")
-    endpoint = getattr(instance, "_endpoint", None)
-    endpoint_host = getattr(endpoint, "host", None) if endpoint else None
     submit_to_llmobs = (
         integration.llmobs_enabled
         and "embed" not in model_name
     )
-    is_proxy_url = integration._is_proxy_url(str(endpoint_host) if endpoint_host else None)
-    span_name = f"proxy.{function_vars.get('trace_operation')}" if is_proxy_url else function_vars.get("trace_operation")
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
-        span_name=span_name,
+        span_name=function_vars.get("trace_operation"),
         service=schematize_service_name(
             "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
@@ -515,6 +511,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         params=params,
         model_provider=model_provider,
         model_name=model_name,
+        instance=instance,
     ) as ctx:
         try:
             handle_bedrock_request(ctx)

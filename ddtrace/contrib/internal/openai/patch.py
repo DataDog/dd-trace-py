@@ -206,15 +206,7 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-    is_proxy_url = integration._is_proxy_url(str(base_url) if base_url else None)
-
-    operation_id = f"proxy.{endpoint_hook.OPERATION_ID}" if is_proxy_url else endpoint_hook.OPERATION_ID
-    span = integration.trace(
-        pin,
-        operation_id,
-    )
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID, instance=instance)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     resp, err = None, None
     if openai_api_key:

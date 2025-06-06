@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -168,7 +169,7 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = LLMObs._integration_is_enabled(llmobs_integration) or "proxy" in span.resource
+            is_workflow = LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST)
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
@@ -679,6 +680,7 @@ class LangChainIntegration(BaseLLMIntegration):
         provider: Optional[str] = None,
         model: Optional[str] = None,
         api_key: Optional[str] = None,
+        **kwargs,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         span.set_tag_str(TYPE, interface_type)
@@ -730,10 +732,9 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
     
-    def get_span_name(self, instance):
+    def _get_base_url(self, kwargs: Dict[str, Any]) -> str:
+        instance = kwargs.get("instance", None)
         base_url = None
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
-        is_proxy_url = self._is_proxy_url(str(base_url) if base_url else None)
-        return "proxy.%s.%s" % (instance.__module__, instance.__class__.__name__) if is_proxy_url else "%s.%s" % (instance.__module__, instance.__class__.__name__)
-
+        return str(base_url) if base_url else None
