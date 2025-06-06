@@ -549,13 +549,6 @@ SQLite
 .. automodule:: ddtrace.contrib._sqlite3
 
 
-.. _sqlite3:
-
-SQLite3
-^^^^^^^
-.. automodule:: ddtrace.contrib._sqlite3
-
-
 .. _subprocess:
 
 Subprocess
