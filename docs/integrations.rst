@@ -456,7 +456,7 @@ pytest-bdd
 .. _pytest_benchmark:
 
 pytest-benchmark
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._pytest_benchmark
 
 .. _protobuf:
