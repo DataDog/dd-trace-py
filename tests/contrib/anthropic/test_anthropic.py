@@ -600,3 +600,16 @@ async def test_anthropic_llm_async_tools_stream_full_use(anthropic, request_vcr,
                 )
                 async for _ in stream:
                     pass
+
+
+def test_anthropic_streaming_with_malformed_streamed_events(anthropic, request_vcr):
+    """Assert that a malformed streamed event does not throw an error"""
+    with request_vcr.use_cassette("anthropic_completion_stream_malformed.yaml"):
+        llm = anthropic.Anthropic()
+        with llm.messages.stream(
+            model="claude-3-opus-20240229",
+            max_tokens=200,
+            messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+        ) as stream:
+            for _ in stream.text_stream:
+                pass

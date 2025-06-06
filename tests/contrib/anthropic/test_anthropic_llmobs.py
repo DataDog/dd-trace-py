@@ -775,3 +775,15 @@ class TestLLMObsAnthropic:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
+
+    def test_anthropic_streaming_with_malformed_streamed_events(self, anthropic, request_vcr):
+        """Assert that a malformed streamed event does not throw an error"""
+        with request_vcr.use_cassette("anthropic_completion_stream_malformed.yaml"):
+            llm = anthropic.Anthropic()
+            with llm.messages.stream(
+                model="claude-3-opus-20240229",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+            ) as stream:
+                for _ in stream.text_stream:
+                    pass

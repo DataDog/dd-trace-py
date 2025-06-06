@@ -220,10 +220,10 @@ def _on_content_block_delta_chunk(chunk, message):
     delta_block = _get_attr(chunk, "delta", "")
     if delta_block is None:
         return message
-    
+
     if len(message["content"]) == 0:
         return message
-    
+
     chunk_content_text = _get_attr(delta_block, "text", "")
     if chunk_content_text:
         message["content"][-1]["text"] += chunk_content_text
@@ -239,7 +239,7 @@ def _on_content_block_stop_chunk(chunk, message):
     # this is the start to a message.content block (possibly 1 of several content blocks)
     if len(message["content"]) == 0:
         return message
-    
+
     content_type = _get_attr(message["content"][-1], "type", "")
     if content_type == "tool_use":
         input_json = _get_attr(message["content"][-1], "input", "{}")
