@@ -3032,11 +3032,8 @@ venv = Venv(
         ),
         Venv(
             name="selenium",
-            command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
+            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
-                "hypothesis": latest,
                 "selenium": "~=4.0",
                 "webdriver-manager": latest,
             },
@@ -3045,7 +3042,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=["3.10", "3.12"],
                     venvs=[
                         Venv(
                             env={
