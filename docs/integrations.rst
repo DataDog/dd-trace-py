@@ -154,8 +154,8 @@ CrewAI
 
 .. _datadog_lambda:
 
-Datadog Lambda
-^^^^^^^^^^^^^^
+datadog_lambda
+==============
 .. automodule:: ddtrace.contrib._aws_lambda
 
 
