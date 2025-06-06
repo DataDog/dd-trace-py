@@ -12,7 +12,7 @@ if you'd like to report a bug or request a new feature.
 
 Before working on the library, install `docker <https://www.docker.com/products/docker>`_.
 
-If you're trying to set up a local dev environment, read `this <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_.
+If you're trying to set up a local development environment, read `this <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_.
 
 Thanks for working with us!
 
