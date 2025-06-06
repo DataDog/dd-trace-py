@@ -1932,26 +1932,17 @@ venv = Venv(
             pkgs={
                 "pytest-aiohttp": [latest],
                 "pytest-randomly": latest,
+                "aiohttp": [
+                    "~=3.7",
+                    latest,
+                ],
                 "yarl": "~=1.0",
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    # limit testing to this single test file to avoid testing of newer aiohttp features in other files
-                    command="pytest {cmdargs} \
-                    --ignore=tests/contrib/aiohttp/test_request.py \
-                    --ignore=tests/contrib/aiohttp/test_request_safety.py \
-                    --ignore=tests/contrib/aiohttp/test_middleware.py \
-                    tests/contrib/aiohttp",
-                    pkgs={
-                        "aiohttp": ["~=3.7.0"],
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "pytest-asyncio": ["==0.23.7"],
-                        "aiohttp": ["~=3.7", latest],
+                        "pytest-asyncio": ["~=0.23.7"],
                     },
                 ),
             ],
