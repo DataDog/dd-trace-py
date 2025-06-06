@@ -33,12 +33,14 @@ class TooLargeSchemaException(Exception):
 
 
 class APIManager(Service):
-    COLLECTED = [
+    BLOCK_COLLECTED = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
+    ]
+    COLLECTED = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
     ]
@@ -132,7 +134,8 @@ class APIManager(Service):
         if env.span is None or not asm_config._api_security_feature_active:
             return
         root = env.span._local_root or env.span
-        if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
+        collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
+        if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return
 
         try:
@@ -161,7 +164,7 @@ class APIManager(Service):
             return
 
         waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
-        for address, _, transform in self.COLLECTED:
+        for address, _, transform in collected:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
@@ -176,7 +179,7 @@ class APIManager(Service):
         if result is None:
             return
         nb_schemas = 0
-        for meta, schema in result.derivatives.items():
+        for meta, schema in result.api_security.items():
             b64_gzip_content = b""
             try:
                 b64_gzip_content = base64.b64encode(

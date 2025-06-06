@@ -70,8 +70,8 @@ suites:
     paths:
       - '@appsec_iast'
       - tests/appsec/iast_aggregated_memcheck/*
-    runner: riot
-    timeout: 60m
+    runner: hatch
+    timeout: 50m
   appsec_iast_packages:
     paths:
       - '@appsec_iast'
@@ -153,7 +153,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 12
+    parallelism: 22
     paths:
       - '@bootstrap'
       - '@core'
