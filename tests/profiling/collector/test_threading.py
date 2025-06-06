@@ -676,6 +676,3 @@ def test_global_locks():
             assert e.frames[0] == (expected_filename, linenos_foo.release, "foo", "")
         elif e.lock_name == expected_lock_names[1]:
             assert e.frames[0] == (expected_filename, linenos_bar.release, "bar", "Bar")
-
-
-# ꙮ trigger CI
