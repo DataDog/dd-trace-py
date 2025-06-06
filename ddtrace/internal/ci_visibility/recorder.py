@@ -408,7 +408,7 @@ class CIVisibility(Service):
         if writer is not None:
             from .encoder import CIVisibilityEncoderV01
 
-            writer.encoder = CIVisibilityEncoderV01(0, 0)
+            writer.client.encoder = CIVisibilityEncoderV01(0, 0)
             self.tracer._span_aggregator.writer = writer
             self.tracer._recreate()
 
