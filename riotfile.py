@@ -102,9 +102,18 @@ venv = Venv(
     },
     venvs=[
         Venv(
-            pys=["3"],
             name="meta-testing",
-            command="pytest {cmdargs} tests/meta",
+            pys=["3.10"],
+            command="pytest {cmdargs} --no-ddtrace tests/meta",
+            env={
+                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
+            },
+        ),
+        Venv(
+            name="slotscheck",
+            command="python -m slotscheck -v ddtrace/",
+            pys=["3.10"],
+            pkgs={"slotscheck": "==0.17.0"},
         ),
         Venv(
             name="gitlab-gen-config",
@@ -142,24 +151,6 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
                 "DD_IAST_REQUEST_SAMPLING": "100",
-            },
-        ),
-        Venv(
-            name="iast_aggregated_leak_testing",
-            pys=["3.10", "3.11", "3.12"],
-            # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
-            pkgs={
-                "requests": latest,
-                "pytest-asyncio": latest,
-                "anyio": latest,
-                "pydantic": latest,
-                "pydantic-settings": latest,
-            },
-            env={
-                "DD_IAST_ENABLED": "true",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
-                "DD_FAST_BUILD": "0",
             },
         ),
         Venv(
@@ -750,10 +741,11 @@ venv = Venv(
         ),
         Venv(
             name="django:djangorestframework",
-            command="pytest {cmdargs} tests/contrib/djangorestframework",
+            command="pytest -n 8 {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
@@ -1120,6 +1112,7 @@ venv = Venv(
                 "cryptography": latest,
                 "pytest-memray": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "pytest-randomly": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -1145,7 +1138,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest {cmdargs} tests/contrib/pynamodb",
+            command="pytest -n 8 {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
@@ -1156,6 +1149,7 @@ venv = Venv(
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.10.0",
                         "pytest-randomly": latest,
+                        "pytest-xdist": latest,
                     },
                 ),
             ],
@@ -2701,12 +2695,13 @@ venv = Venv(
         ),
         Venv(
             name="molten",
-            command="pytest {cmdargs} tests/contrib/molten",
+            command="pytest -n 8 {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],
                 "molten": [">=1.0,<1.1", latest],
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
         ),
         Venv(
@@ -2847,7 +2842,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_STACK_V2_ENABLED": "0",
-                "DD_PROFILING__FORCE_LEGACY_EXPORTER": "1",
+                "DD_PROFILING_EXPORT_LIBDD_ENABLED": "1",
                 "CPUCOUNT": "12",
             },
             pkgs={
