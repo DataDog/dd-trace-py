@@ -273,8 +273,8 @@ class Tracer(object):
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
-        if isinstance(self._writer, NativeWriter):
-            self._writer._exporter.stop_worker()
+        if isinstance(self._span_aggregator.writer, NativeWriter):
+            self._span_aggregator.writer._exporter.stop_worker()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -431,7 +431,7 @@ class Tracer(object):
         self._new_process = True
 
     def _parent_after_fork(self):
-        if isinstance(self._writer, NativeWriter):
+        if isinstance(self._span_aggregator.writer, NativeWriter):
             pass
             # self._writer.start_worker_thread()
 
