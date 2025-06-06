@@ -1,5 +1,3 @@
-import os
-
 import fastapi
 import fastapi.routing
 from wrapt import ObjectProxy
@@ -14,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.settings._config import _get_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
 
@@ -27,12 +26,10 @@ config._add(
         request_span_name="fastapi.request",
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
-        _trace_asgi_websocket=asbool(os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False)),
-        _trace_asgi_websocket_messages=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=True)),
-        _asgi_websockets_inherit_sampling=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
-        ),
-        _websocket_messages_separate=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        _trace_asgi_websocket=_get_config("DD_ASGI_TRACE_WEBSOCKET", False, asbool),
+        _trace_asgi_websocket_messages=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", True, asbool),
+        _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
+        _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),
     ),
 )
 

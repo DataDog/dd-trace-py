@@ -633,6 +633,28 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
             assert "bye" in farewell
 
 
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_sampling_inherited(test_spans, snapshot_app):
+    client = TestClient(snapshot_app)
+
+    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text("message")
+            websocket.receive_text()
+            websocket.send_text("close")
+
+    traces = test_spans.pop_traces()
+    spans = [span for trace in traces for span in trace]
+
+    handshake_span = next((s for s in spans if s.name == "fastapi.request"), None)
+    assert handshake_span, "fastapi.request (handshake) span not found"
+    handshake_span._meta["_dd.p.dm"] = "-1"
+    child_spans = [s for s in spans if s.trace_id == handshake_span.trace_id and s.span_id != handshake_span.span_id]
+
+    for span in child_spans:
+        assert "_dd.p.dm" not in span._meta, f"Child span {span.name} should not override _dd.p.dm"
+
+
 def test_dont_trace_websocket_by_default(client, test_spans):
     initial_event_count = len(test_spans.pop_traces())
     with client.websocket_connect("/ws") as websocket:
