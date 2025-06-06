@@ -552,7 +552,7 @@ SQLite
 .. _subprocess:
 
 Subprocess
-^^^^^^^^^
+^^^^^^^^^^
 .. automodule:: ddtrace.contrib._subprocess
 
 
