@@ -11,7 +11,6 @@ from typing import List
 from typing import MutableMapping
 from typing import Set
 from typing import cast
-from weakref import WeakKeyDictionary as wkdict
 
 from ddtrace.internal.safety import _isinstance
 
@@ -128,7 +127,7 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
-_CODE_TO_ORIGINAL_FUNCTION_MAPPING: MutableMapping[CodeType, FunctionType] = wkdict()
+_CODE_TO_ORIGINAL_FUNCTION_MAPPING: MutableMapping[CodeType, FunctionType] = dict()
 
 
 def link_function_to_code(code: CodeType, function: FunctionType) -> None:
