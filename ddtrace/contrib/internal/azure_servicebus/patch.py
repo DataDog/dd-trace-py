@@ -6,7 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.contrib.trace_utils import int_service
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
@@ -16,7 +16,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.propagation.http import HTTPPropagator as Propagator
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 
 
@@ -49,6 +49,7 @@ def patch():
 
 def _patched_test(wrapped, instance, args, kwargs):
     # TODO: rename CONNECTION_SETTING to CONNECTION_STRING
+    # TODO: is this a queue or topic sender? Does it change the span attributes?
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -57,11 +58,10 @@ def _patched_test(wrapped, instance, args, kwargs):
     operation_name = schematize_messaging_operation(
         azure_servicebusx.PRODUCE, provider="azure_servicebus", direction=SpanDirection.OUTBOUND
     )
-    resource = "test resource"
+
     with pin.tracer.trace(
-        operation_name,
-        service=int_service(pin, config.azure_servicebus),
-        resource=resource,
+        name=operation_name,
+        service=ext_service(pin, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
     ) as span:
         span.set_tag_str(COMPONENT, config.azure_servicebus.integration_name)
@@ -69,11 +69,13 @@ def _patched_test(wrapped, instance, args, kwargs):
 
         # TODO: check if distributed tracing is enabled
         # TODO: only inject context on first message? Apparently this is an OTel standard
+        # TODO: handle all possible types passed - single message, message batch, list of messages, ampq messages
         message = get_argument_value(args, kwargs, 0, "message", True) or None
         application_properties = message.application_properties or {}
-        Propagator.inject(span.context, application_properties)
+        HTTPPropagator.inject(span.context, application_properties)
         message.application_properties = application_properties
-    return wrapped(*args, **kwargs)
+
+        return wrapped(*args, **kwargs)
 
 
 def unpatch():

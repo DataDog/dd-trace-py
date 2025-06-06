@@ -1,3 +1,7 @@
 SERVICE = "azure_servicebus"
 
-PRODUCE = "azure_servicebus.produce"
+TOPIC = "azure.servicebus.topic"
+
+PRODUCE = "azure.servicebus.produce"
+
+# TODO: other span attributes?
