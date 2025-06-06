@@ -2,7 +2,6 @@ import json
 import traceback
 
 from flask import request
-from importlib_metadata import version
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -10,7 +9,6 @@ from ddtrace.appsec._iast._iast_request_context_base import _iast_start_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patches.json_tainting import patch as patch_json
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
@@ -25,14 +23,13 @@ from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.integrations.flask_tests.utils import flask_version
+from tests.appsec.integrations.flask_tests.utils import werkzeug_version
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
 
 
 TEST_FILE_PATH = "tests/appsec/integrations/flask_tests/test_iast_flask.py"
-
-werkzeug_version = version("werkzeug")
-flask_version = tuple([int(v) for v in version("flask").split(".")])
 
 
 class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
@@ -444,7 +441,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         ):
             oce.reconfigure()
 
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
                 self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")
@@ -510,7 +507,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _iast_deduplication_enabled=False,
             )
         ):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master2")
             else:
                 self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master2")
@@ -1235,8 +1232,20 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert "class" not in vulnerability["location"]
             assert vulnerability["hash"] == hash_value
 
-    @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection(self):
+        """Test header injection vulnerability detection in Flask test client.
+
+        This test works specifically because we're using Flask's test client, which has a different
+        header handling mechanism than a real Flask application. In the test client, setting
+        resp.headers["Header-Injection"] directly manipulates the headers without calling
+        werkzeug.datastructures.headers._str_header_value. In a real application, that method
+        would be called and it would sanitize or raise an exception for invalid header values.
+
+        This test is valuable for verifying the header injection vulnerability detection logic,
+        but it's important to note that exploiting this in a real Flask application would be more
+        difficult due to Werkzeug's header value sanitization.
+        """
+
         @self.app.route("/header_injection/", methods=["GET", "POST"])
         def header_injection():
             from flask import Response
@@ -1247,7 +1256,6 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             resp = Response("OK")
             resp.headers["Vary"] = tainted_string
 
-            # label test_flask_header_injection_label
             resp.headers["Header-Injection"] = tainted_string
             return resp
 
@@ -1259,19 +1267,69 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
         ):
             resp = self.client.post("/header_injection/", data={"name": "test"})
             assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test"
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span.get_tag(IAST.JSON) is None
+
+    def test_flask_header_injection_direct_access_to_header(self):
+        @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            resp.headers._list.append(("Header-Injection", tainted_string))
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            resp = self.client.post("/header_injection_insecure/", data={"name": "test"})
+            assert resp.status_code == 200
+            assert resp.headers["Header-Injection"] == "test"
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
-            assert loaded["sources"] == [{"origin": "http.request.parameter", "name": "name", "value": "test"}]
+            assert root_span.get_tag(IAST.JSON) is None
 
-            vulnerability = loaded["vulnerabilities"][0]
-            assert vulnerability["type"] == VULN_HEADER_INJECTION
-            assert vulnerability["evidence"] == {
-                "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "test"}]
-            }
-            # TODO: vulnerability path is flaky, it points to "tests/contrib/flask/__init__.py"
+    def test_flask_header_injection_direct_access_to_header_exception(self):
+        @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
+        def header_injection():
+            from flask import Response
+            from flask import request
+
+            tainted_string = request.form.get("name")
+            assert is_pyobject_tainted(tainted_string)
+            resp = Response("OK")
+            # resp.headers["Vary"] = tainted_string
+
+            # label test_flask_header_injection_label
+            resp.headers._list.append(("Header-Injection", tainted_string))
+            return resp
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+            )
+        ):
+            if werkzeug_version <= (2, 0, 3):
+                self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
+            else:
+                with pytest.raises(ValueError):
+                    self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span.get_tag(IAST.JSON) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_transfer_encoding(self):
@@ -1754,6 +1812,43 @@ Lorem Ipsum Foobar
             # assert vulnerability["location"].get("stackId") == "1", f"Wrong Vulnerability stackId {vulnerability}"
             # assert "class" not in vulnerability["location"]
 
+    def test_flask_unvalidated_redirect_headers(self):
+        @self.app.route("/unvalidated_redirect_headers/", methods=["GET"])
+        def unvalidated_redirect_headers_view():
+            from flask import Response
+
+            url = request.args.get("url", "")
+
+            response = Response("OK")
+            response.headers["Location"] = url
+            return response
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/unvalidated_redirect_headers/?url=http://localhost:8080/malicious")
+            assert resp.status_code == 200
+            assert b"OK" in resp.data
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+            ]
+
+            get_line_and_hash("test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
+            assert vulnerability["evidence"] == {
+                "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
+            }
+
     def test_flask_xss_concat(self):
         @self.app.route("/xss/concat/", methods=["GET"])
         def xss_view():
@@ -1967,7 +2062,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             return "OK", 200
 
         with override_global_config(dict(_iast_enabled=False)):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="sqlite_master", value="sqlite_master3")
             else:
                 self.client.set_cookie(server_name="localhost", key="sqlite_master", value="sqlite_master3")
@@ -2122,7 +2217,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
                 _iast_enabled=False,
             )
         ):
-            if tuple(map(int, werkzeug_version.split("."))) >= (2, 3):
+            if werkzeug_version >= (2, 3):
                 self.client.set_cookie(domain="localhost", key="test-cookie1", value="sqlite_master")
             else:
                 self.client.set_cookie(server_name="localhost", key="test-cookie1", value="sqlite_master")

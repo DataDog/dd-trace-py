@@ -408,12 +408,24 @@ test = [
 ]
 
 [[envs.appsec_integrations_django.matrix]]
+python = ["3.10", "3.13"]
+django = ["~=5.1"]
+
+[[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-django = ["~=4.0"]
+django = ["~=4.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0.10"]
 
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=3.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9"]
+django = ["~=2.2"]
 
 ## ASM appsec_integrations_flask
 
@@ -486,6 +498,7 @@ dependencies = [
     "python-multipart",
     "jinja2",
     "httpx<0.28.0",
+    "uvicorn==0.33.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
