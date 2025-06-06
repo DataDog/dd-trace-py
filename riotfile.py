@@ -1932,18 +1932,20 @@ venv = Venv(
             pkgs={
                 "pytest-aiohttp": [latest],
                 "pytest-randomly": latest,
-                "aiohttp": [
-                    "~=3.7.0",
-                    "~=3.7",
-                    latest,
-                ],
                 "yarl": "~=1.0",
             },
             venvs=[
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "aiohttp": ["~=3.7.0"],
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "pytest-asyncio": ["==0.23.7"],
+                        "aiohttp": ["~=3.7", latest],
                     },
                 ),
             ],
