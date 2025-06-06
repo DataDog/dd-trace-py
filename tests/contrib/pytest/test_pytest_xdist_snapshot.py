@@ -177,3 +177,58 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                     )
                 ),
             )
+
+
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=4)
+    def test_pytest_xdist_n2_wont_include_lines_pct_if_report_empty(self):
+        tools = """
+                def add_two_number_list(list_1, list_2):
+                    output_list = []
+                    for number_a, number_b in zip(list_1, list_2):
+                        output_list.append(number_a + number_b)
+                    return output_list
+
+                def multiply_two_number_list(list_1, list_2):
+                    output_list = []
+                    for number_a, number_b in zip(list_1, list_2):
+                        output_list.append(number_a * number_b)
+                    return output_list
+                """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+                from tools import add_two_number_list
+                from tools import multiply_two_number_list
+
+                def test_add_two_number_list():
+                    a_list = [1,2,3,4,5,6,7,8]
+                    b_list = [2,3,4,5,6,7,8,9]
+                    actual_output = add_two_number_list(a_list, b_list)
+
+                    assert actual_output == [3,5,7,9,11,13,15,17]
+
+                def test_mult_two_number_list():
+                    a_list = [1,2,3,4,5,6,7,8]
+                    b_list = [2,3,4,5,6,7,8,9]
+                    actual_output = multiply_two_number_list(a_list, b_list)
+
+                    assert actual_output == [2,6,12,20,30,42,56,72]
+                """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ):
+            subprocess.run(
+                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                env=_get_default_ci_env_vars(
+                    dict(
+                        DD_API_KEY="foobar.baz",
+                        DD_CIVISIBILITY_ITR_ENABLED="false",
+                        DD_PATCH_MODULES="sqlite3:false",
+                        CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    )
+                ),
+            )
+
