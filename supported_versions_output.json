@@ -103,7 +103,7 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.0.8",
+        "minimum_tracer_supported": "1.20.0",
         "max_tracer_supported": "1.21.3",
         "pinned": "true",
         "auto-instrumented": true

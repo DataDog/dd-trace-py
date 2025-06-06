@@ -138,7 +138,7 @@ integrations:
   - azure-functions
   tested_versions_by_dependency:
     azure-functions:
-      min: 1.0.8
+      min: 1.20.0
       max: 1.21.3
 
 - integration_name: boto
