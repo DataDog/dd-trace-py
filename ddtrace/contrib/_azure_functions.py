@@ -22,4 +22,5 @@ Global Configuration
 
    Default: ``"azure_functions"``
 
+   # TODO: distributed tracing config
 """

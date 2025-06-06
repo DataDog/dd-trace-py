@@ -22,4 +22,5 @@ Global Configuration
 
    Default: ``"azure_servicebus"``
 
+   # TODO: distributed tracing config
 """
