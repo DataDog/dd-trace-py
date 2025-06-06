@@ -179,7 +179,14 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
         with openai_vcr.use_cassette("completion.yaml"):
             client = openai.OpenAI()
             client.completions.with_raw_response.create(
-                model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
+                model="ada",
+                prompt="Hello world",
+                temperature=0.8,
+                n=2,
+                stop=".",
+                max_tokens=10,
+                user="ddtrace-test",
+                stream=True,
             )
 
 

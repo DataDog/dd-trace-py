@@ -107,6 +107,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",

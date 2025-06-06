@@ -109,6 +109,7 @@ PATCH_MODULES = {
     "langchain": True,
     "anthropic": True,
     "crewai": True,
+    "pydantic_ai": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,

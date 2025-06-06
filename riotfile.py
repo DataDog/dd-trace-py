@@ -2673,6 +2673,15 @@ venv = Venv(
                 "openai": latest,
                 "crewai": [">=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
+            }
+        ),
+        Venv(
+            name="pydantic_ai",
+            command="pytest {cmdargs} tests/contrib/pydantic_ai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "pydantic": [latest],
             },
         ),
         Venv(
