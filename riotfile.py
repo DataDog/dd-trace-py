@@ -3030,5 +3030,33 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="selenium",
+            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            pkgs={
+                "selenium": "~=4.0",
+                "webdriver-manager": latest,
+            },
+            env={
+                "DD_AGENT_TRACER_URL": "9126",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.10", "3.12"],
+                    venvs=[
+                        Venv(
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "false",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
     ],
 )
