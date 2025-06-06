@@ -695,9 +695,13 @@ venv = Venv(
             venvs=[
                 Venv(
                     # django dropped support for Python 3.8/3.9 in 5.0
+                    # limit tests to only the main django test files to avoid import errors due to some tests
+                    # targeting newer django versions
                     pys=select_pys(min_version="3.8", max_version="3.9"),
+                    command="pytest {cmdargs} --ignore=tests/contrib/django/test_django_snapshots.py \
+                        --ignore=tests/contrib/django/test_django_wsgi.py tests/contrib/django",
                     pkgs={
-                        "django": ["~=4.0"],
+                        "django": ["~=2.2.0", "~=3.0.0", "~=4.0"],
                         "channels": latest,
                     },
                 ),
@@ -1891,7 +1895,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys="3.8",
-                    pkgs={"algoliasearch": ["~=2.5", "~=2.6"]},
+                    pkgs={"algoliasearch": ["~=2.5.0", "~=2.6"]},
                 ),
                 Venv(
                     # algoliasearch added support for Python 3.9, 3.10, 3.11 in 3.0
@@ -1903,13 +1907,17 @@ venv = Venv(
         Venv(
             name="aiopg",
             command="pytest {cmdargs} tests/contrib/aiopg",
-            pys=select_pys(min_version="3.8", max_version="3.9"),
             pkgs={
                 "sqlalchemy": latest,
-                "aiopg": "~=0.16.0",
                 "pytest-randomly": latest,
             },
             venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "aiopg": ["~=0.16.0"],
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
@@ -1925,6 +1933,7 @@ venv = Venv(
                 "pytest-aiohttp": [latest],
                 "pytest-randomly": latest,
                 "aiohttp": [
+                    "~=3.7.0",
                     "~=3.7",
                     latest,
                 ],
@@ -2280,6 +2289,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "dogpile.cache": [
+                            "~=0.6.0",
                             "~=0.9",
                             "~=1.0",
                             latest,
@@ -2533,7 +2543,7 @@ venv = Venv(
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": latest,
+                "openai-agents": ["~=0.0.0", latest],
             },
         ),
         Venv(
@@ -2639,8 +2649,17 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
-                "anthropic": [latest, "~=0.28"],
             },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={"anthropic": "~=0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.12"),
+                    pkgs={"anthropic": latest, "httpx": latest},
+                ),
+            ],
         ),
         Venv(
             name="google_generativeai",
@@ -2754,7 +2773,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": latest,
+                "azure.functions": ["~=1.0.0", latest],
                 "requests": latest,
             },
         ),
