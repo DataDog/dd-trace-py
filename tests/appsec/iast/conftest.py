@@ -119,6 +119,14 @@ def iast_span_defaults(tracer):
             yield span
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "skip_iast_check_logs: mark test to remove _DD_IAST_DEBUG environment variable and skip logs checks to validate"
+        "if the propagation is not running outside the context",
+    )
+
+
 @pytest.fixture(autouse=True)
 def check_native_code_exception_in_each_python_aspect_test(request, caplog):
     if "skip_iast_check_logs" in request.keywords:
@@ -129,11 +137,12 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
         ), caplog.at_level(logging.DEBUG):
             yield
 
-        log_messages = [record.message for record in caplog.get_records("call")]
+        for record in caplog.get_records("call"):
+            if IAST_VALID_LOG.search(record.message):
+                import traceback
 
-        for message in log_messages:
-            if IAST_VALID_LOG.search(message):
-                pytest.fail(message)
+                formatted_trace = "".join(traceback.format_exception(*record.exc_info))
+                pytest.fail(f"{record.message}:\n{formatted_trace}")
         # TODO(avara1986): iast tests throw a timeout in gitlab
         #   list_metrics_logs = list(telemetry_writer._logs)
         #   assert len(list_metrics_logs) == 0
