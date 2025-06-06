@@ -616,7 +616,7 @@ def test_websocket_not_separate_traces(test_spans, snapshot_app):
 def test_long_running_websocket_session(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
 
-    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+    with override_config("fastapi", dict(_trace_asgi_websocket_messages=True)):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}
@@ -637,7 +637,7 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
 def test_websocket_sampling_inherited(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
 
-    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+    with override_config("fastapi", dict(_trace_asgi_websocket_messages=True)):
         with client.websocket_connect("/ws") as websocket:
             websocket.send_text("message")
             websocket.receive_text()

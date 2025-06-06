@@ -40,7 +40,6 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        _trace_asgi_websocket=_get_config("DD_ASGI_TRACE_WEBSOCKET", False, asbool),
         _trace_asgi_websocket_messages=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", True, asbool),
         _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
         _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),

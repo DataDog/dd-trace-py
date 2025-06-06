@@ -36,7 +36,6 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        _trace_asgi_websocket=asbool(os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False)),
         # TODO: set as initially false until we gradually release feature
         _trace_asgi_websocket_messages=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=True)),
         _asgi_websockets_inherit_sampling=asbool(
@@ -139,7 +138,7 @@ class TraceMiddleware:
         if scope["type"] == "http":
             method = scope["method"]
         elif scope["type"] == "websocket":
-            if not self.integration_config._trace_asgi_websocket:
+            if not self.integration_config._trace_asgi_websocket_messages:
                 return await self.app(scope, receive, send)
 
             method = "websocket"
