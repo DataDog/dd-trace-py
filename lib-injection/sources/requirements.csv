@@ -1,0 +1,15 @@
+Dependency,Version Specifier,Python Version
+bytecode,>=0.16.0,python_version>='3.13.0'
+bytecode,>=0.15.1,python_version~='3.12.0'
+bytecode,>=0.14.0,python_version~='3.11.0'
+bytecode,>=0.13.0,python_version<'3.11'
+envier,~=0.6.1,
+importlib_metadata,<=6.5.0,python_version<'3.8'
+legacy-cgi,>=2.0.0,python_version>='3.13.0'
+opentelemetry-api,>=1,
+protobuf,>=3,
+typing_extensions,,
+xmltodict,>=0.12,
+wrapt,>=1,
+opentracing,>=2.0.0,
+tiktoken,,
