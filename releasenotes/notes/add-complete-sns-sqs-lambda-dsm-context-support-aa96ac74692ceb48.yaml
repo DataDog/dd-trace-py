@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    DSM: Add support for context extraction for SNS -> Lambda, SNS -> SQS -> Lambda.
