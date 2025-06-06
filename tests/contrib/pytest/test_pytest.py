@@ -4126,3 +4126,22 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_disables_telemetry_dependency_collection(self):
+        """Test that telemetry dependency collection is disabled during pytest sessions."""
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+
+            def test_dependency_collection_disabled():
+                # Check that the config is set to disable telemetry dependency collection
+                # The pytest plugin should have done this earlier in the process
+                from ddtrace.settings._telemetry import config as telemetry_config
+                assert telemetry_config.DEPENDENCY_COLLECTION is False, "Dependency collection should be disabled"
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+        assert result.ret == 0

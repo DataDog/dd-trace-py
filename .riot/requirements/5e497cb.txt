@@ -5,7 +5,7 @@
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/5e497cb.in
 #
 attrs==25.3.0
-coverage[toml]==7.8.0
+coverage[toml]==7.8.2
 gunicorn==23.0.0
 hypothesis==6.45.0
 iniconfig==2.1.0
@@ -13,14 +13,15 @@ lz4==4.4.4
 mock==5.2.0
 opentracing==2.4.0
 packaging==25.0
-pluggy==1.5.0
+pluggy==1.6.0
 protobuf==4.22.0
 py-cpuinfo==8.0.0
-pytest==8.3.5
+pygments==2.19.1
+pytest==8.4.0
 pytest-asyncio==0.21.1
 pytest-benchmark==5.1.0
 pytest-cov==6.1.1
-pytest-mock==3.14.0
+pytest-mock==3.14.1
 pytest-randomly==3.16.0
 sortedcontainers==2.4.0
-uwsgi==2.0.29
+uwsgi==2.0.30
