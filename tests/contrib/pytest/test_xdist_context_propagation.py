@@ -162,12 +162,16 @@ def test_xdist_hooks_class_has_required_hookimpl():
     assert callable(getattr(XdistHooks, "pytest_configure_node"))
 
     # Verify we can instantiate it and call the method
-    hooks = XdistHooks()
-    mock_node = MagicMock()
-    mock_node.workerinput = {}
+    with patch("ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=None):
+        hooks = XdistHooks()
+        mock_node = MagicMock()
+        mock_node.workerinput = {}
 
-    # This should not raise an exception
-    hooks.pytest_configure_node(mock_node)
+        # This should not raise an exception
+        hooks.pytest_configure_node(mock_node)
+
+        # Verify the workerinput was set correctly
+        assert mock_node.workerinput["root_span"] == 0
 
 
 @patch("ddtrace.internal.test_visibility.api.InternalTestSession.start")
