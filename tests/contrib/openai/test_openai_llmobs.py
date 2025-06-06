@@ -22,7 +22,6 @@ class TestLLMObsOpenaiV1:
     def test_completion_proxy(
         self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
-        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
         model = "gpt-3.5-turbo"
@@ -54,6 +53,21 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.completions.create(
+            model=model,
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
 
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -123,6 +137,19 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:8000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.completions.create(
+            model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -223,7 +250,6 @@ class TestLLMObsOpenaiV1:
     def test_chat_completion_proxy(
         self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
-        """Ensure llmobs records are not emitted for chat completion endpoints when the base_url is specified."""
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
         input_messages = multi_message_input
@@ -245,6 +271,13 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
@@ -309,6 +342,19 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_event)
+
+        # span created from request with non-proxy URL should result in an LLM span
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:8000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
