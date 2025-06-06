@@ -50,7 +50,7 @@ integrations:
   - aiopg
   tested_versions_by_dependency:
     aiopg:
-      min: 1.4.0
+      min: 0.16.0
       max: 1.4.0
 
 - integration_name: aioredis
