@@ -1414,7 +1414,6 @@ class LLMObs(Service):
 
             span_id = span_context.get("span_id")
             trace_id = span_context.get("trace_id")
-            print(f"USING SPAN ID: {span_id} and TRACE ID: {trace_id}")
             if not (span_id and trace_id):
                 error = "invalid_span"
                 log.warning(
