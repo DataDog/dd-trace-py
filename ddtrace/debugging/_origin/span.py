@@ -196,7 +196,7 @@ class EntrySpanWrappingContext(WrappingContext):
 
 
 @dataclass
-class SpanCodeOriginProcessorEntry(SpanProcessor):
+class SpanCodeOriginProcessorEntry:
     __uploader__ = LogsIntakeUploaderV1
 
     _entry_instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
@@ -231,7 +231,7 @@ class SpanCodeOriginProcessorEntry(SpanProcessor):
 
 
 @dataclass
-class SpanCodeOriginProcessor(SpanCodeOriginProcessorEntry):
+class SpanCodeOriginProcessor(SpanCodeOriginProcessorEntry, SpanProcessor):
     _instance: t.Optional["SpanCodeOriginProcessor"] = None
 
     def on_span_start(self, span: Span) -> None:
