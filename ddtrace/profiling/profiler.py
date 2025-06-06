@@ -18,6 +18,7 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter  # noqa:F401
 from ddtrace.profiling import recorder
@@ -206,15 +207,25 @@ class _ProfilerInstance(service.Service):
                 return []
             except Exception as e:
                 try:
-                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ddup.failure_msg)
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ddup.failure_msg),
+                    )
                 except Exception as ee:
-                    LOG.error("Failed to load libdd (%s) (%s), falling back to legacy mode", e, ee)
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ee),
+                    )
                 self._export_libdd_enabled = False
                 profiling_config.export.libdd_enabled = False
 
                 # also disable other features that might be enabled
                 if self._stack_v2_enabled:
                     LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Disabling stack_v2 as libdd collector failed to initialize",
+                    )
                     self._stack_v2_enabled = False
                     profiling_config.stack.v2_enabled = False
 
@@ -222,11 +233,19 @@ class _ProfilerInstance(service.Service):
                 # protobuf, breaking some environments.
                 if profiling_config._injected:
                     LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Profiling failures occurred in an injected instance of ddtrace, disabling profiling",
+                    )
                     return []
 
                 # pytorch collector relies on libdd exporter
                 if self._pytorch_collector_enabled:
                     LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.ERROR,
+                        "Disabling pytorch profiler as libdd collector failed to initialize",
+                    )
                     config.pytorch.enabled = False
                     self._pytorch_collector_enabled = False
 

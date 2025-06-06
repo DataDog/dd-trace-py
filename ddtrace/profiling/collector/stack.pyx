@@ -471,7 +471,7 @@ class StackCollector(collector.PeriodicCollector):
     )
 
     def __init__(self,
-                 recorder: Recorder,
+                 recorder: typing.Optional[Recorder] = None,
                  max_time_usage_pct: float = config.max_time_usage_pct,
                  nframes: int = config.max_frames,
                  ignore_profiler: bool = config.ignore_profiler,

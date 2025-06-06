@@ -206,16 +206,9 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-
-    span = integration.trace(
-        pin,
-        endpoint_hook.OPERATION_ID,
-        base_url=base_url,
-    )
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
-    err = None
+    resp, err = None, None
     if openai_api_key:
         # API key can either be set on the import or per request
         span.set_tag_str("openai.user.api_key", openai_api_key)
@@ -239,7 +232,7 @@ def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     finally:
         # Streamed responses will be finished when the generator exits, so finish non-streamed spans here.
         # Streamed responses with error will need to be finished manually as well.
-        if not kwargs.get("stream") or err is not None:
+        if not kwargs.get("stream") or err is not None or resp is None:
             span.finish()
 
 
@@ -261,7 +254,6 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-            return resp
         except Exception as e:
             err = e
             raise
@@ -301,12 +293,7 @@ def _patched_endpoint_async(openai, patch_hook):
             raise
         finally:
             try:
-                if resp is not None:
-                    # openai responses cannot be None
-                    # if resp is None, it is likely because the context
-                    # of the request was cancelled, so we want that to propagate up properly
-                    # see: https://github.com/DataDog/dd-trace-py/issues/10191
-                    g.send((resp, err))
+                g.send((resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over `return resp`

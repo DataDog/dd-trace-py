@@ -119,6 +119,12 @@ def gen_required_suites() -> None:
         git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
     )
 
+    # If the ci_visibility suite is in the list of required suites, we need to run all suites
+    ci_visibility_suites = {"ci_visibility", "pytest", "pytest_v2"}
+    # If any of them in required_suites:
+    if any(suite in required_suites for suite in ci_visibility_suites):
+        required_suites = sorted(suites.keys())
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
     # Generate the list of suites to run
@@ -150,14 +156,13 @@ def gen_build_docs() -> None:
             print("    - |", file=f)
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
-            print("      cp -r docs/_build/html/* /tmp/docs", file=f)
             print("  cache:", file=f)
             print("    key: v1-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
-            print("      - '/tmp/docs'", file=f)
+            print("      - 'docs/'", file=f)
 
 
 def gen_pre_checks() -> None:

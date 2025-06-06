@@ -1,0 +1,45 @@
+{
+  "version": "2.1",
+  "metadata": {
+    "rules_version": "rules_rasp"
+  },
+  "rules": [
+    {
+      "id": "ttag-001-001",
+      "name": "Trace tagging test rule",
+      "tags": {
+        "type": "trace_tagging",
+        "category": "vulnerability_trigger",
+        "confidence": "1"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query",
+                "key_path": ["test_tag"]
+              }
+            ],
+            "regex": "tag_this_trace"
+          },
+          "operator": "match_regex"
+        }
+      ],
+      "output": {
+        "keep": false,
+        "event": false,
+        "attributes": {
+          "dd.appsec.custom_tag": {"value": "tagged_trace"},
+          "dd.appsec.custom_metric": {"value": 37},
+          "dd.appsec.custom_tag_value": {
+            "address": "server.request.query",
+            "key_path": ["test_tag"]
+          }
+        }
+      },
+      "transformers": [],
+      "on_match": []
+    }
+  ]
+}

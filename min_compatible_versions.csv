@@ -6,7 +6,7 @@ PyYAML,0
 WebTest,0
 Werkzeug,<1.0
 ai21,0
-aiobotocore,~=1.4.2
+aiobotocore,~=1.0.0
 aiofiles,0
 aiohttp,~=3.7
 aiohttp_jinja2,~=1.5.0
@@ -37,7 +37,7 @@ cherrypy,>=17
 cohere,==5.4.0
 confluent-kafka,~=1.9.2
 coverage,0
-crewai,0
+crewai,>=0.102.0
 cryptography,<39
 daphne,0
 databases,0
@@ -68,6 +68,7 @@ fastapi,~=0.64.0
 flask,~=0.12.0
 flask-caching,~=1.10.0
 flask-openapi3,0
+freezegun,~=1.3.0
 gevent,~=20.12.0
 google-ai-generativelanguage,0
 google-generativeai,0
@@ -141,7 +142,7 @@ pynamodb,~=5.0
 pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
-pytest,~=4.0
+pytest,>=6.0
 pytest-aiohttp,0
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
@@ -169,6 +170,7 @@ rq,~=1.8.0
 ruamel.yaml,0
 sanic,~=20.12
 sanic-testing,~=0.8.3
+slotscheck,==0.17.0
 snowflake-connector-python,~=2.3.0
 spyne,0
 sqlalchemy,~=1.2.18

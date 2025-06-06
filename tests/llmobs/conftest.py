@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
 import os
+import pprint
 import threading
 import time
 
@@ -224,9 +225,12 @@ def _llmobs_backend():
 
 @pytest.fixture
 def llmobs_backend(_llmobs_backend):
-    _, reqs = _llmobs_backend
+    _url, reqs = _llmobs_backend
 
     class _LLMObsBackend:
+        def url(self):
+            return _url
+
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
                 if len(reqs) == num:
@@ -234,9 +238,14 @@ def llmobs_backend(_llmobs_backend):
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}")
+                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
 
     return _LLMObsBackend()
+
+
+@pytest.fixture
+def llmobs_enable_opts():
+    yield {}
 
 
 @pytest.fixture
@@ -244,6 +253,7 @@ def llmobs(
     ddtrace_global_config,
     monkeypatch,
     tracer,
+    llmobs_enable_opts,
     llmobs_env,
     llmobs_span_writer,
     mock_llmobs_eval_metric_writer,
@@ -256,11 +266,19 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer)
+        llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         yield llmobs_service
     llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_no_ml_app(tracer):
+    with override_global_config(dict(_llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
 
 
 @pytest.fixture

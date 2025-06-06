@@ -13,6 +13,7 @@ from ddtrace.appsec._iast._handlers import _on_set_request_tags_iast
 from ddtrace.appsec._iast._handlers import _on_werkzeug_render_debugger_html
 from ddtrace.appsec._iast._handlers import _on_wsgi_environ
 from ddtrace.appsec._iast._iast_request_context import _iast_end_request
+from ddtrace.appsec._iast._langchain import langchain_listen
 from ddtrace.internal import core
 
 
@@ -37,6 +38,8 @@ def iast_listen():
 
     core.on("context.ended.wsgi.__call__", _iast_end_request)
     core.on("context.ended.asgi.__call__", _iast_end_request)
+
+    langchain_listen(core)
 
 
 def _on_grpc_server_response(message):

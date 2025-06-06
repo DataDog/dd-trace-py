@@ -6,6 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
+from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
@@ -14,8 +15,8 @@ from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
 from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
@@ -186,6 +187,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             return
 
         http_req = fn_args[0]
+        set_iast_request_endpoint(http_req.method, http_req.resolver_match.route)
 
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
         if (
@@ -202,8 +204,12 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 )
             except AttributeError:
                 log.debug("IAST can't set attribute http_req._body", exc_info=True)
+        # This condition is only for testing purposes.
+        # In real applications, http_req.body is typically a property that can be set.
+        # Here we check if it's not a property to handle test cases where body is directly assigned.
         elif (
             getattr(http_req, "body", None) is not None
+            and not isinstance(getattr(http_req, "body", None), property)
             and len(getattr(http_req, "body", None)) > 0
             and not is_pyobject_tainted(getattr(http_req, "body", None))
         ):
@@ -432,36 +438,36 @@ def _on_pre_tracedrequest_iast(ctx):
 
 
 def _on_set_request_tags_iast(request, span, flask_config):
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        request.cookies = taint_structure(
-            request.cookies,
-            OriginType.COOKIE_NAME,
-            OriginType.COOKIE,
-            override_pyobject_tainted=True,
-        )
+    if asm_config.is_iast_request_enabled:
+        try:
+            if request.url_rule is not None:
+                set_iast_request_endpoint(request.method, request.url_rule.rule)
+            request.cookies = taint_structure(
+                request.cookies,
+                OriginType.COOKIE_NAME,
+                OriginType.COOKIE,
+                override_pyobject_tainted=True,
+            )
 
-        request.args = taint_structure(
-            request.args,
-            OriginType.PARAMETER_NAME,
-            OriginType.PARAMETER,
-            override_pyobject_tainted=True,
-        )
+            request.args = taint_structure(
+                request.args,
+                OriginType.PARAMETER_NAME,
+                OriginType.PARAMETER,
+                override_pyobject_tainted=True,
+            )
 
-        request.form = taint_structure(
-            request.form,
-            OriginType.PARAMETER_NAME,
-            OriginType.PARAMETER,
-            override_pyobject_tainted=True,
-        )
+            request.form = taint_structure(
+                request.form,
+                OriginType.PARAMETER_NAME,
+                OriginType.PARAMETER,
+                override_pyobject_tainted=True,
+            )
+        except Exception:
+            iast_propagation_listener_log_log("Unexpected exception while tainting Flask request", exc_info=True)
 
 
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
-    if (
-        not response
-        or not asm_config._iast_enabled
-        or not asm_config.is_iast_request_enabled
-        or get_iast_stacktrace_reported()
-    ):
+    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
         return
 
     try:
@@ -490,12 +496,7 @@ def _on_django_technical_500_response(request, response, exc_type, exc_value, tb
 
 
 def _on_flask_finalize_request_post(response, _):
-    if (
-        not response
-        or not asm_config._iast_enabled
-        or not asm_config.is_iast_request_enabled
-        or get_iast_stacktrace_reported()
-    ):
+    if not response or not asm_config.is_iast_request_enabled or get_iast_stacktrace_reported():
         return
 
     try:
@@ -509,7 +510,7 @@ def _on_flask_finalize_request_post(response, _):
 
 
 def _on_asgi_finalize_response(body, _):
-    if not body or not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+    if not body or not asm_config.is_iast_request_enabled:
         return
 
     try:
@@ -559,11 +560,13 @@ async def _iast_instrument_starlette_request_body(wrapped, instance, args, kwarg
 
 
 def _iast_instrument_starlette_scope(scope, route):
-    if scope.get("path_params"):
-        try:
-            for k, v in scope["path_params"].items():
-                scope["path_params"][k] = taint_pyobject(
-                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                )
-        except Exception:
-            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
+    try:
+        if asm_config.is_iast_request_enabled:
+            set_iast_request_endpoint(scope.get("method"), route)
+            if scope.get("path_params"):
+                for k, v in scope["path_params"].items():
+                    scope["path_params"][k] = taint_pyobject(
+                        v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
+                    )
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

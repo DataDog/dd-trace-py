@@ -11,6 +11,7 @@ from typing import Optional
 try:
     from ddtrace.profiling.collector import _memalloc
 except ImportError:
+    logging.getLogger(__name__).debug("failed to import memalloc", exc_info=True)
     _memalloc = None  # type: ignore[assignment]
 
 from ddtrace.internal.datadog.profiling import ddup
@@ -68,7 +69,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
     def __init__(
         self,
-        recorder: Recorder,
+        recorder: Optional[Recorder] = None,
         _interval: float = _DEFAULT_INTERVAL,
         _max_events: Optional[int] = None,
         max_nframe: Optional[int] = None,

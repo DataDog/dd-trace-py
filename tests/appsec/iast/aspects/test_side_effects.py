@@ -1,15 +1,16 @@
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils_side_effects import MagicMethodsException
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
+mod_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
 
 STRING_TO_TAINT = "abc"
 
@@ -349,8 +350,6 @@ def test_repr_aspect_side_effects():
 
 def test_format_value_aspect_side_effects():
     def __format__(self, *args, **kwargs):
-        print(args)
-        print(kwargs)
         return self._data
 
     def __add__(self, b):
@@ -365,7 +364,7 @@ def test_format_value_aspect_side_effects():
     result = f"{object_with_side_effects} + {b} = {object_with_side_effects + b}"
     assert result == "abc + bar = abcbar"
 
-    result_tainted = mod.do_fstring(object_with_side_effects, b)
+    result_tainted = mod_py3.do_fstring_operations(object_with_side_effects, b)
     assert result_tainted == result
 
     setattr(MagicMethodsException, "__format__", _old_method_format)

@@ -18,7 +18,7 @@ dependencies = [
     "packaging==23.1",
     "pygments==2.16.1",
     "riot==0.20.1",
-    "ruff==0.1.3",
+    "ruff==0.11.11",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
@@ -43,7 +43,7 @@ style = [
 ]
 fmt = [
     "black {args:.}",
-    "ruff --fix {args:.}",
+    "ruff check --fix {args:.}",
     "style",
 ]
 # checks should encapsulate all rules used in pre-check
@@ -116,20 +116,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.slotscheck]
-template = "slotscheck"
-python = "3.10"
-features = ["opentracing"]
-extra-dependencies = [
-    "slotscheck==0.17.0",
-]
-
-[envs.slotscheck.scripts]
-test = [
-    "python -m slotscheck -v ddtrace/",
-]
-
-
 [envs.scripts]
 detached = true
 python = "3.10"
@@ -146,21 +132,6 @@ test = [
 ]
 needs_testrun = [
   "scripts/needs_testrun.py {args}",
-]
-
-[envs.meta-testing]
-python = "3.10"
-extra-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis<6.45.1"
-]
-[envs.meta-testing.env-vars]
-DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
-
-[envs.meta-testing.scripts]
-test = [
-  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -206,8 +177,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -251,8 +222,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -282,6 +253,7 @@ template = "appsec_iast_default"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "hypothesis",
     "requests",
     "urllib3",
@@ -321,6 +293,7 @@ dependencies = [
 [envs.appsec_iast_native.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_iast_native.scripts]
@@ -332,7 +305,6 @@ test = [
 
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-
 
 ## ASM iast_tdd_propagation
 
@@ -356,6 +328,7 @@ dependencies = [
 [envs.iast_tdd_propagation.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.iast_tdd_propagation.scripts]
@@ -375,6 +348,7 @@ template = "appsec_integrations_packages"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "SQLAlchemy",
@@ -389,6 +363,7 @@ dependencies = [
 [envs.appsec_integrations_packages.env-vars]
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 
@@ -396,7 +371,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -433,12 +408,24 @@ test = [
 ]
 
 [[envs.appsec_integrations_django.matrix]]
+python = ["3.10", "3.13"]
+django = ["~=5.1"]
+
+[[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-django = ["~=4.0"]
+django = ["~=4.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0.10"]
 
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=3.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9"]
+django = ["~=2.2"]
 
 ## ASM appsec_integrations_flask
 
@@ -461,6 +448,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_flask.scripts]
@@ -510,6 +498,7 @@ dependencies = [
     "python-multipart",
     "jinja2",
     "httpx<0.28.0",
+    "uvicorn==0.33.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
@@ -518,6 +507,7 @@ dependencies = [
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
 
 [envs.appsec_integrations_fastapi.scripts]
@@ -543,6 +533,47 @@ fastapi = ["==0.94.1"]
 python = ["3.8", "3.10", "3.13"]
 fastapi = ["~=0.114.2"]
 
+## ASM appsec_integrations_langchain
+
+[envs.appsec_integrations_langchain]
+template = "appsec_integrations_langchain"
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "hypothesis",
+    "langchain{matrix:langchain:}",
+    "langchain-experimental{matrix:langchain-experimental:}",
+]
+
+[envs.appsec_integrations_langchain.env-vars]
+DD_TRACE_AGENT_URL = "http://testagent:9126"
+_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
+DD_IAST_REQUEST_SAMPLING = "100"
+DD_IAST_DEDUPLICATION_ENABLED = "false"
+
+[envs.appsec_integrations_langchain.scripts]
+test = [
+    "uname -a",
+    "pip freeze",
+    "python -m pytest -vvv {args:tests/appsec/integrations/langchain_tests/}",
+]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.1"]
+langchain-experimental = ["~=0.1"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.2"]
+langchain-experimental = ["~=0.2"]
+
+[[envs.appsec_integrations_langchain.matrix]]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
+langchain = ["~=0.3"]
+langchain-experimental = ["~=0.3"]
+
 ## ASM FastAPI
 
 [envs.appsec_threats_fastapi]
@@ -561,8 +592,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -669,25 +700,6 @@ test = [
 [[envs.multiple_os_tests.matrix]]
 python = ["3.13", "3.12", "3.10", "3.8"]
 
-# Internal coverage (dd_coverage to distinguish from regular coverage) has version-specific code so tests are run
-# across all supported versions
-[envs.dd_coverage]
-template = "dd_coverage"
-dependencies = [
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-]
-
-[envs.dd_coverage.scripts]
-test = [
-    "pip freeze",
-    "pytest tests/coverage -s --no-cov {args:}",
-]
-
-[[envs.dd_coverage.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12"]
-
 [envs.errortracking]
 template = "errortracking"
 dependencies = [
@@ -714,7 +726,8 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-mock"
 ]
 
 [envs.pytest_plugin_v2.env-vars]

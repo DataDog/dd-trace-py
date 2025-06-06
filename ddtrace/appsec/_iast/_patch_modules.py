@@ -6,6 +6,9 @@ from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_saniti
 from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
 from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
+from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
+from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
+from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
 
 
 IAST_PATCH = {
@@ -13,6 +16,7 @@ IAST_PATCH = {
     "command_injection": True,
     "header_injection": True,
     "insecure_cookie": True,
+    "unvalidated_redirect": True,
     "weak_cipher": True,
     "weak_hash": True,
     "xss": True,
@@ -30,12 +34,18 @@ def patch_iast(patch_modules=IAST_PATCH):
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
 
+    # CMDI sanitizers
     when_imported("shlex")(
         lambda _: try_wrap_function_wrapper(
             "shlex",
             "quote",
             cmdi_sanitizer,
         )
+    )
+
+    # SSRF
+    when_imported("django.utils.http")(
+        lambda _: try_wrap_function_wrapper("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
     )
 
     # SQL sanitizers
@@ -60,6 +70,28 @@ def patch_iast(patch_modules=IAST_PATCH):
             "werkzeug.datastructures.headers", "_str_header_value", header_injection_sanitizer
         )
     )
+
+    # Header Injection validators
+    # Header injection for > Django 3.2
+    when_imported("django.http.response")(
+        lambda _: try_wrap_function_wrapper(
+            "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
+        )
+    )
+    # Header injection for <= Django 2.2
+    when_imported("django.http.response")(
+        lambda _: try_wrap_function_wrapper(
+            "django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator
+        )
+    )
+
+    # Unvalidated Redirect validators
+    when_imported("django.utils.http")(
+        lambda _: try_wrap_function_wrapper(
+            "django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator
+        )
+    )
+
     # Path Traversal sanitizers
     when_imported("werkzeug.utils")(
         lambda _: try_wrap_function_wrapper("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
