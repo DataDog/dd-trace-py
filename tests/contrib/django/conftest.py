@@ -1,3 +1,4 @@
+import logging
 import os
 
 import django
@@ -8,6 +9,9 @@ from ddtrace.contrib.internal.django.patch import patch
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+
+
+log = logging.getLogger(__name__)
 
 
 # We manually designate which settings we will be using in an environment variable
@@ -49,3 +53,27 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+def is_the_test_database_there(when):
+    from psycopg2 import connect
+
+    conn = None
+    try:
+        conn = connect(
+            **{"host": "127.0.0.1", "port": 5432, "user": "postgres", "password": "postgres", "dbname": "test_postgres"}
+        )
+        conn.cursor().execute("SELECT 1;")
+        print(f"\nꙮꙮꙮ test_postgres database at {when} YES\n")
+    except Exception as e:
+        print(f"\nꙮꙮꙮ test_postgres database at {when} NO: {e}\n")
+    finally:
+        if conn:
+            conn.close()
+
+
+@pytest.fixture(autouse=True)
+def check_is_the_test_database_there():
+    is_the_test_database_there("setup")
+    yield
+    is_the_test_database_there("teardown")

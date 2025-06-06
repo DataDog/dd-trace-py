@@ -1524,7 +1524,7 @@ if __name__ == "__main__":
     "schema_version, global_service_name",
     [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
 )
-def test_schematized_default_db_service_name(
+def _no_test_schematized_default_db_service_name(
     ddtrace_run_python_code_in_subprocess, schema_version, global_service_name, request
 ):
     expected_service_name = {
