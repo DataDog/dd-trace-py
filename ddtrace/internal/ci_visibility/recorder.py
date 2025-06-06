@@ -406,6 +406,9 @@ class CIVisibility(Service):
                 use_gzip=self._is_gzip_supported_by_agent(),
             )
         if writer is not None:
+            from .encoder import CIVisibilityEncoderV01
+
+            writer.encoder = CIVisibilityEncoderV01(0, 0)
             self.tracer._span_aggregator.writer = writer
             self.tracer._recreate()
 
