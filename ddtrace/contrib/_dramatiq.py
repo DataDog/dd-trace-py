@@ -12,10 +12,12 @@ decorator. To trace your dramatiq app, call the patch method:
     @dramatiq.actor
     def my_background_task():
         # do something
+        pass
 
     @dramatiq.actor
     def my_other_task(content):
         # do something
+        pass
 
     if __name__ == "__main__":
         my_background_task.send()

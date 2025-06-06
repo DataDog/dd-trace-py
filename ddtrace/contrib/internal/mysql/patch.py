@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import mysql.connector
 import wrapt
@@ -31,6 +32,10 @@ config._add(
 def get_version():
     # type: () -> str
     return mysql.connector.version.VERSION_TEXT
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"mysql": ">=8.0.5"}
 
 
 CONN_ATTR_BY_TAG = {

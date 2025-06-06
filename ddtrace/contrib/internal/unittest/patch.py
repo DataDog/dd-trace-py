@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Dict
 from typing import Union
 import unittest
 
@@ -68,6 +69,10 @@ config._add(
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"unittest": "*"}
 
 
 def _enable_unittest_if_not_started():

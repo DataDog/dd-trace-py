@@ -75,6 +75,10 @@ config._add(
 )
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"langchain": ">=0.1"}
+
+
 def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):

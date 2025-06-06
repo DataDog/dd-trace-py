@@ -1,4 +1,6 @@
 # 3p
+from typing import Dict
+
 import aiopg.connection
 import psycopg2.extensions
 import wrapt
@@ -23,6 +25,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(aiopg, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiopg": ">=0.16.0"}
 
 
 def patch():
