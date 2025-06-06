@@ -178,7 +178,6 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                 ),
             )
 
-
     @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=4)
     def test_pytest_xdist_n2_wont_include_lines_pct_if_report_empty(self):
         tools = """
@@ -231,4 +230,3 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                     )
                 ),
             )
-
