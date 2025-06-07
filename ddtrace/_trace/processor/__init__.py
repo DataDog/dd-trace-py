@@ -274,6 +274,9 @@ class SpanAggregator(SpanProcessor):
         self.trace_processors = trace_processors
         # Initialize writer
         if writer is not None:
+            if isinstance(writer, AgentWriter):
+                # Ensure the active writer is set to update the active sampler
+                writer._response_cb = self._agent_response_callback
             self.writer: TraceWriter = writer
         elif SpanAggregator._use_log_writer():
             self.writer = LogWriter()

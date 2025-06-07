@@ -525,6 +525,12 @@ class AgentWriter(HTTPWriter):
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
+        if self._api_version == "v0.5" and response_callback is None:
+            log.warning(
+                "The response callback must be set when using the %s trace API, "
+                "otherwise agent based sample rates will not be applied.",
+                self._api_version,
+            )
         self._response_cb = response_callback
         self._report_metrics = report_metrics
         super(AgentWriter, self).__init__(
@@ -553,6 +559,7 @@ class AgentWriter(HTTPWriter):
             api_version=self._api_version,
             headers=self._headers,
             report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
         )
         return new_instance
 
