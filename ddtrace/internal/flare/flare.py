@@ -22,7 +22,7 @@ TRACER_FLARE_ZIP = pathlib.Path("tracer_flare.zip")
 TRACER_FLARE_ENDPOINT = "/tracer_flare/v1"
 TRACER_FLARE_FILE_HANDLER_NAME = "tracer_flare_file_handler"
 TRACER_FLARE_LOCK = pathlib.Path("tracer_flare.lock")
-DEFAULT_TIMEOUT_SECONDS = 5
+DEFAULT_TIMEOUT_SECONDS = 10
 
 log = get_logger(__name__)
 
@@ -128,6 +128,8 @@ class Flare:
                 client.close()
                 # Clean up files regardless of success/failure
                 self.clean_up_files()
+        else:
+            log.debug("Not sending tracer flare because another process is already sending it")
 
     def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
