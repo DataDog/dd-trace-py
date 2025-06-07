@@ -361,7 +361,7 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=False,
+            default=None,
             envs=["DD_LOGS_INJECTION"],
             modifier=asbool,
         ),

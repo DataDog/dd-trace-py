@@ -90,3 +90,11 @@ def _add_file_handler(
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
     return ddtrace_file_handler
+
+
+def set_log_formatting():
+    # type: () -> None
+    """Sets the log format for the ddtrace logger."""
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
