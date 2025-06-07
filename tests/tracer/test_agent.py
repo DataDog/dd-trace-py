@@ -28,7 +28,7 @@ def test_is_ipv6_hostname(hostname, expected):
     parametrize={"DD_AGENT_HOST": ["host", "2001:db8:3333:4444:cccc:dddd:eeee:ffff"]},
     env={"DD_TRACE_AGENT_HOST": None, "DD_TRACE_AGENT_URL": None, "DD_DOGSTATSD_URL": None, "DD_DOGSTATSD_HOST": None},
 )
-def test_hostname():
+def test_hostname(DD_AGENT_HOST):
     import os
     from urllib.parse import urlparse
 

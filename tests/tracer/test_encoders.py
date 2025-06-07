@@ -510,7 +510,7 @@ def test_span_link_v04_encoding():
 @pytest.mark.subprocess(
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
-def test_span_event_encoding_msgpack():
+def test_span_event_encoding_msgpack(DD_TRACE_API_VERSION, DD_TRACE_NATIVE_SPAN_EVENTS):
     import os
 
     import mock
@@ -888,7 +888,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
 
 
 @pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2"]})
-def test_json_encoder_traces_bytes():
+def test_json_encoder_traces_bytes(encoder_cls):
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
 

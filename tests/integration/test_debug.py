@@ -232,7 +232,7 @@ def test_runtime_metrics_enabled_via_manual_start():
 
 
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_RUNTIME_METRICS_ENABLED": ["0", "true"]}, err=None)
-def test_runtime_metrics_enabled_via_env_var_start():
+def test_runtime_metrics_enabled_via_env_var_start(DD_RUNTIME_METRICS_ENABLED):
     import os
 
     import ddtrace

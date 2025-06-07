@@ -445,7 +445,7 @@ def test_remote_configuration_check_remote_config_enable_in_agent_errors(
         DD_REMOTE_CONFIGURATION_ENABLED=["1", "0"],
     ),
 )
-def test_rc_default_products_registered():
+def test_rc_default_products_registered(DD_REMOTE_CONFIGURATION_ENABLED):
     """
     By default, RC should be enabled. When RC is enabled, we will always
     enable the tracer flare feature as well. There should be three products

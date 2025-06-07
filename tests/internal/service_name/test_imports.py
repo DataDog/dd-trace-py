@@ -51,7 +51,7 @@ def test_service_names_import_and_v0():
     env=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
     parametrize={"DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED": ["False", "True"]},
 )
-def test_service_name_imports_v1():
+def test_service_name_imports_v1(DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED):
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
     from ddtrace.internal.schema import schematize_cache_operation
     from ddtrace.internal.schema import schematize_cloud_api_operation
