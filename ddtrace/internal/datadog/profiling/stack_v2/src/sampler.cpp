@@ -2,6 +2,7 @@
 
 #include "thread_span_links.hpp"
 
+#include "echion/config.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
@@ -337,4 +338,17 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
     std::lock_guard<std::mutex> guard(task_link_map_lock);
     task_link_map[child] = parent;
+}
+
+void
+Sampler::set_max_nframes(int new_max_frames)
+{
+    // max_frames is a global variable that is used to limit the number of frames
+    // that are unwound for a single thread/task.
+    if (new_max_frames > 0) {
+        max_frames = new_max_frames;
+    }
+    if (max_frames > g_backend_max_nframes) {
+        max_frames = g_backend_max_nframes;
+    }
 }
