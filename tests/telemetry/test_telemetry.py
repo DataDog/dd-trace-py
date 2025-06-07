@@ -161,7 +161,7 @@ tracer.trace("hello").finish()
 
 # force app_started event (instead of waiting for 10 seconds)
 from ddtrace.internal.telemetry import telemetry_writer
-telemetry_writer._app_started()
+telemetry_writer.periodic(force_flush=True)
 """
     _, stderr, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, stderr
