@@ -56,6 +56,18 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     # addFilter will only add the filter if it is not already present
     logger.addFilter(log_filter)
+
+    # Set the log level from the environment variable of the closest parent
+    # logger.
+    if name.startswith("ddtrace."):  # for the whole of ddtrace we have DD_TRACE_DEBUG
+        (hierarchy := name.split(".")).pop(0)  # remove "ddtrace"
+        while hierarchy:
+            if (level_name := os.getenv("_DD_" + "_".join(hierarchy).upper() + "_LOG_LEVEL", None)) is not None:
+                if (level := getattr(logging, level_name, None)) is not None:
+                    logger.setLevel(level)
+                    break
+            hierarchy.pop()
+
     return logger
 
 
