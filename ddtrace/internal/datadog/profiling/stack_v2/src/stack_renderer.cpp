@@ -67,7 +67,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin()
+StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -89,8 +89,10 @@ StackRenderer::render_task_begin()
                              static_cast<int64_t>(thread_state.id),
                              static_cast<int64_t>(thread_state.native_id),
                              thread_state.name);
+        ddup_push_task_name(sample, task_name);
         ddup_push_walltime(sample, thread_state.wall_time_ns, 1);
-        ddup_push_cputime(sample, thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
+        if (on_cpu)
+            ddup_push_cputime(sample, thread_state.cpu_time_ns, 1); // initialized to 0, so possibly a no-op
         ddup_push_monotonic_ns(sample, thread_state.now_time_ns);
 
         // We also want to make sure the tid -> span_id mapping is present in the sample for the task
@@ -116,7 +118,7 @@ void
 StackRenderer::render_frame(Frame& frame)
 {
     if (sample == nullptr) {
-        std::cerr << "Received a new frame without sample storage.  Some profiling data has been lost." << std::endl;
+        std::cerr << "Received a new frame without sample storage. Some profiling data has been lost." << std::endl;
         return;
     }
 
@@ -142,15 +144,6 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     auto line = frame.location.line;
-
-    // DEV: Echion pushes a dummy frame containing task name, and its line
-    // number is set to 0.
-    if (!pushed_task_name and line == 0) {
-        ddup_push_task_name(sample, name_str);
-        pushed_task_name = true;
-        // And return early to avoid pushing task name as a frame
-        return;
-    }
 
     ddup_push_frame(sample, name_str, filename_str, 0, line);
 }

@@ -2,6 +2,7 @@
 
 #include "thread_span_links.hpp"
 
+#include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
@@ -208,6 +209,7 @@ _stack_v2_atfork_child()
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
     new (&thread_info_map_lock) std::mutex;
     new (&task_link_map_lock) std::mutex;
+    new (&greenlet_info_map_lock) std::mutex;
 }
 
 __attribute__((constructor)) void
@@ -337,4 +339,51 @@ Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
     std::lock_guard<std::mutex> guard(task_link_map_lock);
     task_link_map[child] = parent;
+}
+
+void
+Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
+{
+    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end())
+        // Greenlet is already tracked so we update its info
+        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
+    else
+        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+
+    // Update the thread map
+    auto native_id = PyThread_get_thread_native_id();
+    greenlet_thread_map[native_id] = greenlet_id;
+}
+
+void
+Sampler::untrack_greenlet(uintptr_t greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    greenlet_info_map.erase(greenlet_id);
+    greenlet_parent_map.erase(greenlet_id);
+    greenlet_thread_map.erase(greenlet_id);
+}
+
+void
+Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
+{
+    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    greenlet_parent_map[child] = parent;
+}
+
+void
+Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
+{
+    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Update the frame of the greenlet
+        entry->second->frame = frame;
+    }
 }

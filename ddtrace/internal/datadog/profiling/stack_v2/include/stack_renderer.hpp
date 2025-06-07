@@ -56,7 +56,7 @@ class StackRenderer : public RendererInterface
                                      microsecond_t wall_time_us,
                                      uintptr_t thread_id,
                                      unsigned long native_id) override;
-    virtual void render_task_begin() override;
+    virtual void render_task_begin(std::string task_name, bool on_cpu) override;
     virtual void render_stack_begin(long long pid, long long iid, const std::string& name) override;
     virtual void render_frame(Frame& frame) override;
     virtual void render_cpu_time(uint64_t cpu_time_us) override;
