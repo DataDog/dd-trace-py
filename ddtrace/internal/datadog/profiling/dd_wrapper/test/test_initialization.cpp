@@ -9,7 +9,7 @@
 void
 simple_init()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure(256);
     std::exit(0);
 }
 
@@ -21,7 +21,7 @@ TEST(InitDeathTest, TestInit)
 void
 empty_init()
 {
-    configure("", "", "", "", "", "", "", 0);
+    configure(0);
     std::exit(0);
 }
 
@@ -44,27 +44,6 @@ TEST(DD_WrapperTest, TestInitWithMinimal)
 void
 short_lifetime_init()
 {
-    // This will probably work under normal circumstances, since there may not be extreme damage
-    // to the stack between the two operations.  However, if there are defects they should be
-    // evident under sanitizers.
-    {
-        std::string service("my_test_service");
-        std::string env("my_test_env");
-        std::string version("0.0.1");
-        std::string url("https://127.0.0.1:9126");
-        std::string runtime("cpython");
-        std::string runtime_version("3.10.6");
-        std::string profiler_version("3.100");
-
-        ddup_config_service(service.c_str());
-        ddup_config_env(env.c_str());
-        ddup_config_version(version.c_str());
-        ddup_config_url(url.c_str());
-        ddup_config_runtime(runtime.c_str());
-        ddup_config_runtime_version(runtime_version.c_str());
-        ddup_config_profiler_version(profiler_version.c_str());
-    }
-
     ddup_start();
     std::exit(0);
 }

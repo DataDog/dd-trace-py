@@ -50,7 +50,8 @@ if(WIN32)
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
-        src/uploader_builder.cpp)
+        src/uploader_builder.cpp
+        src/uploader_config.cpp)
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -73,7 +74,8 @@ else()
         src/sample_manager.cpp
         src/static_sample_pool.cpp
         src/uploader.cpp
-        src/uploader_builder.cpp)
+        src/uploader_builder.cpp
+        src/uploader_config.cpp)
 endif()
 
 # Add common configuration flags
@@ -92,6 +94,7 @@ check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
 check_symbol_exists(__MUSL__ "features.h" HAVE_MUSL)
 
 set(PLATFORM_LIBC "unknown")
+
 if(HAVE_GLIBC)
     set(PLATFORM_LIBC "glibc")
 elseif(HAVE_MUSL)

@@ -21,12 +21,7 @@ def test_ddup_start():
     """
 
     try:
-        ddup.config(
-            env="my_env",
-            service="my_service",
-            version="my_version",
-            tags={},
-        )
+        ddup.config()
         ddup.start()
     except Exception as e:
         pytest.fail(str(e))
@@ -36,7 +31,14 @@ def test_ddup_start():
     env=dict(
         DD_TAGS="hello:world",
         DD_PROFILING_TAGS="foo:bar,hello:python",
-    )
+        # Just to make sure that we don't call other ddup APIs
+        DD_PROFILING_STACK_ENABLED="False",
+        DD_PROFILING_MEMORY_ENABLED="False",
+        DD_PROFILING_LOCK_ENABLED="False",
+        DD_PROFILING_EXPORT_LIBDD_ENABLED="True",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_tags_propagated_when_libdd_enabled",
+    ),
+    err=None,
 )
 def test_tags_propagated_when_libdd_enabled():
     import sys
@@ -53,11 +55,13 @@ def test_tags_propagated_when_libdd_enabled():
     assert config.tags["foo"] == "bar"
 
     # When Profiler is instantiated and libdd is enabled, it should call ddup.config
-    Profiler()
+    p = Profiler()
+    p.start()
+    p.stop()
 
-    ddup.config.assert_called()
+    ddup.upload.assert_called()
 
-    tags = ddup.config.call_args.kwargs["tags"]
+    tags = ddup.upload.call_args.kwargs["tags"]
 
     # Profiler could add tags, so check that tags is a superset of config.tags
     for k, v in config.tags.items():
