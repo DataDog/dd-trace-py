@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Bedrock Converse `toolResult` inputs are now correctly annotated on the LLM Observability span.
