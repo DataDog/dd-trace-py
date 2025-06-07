@@ -34,11 +34,8 @@ jobs:
       - name: Check locks diff
         run: scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
 
-      - name: Generate min_compatible_versions
+      - name: Generate tracer requirements csv
         run: python scripts/min_compatible_versions.py
 
       - name: Check min_compatible_versions diff
         run: scripts/check-diff 'min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'
-
-      - name: Check lib-injection min_compatible_versions diff
-        run: scripts/check-diff 'lib-injection/sources/min_compatible_versions.csv' 'Mismatches found between min_compatible_versions.csv and riotfile.py. Run `python scripts/min_compatible_versions.py` and commit the result.'
