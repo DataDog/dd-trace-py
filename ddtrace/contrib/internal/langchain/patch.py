@@ -176,6 +176,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
     completions = None
 
@@ -234,6 +235,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -291,6 +293,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -387,6 +390,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
