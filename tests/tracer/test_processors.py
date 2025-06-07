@@ -342,6 +342,7 @@ def test_span_creation_metrics():
 
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)
+            span.set_tag("component", "custom")
             span.finish()
 
             mock_tm.assert_has_calls(
@@ -368,12 +369,11 @@ def test_span_creation_metrics():
             )
             mock_tm.reset_mock()
             aggr.shutdown(None)
+            # On span finished the span has a different integration name:
             mock_tm.assert_has_calls(
                 [
                     mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "datadog"),)
-                    ),
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
                 ]
             )
 
