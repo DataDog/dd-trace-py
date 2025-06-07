@@ -36,6 +36,7 @@ from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
+from ddtrace.internal.writer.writer import NativeWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -154,16 +155,6 @@ class TraceSamplingProcessor(TraceProcessor):
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
                 self.sampler.sample(trace[0])
-            # When stats computation is enabled in the tracer then we can
-            # safely drop the traces.
-            if self._compute_stats_enabled and not self.apm_opt_out:
-                priority = root_ctx.sampling_priority if root_ctx is not None else None
-                if priority is not None and priority <= 0:
-                    # When any span is marked as keep by a single span sampling
-                    # decision then we still send all and only those spans.
-                    single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-
-                    return single_spans or None
 
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
@@ -279,15 +270,14 @@ class SpanAggregator(SpanProcessor):
             self.writer = LogWriter()
         else:
             verify_url(agent_config.trace_agent_url)
-            self.writer = AgentWriter(
+            self.writer = NativeWriter(
                 agent_url=agent_config.trace_agent_url,
                 dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (config._trace_compute_stats or asm_config._apm_opt_out)
-                else {},
+                compute_stats_enabled=config._trace_compute_stats,
                 report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
+                apm_opt_out=asm_config._apm_opt_out,
             )
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())

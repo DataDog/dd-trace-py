@@ -32,7 +32,7 @@ from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -559,7 +559,7 @@ class DummyWriterMixin:
         return traces
 
 
-class DummyWriter(DummyWriterMixin, AgentWriter):
+class DummyWriter(DummyWriterMixin, NativeWriter):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self, *args, **kwargs):
@@ -571,7 +571,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
         self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
-        AgentWriter.__init__(self, *args, **kwargs)
+        NativeWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
@@ -582,7 +582,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             if self._trace_flush_enabled:
-                AgentWriter.write(self, spans=spans)
+                NativeWriter.write(self, spans=spans)
             else:
                 self.msgpack_encoder.put(spans)
                 self.msgpack_encoder.encode()
@@ -1064,8 +1064,11 @@ def snapshot_context(
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
-            # Patch the tracer writer to include the test token header for all requests.
-            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
+            if isinstance(tracer._writer, NativeWriter):
+                tracer._span_aggregator.writer.set_test_session_token(token)
+            else:
+                # Patch the tracer writer to include the test token header for all requests.
+                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1105,8 +1108,11 @@ def snapshot_context(
             # Force a flush so all traces are submitted.
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+                if isinstance(tracer._writer, NativeWriter):
+                    tracer._span_aggregator.writer.set_test_session_token(None)
+                else:
+                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                    del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
