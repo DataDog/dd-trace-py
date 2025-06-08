@@ -49,6 +49,7 @@ openai = [
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
+dd_crashtracker_receiver = "ddtrace.commands.crashtracker_exe:main"
 
 [project.entry-points.opentelemetry_context]
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"

@@ -1,5 +1,5 @@
-import os
 import platform
+import shutil
 from typing import Dict
 from typing import Optional
 
@@ -76,9 +76,9 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    crashtracker_exe_py = os.path.join(os.path.dirname(__file__), "crashtracker_exe.py")
-    if not crashtracker_exe_py or not os.access(crashtracker_exe_py, os.R_OK):
-        print("Failed to find crashtracker_exe.py")
+    dd_crashtracker_receiver = shutil.which("dd_crashtracker_receiver")
+    if dd_crashtracker_receiver is None:
+        print("Failed to find dd_crashtracker_receiver")
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
@@ -109,8 +109,8 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     # Create crashtracker receiver configuration
     receiver_config = CrashtrackerReceiverConfig(
         [],  # args
-        os.environ.copy(),  # env
-        crashtracker_exe_py,  # path_to_receiver_binary
+        {},  # env
+        dd_crashtracker_receiver,  # path_to_receiver_binary
         crashtracker_config.stderr_filename,
         crashtracker_config.stdout_filename,
     )
