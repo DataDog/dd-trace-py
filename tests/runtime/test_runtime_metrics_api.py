@@ -198,7 +198,12 @@ def test_runtime_metrics_enable_environ(monkeypatch, environ):
         RuntimeMetrics.disable()
 
 
-@pytest.mark.subprocess(parametrize={"DD_TRACE_RUNTIME_ID_ENABLED": ["true", "false"]})
+@pytest.mark.subprocess(
+    parametrize={
+        "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED": ["true", "false"],
+        "DD_TRACE_RUNTIME_ID_ENABLED": ["true", "false"],
+    }
+)
 def test_runtime_metrics_experimental_runtime_tag():
     """
     When runtime metrics is enabled and DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED=DD_RUNTIME_METRICS_ENABLED
@@ -217,12 +222,18 @@ def test_runtime_metrics_experimental_runtime_tag():
     assert worker_instance.status == ServiceStatus.RUNNING
 
     runtime_id_tag = f"runtime-id:{get_runtime_id()}"
-    if os.environ["DD_TRACE_RUNTIME_ID_ENABLED"] == "true":
+    if (
+        os.environ["DD_TRACE_RUNTIME_ID_ENABLED"] == "true"
+        or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true"
+    ):
         assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
-    elif os.environ["DD_TRACE_RUNTIME_ID_ENABLED"] == "false":
+    elif (
+        os.environ["DD_TRACE_RUNTIME_ID_ENABLED"] == "false"
+        or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false"
+    ):
         assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
     else:
-        raise pytest.fail("Invalid value for DD_TRACE_RUNTIME_ID_ENABLED")
+        raise pytest.fail("Invalid value for DD_TRACE_RUNTIME_ID_ENABLED or DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED")
 
 
 @pytest.mark.subprocess(
