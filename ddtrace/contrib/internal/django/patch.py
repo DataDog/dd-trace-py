@@ -6,13 +6,13 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-
 from collections.abc import Iterable
 import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
+import os
 
 import wrapt
 from wrapt.importer import when_imported
@@ -43,6 +43,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings._config import _get_config
@@ -58,15 +59,15 @@ config._add(
     "django",
     dict(
         _default_service=schematize_service_name("django"),
-        cache_service_name=_get_config("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
-        database_service_name_prefix=_get_config("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
-        database_service_name=_get_config("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
-        trace_fetch_methods=_get_config("DD_DJANGO_TRACE_FETCH_METHODS", default=False),
+        cache_service_name=os.getenv("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
+        database_service_name_prefix=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
+        database_service_name=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
+        trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
-        instrument_middleware=_get_config("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True),
-        instrument_templates=_get_config("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True),
-        instrument_databases=_get_config("DD_DJANGO_INSTRUMENT_DATABASES", default=True),
-        instrument_caches=_get_config("DD_DJANGO_INSTRUMENT_CACHES", default=True),
+        instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
+        instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
+        instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
@@ -74,14 +75,14 @@ config._add(
         include_user_email=asm_config._django_include_user_email,
         include_user_login=asm_config._django_include_user_login,
         include_user_realname=asm_config._django_include_user_realname,
-        use_handler_with_url_name_resource_format=(
-            _get_config("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
+        use_handler_with_url_name_resource_format=asbool(
+            os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
         ),
-        use_handler_resource_format=_get_config("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False),
-        use_legacy_resource_format=_get_config("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False),
-        _trace_asgi_websocket_messages=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", False),
-        _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True),
-        _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True),
+        use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
+        use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
+        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
+        _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),
     ),
 )
 
