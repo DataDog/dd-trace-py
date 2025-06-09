@@ -199,15 +199,15 @@ class EntrySpanWrappingContext(WrappingContext):
 class SpanCodeOriginProcessorEntry:
     __uploader__ = LogsIntakeUploaderV1
 
-    _entry_instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
+    _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
     _handler: t.Optional[t.Callable] = None
 
     @classmethod
     def enable(cls):
-        if cls._entry_instance is not None:
+        if cls._instance is not None:
             return
 
-        cls._entry_instance = cls()
+        cls._instance = cls()
 
         # Register code origin for span with the snapshot uploader
         cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
@@ -218,7 +218,7 @@ class SpanCodeOriginProcessorEntry:
 
     @classmethod
     def disable(cls):
-        if cls._entry_instance is None:
+        if cls._instance is None:
             return
 
         # Unregister the entrypoint wrapping for entry spans
@@ -227,11 +227,13 @@ class SpanCodeOriginProcessorEntry:
         cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
 
         cls._handler = None
-        cls._entry_instance = None
+        cls._instance = None
 
 
 @dataclass
-class SpanCodeOriginProcessor(SpanCodeOriginProcessorEntry, SpanProcessor):
+class SpanCodeOriginProcessor(SpanProcessor):
+    __uploader__ = LogsIntakeUploaderV1
+
     _instance: t.Optional["SpanCodeOriginProcessor"] = None
 
     def on_span_start(self, span: Span) -> None:
@@ -296,21 +298,21 @@ class SpanCodeOriginProcessor(SpanCodeOriginProcessorEntry, SpanProcessor):
 
         instance = cls._instance = cls()
 
+        # Register code origin for span with the snapshot uploader
+        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
+
         # Register the processor for exit spans
         instance.register()
-
-        # Enable entry spans. This is idempotent so multiple calls are safe if CO is enabled
-        # after DI via remote configuration.
-        super().enable()
 
     @classmethod
     def disable(cls):
         if cls._instance is None:
             return
 
-        # Disable entry spans
-        super().disable()
-
         # Unregister the processor for exit spans
         cls._instance.unregister()
+
+        # Unregister code origin for span with the snapshot uploader
+        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
+
         cls._instance = None

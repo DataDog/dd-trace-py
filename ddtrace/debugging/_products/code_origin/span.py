@@ -17,7 +17,9 @@ def post_preload():
 def start():
     if config.span.enabled:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
+        SpanCodeOriginProcessorEntry.enable()
         SpanCodeOriginProcessor.enable()
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
     # we'll enable entry spans only.
@@ -34,7 +36,9 @@ def restart(join=False):
 def stop(join=False):
     if config.span.enabled:
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
+        SpanCodeOriginProcessorEntry.disable()
         SpanCodeOriginProcessor.disable()
     elif product_manager.is_enabled(DI_PRODUCT_KEY):
         from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
