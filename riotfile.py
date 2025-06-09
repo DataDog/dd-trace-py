@@ -1978,7 +1978,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "pytest-asyncio": ["==0.21.1"],
+                        "pytest-asyncio": ["==0.23.7"],
                     },
                 ),
             ],
