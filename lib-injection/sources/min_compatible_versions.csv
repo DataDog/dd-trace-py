@@ -13,7 +13,7 @@ aiohttp_jinja2,~=1.5.0
 aiomysql,~=0.1.0
 aiopg,~=0.16.0
 aiosqlite,0
-algoliasearch,~=2.5
+algoliasearch,~=2.5.0
 anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
@@ -24,7 +24,7 @@ asyncpg,~=0.23
 asynctest,==0.13.0
 austin-python,~=1.0
 avro,0
-azure.functions,0
+azure.functions,~=1.20.0
 blinker,0
 bottle,>=0.12
 cassandra-driver,~=3.24.0
@@ -142,7 +142,7 @@ pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
 pytest,>=6.0
-pytest-aiohttp,0
+pytest-aiohttp,<=1.0.5
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0

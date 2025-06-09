@@ -1930,7 +1930,7 @@ venv = Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
-                "pytest-aiohttp": [latest],
+                "pytest-aiohttp": ["==1.0.5"],
                 "pytest-randomly": latest,
                 "aiohttp": [
                     "~=3.7.0",
@@ -1940,6 +1940,17 @@ venv = Venv(
                 "yarl": "~=1.0",
             },
             venvs=[
+                Venv(
+                    # only test a subset of files for older aiohttp versions
+                    command="pytest {cmdargs} tests/contrib/aiohttp/test_aiohttp_client.py \
+                    tests/contrib/aiohttp/test_aiohttp_patch.py",
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "pytest-aiohttp": ["<=1.0.5"],
+                        "aiohttp": ["~=3.7.0"],
+                        "pytest-asyncio": ["<=0.23.7"],
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
@@ -2773,7 +2784,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.0.0", latest],
+                "azure.functions": ["~=1.20.0", latest],
                 "requests": latest,
             },
         ),

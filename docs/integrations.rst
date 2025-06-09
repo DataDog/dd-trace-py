@@ -154,8 +154,8 @@ CrewAI
 
 .. _datadog_lambda:
 
-Datadog Lambda
-^^^^^^^^^^^^^^
+datadog_lambda
+==============
 .. automodule:: ddtrace.contrib._aws_lambda
 
 
@@ -456,7 +456,7 @@ pytest-bdd
 .. _pytest_benchmark:
 
 pytest-benchmark
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._pytest_benchmark
 
 .. _protobuf:
@@ -549,17 +549,10 @@ SQLite
 .. automodule:: ddtrace.contrib._sqlite3
 
 
-.. _sqlite3:
-
-SQLite3
-^^^^^^^
-.. automodule:: ddtrace.contrib._sqlite3
-
-
 .. _subprocess:
 
 Subprocess
-^^^^^^^^^
+^^^^^^^^^^
 .. automodule:: ddtrace.contrib._subprocess
 
 
