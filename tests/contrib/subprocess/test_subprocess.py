@@ -24,6 +24,9 @@ PATCH_ENABLED_CONFIGURATIONS = (
     dict(_asm_enabled=False, _iast_enabled=True),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=True, _iast_enabled=False),
     dict(_bypass_instrumentation_for_waf=True, _asm_enabled=False, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=True),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
 PATCH_SPECIALS = (
@@ -38,6 +41,7 @@ PATCH_DISABLED_CONFIGURATIONS = (
     dict(_iast_enabled=False),
     dict(_remote_config_enabled=False),
     dict(_asm_enabled=False, _iast_enabled=False),
+    dict(_bypass_instrumentation_for_waf=False, _asm_enabled=False, _iast_enabled=False),
 )
 
 CONFIGURATIONS = PATCH_ENABLED_CONFIGURATIONS + PATCH_DISABLED_CONFIGURATIONS
