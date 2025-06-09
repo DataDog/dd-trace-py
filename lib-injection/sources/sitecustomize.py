@@ -373,10 +373,13 @@ def _inject():
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
         sys.path.insert(-1, site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
+        # Used to track whether the ddtrace package was successfully injected. Must be set before importing ddtrace
+        os.environ["_DD_PY_SSI_INJECT"] = "1"
         try:
             import ddtrace  # noqa: F401
 
         except BaseException as e:
+            os.environ["_DD_PY_SSI_INJECT"] = "0"
             _log("failed to load ddtrace module: %s" % e, level="error")
             TELEMETRY_DATA.append(
                 create_count_metric(
@@ -429,10 +432,6 @@ def _inject():
                         ],
                     ),
                 )
-                # Track whether library injection was successful
-                ddtrace.config._lib_was_injected = True
-                os.environ["_DD_SSI_INJECT_SUCCESSFUL"] = "1"
-                ddtrace.internal.telemetry.telemetry_writer.add_configuration("instrumentation_source", "ssi", "code")
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(

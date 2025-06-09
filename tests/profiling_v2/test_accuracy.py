@@ -1,5 +1,59 @@
 # -*- encoding: utf-8 -*-
+import time
+
 import pytest
+
+
+def spend_1():
+    time.sleep(1)
+
+
+def spend_3():
+    time.sleep(3)
+
+
+def spend_4():
+    spend_3()
+    spend_1()
+
+
+def spend_7():
+    spend_3()
+    spend_1()
+    spend_cpu_3()
+
+
+def spend_16():
+    spend_4()
+    spend_7()
+    spend_cpu_2()
+    spend_3()
+
+
+def spend_cpu_2():
+    now = time.process_time_ns()
+    # Active wait for 2 seconds
+    while time.process_time_ns() - now < 2e9:
+        pass
+
+
+def spend_cpu_3():
+    # Active wait for 3 seconds
+    now = time.process_time_ns()
+    while time.process_time_ns() - now < 3e9:
+        pass
+
+
+# We allow 7% error:
+TOLERANCE = 0.07
+
+
+def assert_almost_equal(value, target, tolerance=TOLERANCE):
+    if abs(value - target) / target > tolerance:
+        raise AssertionError(
+            f"Assertion failed: {value} is not approximately equal to {target} "
+            f"within tolerance={tolerance}, actual error={abs(value - target) / target}"
+        )
 
 
 @pytest.mark.subprocess(
@@ -14,8 +68,8 @@ def test_accuracy_stack_v2():
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.test_accuracy import assert_almost_equal
-    from tests.profiling.test_accuracy import spend_16
+    from tests.profiling_v2.test_accuracy import assert_almost_equal
+    from tests.profiling_v2.test_accuracy import spend_16
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
     p = profiler.Profiler()

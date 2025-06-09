@@ -6,7 +6,7 @@ integrations:
   - aiobotocore
   tested_versions_by_dependency:
     aiobotocore:
-      min: 1.4.2
+      min: 1.0.7
       max: 2.16.0
 
 - integration_name: aiohttp
@@ -16,8 +16,8 @@ integrations:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
-      min: 3.10.5
-      max: 3.10.9
+      min: 3.7.4.post0
+      max: 3.12.11
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -50,7 +50,7 @@ integrations:
   - aiopg
   tested_versions_by_dependency:
     aiopg:
-      min: 1.4.0
+      min: 0.16.0
       max: 1.4.0
 
 - integration_name: aioredis
@@ -66,7 +66,7 @@ integrations:
   - algoliasearch
   tested_versions_by_dependency:
     algoliasearch:
-      min: 2.6.3
+      min: 2.5.0
       max: 2.6.3
 
 - integration_name: anthropic
@@ -76,8 +76,8 @@ integrations:
   - anthropic
   tested_versions_by_dependency:
     anthropic:
-      min: 0.49.0
-      max: 0.49.0
+      min: 0.28.1
+      max: 0.52.2
 
 - integration_name: aredis
   is_external_package: true
@@ -138,7 +138,7 @@ integrations:
   - azure-functions
   tested_versions_by_dependency:
     azure-functions:
-      min: 1.21.3
+      min: 1.20.0
       max: 1.21.3
 
 - integration_name: boto
@@ -232,8 +232,8 @@ integrations:
   - crewai
   tested_versions_by_dependency:
     crewai:
-      min: 0.121.0
-      max: 0.121.0
+      min: 0.121.1
+      max: 0.121.1
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -258,13 +258,13 @@ integrations:
   - dogpile_cache
   tested_versions_by_dependency:
     dogpile-cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
     dogpile.cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
     dogpile_cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
 
 - integration_name: dramatiq
@@ -589,7 +589,7 @@ integrations:
   tested_versions_by_dependency:
     openai-agents:
       min: 0.0.8
-      max: 0.0.8
+      max: 0.0.16
 
 - integration_name: protobuf
   is_external_package: true

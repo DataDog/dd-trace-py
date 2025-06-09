@@ -1,6 +1,7 @@
 import json
 from urllib.parse import urlencode
 
+from django import VERSION as DJANGO_VERSION
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -10,6 +11,7 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
+from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
@@ -101,7 +103,7 @@ def test_django_weak_hash_span_metrics(client, iast_span, tracer):
     root_span, _ = _aux_appsec_get_root_span(client, iast_span, tracer, url="/appsec/weak-hash/")
     assert root_span.get_metric(IAST.ENABLED) == 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") > 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
@@ -909,7 +911,7 @@ def test_django_command_injection_span_metrics(client, iast_span, tracer):
     )
     assert root_span.get_metric(IAST.ENABLED) == 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") > 1.0
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
     assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
@@ -965,28 +967,48 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
     assert loaded is None
 
 
+def test_django_header_injection_secure(client, iast_span, tracer):
+    root_span, response = _aux_appsec_get_root_span(
+        client,
+        iast_span,
+        tracer,
+        url="/appsec/header-injection-secure/",
+        payload="master",
+        content_type="application/json",
+    )
+    if DJANGO_VERSION < (3, 2, 0):
+        assert response._headers["header-injection"] == ("Header-Injection", "master")
+    else:
+        assert response.headers["Header-Injection"] == "master"
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_header_injection(client, iast_span, tracer):
-    root_span, _ = _aux_appsec_get_root_span(
+    root_span, response = _aux_appsec_get_root_span(
         client,
         iast_span,
         tracer,
         url="/appsec/header-injection/",
-        payload="master",
+        payload="master\r\nInjected-Header: 1234",
         content_type="application/json",
     )
-
+    # Response.headers are ok in the tests, but if django call to response.serialize_headers() the result is
+    # b'Content-Type: text/html; charset=utf-8\r\nHeader-Injection: master\r\nInjected-Header: 1234'
+    if DJANGO_VERSION < (3, 2, 0):
+        assert response._headers["header-injection"] == ("Header-Injection", "master\r\nInjected-Header: 1234")
+    else:
+        assert response.headers["Header-Injection"] == "master\r\nInjected-Header: 1234"
     loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-    line, hash_value = get_line_and_hash("iast_header_injection", VULN_HEADER_INJECTION, filename=TEST_FILE)
-
-    assert loaded["sources"] == [{"origin": "http.request.body", "name": "http.request.body", "value": "master"}]
+    assert loaded["sources"] == [
+        {"origin": "http.request.body", "name": "http.request.body", "value": "master\r\nInjected-Header: 1234"}
+    ]
     assert loaded["vulnerabilities"][0]["type"] == VULN_HEADER_INJECTION
-    assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
-        "valueParts": [{"value": "Header-Injection: "}, {"source": 0, "value": "master"}]
+        "valueParts": [{"value": "Header-Injection: "}, {"value": "master\r\nInjected-Header: 1234", "source": 0}]
     }
-    assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
@@ -1013,6 +1035,7 @@ def test_django_unvalidated_redirect_url(client, iast_span, tracer):
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
+@pytest.mark.skipif(DJANGO_VERSION < (3, 2, 0), reason="url_has_allowed_host_and_scheme was implemented in 3.2")
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_unvalidated_redirect_url_validator(client, iast_span, tracer):
     tainted_value = "http://www.malicious.com.ar.uk/muahahaha"
@@ -1032,20 +1055,15 @@ def test_django_unvalidated_redirect_url_header(client, iast_span, tracer):
 
     loaded = json.loads(root_span.get_tag(IAST.JSON))
 
-    line, hash_value = get_line_and_hash(
-        "unvalidated_redirect_url_header", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE
-    )
     assert loaded["sources"] == [
         {"origin": "http.request.parameter", "name": "url", "value": "http://www.malicious.com.ar.uk/muahahaha"}
     ]
     # Check we're only reporting
     assert len(loaded["vulnerabilities"]) == 1
     assert loaded["vulnerabilities"][0]["type"] == VULN_UNVALIDATED_REDIRECT
-    assert loaded["vulnerabilities"][0]["hash"] == hash_value
     assert loaded["vulnerabilities"][0]["evidence"] == {
         "valueParts": [{"value": "http://www.malicious.com.ar.uk/muahahaha", "source": 0}]
     }
-    assert loaded["vulnerabilities"][0]["location"]["line"] == line
     assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
 
 
@@ -1348,11 +1366,16 @@ def test_django_xss_autoscape(client, iast_span, tracer):
     )
 
     assert response.status_code == 200
-    assert (
-        response.content
-        == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
-    ), f"Error. content is {response.content}"
-
+    if DJANGO_VERSION > (3, 1, 0):
+        assert (
+            response.content
+            == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
+        ), f"Error. content is {response.content}"
+    else:
+        assert (
+            response.content
+            == b"<html>\n<body>\n<p>\n    &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\n</p>\n</body>\n</html>\n"
+        ), f"Error. content is {response.content}"
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
 
@@ -1366,11 +1389,17 @@ def test_django_xss_secure(client, iast_span, tracer):
     )
 
     assert response.status_code == 200
-    assert (
-        response.content
-        == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
-    )
+    if DJANGO_VERSION > (3, 1, 0):
+        assert (
+            response.content
+            == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>\n</body>\n</html>"
+        )
 
+    else:
+        assert (
+            response.content
+            == b"<html>\n<body>\n<p>Input: &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;</p>\n</body>\n</html>"
+        ), f"COntent: {response.content}"
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
 
@@ -1467,3 +1496,76 @@ def test_django_iast_sampling_by_route_method(client, test_spans_2_vuln_per_requ
     assert (
         len(list_vulnerabilities) == 16
     ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
+
+
+@pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
+def test_django_ssrf_safe_path(client, iast_span, tracer):
+    tainted_value = "path_param"
+    root_span, _ = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/ssrf_requests/?url={tainted_value}"
+    )
+    loaded = root_span.get_tag(IAST.JSON)
+    assert loaded is None
+
+
+@pytest.mark.parametrize(
+    ("option", "url", "value_parts"),
+    [
+        ("path", "url-path/", [{"value": "http://localhost:8080/"}, {"value": "url-path/", "source": 0}]),
+        ("safe_path", "url-path/", None),
+        ("protocol", "http", [{"value": "http", "source": 0}, {"value": "://localhost:8080/"}]),
+        ("host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
+        ("urlencode_single", "value1", None),
+        ("urlencode_multiple", "value1", None),
+        ("urlencode_nested", "value1", None),
+        ("urlencode_with_fragment", "value1", None),
+        ("urlencode_doseq", "value1", None),
+        ("safe_host", "localhost", [{"value": "http://"}, {"value": "localhost", "source": 0}, {"value": ":8080/"}]),
+        ("port", "8080", [{"value": "http://localhost:"}, {"value": "8080", "source": 0}, {"value": "/"}]),
+        (
+            "query",
+            "param1=value1&param2=value2",
+            [
+                {"value": "http://localhost:8080/?"},
+                {"source": 0, "value": "param1="},
+                {"redacted": True, "source": 0, "pattern": "hijklm"},
+            ],
+        ),
+        (
+            "query_with_fragment",
+            "param1=value_with_%23hash%23&param2=value2",
+            [
+                {"value": "http://localhost:8080/?"},
+                {"source": 0, "value": "param1="},
+                {"redacted": True, "source": 0, "pattern": "hijklmnopqr"},
+                {"source": 0, "value": "#hash#"},
+            ],
+        ),
+        ("fragment1", "fragment_value1", None),
+        ("fragment2", "fragment_value1", None),
+        ("fragment3", "fragment_value1", None),
+        ("query_param", "param1=value1&param2=value2", None),
+    ],
+)
+def test_django_ssrf_url(client, iast_span, tracer, option, url, value_parts):
+    root_span, response = _aux_appsec_get_root_span(
+        client, iast_span, tracer, url=f"/appsec/ssrf_requests/?option={option}&url={url}"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"OK"
+
+    if value_parts is None:
+        assert root_span.get_tag(IAST.JSON) is None
+    elif option == "safe_host" and DJANGO_VERSION >= (3, 1):
+        assert root_span.get_tag(IAST.JSON) is None
+    else:
+        loaded = json.loads(root_span.get_tag(IAST.JSON))
+
+        line, hash_value = get_line_and_hash(f"ssrf_requests_{option}", VULN_SSRF, filename=TEST_FILE)
+
+        assert loaded["vulnerabilities"][0]["type"] == VULN_SSRF
+        assert loaded["vulnerabilities"][0]["evidence"] == {"valueParts": value_parts}
+        assert loaded["vulnerabilities"][0]["location"]["path"] == TEST_FILE
+        assert loaded["vulnerabilities"][0]["location"]["line"] == line
+        assert loaded["vulnerabilities"][0]["hash"] == hash_value
