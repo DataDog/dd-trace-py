@@ -1,0 +1,81 @@
+shallow: &base
+  max_depth: 10
+  enable_cache: false
+  computation_intensity: 100
+  enable_sleep: false
+  sleep_duration: 0.1
+  nspans: 1
+  profiler_enabled: false
+
+shallow-cached:
+  <<: *base
+  enable_cache: true
+
+medium: 
+  <<: *base
+  max_depth: 50
+  computation_intensity: 200
+
+medium-cached:
+  <<: *base
+  max_depth: 50
+  computation_intensity: 200
+  enable_cache: true
+
+deep:
+  <<: *base
+  max_depth: 100
+  computation_intensity: 300
+
+deep-cached:
+  <<: *base
+  max_depth: 100
+  computation_intensity: 300
+  enable_cache: true
+
+deep-with-spans:
+  <<: *base
+  max_depth: 100
+  computation_intensity: 300
+  enable_cache: true
+  nspans: 5
+
+intensive:
+  <<: *base
+  max_depth: 50
+  computation_intensity: 1000
+  enable_cache: true
+  nspans: 3
+
+sleep-scenario:
+  <<: *base
+  max_depth: 20
+  enable_sleep: true
+  sleep_duration: 0.01
+  enable_cache: true
+
+shallow-profiled:
+  <<: *base
+  profiler_enabled: true
+
+medium-profiled:
+  <<: *base
+  max_depth: 50
+  computation_intensity: 200
+  enable_cache: true
+  profiler_enabled: true
+
+deep-profiled:
+  <<: *base
+  max_depth: 100
+  computation_intensity: 300
+  enable_cache: true
+  profiler_enabled: true
+
+intensive-profiled:
+  <<: *base
+  max_depth: 50
+  computation_intensity: 1000
+  enable_cache: true
+  nspans: 3
+  profiler_enabled: true 
