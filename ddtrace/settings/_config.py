@@ -19,6 +19,7 @@ from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal import gitmetadata
+from .._logger import get_log_injection_state
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
@@ -361,9 +362,9 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=None,
+            default="structured",
             envs=["DD_LOGS_INJECTION"],
-            modifier=asbool,
+            modifier=get_log_injection_state,
         ),
         "_trace_http_header_tags": _ConfigItem(
             default=lambda: {},
