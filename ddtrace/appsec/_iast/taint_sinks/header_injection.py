@@ -210,9 +210,9 @@ def _iast_django_response(wrapped, instance, args, kwargs):
         from django import VERSION as DJANGO_VERSION
 
         wrapped.__func__(instance, *args, **kwargs)
-        if DJANGO_VERSION < (3, 2, 0):
+        if hasattr(instance, "_headers"):
             instance._headers = HeaderInjectionDict(instance._headers)
-        else:
+        elif hasattr(instance, "_store"):
             instance._store = HeaderInjectionDict(instance._store)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_django_response. {e}")
