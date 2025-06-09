@@ -48,7 +48,7 @@ with tracer.trace("test") as span:
     } in events_trace_sample_rate
 
     events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
-    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in events_logs_injection_enabled
+    assert {"name": "DD_LOGS_INJECTION", "value": "true", "origin": "env_var"} in events_logs_injection_enabled
 
     events_trace_header_tags = _get_telemetry_config_items(events, "DD_TRACE_HEADER_TAGS")
     assert {

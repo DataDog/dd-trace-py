@@ -128,7 +128,7 @@ def apm_tracing_rc(lib_config, dd_config):
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
     if "log_injection_enabled" in lib_config:
-        base_rc_config["_logs_injection"] = str(lib_config["log_injection_enabled"])
+        base_rc_config["_logs_injection"] = str(lib_config["log_injection_enabled"]).lower()
 
     if "tracing_tags" in lib_config:
         tags = lib_config["tracing_tags"]
