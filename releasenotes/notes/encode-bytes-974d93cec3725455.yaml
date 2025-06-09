@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: This resolves an encoding error when appending a unicode string to a bytes object, which previously resulted in a TypeError. It now appends a bytes literal when truncating a bytes object.
+    tracing: This resolves a ``TypeError`` in encoding when truncating a large bytes object.
