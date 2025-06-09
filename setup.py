@@ -43,6 +43,8 @@ except ImportError:
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
+from build_libnative import build_crate, clean_crate
+
 
 HERE = Path(__file__).resolve().parent
 
@@ -76,7 +78,6 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 NATIVE_CRATE = HERE / "src" / "native"
-NATIVE_CRATE_TARGET_DIR = NATIVE_CRATE / "target"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -311,12 +312,7 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_rust():
-        if NATIVE_CRATE_TARGET_DIR.exists():
-            subprocess.run(
-                ["cargo", "clean"],
-                cwd=str(NATIVE_CRATE),
-                check=True,
-            )
+        clean_crate(NATIVE_CRATE)
 
     def run(self):
         CleanLibraries.remove_rust()
@@ -333,44 +329,7 @@ class CustomBuildExt(build_ext):
 
     def build_rust(self):
 
-        if not self.is_installed("dedup_headers"):
-            subprocess.run(
-                ["cargo", "install", "--git", "https://github.com/DataDog/libdatadog", "--bin", "dedup_headers", "tools"],
-                cwd=str(NATIVE_CRATE),
-                check=True,
-                )
-
-        if not NATIVE_CRATE_TARGET_DIR.exists():
-            dd_include_dir = NATIVE_CRATE_TARGET_DIR / "include" / "datadog"
-            # Setting env var so headers are placed in the proper target directory.
-            env = os.environ.copy()
-            env["CARGO_TARGET_DIR"] = str(NATIVE_CRATE_TARGET_DIR)
-
-            build_cmd = ["cargo", "build", "--release"]
-
-            if native_features:
-                features = ', '.join(native_features)
-                build_cmd += ["--features", features]
-
-            subprocess.run(
-                build_cmd,
-                cwd=str(NATIVE_CRATE),
-                check=True,
-                env=env,
-                )
-
-            subprocess.run(
-                ["dedup_headers", "common.h", "crashtracker.h", "profiling.h"],
-                cwd=str(dd_include_dir),
-                check=True,
-            )
-
-    @staticmethod
-    def is_installed(bin_file):
-        for path in os.environ.get("PATH", "").split(os.pathsep):
-            return os.path.isfile(os.path.join(path, bin_file)
-)
-        return False
+        build_crate(NATIVE_CRATE, True, native_features)
 
     @staticmethod
     def try_strip_symbols(so_file):
