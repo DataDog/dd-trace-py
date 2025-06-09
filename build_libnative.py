@@ -19,7 +19,7 @@ def install_dedup_headers():
             )
 
 
-def build_crate(crate_dir: Path, release: bool, features: list[str] = None):
+def build_crate(crate_dir: Path, release: bool, features: list = None):
     env = os.environ.copy()
     abs_dir = crate_dir.absolute()
     env["CARGO_TARGET_DIR"] = str(abs_dir / "target")

@@ -1,3 +1,4 @@
+include(FetchContent)
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -11,6 +12,8 @@ set(INSTALL_GTEST
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 include(AnalysisFunc)
+
+find_package(Python3 COMPONENTS Interpreter Development)
 
 if(DO_VALGRIND)
     find_program(
@@ -33,8 +36,10 @@ endif()
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
-    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper)
+    #target_link_libraries(${name} PRIVATE ${Python3_LIBRARIES})
+    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper ${Python3_LIBRARIES})
     add_ddup_config(${name})
+    target_link_options(${name} PRIVATE -Wl,--no-as-needed)
 
     gtest_discover_tests(
         ${name}

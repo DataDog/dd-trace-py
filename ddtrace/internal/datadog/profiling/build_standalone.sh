@@ -368,7 +368,7 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    python3 ../../../../build_libnative.py --crate ../../../../src/native --release --features profiling
+    python3 build_libnative.py --crate ./src/native --release --features profiling
 }
 
 
