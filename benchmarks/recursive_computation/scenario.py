@@ -89,8 +89,6 @@ class RecursiveComputation(bm.Scenario):
         if self.profiler_enabled:
             os.environ.update({
                 "DD_PROFILING_ENABLED": "1", 
-                "DD_PROFILING_API_TIMEOUT": "0.1", 
-                "DD_PROFILING_UPLOAD_INTERVAL": "10"
             })
             import ddtrace.profiling.auto
 
