@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.12.9
+      max: 3.12.11
 
 - integration_name: aiohttp_jinja2
   is_external_package: true

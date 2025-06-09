@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.12.9",
+        "max_tracer_supported": "3.12.11",
         "auto-instrumented": true
     },
     {

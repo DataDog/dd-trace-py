@@ -142,7 +142,7 @@ pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
 pytest,>=6.0
-pytest-aiohttp,0
+pytest-aiohttp,<=1.0.5
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
