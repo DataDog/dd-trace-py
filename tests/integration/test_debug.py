@@ -8,7 +8,6 @@ import mock
 import pytest
 
 import ddtrace
-import ddtrace._trace.sampler
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
@@ -78,14 +77,11 @@ def test_standard_tags():
     assert agent_error is None
 
     assert f.get("env") == ""
-    assert f.get("is_global_tracer") is True
-    assert f.get("tracer_enabled") is True
-    assert f.get("sampler_type") == "DatadogSampler"
-    assert f.get("priority_sampler_type") == "N/A"
+    assert f.get("ddtrace_enabled") is True
     assert f.get("service") == "ddtrace_subprocess_dir"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
-    assert f.get("enabled_cli") is False
+    assert f.get("auto_instrumented") is False
     assert f.get("log_injection_enabled") is False
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
@@ -93,9 +89,9 @@ def test_standard_tags():
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
-    icfg = f.get("integrations")
-    assert icfg["django"] == "N/A"
-    assert icfg["flask"] == "N/A"
+    icfg = f.get("integrations", {})
+    assert "django" not in icfg
+    assert "flask" not in icfg
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "unix:///file.sock"})
@@ -139,8 +135,8 @@ class TestGlobalConfig(SubprocessTestCase):
         assert f.get("tracer_tags") in ["k1:v1,k2:v2", "k2:v2,k1:v1"]
         assert f.get("tracer_enabled") is True
 
-        icfg = f.get("integrations")
-        assert icfg["django"] == "N/A"
+        icfg = f.get("integrations", {})
+        assert "django" not in icfg
 
     @run_in_subprocess(
         env_overrides=dict(
