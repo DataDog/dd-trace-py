@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an inssue where test spans would be left unfinished if the
+    `pytest_runtest_protocol` hook was overridden in `conftest.py`, causing the corresponding module and suite to be
+    unfinished as well.

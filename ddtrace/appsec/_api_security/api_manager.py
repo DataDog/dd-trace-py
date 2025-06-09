@@ -8,6 +8,7 @@ from typing import Optional
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.internal import logger as ddlogger
 from ddtrace.internal.service import Service
@@ -32,12 +33,14 @@ class TooLargeSchemaException(Exception):
 
 
 class APIManager(Service):
-    COLLECTED = [
+    BLOCK_COLLECTED = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
+    ]
+    COLLECTED = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
     ]
@@ -91,11 +94,15 @@ class APIManager(Service):
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
     def _should_collect_schema(self, env, priority: int) -> Optional[bool]:
-        # Rate limit per route
-        # return None if missing route, method or status
-        # return False if sampled
-        # return True if we should collect
-        if priority <= 0:
+        """
+        Rate limit per route.
+
+        Returns:
+            None: if missing route, method or status
+            False: if sampled
+            True: if we should collect
+        """
+        if priority <= 0 and asm_config._apm_tracing_enabled:
             return False
 
         method = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_METHOD)
@@ -127,7 +134,8 @@ class APIManager(Service):
         if env.span is None or not asm_config._api_security_feature_active:
             return
         root = env.span._local_root or env.span
-        if not root or any(meta_name in root._meta for _, meta_name, _ in self.COLLECTED):
+        collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
+        if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return
 
         try:
@@ -156,7 +164,7 @@ class APIManager(Service):
             return
 
         waf_payload = {"PROCESSOR_SETTINGS": {"extract-schema": True}}
-        for address, _, transform in self.COLLECTED:
+        for address, _, transform in collected:
             if not asm_config._api_security_parse_response_body and address == "RESPONSE_BODY":
                 continue
             value = env.waf_addresses.get(SPAN_DATA_NAMES[address], _sentinel)
@@ -171,7 +179,7 @@ class APIManager(Service):
         if result is None:
             return
         nb_schemas = 0
-        for meta, schema in result.derivatives.items():
+        for meta, schema in result.api_security.items():
             b64_gzip_content = b""
             try:
                 b64_gzip_content = base64.b64encode(
@@ -186,3 +194,7 @@ class APIManager(Service):
                 log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
         env.api_security_reported = nb_schemas
         self._metrics._report_api_security(True, nb_schemas)
+
+        # If we have a schema and APM tracing is disabled, force keep the trace
+        if nb_schemas > 0 and not asm_config._apm_tracing_enabled:
+            _asm_manual_keep(root)

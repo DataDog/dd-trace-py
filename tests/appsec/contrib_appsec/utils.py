@@ -1096,6 +1096,7 @@ class Contrib_TestClass_For_Threats:
                 assert get_triggers(root_span()) is None
 
     @pytest.mark.parametrize("apisec_enabled", [True, False])
+    @pytest.mark.parametrize("apm_tracing_enabled", [True, False])
     @pytest.mark.parametrize(
         ("name", "expected_value"),
         [
@@ -1167,6 +1168,7 @@ class Contrib_TestClass_For_Threats:
         get_tag,
         root_span,
         apisec_enabled,
+        apm_tracing_enabled,
         name,
         expected_value,
         headers,
@@ -1181,7 +1183,9 @@ class Contrib_TestClass_For_Threats:
         from ddtrace.ext import http
         import ddtrace.internal.telemetry
 
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=apisec_enabled)), mock_patch.object(
+        with override_global_config(
+            dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+        ), mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer,
             "_namespace",
             MagicMock(),
@@ -1203,7 +1207,7 @@ class Contrib_TestClass_For_Threats:
             else:
                 assert get_triggers(root_span()) is None
             value = get_tag(name)
-            if apisec_enabled:
+            if apisec_enabled and not (name.startswith("_dd.appsec.s.res") and blocked):
                 assert value, name
                 api = json.loads(gzip.decompress(base64.b64decode(value)).decode())
                 assert api, name
@@ -1225,6 +1229,16 @@ class Contrib_TestClass_For_Threats:
                     "appsec.api_security.request.schema",
                     (("framework", interface.name),),
                 ) in telemetry_calls
+
+                if not apm_tracing_enabled:
+                    span_sampling_priority = root_span()._span.context.sampling_priority
+                    sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
+                    assert (
+                        span_sampling_priority == constants.USER_KEEP
+                    ), f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
+                    assert (
+                        sampling_decision == f"-{constants.SamplingMechanism.APPSEC}"
+                    ), f"Expected '-5' (APPSEC), got {sampling_decision}"
             else:
                 assert value is None, name
 
@@ -1798,6 +1812,35 @@ class Contrib_TestClass_For_Threats:
                 assert get_tag(asm_constants.FINGERPRINTING.NETWORK) is None
                 assert get_tag(asm_constants.FINGERPRINTING.ENDPOINT) is None
                 assert get_tag(asm_constants.FINGERPRINTING.SESSION) is None
+
+    @pytest.mark.parametrize("exploit_prevention_enabled", [True, False])
+    @pytest.mark.parametrize("api_security_enabled", [True, False])
+    def test_trace_tagging(
+        self, interface, root_span, get_tag, get_metric, exploit_prevention_enabled, api_security_enabled
+    ):
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _asm_static_rule_file=rules.RULES_TRACE_TAGGING,
+                _ep_enabled=exploit_prevention_enabled,
+                _api_security_enabled=api_security_enabled,
+            )
+        ):
+            self.update_tracer(interface)
+            random_value = "oweh1jfoi4wejflk7sdgf"
+            response = interface.client.get(f"/?test_tag=tag_this_trace_{random_value}")
+            assert self.status(response) == 200
+            assert get_tag("http.status_code") == "200"
+            # test for trace tagging with fixed value
+            assert get_tag("dd.appsec.custom_tag") == "tagged_trace"
+            # test for metric tagging with fixed value
+            assert get_metric("dd.appsec.custom_metric") == 37
+            # test for trace tagging with dynamic value
+            assert get_tag("dd.appsec.custom_tag_value") == f"tag_this_trace_{random_value}"
+            # test for sampling priority changes. Appsec should not change the sampling priority (keep=false)
+            span_sampling_priority = root_span()._span.context.sampling_priority
+            sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
+            assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
     def test_iast(self, interface, root_span, get_tag):
         from ddtrace.ext import http

@@ -172,13 +172,11 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,  # global_config needed for analytics sample rate
+            config.django.global_config,
             "{}-{}".format("django", alias),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
             trace_fetch_methods=config.django.trace_fetch_methods,
-            analytics_enabled=config.django.analytics_enabled,
-            analytics_sample_rate=config.django.analytics_sample_rate,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
