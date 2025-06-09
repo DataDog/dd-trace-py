@@ -27,7 +27,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"loguru": ">=0.3.0"}
+    return {"loguru": ">=0.4.0"}
 
 
 def _tracer_injection(event_dict):

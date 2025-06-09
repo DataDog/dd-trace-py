@@ -19,7 +19,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"dramatiq": ">=1.0.0"}
+    return {"dramatiq": ">=1.10.0"}
 
 
 def patch() -> None:

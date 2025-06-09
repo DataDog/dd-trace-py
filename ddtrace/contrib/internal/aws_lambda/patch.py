@@ -21,7 +21,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"aws_lambda": "*"}
+    return {"datadog_lambda": "*"}
 
 
 class DDLambdaLogger:

@@ -52,7 +52,7 @@ propagator = HTTPPropagator
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"kombu": ">=4.2"}
+    return {"kombu": ">=4.6.6"}
 
 
 def patch():

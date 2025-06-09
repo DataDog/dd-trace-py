@@ -37,7 +37,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"requests": ">=2.20"}
+    return {"requests": ">=2.23.0"}
 
 
 def patch():

@@ -40,7 +40,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"cherrypy": ">=17.0"}
+    return {"cherrypy": ">=17.0.0"}
 
 
 SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)

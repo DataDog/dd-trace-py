@@ -79,7 +79,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"flask": ">=1.0"}
+    return {"flask": ">=1.1.4"}
 
 
 def get_werkzeug_version():

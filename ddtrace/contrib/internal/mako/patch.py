@@ -24,7 +24,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"mako": ">=0.1.0"}
+    return {"mako": ">=1.0.0"}
 
 
 def patch():

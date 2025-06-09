@@ -59,7 +59,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"graphene": ">=3.0.0", "graphql": ">=3.1"}
+    return {"graphql": ">=3.1"}
 
 
 def _parse_error_extensions(error_extensions: Optional[str]):
