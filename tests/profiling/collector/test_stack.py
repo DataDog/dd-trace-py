@@ -14,7 +14,6 @@ import ddtrace  # noqa:F401
 from ddtrace import ext
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import _threading
-from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import stack
 from tests.profiling.collector import pprof_utils
 
@@ -313,15 +312,13 @@ def test_collect_gevent_thread_task():
 
 
 def test_max_time_usage():
-    r = recorder.Recorder()
     with pytest.raises(ValueError):
-        stack.StackCollector(r, max_time_usage_pct=0)
+        stack.StackCollector(max_time_usage_pct=0)
 
 
 def test_max_time_usage_over():
-    r = recorder.Recorder()
     with pytest.raises(ValueError):
-        stack.StackCollector(r, max_time_usage_pct=200)
+        stack.StackCollector(max_time_usage_pct=200)
 
 
 @pytest.mark.parametrize("ignore_profiler", [True, False])
@@ -423,7 +420,7 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
+        "min_interval_time=0.01, max_time_usage_pct=1.0, "
         "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )
 
@@ -905,7 +902,7 @@ def test_collect_nested_span_id(tmp_path, tracer, request):
 
 
 def test_stress_trace_collection(tracer_and_collector):
-    tracer, collector = tracer_and_collector
+    tracer, _ = tracer_and_collector
 
     def _trace():
         for _ in range(5000):

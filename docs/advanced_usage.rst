@@ -350,6 +350,7 @@ Logs Injection
 --------------
 
 .. automodule:: ddtrace.contrib._logging
+   :noindex:
 
 ..  _http-tagging:
 

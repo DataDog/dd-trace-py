@@ -33,7 +33,7 @@ else:
             from greenlet import settrace
         except ImportError:
             # We don't seem to have the required dependencies.
-            return 
+            return
 
         class DDGreenletTracer(object):
             def __init__(self, gevent):
