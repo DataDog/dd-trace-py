@@ -86,7 +86,7 @@ def test_standard_tags():
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
-    assert f.get("log_injection_enabled") == "structured"  # This is a string because of the way the config is set up
+    assert f.get("log_injection_enabled") == "structured"
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("sampler_rules") == []

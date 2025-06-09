@@ -99,7 +99,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env="", enabled=True):
+    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env="", enabled="true"):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -235,7 +235,7 @@ class LoggingTestCase(TracerTestCase):
         )
 
         with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection=True)
+            dict(_logs_injection="true")
         ):
             output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
 
@@ -266,7 +266,7 @@ class LoggingTestCase(TracerTestCase):
         formatter = logging.StrFormatStyle(fmt)
 
         with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection=True)
+            dict(_logs_injection="true")
         ):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)

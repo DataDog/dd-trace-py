@@ -727,7 +727,7 @@ Logs
    DD_LOGS_INJECTION:
      type: string
      default: "structured"
-     description: Enables :ref:`Logs Injection`. Supported values are: ``false``, ``true``, and ``structured``.
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
 
    DD_TRACE_DEBUG:
      type: Boolean

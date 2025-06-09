@@ -103,6 +103,9 @@ def test_log_injection_disabled():
 
 
 def test_log_trace_global_values():
+    """
+    Check trace info includes global values over local span values
+    """
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
     span.set_tag(SERVICE_KEY, "local-service")
