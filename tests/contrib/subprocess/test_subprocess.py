@@ -27,9 +27,7 @@ PATCH_ENABLED_CONFIGURATIONS = (
     dict(_bypass_instrumentation_for_waf=False, _asm_enabled=True, _iast_enabled=False),
 )
 
-PATCH_SPECIALS = (
-    dict(_remote_config_enabled=True),
-)
+PATCH_SPECIALS = (dict(_remote_config_enabled=True),)
 
 PATCH_DISABLED_CONFIGURATIONS = (
     dict(),
