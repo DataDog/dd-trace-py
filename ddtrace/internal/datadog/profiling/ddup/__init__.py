@@ -1,7 +1,7 @@
-# This module supports an optional feature.  It may not even load on all platforms or configurations.
-# In ddtrace/settings/profiling.py, this module is imported and the is_available attribute is checked to determine
-# whether the feature is available. If not, then the feature is disabled and all downstream consumption is
-# suppressed.
+# In case when _ddup is not available, we set is_available attribute to False,
+# and failure_msg to the error message. This module is initially imported in
+# ddtrace/settings/profiling.py to determine if profiling can be run. If it
+# fails, we turn off profiling in ddtrace/settings/profiling.py
 is_available = False
 failure_msg = ""
 
