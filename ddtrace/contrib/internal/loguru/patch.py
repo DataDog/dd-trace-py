@@ -3,6 +3,7 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 
 from ..logging.constants import RECORD_ATTR_ENV
@@ -25,7 +26,7 @@ def get_version():
 
 
 def _tracer_injection(event_dict):
-    if config._logs_injection is False:
+    if config._logs_injection == LogInjectionState.DISABLED:
         # log injection is opt-out for structured logging
         return event_dict
     trace_details = ddtrace.tracer.get_log_correlation_context()

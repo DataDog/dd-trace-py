@@ -4,6 +4,7 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
 
@@ -68,7 +69,7 @@ def _get_tracer(tracer=None):
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
-    if not config._logs_injection:
+    if config._logs_injection == LogInjectionState.DISABLED:
         # log injection is opt-in for non-structured logging
         return record
 
@@ -96,7 +97,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
-    if not config._logs_injection:
+    if config._logs_injection == LogInjectionState.DISABLED:
         # log injection is opt out for structured logging
         return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
