@@ -83,7 +83,7 @@ from ddtrace import config, tracer
 config._logs_injection = "false"
 config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
-config._tracing_enabled = "false"
+config._tracing_enabled = False
 
 from ddtrace.internal.telemetry import telemetry_writer
 # simulate app start event, this occurs when the first span is sent to the datadog agent
@@ -98,7 +98,7 @@ telemetry_writer._app_started()
     events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
     assert {
         "name": "DD_LOGS_INJECTION",
-        "value": False,
+        "value": "false",
         "origin": "code",
     } in events_logs_injection_enabled
 

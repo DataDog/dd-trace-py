@@ -74,7 +74,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         {
             "expected": {
                 "_trace_sampling_rules": "",
-                "_logs_injection": None,
+                "_logs_injection": "structured",
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
@@ -117,13 +117,13 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"_logs_injection": True},
+            "expected": {"_logs_injection": "true"},
             "expected_source": {"_logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "code": {"_logs_injection": False},
-            "expected": {"_logs_injection": False},
+            "code": {"_logs_injection": "false"},
+            "expected": {"_logs_injection": "false"},
             "expected_source": {"_logs_injection": "code"},
         },
         {
