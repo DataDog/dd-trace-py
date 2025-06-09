@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -78,7 +79,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self._update_litellm_metadata(span, kwargs, operation)
 
         # update input and output value for non-LLM spans
-        span_kind = self._get_span_kind(kwargs, model_name, operation)
+        span_kind = self._get_span_kind(span,kwargs, model_name, operation)
         update_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
@@ -159,17 +160,16 @@ class LiteLLMIntegration(BaseLLMIntegration):
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
     def _get_span_kind(
-        self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+        self, span: Span, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
             - span represents a router operation OR
-            - base_url is set (indicates a request to the proxy)
+            - span represents a proxy request
         LLM spans should be submitted to LLMObs if:
-            - base_url is not set AND an LLM span will not be submitted elsewhere
+            - span does not represent a router operation or a proxy request
         """
-        base_url = kwargs.get("api_base")
-        if self.is_router_operation(operation) or base_url:
+        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST):
             return "workflow"
         return "llm"
 
@@ -204,14 +204,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
-
-    def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
-        """
-        LiteLLM spans will be submitted to LLMObs unless the following are true:
-            - base_url is not set AND
-            - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
-        """
-        base_url = kwargs.get("api_base")
-        if not base_url and self._has_downstream_openai_span(kwargs, model):
-            return False
-        return True
+    
+    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
+        base_url = kwargs.get("base_url")
+        return str(base_url) if base_url else None

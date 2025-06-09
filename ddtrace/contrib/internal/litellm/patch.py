@@ -34,7 +34,8 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
+        base_url=kwargs.get("api_base", None),
+        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None
@@ -65,7 +66,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
+        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None
