@@ -63,7 +63,7 @@ def test_loading(appsec_enabled, iast_enabled, aws_lambda):
                     for m in MODULES_ALWAYS_LOADED:
                         assert m in data["appsec"], f"{m} not in {data['appsec']}"
                     for m in MODULE_ASM_ONLY:
-                        if appsec_enabled == "true" and not aws_lambda:
+                        if appsec_enabled == "true":
                             assert m in data["appsec"], f"{m} not in {data['appsec']} data:{data}"
                         else:
                             assert m not in data["appsec"], f"{m} in {data['appsec']} data:{data}"
