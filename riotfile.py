@@ -2795,7 +2795,7 @@ venv = Venv(
         ),
         Venv(
             name="subprocess",
-            command="pytest {cmdargs} --no-cov tests/contrib/subprocess",
+            command="pytest {cmdargs}  --no-ddtrace --no-cov tests/contrib/subprocess",
             pkgs={
                 "pytest-randomly": latest,
             },
