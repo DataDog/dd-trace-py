@@ -5,22 +5,11 @@ shallow: &base
   nspans: 1
   profiler_enabled: false
 
-shallow-cached:
-  <<: *base
-
 medium: 
   <<: *base
   max_depth: 50
 
-medium-cached:
-  <<: *base
-  max_depth: 50
-
 deep:
-  <<: *base
-  max_depth: 100
-
-deep-cached:
   <<: *base
   max_depth: 100
 
