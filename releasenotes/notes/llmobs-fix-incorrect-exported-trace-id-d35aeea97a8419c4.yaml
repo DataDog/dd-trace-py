@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the trace ID exported from ``export_span`` was incorrect.
