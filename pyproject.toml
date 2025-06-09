@@ -110,7 +110,6 @@ exclude = '''
   | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
-  | ddtrace/profiling/exporter/pprof_.*_pb2.py$
   | ddtrace/profiling/exporter/pprof.pyx$
   | ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
@@ -130,6 +129,7 @@ exclude = '''
   | build/
   | dist/
   | tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py$
+  | tests/profiling/collector/pprof_.*_pb2.py$
 )
 '''
 
@@ -156,10 +156,10 @@ exclude-modules = '''
   # also ignore preload module to avoid exception after moving ddtrace.tracing module
   | ddtrace.bootstrap.preload
   # protobuf file fails to import
-  | ddtrace.profiling.exporter.pprof_3_pb2
-  | ddtrace.profiling.exporter.pprof_312_pb2
-  | ddtrace.profiling.exporter.pprof_319_pb2
-  | ddtrace.profiling.exporter.pprof_421_pb2
+  | tests.profiling.collector.pprof_3_pb2
+  | tests.profiling.collector.pprof_312_pb2
+  | tests.profiling.collector.pprof_319_pb2
+  | tests.profiling.collector.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
   | ddtrace,appsec,iast,_taint_tracking.vendor
@@ -215,7 +215,7 @@ exclude = [
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",
     "ddtrace/appsec/_iast/_taint_tracking/_vendor/*",
-    "ddtrace/profiling/exporter/pprof_*pb2.py",
+    "tests/profiling/collector/pprof_*pb2.py",
     "tests/profiling/simple_program_gevent.py",
     "tests/contrib/grpc/hello_pb2.py",
     "tests/contrib/django_celery/app/*",

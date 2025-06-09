@@ -736,7 +736,10 @@ class LLMObs(Service):
                 error = "invalid_span"
                 log.warning("Span must be an LLMObs-generated span.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
+            return ExportedLLMObsSpan(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+            )
         except (TypeError, AttributeError):
             error = "invalid_span"
             log.warning("Failed to export span. Span must be a valid Span object.")
