@@ -53,6 +53,14 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
     return func.HttpResponse("Hello Datadog!")
 
 
+@app.route(
+    route="httpgetfunctionnamedecoratororder", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET]
+)
+@app.function_name(name="functionnamedecoratororder")
+def http_get_function_name_decorator_order(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
 @app.route(route="httpgetroot", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
     requests.get(f"http://localhost:{os.environ['AZURE_FUNCTIONS_TEST_PORT']}/api/httpgetchild", timeout=5)

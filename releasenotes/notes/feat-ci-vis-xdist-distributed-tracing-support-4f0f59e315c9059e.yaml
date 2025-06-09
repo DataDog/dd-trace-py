@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: This introduces preliminary support to link children pytest-xdist tests (and test suites and test modules) to their parent sessions, instead of being sent as independent sessions.
