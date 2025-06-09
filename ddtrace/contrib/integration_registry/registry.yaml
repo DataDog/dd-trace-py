@@ -104,7 +104,7 @@ integrations:
   - asyncpg
   tested_versions_by_dependency:
     asyncpg:
-      min: 0.23.0
+      min: 0.22.0
       max: 0.30.0
 
 - integration_name: avro
@@ -202,7 +202,7 @@ integrations:
   - cherrypy
   tested_versions_by_dependency:
     cherrypy:
-      min: 17.4.2
+      min: 17.0.0
       max: 18.10.0
 
 - integration_name: consul
@@ -232,7 +232,7 @@ integrations:
   - crewai
   tested_versions_by_dependency:
     crewai:
-      min: 0.121.1
+      min: 0.102.0
       max: 0.121.1
 
 - integration_name: ddtrace_api
@@ -246,7 +246,7 @@ integrations:
   - django
   tested_versions_by_dependency:
     django:
-      min: 2.2.1
+      min: 2.2.28
       max: 5.2.0
 
 - integration_name: dogpile_cache
@@ -274,7 +274,7 @@ integrations:
   - dramatiq
   tested_versions_by_dependency:
     dramatiq:
-      min: 1.17.0
+      min: 1.10.0
       max: 1.17.0
 
 - integration_name: elasticsearch
@@ -364,6 +364,10 @@ integrations:
   is_tested: false
   dependency_names:
   - freezegun
+  tested_versions_by_dependency:
+    freezegun:
+      min: 1.3.1
+      max: 1.5.2
 
 - integration_name: futures
   is_external_package: false
@@ -386,7 +390,7 @@ integrations:
   - google-generativeai
   tested_versions_by_dependency:
     google-generativeai:
-      min: 0.8.3
+      min: 0.7.2
       max: 0.8.3
 
 - integration_name: graphql
@@ -518,7 +522,7 @@ integrations:
   - mako
   tested_versions_by_dependency:
     mako:
-      min: 1.1.6
+      min: 1.0.14
       max: 1.3.8
 
 - integration_name: mariadb
@@ -548,7 +552,7 @@ integrations:
   - mongoengine
   tested_versions_by_dependency:
     mongoengine:
-      min: 0.29.1
+      min: 0.23.1
       max: 0.29.1
 
 - integration_name: mysql
@@ -609,7 +613,7 @@ integrations:
   - psycopg2-binary
   tested_versions_by_dependency:
     psycopg:
-      min: 3.2.1
+      min: 3.0.18
       max: 3.2.1
     psycopg2-binary:
       min: 2.8.6
@@ -662,7 +666,7 @@ integrations:
   - pynamodb
   tested_versions_by_dependency:
     pynamodb:
-      min: 5.5.1
+      min: 5.0.3
       max: 5.5.1
 
 - integration_name: pyodbc
@@ -692,7 +696,7 @@ integrations:
   - pytest
   tested_versions_by_dependency:
     pytest:
-      min: 6.2.5
+      min: 6.0.2
       max: 8.3.5
 
 - integration_name: pytest_bdd
@@ -738,7 +742,7 @@ integrations:
   - requests
   tested_versions_by_dependency:
     requests:
-      min: 2.22.0
+      min: 2.23.0
       max: 2.32.3
 
 - integration_name: rq
