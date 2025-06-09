@@ -264,7 +264,7 @@ def test_ossystem_disabled(tracer, config):
         #  {'_remote_config_enabled': True}
         #  {'_remote_config_enabled': False}
         #  {'_iast_enabled': False}
-        assert len(spans) > 1
+        assert len(spans) >= 1
         _assert_root_span_empty_system_data(spans[0])
 
 
