@@ -207,8 +207,6 @@ class HeaderInjection(VulnerabilityBase):
 
 def _iast_django_response(wrapped, instance, args, kwargs):
     try:
-        from django import VERSION as DJANGO_VERSION
-
         wrapped.__func__(instance, *args, **kwargs)
         if hasattr(instance, "_headers"):
             instance._headers = HeaderInjectionDict(instance._headers)
