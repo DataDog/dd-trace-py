@@ -73,14 +73,14 @@ def http_get_child(req: func.HttpRequest) -> func.HttpResponse:
 
 
 @app.function_name(name="servicebusqueue")
-@app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_SETTING")
+@app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_STRING")
 def service_bus_queue(msg: func.ServiceBusMessage):
     pass
 
 
 @app.function_name(name="servicebustopic")
 @app.service_bus_topic_trigger(
-    arg_name="msg", topic_name="topic.1", connection="CONNECTION_SETTING", subscription_name="subscription.1"
+    arg_name="msg", topic_name="topic.1", connection="CONNECTION_STRING", subscription_name="subscription.1"
 )
 def service_bus_topic(msg: func.ServiceBusMessage):
     pass

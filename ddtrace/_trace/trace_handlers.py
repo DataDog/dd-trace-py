@@ -862,14 +862,13 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-# TODO: rename?
-def _on_azure_servicebus_message_modifier(ctx, azure_servicebus_config, application_properties):
+def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, application_properties):
     span = ctx.span
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-    # TODO: check if distributed tracing is enabled
-    HTTPPropagator.inject(span.context, application_properties or {})
+    if azure_servicebus_config.distributed_tracing and span:
+        HTTPPropagator.inject(span.context, application_properties)
 
 
 def listen():
@@ -926,7 +925,7 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
-    core.on("azure.servicebus.message_modifier", _on_azure_servicebus_message_modifier)
+    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
