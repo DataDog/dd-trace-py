@@ -25,8 +25,6 @@ include(CheckSymbolExists)
 
 # Load libdatadog
 #include(FindLibdatadog)
-#include(FindLibNative)
-#include(FindLibNative)
 find_package(LibNative)
 
 # Set verbose mode so compiler and args are shown

@@ -365,6 +365,12 @@ add_target() {
   esac
 }
 
+#Build rust dependencies
+build_rust() {
+    echo "Building Rust dependencies"
+    python3 ../../../../build_libnative.py --crate ../../../../src/native --release --features profiling
+}
+
 
 ### ENTRYPOINT
 # Check for basic input validity
@@ -382,6 +388,8 @@ add_target "$3"
 print_cmake_args
 
 print_ctest_args
+
+build_rust
 
 # Run cmake
 for target in "${targets[@]}"; do
