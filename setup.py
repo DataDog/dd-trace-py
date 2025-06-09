@@ -43,6 +43,9 @@ except ImportError:
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
+# workaround for ModuleNotFound.
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
 from build_libnative import build_crate, clean_crate
 
 
