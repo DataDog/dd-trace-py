@@ -72,6 +72,91 @@ def flask_server(
     )
 
 
+@contextmanager
+def django_server(
+    python_cmd="python",
+    appsec_enabled="false",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    apm_tracing_enabled=None,
+    token=None,
+    port=8000,
+    env=None,
+    assert_debug=False,
+    manual_propagation_debug=False,
+):
+    """
+    Context manager that runs a Django test server in a subprocess.
+
+    This server uses the Django test application located in tests/appsec/integrations/django_tests/django_app.
+    The server is started when entering the context and stopped when exiting.
+    """
+    manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+    cmd = [python_cmd, manage_py, "runserver", f"0.0.0.0:{port}", "--noreload"]
+    yield from appsec_application_server(
+        cmd,
+        appsec_enabled=appsec_enabled,
+        apm_tracing_enabled=apm_tracing_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        iast_enabled=iast_enabled,
+        tracer_enabled=tracer_enabled,
+        token=token,
+        port=port,
+        env=env,
+        assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
+    )
+
+
+@contextmanager
+def uvicorn_server(
+    python_cmd="python",
+    appsec_enabled="false",
+    remote_configuration_enabled="true",
+    iast_enabled="false",
+    tracer_enabled="true",
+    apm_tracing_enabled=None,
+    token=None,
+    app="tests.appsec.integrations.fastapi_tests.app:app",
+    env=None,
+    port=8000,
+    assert_debug=False,
+    manual_propagation_debug=False,
+):
+    """
+    Context manager that runs a FastAPI test server in a subprocess using Uvicorn.
+
+    This server uses the FastAPI test application located in tests/appsec/integrations/fastapi_tests.
+    The server is started when entering the context and stopped when exiting.
+    """
+    cmd = [
+        python_cmd,
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        "uvicorn",
+        app,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(port),
+        "--no-access-log",
+    ]
+    yield from appsec_application_server(
+        cmd,
+        appsec_enabled=appsec_enabled,
+        apm_tracing_enabled=apm_tracing_enabled,
+        remote_configuration_enabled=remote_configuration_enabled,
+        iast_enabled=iast_enabled,
+        tracer_enabled=tracer_enabled,
+        token=token,
+        port=port,
+        env=env,
+        assert_debug=assert_debug,
+        manual_propagation_debug=manual_propagation_debug,
+    )
+
+
 def appsec_application_server(
     cmd,
     appsec_enabled="true",

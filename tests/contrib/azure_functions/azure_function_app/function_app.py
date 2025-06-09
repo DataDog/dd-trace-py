@@ -53,6 +53,14 @@ def http_get_function_name_no_decorator(req: func.HttpRequest) -> func.HttpRespo
     return func.HttpResponse("Hello Datadog!")
 
 
+@app.route(
+    route="httpgetfunctionnamedecoratororder", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET]
+)
+@app.function_name(name="functionnamedecoratororder")
+def http_get_function_name_decorator_order(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse("Hello Datadog!")
+
+
 @app.route(route="httpgetroot", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
     requests.get(f"http://localhost:{os.environ['AZURE_FUNCTIONS_TEST_PORT']}/api/httpgetchild", timeout=5)
@@ -62,6 +70,20 @@ def http_get_root(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="httpgetchild", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.GET])
 def http_get_child(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
+
+
+@app.function_name(name="servicebusqueue")
+@app.service_bus_queue_trigger(arg_name="msg", queue_name="queue.1", connection="CONNECTION_SETTING")
+def service_bus_queue(msg: func.ServiceBusMessage):
+    pass
+
+
+@app.function_name(name="servicebustopic")
+@app.service_bus_topic_trigger(
+    arg_name="msg", topic_name="topic.1", connection="CONNECTION_SETTING", subscription_name="subscription.1"
+)
+def service_bus_topic(msg: func.ServiceBusMessage):
+    pass
 
 
 @app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")

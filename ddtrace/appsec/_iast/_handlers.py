@@ -204,8 +204,12 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 )
             except AttributeError:
                 log.debug("IAST can't set attribute http_req._body", exc_info=True)
+        # This condition is only for testing purposes.
+        # In real applications, http_req.body is typically a property that can be set.
+        # Here we check if it's not a property to handle test cases where body is directly assigned.
         elif (
             getattr(http_req, "body", None) is not None
+            and not isinstance(getattr(http_req, "body", None), property)
             and len(getattr(http_req, "body", None)) > 0
             and not is_pyobject_tainted(getattr(http_req, "body", None))
         ):

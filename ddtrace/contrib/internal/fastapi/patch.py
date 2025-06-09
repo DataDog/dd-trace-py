@@ -36,6 +36,10 @@ def get_version():
     return getattr(fastapi, "__version__", "")
 
 
+def _supported_versions():
+    return {"fastapi": ">=0.57.0"}
+
+
 def wrap_middleware_stack(wrapped, instance, args, kwargs):
     return TraceMiddleware(app=wrapped(*args, **kwargs), integration_config=config.fastapi)
 

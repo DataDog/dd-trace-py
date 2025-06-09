@@ -2,14 +2,12 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
-import re
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
-from urllib.parse import urlparse
 
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
@@ -31,8 +29,6 @@ from ddtrace.llmobs._utils import safe_json
 
 logger = get_logger(__name__)
 
-ACCEPTED_OPENAI_DEFAULT_HOSTNAMES = ("api.openai.com", "api.deepseek.com")
-AZURE_URL_REGEX_PATTERN = "^[\\w.-]*openai\\.azure\\.com$"
 OPENAI_SKIPPED_COMPLETION_TAGS = (
     "model",
     "prompt",
@@ -51,16 +47,6 @@ OPENAI_SKIPPED_CHAT_TAGS = (
     "user_api_key_hash",
     LITELLM_ROUTER_INSTANCE_KEY,
 )
-
-
-def is_openai_default_base_url(base_url: Optional[str] = None) -> bool:
-    if base_url is None:
-        return True
-
-    parsed_url = urlparse(base_url)
-    default_azure_endpoint_regex = re.compile(AZURE_URL_REGEX_PATTERN)
-    matches_azure_endpoint = default_azure_endpoint_regex.match(parsed_url.hostname or "") is not None
-    return parsed_url.hostname in ACCEPTED_OPENAI_DEFAULT_HOSTNAMES or matches_azure_endpoint
 
 
 def extract_model_name_google(instance, model_name_attr):
