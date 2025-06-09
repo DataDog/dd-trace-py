@@ -1,5 +1,4 @@
 ---
 fixes:
   - |
-    tracing: This fixes an error where previously a bytes value would attempt to append a Unicode string "<truncated>...", resulting in a TypeError.
-    Now the code appends a bytes literal when truncating a bytes object, resolving a mixed type concatenation error.
+    tracing: This resolves an encoding error when appending a unicode string to a bytes object, which previously resulted in a TypeError. It now appends a bytes literal when truncating a bytes object.
