@@ -327,14 +327,14 @@ def unpatch() -> None:
 
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
-            return wrapped(*args, **kwargs)
-        if isinstance(args[0], str):
-            for callback in _STR_CALLBACKS.values():
-                callback(args[0])
-        shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
-
+    if not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled):
+        try:
+            if isinstance(args[0], str):
+                for callback in _STR_CALLBACKS.values():
+                    callback(args[0])
+            shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
+        except Exception:  # noqa:E722
+            log.debug("Could not trace subprocess execution for os.system", exc_info=True)
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
             if shellcmd.truncated:
@@ -342,25 +342,24 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
-        return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution for os.system", exc_info=True)
+            return ret
+    else:
         return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+    ret = wrapped(*args, **kwargs)
     if not (asm_config._asm_enabled or asm_config._iast_enabled):
-        return wrapped(*args, **kwargs)
+        return ret
     try:
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
             span.set_tag(COMMANDS.EXEC, ["os.fork"])
             span.set_tag_str(COMMANDS.COMPONENT, "os")
-            ret = wrapped(*args, **kwargs)
-        return ret
+
     except Exception:  # noqa:E722
         log.debug("Could not trace subprocess execution for os.fork", exc_info=True)
-        return wrapped(*args, **kwargs)
+    return ret
 
 
 @trace_utils.with_traced_module
@@ -374,77 +373,73 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
             for callback in _LST_CALLBACKS.values():
                 callback(commands)
         shellcmd = SubprocessCmdLine(func_args, shell=False)
-
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
-            if shellcmd.truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "true")
-            span.set_tag_str(COMMANDS.COMPONENT, "os")
-
-            if mode == os.P_WAIT:
-                ret = wrapped(*args, **kwargs)
-                span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
-                return ret
-    except Exception:  # noqa:E722
+    except Exception:
         log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
+        return wrapped(*args, **kwargs)
 
-    return wrapped(*args, **kwargs)
+    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+        span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
+        if shellcmd.truncated:
+            span.set_tag_str(COMMANDS.TRUNCATED, "true")
+        span.set_tag_str(COMMANDS.COMPONENT, "os")
+
+        ret = wrapped(*args, **kwargs)
+        if mode == os.P_WAIT:
+            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+        return ret
 
 
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
-            return wrapped(*args, **kwargs)
-        cmd_args = args[0] if len(args) else kwargs["args"]
-        if isinstance(cmd_args, (list, tuple, str)):
-            if kwargs.get("shell", False):
-                for callback in _STR_CALLBACKS.values():
-                    callback(cmd_args)
-            else:
-                for callback in _LST_CALLBACKS.values():
-                    callback(cmd_args)
-        cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-        is_shell = kwargs.get("shell", False)
-        shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
+    if not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled):
+        try:
+            cmd_args = args[0] if len(args) else kwargs["args"]
+            if isinstance(cmd_args, (list, tuple, str)):
+                if kwargs.get("shell", False):
+                    for callback in _STR_CALLBACKS.values():
+                        callback(cmd_args)
+                else:
+                    for callback in _LST_CALLBACKS.values():
+                        callback(cmd_args)
+            cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
+            is_shell = kwargs.get("shell", False)
+            shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
-            core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
+            with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
+                core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
 
-            if shellcmd.truncated:
-                core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes")
+                if shellcmd.truncated:
+                    core.set_item(COMMANDS.CTX_SUBP_TRUNCATED, "yes")
 
-            if is_shell:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string())
-            else:
-                core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
-            core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution", exc_info=True)
+                if is_shell:
+                    core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_string())
+                else:
+                    core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
+                core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
+        except Exception:  # noqa:E722
+            log.debug("Could not trace subprocess execution", exc_info=True)
 
     return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
-            return wrapped(*args, **kwargs)
-        binary = core.get_item("subprocess_popen_binary")
+    ret = wrapped(*args, **kwargs)
+    if not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled):
+        try:
+            binary = core.get_item("subprocess_popen_binary")
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
-            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
-                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
-            else:
-                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
+            with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
+                if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
+                    span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
+                else:
+                    span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
 
-            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
-            if truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "yes")
-            span.set_tag_str(COMMANDS.COMPONENT, "subprocess")
-            ret = wrapped(*args, **kwargs)
-            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
-            return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution", exc_info=True)
-        return wrapped(*args, **kwargs)
+                truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
+                if truncated:
+                    span.set_tag_str(COMMANDS.TRUNCATED, "yes")
+                span.set_tag_str(COMMANDS.COMPONENT, "subprocess")
+                span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+        except Exception:  # noqa:E722
+            log.debug("Could not trace subprocess execution", exc_info=True)
+    return ret

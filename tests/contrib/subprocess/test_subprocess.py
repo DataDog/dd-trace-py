@@ -353,7 +353,13 @@ def test_osspawn_variants(tracer, function, mode, arguments):
 
         spans = tracer.pop()
         assert spans
-        # assert len(spans) > 1
+        assert len(spans) == 3
+        assert spans[0].get_tag(COMMANDS.EXEC) is None
+        assert spans[0].get_tag(COMMANDS.COMPONENT) is None
+
+        assert spans[2].get_tag(COMMANDS.EXEC) == "['os.fork']"
+        assert spans[2].get_tag(COMMANDS.COMPONENT) == 'os'
+
         span = spans[1]
         if mode == os.P_WAIT:
             assert span.get_tag(COMMANDS.EXIT_CODE) == str(ret)
@@ -446,6 +452,12 @@ def test_subprocess_run(tracer):
         assert not span.get_tag(COMMANDS.TRUNCATED)
         assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
         assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
+
+
+def test_subprocess_run_error(tracer):
+    patch()
+    with pytest.raises(FileNotFoundError):
+        _ = subprocess.run(["fake"], stderr=subprocess.DEVNULL)
 
 
 def test_subprocess_communicate(tracer):
