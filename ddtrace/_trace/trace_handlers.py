@@ -831,7 +831,7 @@ def _set_azure_function_tags(span, azure_functions_config, function_name, trigge
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
     span.resource = f"{req.method} {path}"
@@ -847,7 +847,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
@@ -858,8 +858,18 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
 
 
 def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
-    span = ctx.get_item("trigger_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+
+
+# TODO: rename?
+def _on_azure_servicebus_message_modifier(ctx, azure_servicebus_config, application_properties):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+    # TODO: check if distributed tracing is enabled
+    HTTPPropagator.inject(span.context, application_properties or {})
 
 
 def listen():
@@ -916,6 +926,7 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
+    core.on("azure.servicebus.message_modifier", _on_azure_servicebus_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -970,6 +981,7 @@ def listen():
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
+        "azure.servicebus.patched_producer",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 
