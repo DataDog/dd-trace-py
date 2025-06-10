@@ -32,26 +32,27 @@ def get_version():
 
 
 def patch():
+    for azure_servicebus_module in (azure_servicebus, azure_servicebus_aio):
+        _patch(azure_servicebus_module)
+
+
+def _patch(azure_servicebus_module):
     """
-    Patch `azure.servicebus` module for tracing
+    Patch `azure.servicebus` modules for tracing
     """
-    # Check to see if we have patched azure.servicebus yet or not
-    if getattr(azure_servicebus, "_datadog_patch", False):
+    # Check to see if we have patched module yet or not
+    if getattr(azure_servicebus_module, "_datadog_patch", False):
         return
-    azure_servicebus._datadog_patch = True
+    azure_servicebus_module._datadog_patch = True
 
-    Pin().onto(azure_servicebus.ServiceBusSender)
-    _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
-    # TODO: patch schedule_messages
-
-    # Check to see if we have patched azure.servicebus.aio yet or not
-    if getattr(azure_servicebus_aio, "_datadog_patch", False):
-        return
-    azure_servicebus_aio._datadog_patch = True
-
-    Pin().onto(azure_servicebus_aio.ServiceBusSender)
-    _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
-    # TODO: patch schedule_messages
+    if azure_servicebus_module.__name__ == "azure.servicebus.aio":
+        Pin().onto(azure_servicebus_aio.ServiceBusSender)
+        _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
+        # TODO: patch schedule_messages
+    else:
+        Pin().onto(azure_servicebus_module.ServiceBusSender)
+        _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
+        # TODO: patch schedule_messages
 
 
 def _patched_send_messages(wrapped, instance, args, kwargs):
@@ -85,10 +86,19 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
 
 
 def unpatch():
-    if not getattr(azure_servicebus, "_datadog_patch", False):
-        return
-    azure_servicebus._datadog_patch = False
+    for azure_servicebus_module in (azure_servicebus, azure_servicebus_aio):
+        _unpatch(azure_servicebus_module)
 
-    _u(azure_servicebus.ServiceBusSender, "send_messages")
-    _u(azure_servicebus_aio.ServiceBusSender, "send_messages")
-    # TODO: add remaining methods to unpatch
+
+def _unpatch(azure_servicebus_module):
+    if not getattr(azure_servicebus_module, "_datadog_patch", False):
+        return
+    azure_servicebus_module._datadog_patch = False
+
+    # TODO: consolidate if/else statement?
+    if azure_servicebus_module.__name__ == "azure.servicebus.aio":
+        _u(azure_servicebus_module.ServiceBusSender, "send_messages")
+        # TODO: add remaining methods to unpatch
+    else:
+        _u(azure_servicebus_module.ServiceBusSender, "send_messages")
+        # TODO: add remaining methods to unpatch
