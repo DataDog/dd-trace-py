@@ -18,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -287,10 +288,9 @@ class TraceMiddleware:
                             # The link should have the attribute dd.kind set to resuming.
                             # If the instrumented library supports multicast or broadcast sending,
                             # there must be a link to the handshake span of every affected connection;
-                            if self.integration_config._websocket_messages_separate:
-                                send_span.set_link(
-                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
-                                )
+                            send_span.set_link(
+                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
+                            )
                             send_span.set_metric("websocket.message.frames", 1)
                             if "text" in message:
                                 send_span.set_tag_str("websocket.message.type", "text")
@@ -333,6 +333,10 @@ class TraceMiddleware:
                                 close_span.set_tag_str("websocket.message.type", "binary")
                                 close_span.set_metric("websocket.message.length", len(message["bytes"]))
 
+                            # should act like send span (outgoing message) case
+                            close_span.set_link(
+                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
+                            )
                             code = message.get("code")
                             reason = message.get("reason")
                             if code is not None:
@@ -412,9 +416,10 @@ class TraceMiddleware:
                             core.dispatch("asgi.websocket.receive", (message,))
                             # the span should have link to http handshake span
                             # the link should have attribute dd.kind set to executed_by
-                            recv_span.set_link(
-                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
-                            )
+                            if self.integration_config._websocket_messages_separate:
+                                recv_span.set_link(
+                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
+                                )
 
                             if "text" in message:
                                 recv_span.set_tag_str("websocket.message.type", "text")
@@ -433,6 +438,10 @@ class TraceMiddleware:
                                 recv_span.set_metric("_dd.dm.inherited", 1)
                                 recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
                                 recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                recv_span.set_tag_str(
+                                    SAMPLING_DECISION_TRACE_TAG_KEY,
+                                    global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
+                                )
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -460,6 +469,12 @@ class TraceMiddleware:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             close_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
+                            if self.integration_config._websocket_messages_separate:
+                                # should act like websocket.receive (incoming message) case
+                                close_span.set_link(
+                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
+                                )
+
                             if (
                                 self.integration_config._websocket_messages_separate
                                 and self.integration_config._asgi_websockets_inherit_sampling
@@ -467,6 +482,10 @@ class TraceMiddleware:
                                 close_span.set_metric("_dd.dm.inherited", 1)
                                 close_span.set_tag_str("_dd.dm.service", global_root_span.service)
                                 close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                                close_span.set_tag_str(
+                                    SAMPLING_DECISION_TRACE_TAG_KEY,
+                                    global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
+                                )
 
                             code = message.get("code")
                             reason = message.get("reason")
