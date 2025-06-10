@@ -14,6 +14,8 @@ Before working on the library, install `docker <https://www.docker.com/products/
 
 If you're trying to set up a local development environment, read `this <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_.
 
+`Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
+
 Thanks for working with us!
 
 .. _change_process:
@@ -108,6 +110,7 @@ Keep the following in mind when writing logging code:
 .. toctree::
     :hidden:
 
+    contributing-design
     contributing-integrations
     contributing-testing
     contributing-tracing
