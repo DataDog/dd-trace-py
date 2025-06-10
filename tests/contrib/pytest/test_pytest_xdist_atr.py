@@ -141,39 +141,14 @@ class PytestXdistATRTestCase(PytestTestCaseBase):
         in the xdist worker processes.
         """
         sitecustomize_content = """
-# sitecustomize.py - Cross-process ATR mocking for xdist
-import os
+# sitecustomize.py
 from unittest import mock
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings, EarlyFlakeDetectionSettings, TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
 
-# Ensure environment variables are set for agentless mode
-os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "1"
-os.environ["DD_API_KEY"] = "foobar.baz"
-os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "0"
-
-# Mock ddconfig to enable agentless mode
-from ddtrace import config as ddconfig
-ddconfig._ci_visibility_agentless_enabled = True
-
-# Ensure parent module is loaded
-import ddtrace.internal.ci_visibility.recorder
-
-# Create ATR-enabled settings for worker processes
-atr_enabled_settings = TestVisibilityAPISettings(
-    coverage_enabled=False,
-    skipping_enabled=False,
-    require_git=False,
-    itr_enabled=False,
-    flaky_test_retries_enabled=True,
-    known_tests_enabled=False,
-    early_flake_detection=EarlyFlakeDetectionSettings(),
-    test_management=TestManagementSettings(),
-)
-
-# Apply the settings mock globally for all processes
 _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
     "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    return_value=atr_enabled_settings
+    return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
 )
 _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 """
@@ -194,86 +169,14 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         assert rec.ret == 1
 
     def test_pytest_xdist_atr_env_var_disables_retrying(self):
-        # Create a test-specific sitecustomize with ATR disabled settings
-        atr_disabled_sitecustomize = """
-# sitecustomize.py - Cross-process ATR disabled mocking for xdist
-import os
-from unittest import mock
-from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings, EarlyFlakeDetectionSettings, TestManagementSettings
-
-# Ensure environment variables are set for agentless mode
-os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "1"
-os.environ["DD_API_KEY"] = "foobar.baz"
-os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "0"
-os.environ["DD_CIVISIBILITY_FLAKY_RETRY_ENABLED"] = "0"  # Disable ATR via env var
-
-# Mock ddconfig to enable agentless mode
-from ddtrace import config as ddconfig
-ddconfig._ci_visibility_agentless_enabled = True
-
-# Ensure parent module is loaded
-import ddtrace.internal.ci_visibility.recorder
-
-# Create ATR-disabled settings for worker processes (environment variable takes precedence)
-atr_disabled_settings = TestVisibilityAPISettings(
-    coverage_enabled=False,
-    skipping_enabled=False,
-    require_git=False,
-    itr_enabled=False,
-    flaky_test_retries_enabled=False,
-    known_tests_enabled=False,
-    early_flake_detection=EarlyFlakeDetectionSettings(),
-    test_management=TestManagementSettings(),
-)
-
-# Apply the settings mock globally for all processes
-_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
-    "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-    return_value=atr_disabled_settings
-)
-_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
-"""
-        self.testdir.makepyfile(sitecustomize=atr_disabled_sitecustomize)
-
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.makepyfile(test_errors=_TEST_ERRORS_CONTENT)
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        # Create ATR-disabled settings for the main process
-        from ddtrace.internal.ci_visibility._api_client import (
-            TestVisibilityAPISettings,
-            EarlyFlakeDetectionSettings,
-            TestManagementSettings,
-        )
-
-        atr_disabled_settings = TestVisibilityAPISettings(
-            coverage_enabled=False,
-            skipping_enabled=False,
-            require_git=False,
-            itr_enabled=False,
-            flaky_test_retries_enabled=False,
-            known_tests_enabled=False,
-            early_flake_detection=EarlyFlakeDetectionSettings(),
-            test_management=TestManagementSettings(),
-        )
-
-        # Use the proper CI Visibility test environment setup
-        mock_ddconfig = _get_default_civisibility_ddconfig()
-        mock_ddconfig._ci_visibility_agentless_enabled = True
-
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", mock_ddconfig), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=atr_disabled_settings,
-        ):
-            extra_env = {
-                "DD_API_KEY": "foobar.baz",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-                "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
-            }
-            rec = self.inline_run("--ddtrace", "-s", extra_env=extra_env)
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
+            rec = self.inline_run("--ddtrace", "-s", extra_env={"DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0"})
             assert rec.ret == 1
 
     def test_pytest_xdist_atr_fails_session_when_test_fails(self):
@@ -290,39 +193,8 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
         self.testdir.makepyfile(test_pass_on_retries=_TEST_PASS_ON_RETRIES_CONTENT)
         self.testdir.makepyfile(test_skip=_TEST_SKIP_CONTENT)
 
-        # Create ATR-enabled settings for the main process
-        from ddtrace.internal.ci_visibility._api_client import (
-            TestVisibilityAPISettings,
-            EarlyFlakeDetectionSettings,
-            TestManagementSettings,
-        )
-
-        atr_enabled_settings = TestVisibilityAPISettings(
-            coverage_enabled=False,
-            skipping_enabled=False,
-            require_git=False,
-            itr_enabled=False,
-            flaky_test_retries_enabled=True,
-            known_tests_enabled=False,
-            early_flake_detection=EarlyFlakeDetectionSettings(),
-            test_management=TestManagementSettings(),
-        )
-
-        # Use the proper CI Visibility test environment setup
-        mock_ddconfig = _get_default_civisibility_ddconfig()
-        mock_ddconfig._ci_visibility_agentless_enabled = True
-
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", mock_ddconfig), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=atr_enabled_settings,
-        ):
-            extra_env = {
-                "DD_API_KEY": "foobar.baz",
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-            }
-            rec = self.inline_run("--ddtrace", extra_env=extra_env)
-            assert rec.ret == 0
+        rec = self.inline_run("--ddtrace")
+        assert rec.ret == 0
 
     def test_pytest_xdist_atr_does_not_retry_failed_setup_or_teardown(self):
         # NOTE: This feature only works for regular pytest tests. For tests inside unittest classes, setup and teardown
