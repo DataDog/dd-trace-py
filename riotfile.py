@@ -155,7 +155,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_tdd_propagation",
-            pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+            pys=select_pys(min="3.9"),
             command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
             pkgs={
                 "requests": latest,
