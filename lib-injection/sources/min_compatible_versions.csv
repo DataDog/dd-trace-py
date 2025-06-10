@@ -13,7 +13,7 @@ aiohttp_jinja2,~=1.5.0
 aiomysql,~=0.1.0
 aiopg,~=0.16.0
 aiosqlite,0
-algoliasearch,~=2.5
+algoliasearch,~=2.5.0
 anthropic,==0.26.0
 anyio,>=3.4.0
 aredis,0
@@ -24,7 +24,7 @@ asyncpg,~=0.23
 asynctest,==0.13.0
 austin-python,~=1.0
 avro,0
-azure.functions,0
+azure.functions,~=1.20.0
 blinker,0
 bottle,>=0.12
 cassandra-driver,~=3.24.0
@@ -50,7 +50,7 @@ django-redis,>=4.5
 django_hosts,~=4.0
 djangorestframework,>=3.11
 docker,0
-dogpile.cache,~=0.9
+dogpile.cache,~=0.6.0
 dramatiq,0
 elasticsearch,~=7.13.0
 elasticsearch1,~=1.10.0
@@ -68,6 +68,7 @@ fastapi,~=0.64.0
 flask,~=0.12.0
 flask-caching,~=1.10.0
 flask-openapi3,0
+freezegun,~=1.3.0
 gevent,~=20.12.0
 google-ai-generativelanguage,0
 google-generativeai,0
@@ -117,7 +118,7 @@ mysql-connector-python,==8.0.5
 mysqlclient,~=2.0
 numexpr,==2.8.5
 openai,==1.30.3
-openai-agents,0
+openai-agents,~=0.0.0
 "openai[embeddings,datalib]",==1.0.0
 opensearch-py,0
 opensearch-py[async],0
@@ -142,7 +143,7 @@ pyodbc,~=4.0.31
 pyramid,~=1.10
 pysqlite3-binary,0
 pytest,>=6.0
-pytest-aiohttp,0
+pytest-aiohttp,<=1.0.5
 pytest-bdd,>=4.0
 pytest-benchmark,>=3.1.0
 pytest-cov,==2.9.0
@@ -169,6 +170,7 @@ rq,~=1.8.0
 ruamel.yaml,0
 sanic,~=20.12
 sanic-testing,~=0.8.3
+slotscheck,==0.17.0
 snowflake-connector-python,~=2.3.0
 spyne,0
 sqlalchemy,~=1.2.18
