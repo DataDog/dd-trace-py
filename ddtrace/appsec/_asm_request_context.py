@@ -676,6 +676,9 @@ def asm_listen():
     core.on("asgi.start_response", _call_waf)
     core.on("asgi.finalize_response", _set_headers_and_response)
 
+    core.on("aws_lambda.start_request", _call_waf_first)
+    core.on("aws_lambda.start_response", _call_waf)
+
     core.on("asm.set_blocked", set_blocked)
     core.on("asm.get_blocked", get_blocked, "block_config")
 
