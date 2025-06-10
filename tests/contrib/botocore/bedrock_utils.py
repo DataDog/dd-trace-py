@@ -1,9 +1,10 @@
+from io import BytesIO
 import os
 
-import botocore
 import boto3
+import botocore
 import urllib3
-from io import BytesIO
+
 
 try:
     import vcr
@@ -145,7 +146,10 @@ _MOCK_COHERE_STREAM_RESPONSE_DATA = (
     b'"is_finished": true, "finish_reason": "MAX_TOKENS"}'
 )
 
-_MOCK_META_RESPONSE_DATA = b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", "stop_reason": "max_tokens"}'
+_MOCK_META_RESPONSE_DATA = (
+    b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", '
+    b'"stop_reason": "max_tokens"}'
+)
 
 _RESPONSE_BODIES = {
     "stream": {

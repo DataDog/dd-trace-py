@@ -10,6 +10,7 @@ from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
 WEATHER_OUTPUT_MESSAGE_1 = '<thinking>\nThe get_weather tool is directly relevant for answering this \
 question about the weather in a specific location. \n\nThe get_weather tool requires a "location" \

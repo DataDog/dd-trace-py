@@ -13,8 +13,8 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
-from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
+from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase

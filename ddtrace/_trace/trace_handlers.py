@@ -19,7 +19,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
@@ -34,6 +33,7 @@ from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.propagation.http import HTTPPropagator
 
 

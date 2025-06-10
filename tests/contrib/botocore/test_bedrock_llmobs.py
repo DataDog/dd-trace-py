@@ -11,12 +11,12 @@ from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
-from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
 from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
+from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
