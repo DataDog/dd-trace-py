@@ -172,8 +172,7 @@ venv = Venv(
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
-            }
-
+            },
         ),
         Venv(
             name="profile-diff",
