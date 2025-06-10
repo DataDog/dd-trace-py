@@ -361,7 +361,7 @@ integrations:
 
 - integration_name: freezegun
   is_external_package: true
-  is_tested: false
+  is_tested: true
   dependency_names:
   - freezegun
   tested_versions_by_dependency:
@@ -742,7 +742,7 @@ integrations:
   - requests
   tested_versions_by_dependency:
     requests:
-      min: 2.23.0
+      min: 2.20.1
       max: 2.32.3
 
 - integration_name: rq
