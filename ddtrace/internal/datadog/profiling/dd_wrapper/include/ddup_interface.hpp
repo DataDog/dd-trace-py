@@ -21,7 +21,6 @@ extern "C"
     void ddup_config_runtime(std::string_view runtime);
     void ddup_config_profiler_version(std::string_view profiler_version);
     void ddup_config_url(std::string_view url);
-    void ddup_config_max_nframes(int max_nframes);
     void ddup_config_timeline(bool enable);
     void ddup_config_output_filename(std::string_view filename);
     void ddup_config_sample_pool_capacity(uint64_t capacity);
