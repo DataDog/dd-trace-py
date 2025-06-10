@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -280,3 +281,8 @@ class BedrockIntegration(BaseLLMIntegration):
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None
         return str(endpoint_host) if endpoint_host else None
+
+    def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
+        base_url = self._get_base_url({"instance": ctx.get_item("instance")})
+        if self._is_proxy_url(base_url):
+            ctx.set_item(PROXY_REQUEST, True)

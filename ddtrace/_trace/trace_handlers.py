@@ -33,7 +33,6 @@ from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -656,10 +655,7 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
     integration = ctx["bedrock_integration"]
-    # determine if the span represents a proxy request
-    base_url = integration._get_base_url({"instance": ctx.get_item("instance")})
-    if integration._is_proxy_url(base_url):
-        ctx.set_item(PROXY_REQUEST, True)
+    integration._tag_proxy_request(ctx)
 
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
