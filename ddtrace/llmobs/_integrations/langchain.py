@@ -182,7 +182,9 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
+            is_workflow = (
+                LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
+            )
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
