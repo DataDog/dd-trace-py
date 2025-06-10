@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.contrib.internal.google_genai._utils import tag_request
 from ddtrace.contrib.internal.google_genai._utils import tag_response
+from ddtrace.contrib.internal.google_genai._utils import extract_model_name_google_genai
 from ddtrace.trace import Pin
 
 
@@ -38,23 +39,24 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider="google",
-        model = "TODO: get model name", #TODO: get model name
+        # model = extract_model_name_google_genai(kwargs.get("model", "")),
         submit_to_llmobs=True,
     )
-    try:
-        tag_request(span, integration, instance, args, kwargs)
-        generations = func(*args, **kwargs)
-        if stream:
-            pass # TODO: handle streamed responses
-        tag_response(span, generations, integration, instance)
-    except:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # streamed spans finished separately when stream generator is exhausted
-        if span.error or not stream:
-            span.finish()
-    return generations
+    tag_request(span, integration, instance, args, kwargs)
+    # try:
+    #     tag_request(span, integration, instance, args, kwargs)
+    #     generations = func(*args, **kwargs)
+    #     if stream:
+    #         pass # TODO: handle streamed responses
+    #     tag_response(span, generations, integration, instance)
+    # except:
+    #     span.set_exc_info(*sys.exc_info())
+    #     raise
+    # finally:
+    #     # streamed spans finished separately when stream generator is exhausted
+    #     if span.error or not stream:
+    #         span.finish()
+    # return generations
 
 
 
