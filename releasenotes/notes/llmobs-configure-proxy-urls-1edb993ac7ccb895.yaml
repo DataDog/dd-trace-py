@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for configuring proxy URLs for LLM Observability using the ``DD_LLMOBS_PROXY_URLS`` 
+    environment variable or by enabling LLM Observability with the ``proxy_urls`` argument. Spans sent to a proxy URL
+    will now show up as workflow spans instead of LLM spans.
