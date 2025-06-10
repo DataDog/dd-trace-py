@@ -10,15 +10,7 @@ medium:
 
 deep:
   <<: *base
-  max_depth: 100
-
-deep-with-spans:
-  <<: *base
-  max_depth: 100
-
-intensive:
-  <<: *base
-  max_depth: 50
+  max_depth: 300
 
 sleep-scenario:
   <<: *base
@@ -39,8 +31,3 @@ deep-profiled:
   <<: *base
   max_depth: 300
   profiler_enabled: true
-
-intensive-profiled:
-  <<: *base
-  max_depth: 50
-  profiler_enabled: true 
