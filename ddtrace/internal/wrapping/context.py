@@ -17,6 +17,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.utils.inspection import link_function_to_code
 
 
 T = t.TypeVar("T")
@@ -229,11 +230,14 @@ elif sys.version_info >= (3, 10):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
@@ -257,11 +261,14 @@ elif sys.version_info >= (3, 9):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
@@ -560,7 +567,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
-            # Replace the function code with the wrapped code
+            # Replace the function code with the wrapped code. We also link
+            # the function to its original code object so that we can retrieve
+            # it later if required.
+            link_function_to_code(f.__code__, f)
             f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:
@@ -686,7 +696,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
-            # Replace the function code with the wrapped code
+            # Replace the function code with the wrapped code. We also link
+            # the function to its original code object so that we can retrieve
+            # it later if required.
+            link_function_to_code(f.__code__, f)
             f.__code__ = bc.to_code()
 
         def unwrap(self) -> None:
