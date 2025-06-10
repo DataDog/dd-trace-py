@@ -44,7 +44,8 @@ def test_global_tags(genai, mock_client, mock_tracer):
     assert span.get_tag("google_generativeai.request.api_key") == "...key>"
 
 
-@pytest.mark.snapshot
+# ignore the function call arg because it comes in with dict keys in a different order than expected
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_completion(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
     llm = genai.GenerativeModel("gemini-1.5-flash")
@@ -56,7 +57,7 @@ def test_gemini_completion(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_completion_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
@@ -67,7 +68,9 @@ async def test_gemini_completion_async(genai, mock_client_async):
     )
 
 
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.snapshot(
+    ignores=["meta.error.stack", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"]
+)
 def test_gemini_completion_error(genai, mock_client):
     llm = genai.GenerativeModel("gemini-1.5-flash")
     llm._client = mock.Mock()
@@ -81,7 +84,11 @@ def test_gemini_completion_error(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_error",
-    ignores=["resource", "meta.error.stack"],
+    ignores=[
+        "resource",
+        "meta.error.stack",
+        "google_generativeai.response.candidates.0.content.parts.0.function_call.arg",
+    ],
 )
 async def test_gemini_completion_error_async(genai, mock_client):
     llm = genai.GenerativeModel("gemini-1.5-flash")
@@ -94,7 +101,7 @@ async def test_gemini_completion_error_async(genai, mock_client):
         )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_completion_multiple_messages(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
     llm = genai.GenerativeModel("gemini-1.5-flash")
@@ -110,7 +117,7 @@ def test_gemini_completion_multiple_messages(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_multiple_messages",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_completion_multiple_messages_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_2))
@@ -133,6 +140,7 @@ async def test_gemini_completion_multiple_messages_async(genai, mock_client_asyn
         "meta.google_generativeai.request.generation_config.top_p",
         "meta.google_generativeai.request.generation_config.response_mime_type",
         "meta.google_generativeai.request.generation_config.response_schema",
+        "google_generativeai.response.candidates.0.content.parts.0.function_call.arg",
     ],
 )
 def test_gemini_chat_completion(genai, mock_client):
@@ -159,6 +167,7 @@ def test_gemini_chat_completion(genai, mock_client):
         "meta.google_generativeai.request.generation_config.top_p",
         "meta.google_generativeai.request.generation_config.response_mime_type",
         "meta.google_generativeai.request.generation_config.response_schema",
+        "google_generativeai.response.candidates.0.content.parts.0.function_call.arg",
     ],
 )
 async def test_gemini_chat_completion_async(genai, mock_client_async):
@@ -176,7 +185,7 @@ async def test_gemini_chat_completion_async(genai, mock_client_async):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_completion_system_prompt(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_SYSTEM))
     llm = genai.GenerativeModel(
@@ -191,7 +200,7 @@ def test_gemini_completion_system_prompt(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_system_prompt",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_completion_system_prompt_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_SYSTEM))
@@ -205,7 +214,7 @@ async def test_gemini_completion_system_prompt_async(genai, mock_client_async):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_completion_stream(genai, mock_client):
     mock_client.responses["stream_generate_content"] = [
         (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -222,7 +231,7 @@ def test_gemini_completion_stream(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_stream",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_completion_stream_async(genai, mock_client_async):
     mock_client_async.responses["stream_generate_content"] = [_async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)]
@@ -236,7 +245,7 @@ async def test_gemini_completion_stream_async(genai, mock_client_async):
         pass
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_tool_completion(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL_CALL))
     llm = genai.GenerativeModel("gemini-1.5-flash", tools=[set_light_values])
@@ -248,7 +257,7 @@ def test_gemini_tool_completion(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_tool_completion",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_tool_completion_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL_CALL))
@@ -259,7 +268,7 @@ async def test_gemini_tool_completion_async(genai, mock_client_async):
     )
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_tool_chat_completion(genai, mock_client):
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL_CALL))
     mock_client.responses["generate_content"].append(_mock_completion_response(MOCK_CHAT_COMPLETION_TOOL_RESPONSE))
@@ -278,7 +287,7 @@ def test_gemini_tool_chat_completion(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_tool_chat_completion",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_tool_chat_completion_async(genai, mock_client_async):
     mock_client_async.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL_CALL))
@@ -298,7 +307,7 @@ async def test_gemini_tool_chat_completion_async(genai, mock_client_async):
     await chat.send_message_async(response_parts)
 
 
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["google_generativeai.response.candidates.0.content.parts.0.function_call.arg"])
 def test_gemini_completion_tool_stream(genai, mock_client):
     mock_client.responses["stream_generate_content"] = [
         (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -315,7 +324,7 @@ def test_gemini_completion_tool_stream(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_tool_stream",
-    ignores=["resource"],
+    ignores=["resource", "google_generativeai.response.candidates.0.content.parts.0.function_call.arg"],
 )
 async def test_gemini_completion_tool_stream_async(genai, mock_client_async):
     mock_client_async.responses["stream_generate_content"] = [
@@ -331,7 +340,12 @@ async def test_gemini_completion_tool_stream_async(genai, mock_client_async):
         pass
 
 
-@pytest.mark.snapshot(ignores=["meta.google_generativeai.request.contents.0.text"])
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.google_generativeai.request.contents.0.text",
+        "google_generativeai.response.candidates.0.content.parts.0.function_call.arg",
+    ]
+)
 def test_gemini_completion_image(genai, mock_client):
     """Ensure passing images to generate_content() won't break patching."""
     img = Image.open(os.path.join(os.path.dirname(__file__), "test_data/apple.jpg"))
@@ -345,7 +359,11 @@ def test_gemini_completion_image(genai, mock_client):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_generativeai.test_google_generativeai.test_gemini_completion_image",
-    ignores=["resource", "meta.google_generativeai.request.contents.0.text"],
+    ignores=[
+        "resource",
+        "meta.google_generativeai.request.contents.0.text",
+        "google_generativeai.response.candidates.0.content.parts.0.function_call.arg",
+    ],
 )
 async def test_gemini_completion_image_async(genai, mock_client_async):
     """Ensure passing images to generate_content() won't break patching."""

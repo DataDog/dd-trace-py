@@ -565,17 +565,16 @@ venv = Venv(
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 #     # celery added support for Python 3.9 in 4.x
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={
-                        "pytest": "~=4.0",
-                        "celery": [
-                            "~=4.4.0",  # most recent 4.x
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4",
-                    },
-                ),
+                #     pys=select_pys(min_version="3.8", max_version="3.9"),
+                #     pkgs={
+                #         "pytest": "~=4.0",
+                #         "celery": [
+                #             latest,  # most recent 4.x
+                #         ],
+                #         "redis": "~=3.5",
+                #         "kombu": "~=4.4",
+                #     },
+                # ),
                 # Celery 5.x wants Python 3.6+
                 # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
@@ -815,7 +814,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest},
+                    pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
                 ),
                 Venv(
                     pys=select_pys(),
@@ -1160,9 +1159,21 @@ venv = Venv(
             # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.8"),
+                    pkgs={
+                        "pynamodb": ["~=5.0.0"],
+                        "botocore": ["<=1.25.0"],
+                        "moto": ">=1.0,<2.0",
+                        "cfn-lint": "~=0.53.1",
+                        "Jinja2": "~=2.10.0",
+                        "pytest-randomly": latest,
+                        "pytest-xdist": latest,
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "pynamodb": ["~=5.0.0", "~=5.3", "<6.0"],
+                        "pynamodb": ["~=5.3", "<6.0"],
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.10.0",
