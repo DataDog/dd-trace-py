@@ -31,7 +31,7 @@ pyo3-build-config = "0.21.2"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v18.0.0", features = ["cbindgen"] }
 
 [lib]
-name = "native"
+name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
 
