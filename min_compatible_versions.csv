@@ -161,7 +161,7 @@ ragas,==0.1.21
 redis,~=2.0
 redis-py-cluster,>=2.0
 reno,0
-requests,~=2.23.0
+requests,~=2.20.0
 requests-mock,>=1.4
 responses,~=0.16.0
 respx,0
