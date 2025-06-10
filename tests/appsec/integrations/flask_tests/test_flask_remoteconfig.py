@@ -1,28 +1,20 @@
 import base64
 import datetime
 import hashlib
-import http.client as httplib
 import json
 import os
 import signal
 import sys
 import time
-from urllib import parse
 import uuid
 
 import pytest
 
-from ddtrace.trace import tracer
 from tests.appsec.appsec_utils import gunicorn_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _multi_requests
 from tests.appsec.integrations.flask_tests.utils import _request_200
-
-
-def _get_agent_client():
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
-    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-    return conn
+from tests.appsec.integrations.utils_testagent import _get_agent_client
 
 
 def parse_payload(data):

@@ -116,20 +116,6 @@ build = [
     "scripts/docs/build.sh",
 ]
 
-[envs.slotscheck]
-template = "slotscheck"
-python = "3.10"
-features = ["opentracing"]
-extra-dependencies = [
-    "slotscheck==0.17.0",
-]
-
-[envs.slotscheck.scripts]
-test = [
-    "python -m slotscheck -v ddtrace/",
-]
-
-
 [envs.scripts]
 detached = true
 python = "3.10"
@@ -146,21 +132,6 @@ test = [
 ]
 needs_testrun = [
   "scripts/needs_testrun.py {args}",
-]
-
-[envs.meta-testing]
-python = "3.10"
-extra-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis<6.45.1"
-]
-[envs.meta-testing.env-vars]
-DD_CIVISIBILITY_FLAKY_RETRY_ENABLED = "0"
-
-[envs.meta-testing.scripts]
-test = [
-  "pytest {args} --no-ddtrace tests/meta"
 ]
 
 [envs.integration_test]
@@ -206,8 +177,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_django.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_django.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -251,8 +222,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -282,6 +253,7 @@ template = "appsec_iast_default"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "hypothesis",
     "requests",
     "urllib3",
@@ -376,6 +348,7 @@ template = "appsec_integrations_packages"
 dependencies = [
     "pytest",
     "pytest-cov",
+    "pytest-xdist",
     "hypothesis",
     "requests",
     "SQLAlchemy",
@@ -398,7 +371,7 @@ DD_IAST_DEDUPLICATION_ENABLED = "false"
 test = [
     "uname -a",
     "pip freeze",
-    "python -m pytest -vvv -s --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
+    "python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
 ]
 
 [[envs.appsec_integrations_packages.matrix]]
@@ -435,12 +408,24 @@ test = [
 ]
 
 [[envs.appsec_integrations_django.matrix]]
+python = ["3.10", "3.13"]
+django = ["~=5.1"]
+
+[[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-django = ["~=4.0"]
+django = ["~=4.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+django = ["~=4.0.10"]
 
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 django = ["~=3.2"]
+
+[[envs.appsec_integrations_django.matrix]]
+python = ["3.8", "3.9"]
+django = ["~=2.2"]
 
 ## ASM appsec_integrations_flask
 
@@ -513,6 +498,7 @@ dependencies = [
     "python-multipart",
     "jinja2",
     "httpx<0.28.0",
+    "uvicorn==0.33.0",
     "anyio{matrix:anyio:}",
     "fastapi{matrix:fastapi}"
 ]
@@ -606,8 +592,8 @@ dependencies = [
 test = [
     "uname -a",
     "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py"
+    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -740,7 +726,8 @@ dependencies = [
     "requests",
     "hypothesis",
     "pytest{matrix:pytest}",
-    "pytest-cov"
+    "pytest-cov",
+    "pytest-mock"
 ]
 
 [envs.pytest_plugin_v2.env-vars]
