@@ -12,21 +12,6 @@ deep:
   <<: *base
   max_depth: 300
 
-sleep-scenario:
-  <<: *base
-  max_depth: 20
-  enable_sleep: true
-  sleep_duration: 0.01
-
-shallow-profiled:
-  <<: *base
-  profiler_enabled: true
-
-medium-profiled:
-  <<: *base
-  max_depth: 50
-  profiler_enabled: true
-
 deep-profiled:
   <<: *base
   max_depth: 300
