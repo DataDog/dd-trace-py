@@ -14,7 +14,6 @@ class RecursiveComputation(bm.Scenario):
     max_depth: int
     enable_sleep: bool
     sleep_duration: float
-    nspans: int
     profiler_enabled: bool
 
     def cpu_intensive_computation(self, depth: int) -> int:
@@ -46,10 +45,6 @@ class RecursiveComputation(bm.Scenario):
 
             span.set_metric("computation.time_ms", compute_time * 1000)
             span.set_metric("computation.result", result)
-
-            for i in range(self.nspans):
-                with tracer.trace(f"computation.span_{i}"):
-                    math.sqrt(i + depth)
 
             if depth < self.max_depth:
                 child_result = self.recursive_traced_computation(depth + 1)

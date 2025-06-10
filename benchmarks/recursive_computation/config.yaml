@@ -2,7 +2,6 @@ shallow: &base
   max_depth: 10
   enable_sleep: false
   sleep_duration: 0.1
-  nspans: 1
   profiler_enabled: false
 
 medium: 
@@ -21,7 +20,6 @@ deep-with-spans:
 intensive:
   <<: *base
   max_depth: 50
-  nspans: 3
 
 sleep-scenario:
   <<: *base
@@ -40,11 +38,10 @@ medium-profiled:
 
 deep-profiled:
   <<: *base
-  max_depth: 100
+  max_depth: 300
   profiler_enabled: true
 
 intensive-profiled:
   <<: *base
   max_depth: 50
-  nspans: 3
   profiler_enabled: true 
