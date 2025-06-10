@@ -40,8 +40,7 @@ This is the series of steps involved in autoinstrumentation:
 1. import bootstrap.sitecustomize, preload, clean up loaded modules, execute preexisting sitecustomizes
 2. start products
 3. set up an import hook for each integration
-4. when an integrated-with module is imported, the import hook calls the contrib's patch(). patch() replaces important
-   functions in the module with transparent wrappers.
+4. when an integrated-with module is imported, the import hook calls the contrib's patch(). patch() replaces important functions in the module with transparent wrappers.
 5. These wrappers use the core API to create a tree of ExecutionContext objects. The context tree is traversed
    to generate the data to send to product intake.
 
