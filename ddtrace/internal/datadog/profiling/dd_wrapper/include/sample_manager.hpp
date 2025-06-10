@@ -23,7 +23,6 @@ class SampleManager
   public:
     // Configuration
     static void add_type(unsigned int type);
-    static void set_max_nframes(unsigned int _max_nframes);
     static void set_timeline(bool enable);
     static void set_sample_pool_capacity(size_t capacity);
 
