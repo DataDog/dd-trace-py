@@ -25,7 +25,7 @@ Global Configuration
 
    Default: ``"unittest.test"``
 
-   .. py:data:: ddtrace.config.unittest["strict_naming"]
+.. py:data:: ddtrace.config.unittest["strict_naming"]
 
    Requires all ``unittest`` tests to start with ``test`` as stated in the Python documentation
 
