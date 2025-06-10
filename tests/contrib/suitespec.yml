@@ -692,7 +692,7 @@ suites:
         - '@tracing'
         - '@freezegun'
         - tests/contrib/freezegun/*
-    runner: hatch
+    runner: riot
     snapshot: true
   gevent:
     paths:
