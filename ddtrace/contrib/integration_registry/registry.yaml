@@ -696,7 +696,7 @@ integrations:
   - pytest
   tested_versions_by_dependency:
     pytest:
-      min: 6.0.2
+      min: 6.2.5
       max: 8.3.5
 
 - integration_name: pytest_bdd

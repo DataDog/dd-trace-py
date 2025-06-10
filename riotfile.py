@@ -569,7 +569,7 @@ venv = Venv(
                 #     pkgs={
                 #         "pytest": "~=4.0",
                 #         "celery": [
-                #             latest,  # most recent 4.x
+                #             "latest",  # most recent 4.x
                 #         ],
                 #         "redis": "~=3.5",
                 #         "kombu": "~=4.4",
