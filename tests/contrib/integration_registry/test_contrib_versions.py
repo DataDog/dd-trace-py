@@ -1,9 +1,12 @@
 import ast
 from pathlib import Path
+import re
+from typing import Dict
+from typing import Optional
+from typing import Set
+
 from packaging.version import Version
 import pytest
-import re
-from typing import Dict, Set, Optional
 
 from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
 from ddtrace.vendor.packaging.specifiers import Specifier
