@@ -147,9 +147,11 @@ StackRenderer::render_frame(Frame& frame)
 
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
-    if (!pushed_task_name and line == 0) {
-        ddup_push_task_name(sample, name_str);
-        pushed_task_name = true;
+    if (line == 0) {
+        if (!pushed_task_name) {
+            ddup_push_task_name(sample, name_str);
+            pushed_task_name = true;
+        }
         // And return early to avoid pushing task name as a frame
         return;
     }
