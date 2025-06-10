@@ -35,4 +35,40 @@ Autoinstrumentation is the feature of dd-trace-py that hooks into application co
 product functionality, for example the detailed traces visible in Datadog Application Observability. This is an
 overview of the technical implementation of this hooking functionality.
 
+This is the series of steps involved in autoinstrumentation:
 
+1. import bootstrap.sitecustomize, preload, clean up loaded modules, execute preexisting sitecustomizes
+2. start products
+3. set up an import hook for each integration
+4. when an integrated-with module is imported, the import hook calls the contrib's patch()
+5. patch() replaces important functions in the module with transparent wrappers. These wrappers use the core API to create a
+   tree of ExecutionContext objects. The context tree is traversed to generate the data to send to product intake.
+
+Step 1: Bootstrap
+-----------------
+
+The autoinstrumentation entrypoint is `import ddtrace.bootstrap.sitecustomize`. This can be done in user code, either directly or via
+`import ddtrace.auto`, or behind the scenes by `ddtrace-run`.
+
+ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
+These are subpackages like `_trace`, `profiling`, `debugging`, `appsec`, et cetera. Before starting these Products,
+some setup has to happen, especially the execution of preexisting PEP648 `sitecustomize` scripts to maintain
+user-facing guarantees about the runtime environment in which the application will execute. ddtrace's sitecustomize
+also attempts to "leave no trace" on the runtime environment, especially by unloading all of the modules it has
+used in the course of its setup phases. This helps reduce the possibility that ddtrace will use the same copy of
+an integrated-with module that the application uses, which can lead to undefined behavior.
+
+Step 2: Start Products
+----------------------
+
+
+Step 3: Set Up Import Hooks
+---------------------------
+
+
+Step 4: Import Occurs
+---------------------
+
+
+Step 5: Application Logic Runs
+------------------------------
