@@ -126,7 +126,9 @@ opensearch-py[requests],~=1.1.0
 opentelemetry-api,~=1.0.0
 opentelemetry-instrumentation-flask,0
 opentracing,0
+peewee,0
 pinecone-client,0
+pony,0
 protobuf,>3
 psutil,0
 psycopg,0
@@ -179,6 +181,7 @@ structlog,~=20.2.0
 tests/contrib/pyramid/pserve_app,0
 tiktoken,0
 tornado,~=4.5.0
+tortoise-orm,0
 typing-extensions,0
 urllib3,~=1.0
 uwsgi,0

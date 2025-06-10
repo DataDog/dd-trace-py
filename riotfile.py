@@ -154,6 +154,28 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_tdd_propagation",
+            pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+            command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "requests": latest,
+                "flask": latest,
+                "pycryptodome": latest,
+                "sqlalchemy": "~=2.0.23",
+                "pony": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
+                "peewee": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+            }
+
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
