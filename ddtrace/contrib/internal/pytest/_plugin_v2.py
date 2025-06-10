@@ -115,8 +115,10 @@ class XdistHooks:
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node, error):
-        if hasattr(node, "workeroutput") and "itr_skipped_tests" in node.workeroutput:
-            pytest.global_worker_itr_results.extend(node.workeroutput["itr_skipped_tests"])
+        if hasattr(node, "workeroutput") and "itr_skipped_count" in node.workeroutput:
+            if not hasattr(pytest, "global_worker_itr_results"):
+                pytest.global_worker_itr_results = 0
+            pytest.global_worker_itr_results += node.workeroutput["itr_skipped_count"]
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -131,7 +133,17 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    # Check if we should skip based on the configured skipping level
+    should_skip = False
+
+    if dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+        # Suite-level skipping: check if the suite is skippable
+        should_skip = InternalTestSuite.is_itr_skippable(suite_id)
+    else:
+        # Test-level skipping: check if the individual test is skippable
+        should_skip = InternalTest.is_itr_skippable(test_id)
+
+    if should_skip:
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
@@ -141,11 +153,11 @@ def _handle_itr_should_skip(item, test_id) -> bool:
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
 
-        # If we're in a worker process, store the skipped test info
+        # If we're in a worker process, count the skipped test
         if hasattr(item.config, "workeroutput"):
-            if "itr_skipped_tests" not in item.config.workeroutput:
-                item.config.workeroutput["itr_skipped_tests"] = []
-            item.config.workeroutput["itr_skipped_tests"].append(test_id)
+            if "itr_skipped_count" not in item.config.workeroutput:
+                item.config.workeroutput["itr_skipped_count"] = 0
+            item.config.workeroutput["itr_skipped_count"] += 1
 
         return True
 
@@ -281,7 +293,7 @@ def pytest_configure(config: pytest_Config) -> None:
                 config.pluginmanager.register(XdistHooks())
 
                 if not hasattr(config, "workerinput"):  # Main process
-                    pytest.global_worker_itr_results = []
+                    pytest.global_worker_itr_results = 0
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -784,7 +796,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     # Count ITR skipped tests from workers if we're in the main process
     if hasattr(session.config, "workerinput") is False and hasattr(pytest, "global_worker_itr_results"):
-        skipped_count = len(pytest.global_worker_itr_results)
+        skipped_count = pytest.global_worker_itr_results
         if skipped_count > 0:
             session_span = InternalTestSession.get_span()
             if session_span:
