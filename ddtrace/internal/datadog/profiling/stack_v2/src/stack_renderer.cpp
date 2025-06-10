@@ -104,7 +104,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
             ddup_push_trace_type(sample, std::string_view(active_span->span_type));
         }
 
-        pushed_task_name = false;
+        pushed_task_name = true;
     }
 }
 
@@ -144,6 +144,15 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     auto line = frame.location.line;
+
+    // DEV: Echion pushes a dummy frame containing task name, and its line
+    // number is set to 0.
+    if (!pushed_task_name and line == 0) {
+        ddup_push_task_name(sample, name_str);
+        pushed_task_name = true;
+        // And return early to avoid pushing task name as a frame
+        return;
+    }
 
     ddup_push_frame(sample, name_str, filename_str, 0, line);
 }

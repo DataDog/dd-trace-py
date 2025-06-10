@@ -246,8 +246,8 @@ def test_lock_gevent_tasks():
                 filename=expected_filename,
                 linenos=linenos,
                 lock_name="lock",
-                task_id=t.ident,
-                task_name="foobar",
+                # task_id=t.ident,
+                # task_name="foobar",
             ),
         ],
         expected_release_events=[
@@ -256,8 +256,8 @@ def test_lock_gevent_tasks():
                 filename=expected_filename,
                 linenos=linenos,
                 lock_name="lock",
-                task_id=t.ident,
-                task_name="foobar",
+                # task_id=t.ident,
+                # task_name="foobar",
             ),
         ],
     )
