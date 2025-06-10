@@ -3043,14 +3043,13 @@ venv = Venv(
                 Venv(
                     venvs=[
                         Venv(
-                            name="pytest-legacy-plugin-true",
+                            name="selenium-pytest-legacy-plugin-true",
                             env={
                                 "_TESTED_PYTEST_LEGACY_PLUGIN": "true",
                             },
                         ),
                         Venv(
-                            name="pytest-legacy-plugin-false",
-                            pys=["3.10", "3.12"],
+                            name="selenium-pytest-legacy-plugin-false",
                             env={
                                 "_TESTED_PYTEST_LEGACY_PLUGIN": "false",
                             },
