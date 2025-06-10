@@ -65,12 +65,7 @@ class RecursiveComputation(bm.Scenario):
 
     def run(self) -> Generator[Callable[[int], None], None, None]:
         if self.profiler_enabled:
-            os.environ.update(
-                {
-                    "DD_PROFILING_ENABLED": "1",
-                }
-            )
-            import ddtrace.profiling.auto
+            import ddtrace.profiling.auto  # noqa: F401
 
         utils.drop_traces(tracer)
         utils.drop_telemetry_events()
