@@ -739,7 +739,10 @@ class LLMObs(Service):
                 error = "invalid_span"
                 log.warning("Span must be an LLMObs-generated span.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
+            return ExportedLLMObsSpan(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+            )
         except (TypeError, AttributeError):
             error = "invalid_span"
             log.warning("Failed to export span. Span must be a valid Span object.")
@@ -1556,7 +1559,7 @@ class LLMObs(Service):
             return "missing_context"
         _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         if _parent_id is None:
-            log.warning("Failed to extract LLMObs parent ID from request headers.")
+            log.debug("Failed to extract LLMObs parent ID from request headers.")
             return "missing_parent_id"
         try:
             parent_id = int(_parent_id)

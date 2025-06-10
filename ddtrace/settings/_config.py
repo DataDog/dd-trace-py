@@ -648,7 +648,8 @@ class Config(object):
         self._llmobs_proxy_urls = _get_config("DD_LLMOBS_PROXY_URLS", None, lambda x: set(x.strip().split(",")))
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
-        self._lib_was_injected = False
+        # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
+        self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
