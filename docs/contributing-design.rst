@@ -32,7 +32,7 @@ How Autoinstrumentation Works
 -----------------------------
 
 Autoinstrumentation is the feature of dd-trace-py that hooks into application code to facilitate application-level
-product functionality, for example the detailed traces visible in Datadog Application Observability. This is an
+product functionality, for example the detailed traces visible in Datadog Application Monitoring. This is an
 overview of the technical implementation of this hooking functionality.
 
 This is the series of steps involved in autoinstrumentation:
