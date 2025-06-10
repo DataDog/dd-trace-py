@@ -12,7 +12,11 @@ import vcr
 
 mock_langchain_llm_generate_response = LLMResult(
     generations=[
-        [Generation(text="The capital of France is Paris.", generation_info={"finish_reason": "length", "logprobs": None})]
+        [
+            Generation(
+                text="The capital of France is Paris.", generation_info={"finish_reason": "length", "logprobs": None}
+            )
+        ]
     ],
     llm_output={
         "token_usage": {"completion_tokens": 5, "total_tokens": 10, "prompt_tokens": 5},
