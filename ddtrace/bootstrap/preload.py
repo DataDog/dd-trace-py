@@ -86,14 +86,10 @@ if config._llmobs_enabled:
 
 @register_post_preload
 def _():
-    tracer._generate_diagnostic_logs()
-
-
-@register_post_preload
-def _set_log_formatting():
     if config._logs_injection == LogInjectionState.ENABLED:
         # Only set the formatter is DD_LOGS_INJECTION is set to True. We do not want to modify
         # unstructured logs if the user has not enabled logs injection.
         # The DD log format must be set after the logging module has been patched, otherwise the
         # formatter will raise an exception.
         set_log_formatting()
+    tracer._generate_diagnostic_logs()
