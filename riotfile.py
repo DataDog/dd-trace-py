@@ -1543,7 +1543,7 @@ venv = Venv(
                     venvs=[
                         Venv(
                             pkgs={
-                                "pytest": ["~=6.0.0", "~=6.0"],
+                                "pytest": ["~=6.0"],
                                 "pytest-cov": "==2.9.0",
                             },
                         ),
