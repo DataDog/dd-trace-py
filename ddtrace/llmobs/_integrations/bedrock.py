@@ -22,6 +22,7 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
 
@@ -273,7 +274,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
-    
+
     def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance", None)
         endpoint = getattr(instance, "_endpoint", None)

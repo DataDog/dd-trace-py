@@ -59,7 +59,20 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
-LANGCHAIN_BASE_URL_FIELDS = ["api_base", "api_host", "anthropic_api_url", "base_url", "endpoint", "endpoint_url", "cerebras_api_base", "groq_api_base", "inference_server_url", "openai_api_base", "upstage_api_base", "xai_api_base"]
+LANGCHAIN_BASE_URL_FIELDS = [
+    "api_base",
+    "api_host",
+    "anthropic_api_url",
+    "base_url",
+    "endpoint",
+    "endpoint_url",
+    "cerebras_api_base",
+    "groq_api_base",
+    "inference_server_url",
+    "openai_api_base",
+    "upstage_api_base",
+    "xai_api_base",
+]
 
 
 def _extract_instance(instance):
@@ -731,7 +744,7 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
-    
+
     def _get_base_url(self, kwargs: Dict[str, Any]) -> str:
         instance = kwargs.get("instance", None)
         base_url = None

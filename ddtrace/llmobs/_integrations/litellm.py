@@ -79,7 +79,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self._update_litellm_metadata(span, kwargs, operation)
 
         # update input and output value for non-LLM spans
-        span_kind = self._get_span_kind(span,kwargs, model_name, operation)
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         update_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
@@ -204,7 +204,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
-    
+
     def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
         base_url = kwargs.get("base_url")
         return str(base_url) if base_url else None

@@ -14,8 +14,17 @@ from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
+    "ddtrace_global_config",
+    [
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_proxy_urls="http://localhost:4000",
+        )
+    ],
 )
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
@@ -42,7 +51,13 @@ class TestLLMObsOpenaiV1:
                 span,
                 "workflow",
                 input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
-                output_value=safe_json([{"content": "Hello! How can I assist you today?"}, {"content": "Hello! How can I assist you today?"}], ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {"content": "Hello! How can I assist you today?"},
+                        {"content": "Hello! How can I assist you today?"},
+                    ],
+                    ensure_ascii=False,
+                ),
                 metadata={
                     "temperature": 0.8,
                     "n": 2,
@@ -68,7 +83,6 @@ class TestLLMObsOpenaiV1:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
-
 
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -127,7 +141,13 @@ class TestLLMObsOpenaiV1:
                 span,
                 "workflow",
                 input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
-                output_value=safe_json([{"content": "Hello! How can I assist you today?"}, {"content": "Hello! How can I assist you today?"}], ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {"content": "Hello! How can I assist you today?"},
+                        {"content": "Hello! How can I assist you today?"},
+                    ],
+                    ensure_ascii=False,
+                ),
                 metadata={
                     "temperature": 0,
                     "n": 1,
@@ -262,7 +282,19 @@ class TestLLMObsOpenaiV1:
                 span,
                 "workflow",
                 input_value=safe_json(input_messages, ensure_ascii=False),
-                output_value=safe_json([{"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}, {"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}], ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {
+                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                            "role": "assistant",
+                        },
+                        {
+                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                            "role": "assistant",
+                        },
+                    ],
+                    ensure_ascii=False,
+                ),
                 metadata={
                     "top_p": 0.9,
                     "n": 2,
@@ -329,16 +361,28 @@ class TestLLMObsOpenaiV1:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         expected_event = _expected_llmobs_non_llm_span_event(
-                span,
-                "workflow",
-                input_value=safe_json(input_messages, ensure_ascii=False),
-                output_value=safe_json([{"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}, {"content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.", "role": "assistant"}], ensure_ascii=False),
-                metadata={
-                    "temperature": 0,
-                    "n": 1,
-                    "max_tokens": 20,
-                    "user": "ddtrace-test",
-                },
+            span,
+            "workflow",
+            input_value=safe_json(input_messages, ensure_ascii=False),
+            output_value=safe_json(
+                [
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                ],
+                ensure_ascii=False,
+            ),
+            metadata={
+                "temperature": 0,
+                "n": 1,
+                "max_tokens": 20,
+                "user": "ddtrace-test",
+            },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
         )
         mock_llmobs_writer.enqueue.assert_called_with(expected_event)

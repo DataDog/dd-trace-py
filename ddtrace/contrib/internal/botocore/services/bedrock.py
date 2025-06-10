@@ -493,10 +493,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     model_id = params.get("modelId")
     model_provider, model_name = _parse_model_id(model_id)
     integration = function_vars.get("integration")
-    submit_to_llmobs = (
-        integration.llmobs_enabled
-        and "embed" not in model_name
-    )
+    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,

@@ -117,7 +117,7 @@ class BaseLLMIntegration:
 
     def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
         return None
-    
+
     def _is_proxy_url(self, base_url: Optional[str] = None) -> bool:
         if not base_url:
             return False

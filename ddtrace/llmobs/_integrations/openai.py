@@ -112,7 +112,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         operation: str = "",  # oneof "completion", "chat", "embedding"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "embedding" if operation == "embedding" else "llm"
+        span_kind = (
+            "workflow" if span._get_ctx_item(PROXY_REQUEST) else "embedding" if operation == "embedding" else "llm"
+        )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
         model_provider = "openai"

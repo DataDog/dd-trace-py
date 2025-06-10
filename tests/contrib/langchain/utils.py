@@ -10,38 +10,36 @@ from langchain_core.outputs.run_info import RunInfo
 
 import vcr
 
-mock_langchain_llm_generate_response = LLMResult(generations=[[Generation(text='I am a helpful assistant.', generation_info={'finish_reason': 'length', 'logprobs': None})]], llm_output={'token_usage': {'completion_tokens': 5, 'total_tokens': 10, 'prompt_tokens': 5}, 'model_name': 'gpt-3.5-turbo-instruct'}, run=[RunInfo(run_id=UUID('2f5f3cb3-e2aa-4092-b1e6-9ae1f1b2794b'))])
+mock_langchain_llm_generate_response = LLMResult(
+    generations=[
+        [Generation(text="I am a helpful assistant.", generation_info={"finish_reason": "length", "logprobs": None})]
+    ],
+    llm_output={
+        "token_usage": {"completion_tokens": 5, "total_tokens": 10, "prompt_tokens": 5},
+        "model_name": "gpt-3.5-turbo-instruct",
+    },
+    run=[RunInfo(run_id=UUID("2f5f3cb3-e2aa-4092-b1e6-9ae1f1b2794b"))],
+)
 mock_langchain_chat_generate_response = ChatResult(
     generations=[
         ChatGeneration(
-            generation_info={
-                'finish_reason': 'stop',
-                'logprobs': None
-            },
+            generation_info={"finish_reason": "stop", "logprobs": None},
             message=AIMessage(
-                content='The capital of France is Paris.',
+                content="The capital of France is Paris.",
                 additional_kwargs={},
                 response_metadata={
-                    'token_usage': {
-                        'completion_tokens': 7,
-                        'prompt_tokens': 14,
-                        'total_tokens': 21
-                    },
-                    'model_name': 'gpt-3.5-turbo-0125',
-                    'finish_reason': 'stop'
-                }
+                    "token_usage": {"completion_tokens": 7, "prompt_tokens": 14, "total_tokens": 21},
+                    "model_name": "gpt-3.5-turbo-0125",
+                    "finish_reason": "stop",
+                },
             ),
-            text='The capital of France is Paris.'
+            text="The capital of France is Paris.",
         )
     ],
     llm_output={
-        'token_usage': {
-            'completion_tokens': 7,
-            'prompt_tokens': 14,
-            'total_tokens': 21
-        },
-        'model_name': 'gpt-3.5-turbo-0125'
-    }
+        "token_usage": {"completion_tokens": 7, "prompt_tokens": 14, "total_tokens": 21},
+        "model_name": "gpt-3.5-turbo-0125",
+    },
 )
 
 # VCR is used to capture and store network requests made to OpenAI and other APIs.

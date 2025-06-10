@@ -127,6 +127,7 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
         mock_token_metrics=True,
     )
 
+
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_chat_completion):
     mock_generate.return_value = mock_langchain_chat_generate_response

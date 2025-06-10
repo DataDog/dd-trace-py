@@ -29,7 +29,15 @@ Francisco, CA is 73°F."
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
+    "ddtrace_global_config",
+    [
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_proxy_urls="http://localhost:4000",
+        )
+    ],
 )
 class TestLLMObsAnthropic:
     @patch("anthropic._base_client.SyncAPIClient.post")
@@ -66,12 +74,17 @@ class TestLLMObsAnthropic:
             _expected_llmobs_non_llm_span_event(
                 span,
                 "workflow",
-                input_value=safe_json([
-                    {"content": "Respond only in all caps.", "role": "system"},
-                    {"content": "Hello, I am looking for information about some books!", "role": "user"},
-                    {"content": "What is the best selling book?", "role": "user"},
-                ], ensure_ascii=False),
-                output_value=safe_json([{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False),
+                input_value=safe_json(
+                    [
+                        {"content": "Respond only in all caps.", "role": "system"},
+                        {"content": "Hello, I am looking for information about some books!", "role": "user"},
+                        {"content": "What is the best selling book?", "role": "user"},
+                    ],
+                    ensure_ascii=False,
+                ),
+                output_value=safe_json(
+                    [{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False
+                ),
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
@@ -89,7 +102,6 @@ class TestLLMObsAnthropic:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
-
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.

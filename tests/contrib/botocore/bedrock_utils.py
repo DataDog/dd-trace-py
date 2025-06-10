@@ -145,9 +145,7 @@ _MOCK_COHERE_STREAM_RESPONSE_DATA = (
     b'"is_finished": true, "finish_reason": "MAX_TOKENS"}'
 )
 
-_MOCK_META_RESPONSE_DATA = (
-    b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", "stop_reason": "max_tokens"}'
-)
+_MOCK_META_RESPONSE_DATA = b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", "stop_reason": "max_tokens"}'
 
 _RESPONSE_BODIES = {
     "stream": {
@@ -165,15 +163,17 @@ _RESPONSE_BODIES = {
         "anthropic_message": _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA,
         "cohere": _MOCK_COHERE_RESPONSE_DATA,
         "meta": _MOCK_META_RESPONSE_DATA,
-    }
+    },
 }
+
 
 class MockStream:
     def __init__(self, response):
         self.response = response
 
     def __iter__(self):
-        yield {'chunk': {'bytes': self.response}}
+        yield {"chunk": {"bytes": self.response}}
+
 
 def get_mock_response_data(provider, stream=False):
     response = _RESPONSE_BODIES["stream" if stream else "non_stream"][provider]

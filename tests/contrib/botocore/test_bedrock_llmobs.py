@@ -69,6 +69,7 @@ def bedrock_client(boto3, request_vcr):
     bedrock_client = session.client("bedrock-runtime")
     yield bedrock_client
 
+
 @pytest.fixture
 def bedrock_client_proxy(boto3):
     session = boto3.Session(
@@ -92,6 +93,7 @@ def mock_tracer(bedrock_client):
     pin = Pin.get_from(bedrock_client)
     pin._override(bedrock_client, tracer=mock_tracer)
     yield mock_tracer
+
 
 @pytest.fixture
 def mock_tracer_proxy(bedrock_client_proxy):
@@ -127,6 +129,7 @@ def mock_invoke_model_http():
 def mock_invoke_model_http_error():
     yield botocore.awsrequest.AWSResponse("fake-url", 403, [], None)
 
+
 @pytest.fixture
 def mock_invoke_model_response_error():
     yield {
@@ -150,7 +153,9 @@ def mock_invoke_model_response_error():
     }
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")])
+@pytest.mark.parametrize(
+    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+)
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(span, n_output, message=False):
@@ -182,7 +187,7 @@ class TestLLMObsBedrock:
             token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-    
+
     @classmethod
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_tracer, llmobs_events, cassette_name=None, n_output=1):
         if cassette_name is None:
@@ -483,7 +488,16 @@ class TestLLMObsBedrock:
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>"), dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>", _llmobs_proxy_urls="http://localhost:4000")]
+    "ddtrace_global_config",
+    [
+        dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>"),
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_proxy_urls="http://localhost:4000",
+        ),
+    ],
 )
 class TestLLMObsBedrockProxy:
     @staticmethod
@@ -535,12 +549,14 @@ class TestLLMObsBedrockProxy:
         if "_llmobs_proxy_urls" in ddtrace_global_config:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
-            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(span, n_output, message="message" in provider)
+            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
+                span, n_output, message="message" in provider
+            )
         else:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0]["meta"]["span.kind"] == "llm"
-        
+
         LLMObs.disable()
 
     @classmethod
@@ -578,7 +594,9 @@ class TestLLMObsBedrockProxy:
         if "_llmobs_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_proxy_urls"]:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
-            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(span, n_output, message="message" in provider)
+            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
+                span, n_output, message="message" in provider
+            )
         else:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
@@ -844,7 +862,3 @@ class TestLLMObsBedrockProxy:
                 error_stack=mock.ANY,
             )
         LLMObs.disable()
-
-    
-
-    

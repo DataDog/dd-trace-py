@@ -192,7 +192,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
-        
+
     def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance", None)
         client = getattr(instance, "_client", None)
