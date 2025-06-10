@@ -15,7 +15,6 @@ deep:
 deep-with-spans:
   <<: *base
   max_depth: 100
-  nspans: 5
 
 intensive:
   <<: *base
