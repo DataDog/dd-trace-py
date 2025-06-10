@@ -260,13 +260,13 @@ class FunctionDiscovery(defaultdict):
             return
 
         self._module = module
-        self._fullname_index = _collect_functions(module)
         if PYTHON_VERSION_INFO < (3, 11):
             self._name_index: Dict[str, List[_FunctionCodePair]] = defaultdict(list)
         self._cached: Dict[int, List[FullyNamedFunction]] = {}
 
         # Create the line to function mapping
         if hasattr(module, "__dd_code__"):
+            self._fullname_index = {}
             for code in module.__dd_code__:
                 fcp = _FunctionCodePair(code=code)
 
@@ -281,6 +281,7 @@ class FunctionDiscovery(defaultdict):
                 for lineno in linenos(code):
                     self[lineno].append(fcp)
         else:
+            self._fullname_index = _collect_functions(module)
             # If the module was already loaded we don't have its code object
             seen_functions = set()
             for _, fcp in self._fullname_index.items():

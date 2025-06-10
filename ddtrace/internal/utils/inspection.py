@@ -157,3 +157,15 @@ def functions_for_code(code: CodeType) -> List[FunctionType]:
         # If the code is not in the mapping, we fall back to the garbage
         # collector
         return _functions_for_code_gc(code)
+
+
+def clear():
+    """Clear the inspection state.
+
+    This should be called when modules are reloaded to ensure that the mappings
+    stay relevant.
+    """
+    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
+
+    _functions_for_code_gc.cache_clear()
+    _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
