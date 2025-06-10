@@ -11,10 +11,10 @@ file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/*.so" "${SOURCE_LIB_DIR}/*.lib" "${SOURCE
 file(COPY ${LIB_FILES} DESTINATION ${DEST_LIB_OUTPUT_DIR})
 
 # Add imported library target
-add_library(native SHARED IMPORTED)
+add_library(_native SHARED IMPORTED)
 
-set_target_properties(native PROPERTIES
-    IMPORTED_LOCATION ${DEST_LIB_OUTPUT_DIR}/libnative.so
+set_target_properties(_native PROPERTIES
+    IMPORTED_LOCATION ${DEST_LIB_OUTPUT_DIR}/lib_native.so
     INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
 )
 
