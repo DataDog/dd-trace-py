@@ -182,7 +182,7 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST)
+            is_workflow = LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
@@ -686,7 +686,7 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-    def _set_base_span_tags(  # type: ignore[override]
+    def _set_base_span_tags(
         self,
         span: Span,
         interface_type: str = "",
@@ -745,7 +745,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
 
-    def _get_base_url(self, kwargs: Dict[str, Any]) -> str:
+    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance", None)
         base_url = None
         for field in LANGCHAIN_BASE_URL_FIELDS:
