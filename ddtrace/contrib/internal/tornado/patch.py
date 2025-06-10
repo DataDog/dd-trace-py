@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import tornado
 from wrapt import wrap_function_wrapper as _w
@@ -26,6 +27,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(tornado, "version", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"tornado": ">=6.2.0"}
 
 
 def patch():

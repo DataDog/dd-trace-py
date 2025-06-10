@@ -9,8 +9,8 @@
     {
         "dependency": "aiohttp",
         "integration": "aiohttp",
-        "minimum_tracer_supported": "3.10.5",
-        "max_tracer_supported": "3.10.9",
+        "minimum_tracer_supported": "3.7.4.post0",
+        "max_tracer_supported": "3.12.11",
         "auto-instrumented": true
     },
     {
@@ -37,7 +37,7 @@
     {
         "dependency": "aiopg",
         "integration": "aiopg",
-        "minimum_tracer_supported": "1.4.0",
+        "minimum_tracer_supported": "0.16.0",
         "max_tracer_supported": "1.4.0",
         "pinned": "true",
         "auto-instrumented": true
@@ -45,7 +45,7 @@
     {
         "dependency": "algoliasearch",
         "integration": "algoliasearch",
-        "minimum_tracer_supported": "2.6.3",
+        "minimum_tracer_supported": "2.5.0",
         "max_tracer_supported": "2.6.3",
         "pinned": "true",
         "auto-instrumented": true
@@ -53,8 +53,8 @@
     {
         "dependency": "anthropic",
         "integration": "anthropic",
-        "minimum_tracer_supported": "0.49.0",
-        "max_tracer_supported": "0.49.0",
+        "minimum_tracer_supported": "0.28.1",
+        "max_tracer_supported": "0.52.2",
         "auto-instrumented": true
     },
     {
@@ -75,7 +75,7 @@
     {
         "dependency": "asyncpg",
         "integration": "asyncpg",
-        "minimum_tracer_supported": "0.23.0",
+        "minimum_tracer_supported": "0.22.0",
         "max_tracer_supported": "0.30.0",
         "auto-instrumented": true
     },
@@ -103,7 +103,7 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.21.3",
+        "minimum_tracer_supported": "1.20.0",
         "max_tracer_supported": "1.21.3",
         "pinned": "true",
         "auto-instrumented": true
@@ -148,7 +148,7 @@
     {
         "dependency": "cherrypy",
         "integration": "cherrypy",
-        "minimum_tracer_supported": "17.4.2",
+        "minimum_tracer_supported": "17.0.0",
         "max_tracer_supported": "18.10.0",
         "auto-instrumented": false
     },
@@ -162,7 +162,7 @@
     {
         "dependency": "crewai",
         "integration": "crewai",
-        "minimum_tracer_supported": "0.121.1",
+        "minimum_tracer_supported": "0.102.0",
         "max_tracer_supported": "0.121.1",
         "pinned": "true",
         "auto-instrumented": true
@@ -170,35 +170,35 @@
     {
         "dependency": "django",
         "integration": "django",
-        "minimum_tracer_supported": "2.2.1",
+        "minimum_tracer_supported": "2.2.28",
         "max_tracer_supported": "5.2",
         "auto-instrumented": true
     },
     {
         "dependency": "dogpile-cache",
         "integration": "dogpile_cache",
-        "minimum_tracer_supported": "0.9.2",
+        "minimum_tracer_supported": "0.6.8",
         "max_tracer_supported": "1.3.3",
         "auto-instrumented": true
     },
     {
         "dependency": "dogpile.cache",
         "integration": "dogpile_cache",
-        "minimum_tracer_supported": "0.9.2",
+        "minimum_tracer_supported": "0.6.8",
         "max_tracer_supported": "1.3.3",
         "auto-instrumented": true
     },
     {
         "dependency": "dogpile_cache",
         "integration": "dogpile_cache",
-        "minimum_tracer_supported": "0.9.2",
+        "minimum_tracer_supported": "0.6.8",
         "max_tracer_supported": "1.3.3",
         "auto-instrumented": true
     },
     {
         "dependency": "dramatiq",
         "integration": "dramatiq",
-        "minimum_tracer_supported": "1.17.0",
+        "minimum_tracer_supported": "1.10.0",
         "max_tracer_supported": "1.17.0",
         "auto-instrumented": true
     },
@@ -294,6 +294,14 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "freezegun",
+        "integration": "freezegun",
+        "minimum_tracer_supported": "1.3.1",
+        "max_tracer_supported": "1.5.2",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "gevent",
         "integration": "gevent",
         "minimum_tracer_supported": "20.12.1",
@@ -303,7 +311,7 @@
     {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
-        "minimum_tracer_supported": "0.8.3",
+        "minimum_tracer_supported": "0.7.2",
         "max_tracer_supported": "0.8.3",
         "auto-instrumented": true
     },
@@ -397,7 +405,7 @@
     {
         "dependency": "mako",
         "integration": "mako",
-        "minimum_tracer_supported": "1.1.6",
+        "minimum_tracer_supported": "1.0.14",
         "max_tracer_supported": "1.3.8",
         "auto-instrumented": true
     },
@@ -418,7 +426,7 @@
     {
         "dependency": "mongoengine",
         "integration": "mongoengine",
-        "minimum_tracer_supported": "0.29.1",
+        "minimum_tracer_supported": "0.23.1",
         "max_tracer_supported": "0.29.1",
         "auto-instrumented": true
     },
@@ -447,7 +455,7 @@
         "dependency": "openai-agents",
         "integration": "openai_agents",
         "minimum_tracer_supported": "0.0.8",
-        "max_tracer_supported": "0.0.8",
+        "max_tracer_supported": "0.0.16",
         "auto-instrumented": true
     },
     {
@@ -460,7 +468,7 @@
     {
         "dependency": "psycopg",
         "integration": "psycopg",
-        "minimum_tracer_supported": "3.2.1",
+        "minimum_tracer_supported": "3.0.18",
         "max_tracer_supported": "3.2.1",
         "auto-instrumented": true
     },
@@ -502,7 +510,7 @@
     {
         "dependency": "pynamodb",
         "integration": "pynamodb",
-        "minimum_tracer_supported": "5.5.1",
+        "minimum_tracer_supported": "5.0.3",
         "max_tracer_supported": "5.5.1",
         "pinned": "true",
         "auto-instrumented": true
@@ -553,7 +561,7 @@
     {
         "dependency": "requests",
         "integration": "requests",
-        "minimum_tracer_supported": "2.22.0",
+        "minimum_tracer_supported": "2.20.1",
         "max_tracer_supported": "2.32.3",
         "auto-instrumented": true
     },

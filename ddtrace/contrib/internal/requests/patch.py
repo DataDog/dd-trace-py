@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import requests
 from wrapt import wrap_function_wrapper as _w
@@ -33,6 +34,10 @@ Pin(_config=config.requests).onto(TracedSession)
 def get_version():
     # type: () -> str
     return getattr(requests, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"requests": ">=2.20.0"}
 
 
 def patch():
