@@ -10,7 +10,6 @@ import threading
 import time
 
 import mock
-from ddtrace.internal.writer.writer import NativeWriter
 import msgpack
 import pytest
 
@@ -22,9 +21,11 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer.writer import NativeWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.internal.native._native import NetworkError, IoError
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -496,15 +497,27 @@ class _APIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
             assert self.path.startswith(self.expected_path_prefix)
         self.send_error(200, "OK")
 
+    def do_POST(self):
+        if self.expected_path_prefix is not None:
+            assert self.path.startswith(self.expected_path_prefix)
+        self.send_error(200, "OK")
+
 
 class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
     def do_PUT(self):
         # This server sleeps longer than our timeout
         time.sleep(5)
 
+    def do_POST(self):
+        # This server sleeps longer than our timeout
+        time.sleep(5)
+
 
 class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
     def do_PUT(self):
+        return
+
+    def do_POST(self):
         return
 
 
@@ -601,7 +614,7 @@ def endpoint_assert_path():
         thread.join()
 
 
-@pytest.mark.parametrize("writer_and_path", ((AgentWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle")))
+@pytest.mark.parametrize("writer_and_path", ((AgentWriter, "/v0."), (NativeWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle")))
 def test_agent_url_path(endpoint_assert_path, writer_and_path):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer_class, path = writer_and_path
@@ -627,7 +640,7 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
 def test_flush_connection_timeout_connect(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, 2019))
-        exc_type = OSError
+        exc_type = (OSError, NetworkError)
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -638,7 +651,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _TIMEOUT_PORT))
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-        with pytest.raises(socket.timeout):
+        with pytest.raises((socket.timeout, IoError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -647,14 +660,14 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer = writer_class("http://%s:%s" % (_HOST, _RESET_PORT))
-        exc_types = (httplib.BadStatusLine, ConnectionResetError)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
+@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])
@@ -670,13 +683,13 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = OSError
+        error = (OSError, NetworkError)
         with pytest.raises(error):
             writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
+@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_racing_start(writer_class):
     writer = writer_class("http://dne:1234")
 
@@ -791,7 +804,7 @@ def test_writer_recreate_keeps_headers():
         ("darwin", None, "v0.5", False, "v0.5"),
     ],
 )
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
+@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_writer_api_version_selection(
     sys_platform,
     api_version,
@@ -824,7 +837,7 @@ def test_writer_api_version_selection(
                 pytest.fail("Raised RuntimeError when it was not expected")
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_trace_writer_connection_reuse": False}):
@@ -836,7 +849,7 @@ def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
             assert writer._reuse_connections
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is not reused
@@ -848,7 +861,7 @@ def test_writer_reuse_connections(writer_class):
         assert writer._conn is None
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
 def test_writer_reuse_connections_false(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         # Ensure connection is reused
