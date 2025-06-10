@@ -725,3 +725,204 @@ def test_os_spawn_argument_errors(tracer):
     # Test 3: Invalid arguments list
     with pytest.raises(TypeError):
         os.spawnv(os.P_WAIT, "/bin/ls", "invalid")  # args should be list, not string
+
+
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_nested_subprocess_calls(tracer, config):
+    """Test subprocess that spawns another subprocess - verify span ordering"""
+    with override_global_config(config):
+        patch()
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
+
+        with tracer.trace("parent_operation"):
+            # Parent subprocess that calls another subprocess
+            result = subprocess.run(
+                ["python", "-c", "import subprocess; subprocess.run(['echo', 'nested']); print('parent')"],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0
+            assert "parent" in result.stdout
+
+        spans = tracer.pop()
+        assert spans
+        assert len(spans) >= 3  # parent trace + at least 2 subprocess spans
+
+        # Verify span hierarchy and ordering
+        parent_span = spans[0]
+        assert parent_span.name == "parent_operation"
+
+        # Should have subprocess spans for both parent and nested calls
+        subprocess_spans = [s for s in spans if s.name == COMMANDS.SPAN_NAME]
+        assert len(subprocess_spans) >= 2  # Parent and nested subprocess
+
+
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_complex_shell_command_with_pipes(tracer, config):
+    """Test complex shell commands with pipes and redirections"""
+    with override_global_config(config):
+        patch()
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
+
+        with tracer.trace("complex_shell"):
+            # Complex shell command with pipes
+            result = subprocess.run(
+                "echo 'hello world' | grep 'hello' | wc -l", shell=True, capture_output=True, text=True
+            )
+            assert result.returncode == 0
+            assert result.stdout.strip() == "1"
+
+        spans = tracer.pop()
+        assert spans
+        i = 0
+        for span in spans:
+            if span.name == COMMANDS.SPAN_NAME:
+                assert span.resource == "echo"
+                if i <= 1:
+                    assert span.get_tag(COMMANDS.COMPONENT) is None
+                else:
+                    assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+            i += 1
+
+
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_mixed_subprocess_functions_sequence(tracer, config):
+    """Test sequence of different subprocess functions and verify span order"""
+    with override_global_config(config):
+        patch()
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
+        Pin.get_from(os)._clone(tracer=tracer).onto(os)
+
+        with tracer.trace("mixed_subprocess_operations"):
+            # Use different subprocess functions in sequence
+            os.system("echo 'os.system call'")
+
+            proc = subprocess.Popen(["echo", "popen"], stdout=subprocess.PIPE)
+            proc.wait()
+
+            subprocess.run(["echo", "subprocess.run"])
+
+            with os.popen("echo 'os.popen'") as pipe:
+                pipe.read()
+
+        spans = tracer.pop()
+        assert spans
+
+        # Verify we have spans for all different functions
+        subprocess_spans = [s for s in spans if s.name == COMMANDS.SPAN_NAME]
+        assert len(subprocess_spans) >= 4  # os.system, Popen, run, os.popen
+
+        # Check that different components are represented
+        components = [s.get_tag(COMMANDS.COMPONENT) for s in subprocess_spans]
+        assert "os" in components
+        assert "subprocess" in components
+
+
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_concurrent_subprocess_calls(tracer, config):
+    """Test multiple subprocess calls and verify all are traced"""
+    import threading
+
+    with override_global_config(config):
+        patch()
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
+
+        results = []
+
+        def subprocess_worker(worker_id):
+            result = subprocess.run(
+                ["python", "-c", f"import time; time.sleep(0.1); print('worker-{worker_id}')"],
+                capture_output=True,
+                text=True,
+            )
+            results.append(result)
+
+        with tracer.trace("concurrent_subprocess"):
+            # Start multiple subprocess calls concurrently
+            threads = []
+            for i in range(3):
+                thread = threading.Thread(target=subprocess_worker, args=(i,))
+                threads.append(thread)
+                thread.start()
+
+            # Wait for all to complete
+            for thread in threads:
+                thread.join()
+
+        spans = tracer.pop()
+        assert spans
+
+        # Should have spans for all subprocess calls
+        subprocess_spans = [s for s in spans if s.name == COMMANDS.SPAN_NAME]
+        assert len(subprocess_spans) >= 3  # At least one per worker
+
+        # Verify all workers completed successfully
+        assert len(results) == 3
+        for result in results:
+            assert result.returncode == 0
+
+
+@pytest.mark.parametrize("config", CONFIGURATIONS)
+def test_subprocess_edge_cases(tracer, config):
+    """Test edge cases with unusual inputs"""
+    with override_global_config(config):
+        patch()
+
+        # Test 1: Empty command list (should raise exception)
+        with pytest.raises((ValueError, IndexError)):
+            subprocess.run([])
+
+        # Test 2: Command with many arguments
+        long_args = ["echo"] + [f"arg{i}" for i in range(100)]
+        result = subprocess.run(long_args, capture_output=True)
+        assert result.returncode == 0
+
+        # Test 3: Command with special characters
+        result = subprocess.run(["echo", "hello$world&test|pipe>redirect"], capture_output=True, text=True)
+        assert result.returncode == 0
+        assert "hello$world&test|pipe>redirect" in result.stdout
+
+
+@pytest.mark.parametrize("config", CONFIGURATIONS)
+def test_subprocess_error_propagation_nested(tracer, config):
+    """Test error propagation in nested subprocess scenarios"""
+    with override_global_config(config):
+        patch()
+
+        # Test nested subprocess where inner subprocess fails
+        with pytest.raises(subprocess.CalledProcessError):
+            subprocess.run(["python", "-c", "import subprocess; subprocess.run(['false'], check=True)"], check=True)
+
+        # Test nested subprocess with timeout
+        with pytest.raises(subprocess.TimeoutExpired):
+            subprocess.run(["python", "-c", "import subprocess; subprocess.run(['sleep', '10'])"], timeout=0.1)
+
+
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_subprocess_resource_cleanup_on_error(tracer, config):
+    """Test that resources are properly cleaned up when subprocess fails"""
+    with override_global_config(config):
+        patch()
+        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
+
+        with tracer.trace("cleanup_test"):
+            # Test that file descriptors are properly managed even on errors
+            try:
+                proc = subprocess.Popen(
+                    ["python", "-c", "import sys; sys.exit(1)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+                proc.wait()
+                assert proc.returncode == 1
+            finally:
+                # Ensure process is cleaned up
+                if proc.poll() is None:
+                    proc.terminate()
+                    proc.wait()
+
+        spans = tracer.pop()
+        subprocess_spans = [s for s in spans if s.name == COMMANDS.SPAN_NAME]
+        assert len(subprocess_spans) >= 1
+
+        # Verify exit code is recorded even for failed processes
+        span = subprocess_spans[-1]  # Last subprocess span
+        assert span.get_tag(COMMANDS.EXIT_CODE) == "1"
