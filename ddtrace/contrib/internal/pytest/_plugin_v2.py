@@ -126,7 +126,17 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    # Check if we should skip based on the configured skipping level
+    should_skip = False
+
+    if dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+        # Suite-level skipping: check if the suite is skippable
+        should_skip = InternalTestSuite.is_itr_skippable(suite_id)
+    else:
+        # Test-level skipping: check if the individual test is skippable
+        should_skip = InternalTest.is_itr_skippable(test_id)
+
+    if should_skip:
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
