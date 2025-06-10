@@ -614,7 +614,9 @@ def endpoint_assert_path():
         thread.join()
 
 
-@pytest.mark.parametrize("writer_and_path", ((AgentWriter, "/v0."), (NativeWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle")))
+@pytest.mark.parametrize(
+    "writer_and_path", ((AgentWriter, "/v0."), (NativeWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle"))
+)
 def test_agent_url_path(endpoint_assert_path, writer_and_path):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer_class, path = writer_and_path
