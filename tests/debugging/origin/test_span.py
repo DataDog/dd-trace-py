@@ -2,8 +2,8 @@ from pathlib import Path
 import typing as t
 
 import ddtrace
-from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -19,7 +19,7 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
         return t.cast(MockLogsIntakeUploaderV1, cls.__uploader__._instance)
 
 
-class MockSpanCodeOriginProcessor(SpanCodeOriginProcessor):
+class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorExit):
     __uploader__ = MockLogsIntakeUploaderV1
 
     @classmethod

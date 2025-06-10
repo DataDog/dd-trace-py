@@ -231,10 +231,10 @@ class SpanCodeOriginProcessorEntry:
 
 
 @dataclass
-class SpanCodeOriginProcessor(SpanProcessor):
+class SpanCodeOriginProcessorExit(SpanProcessor):
     __uploader__ = LogsIntakeUploaderV1
 
-    _instance: t.Optional["SpanCodeOriginProcessor"] = None
+    _instance: t.Optional["SpanCodeOriginProcessorExit"] = None
 
     def on_span_start(self, span: Span) -> None:
         if span.span_type not in EXIT_SPAN_TYPES:
