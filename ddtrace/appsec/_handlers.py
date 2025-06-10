@@ -8,7 +8,6 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
@@ -53,7 +52,7 @@ def _on_set_http_meta(
     response_headers,
     response_cookies,
 ):
-    if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
+    if asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types:
         # avoid circular import
         from ddtrace.appsec._asm_request_context import set_waf_address
 
