@@ -7,8 +7,8 @@ from typing import Set
 from ddtrace.vendor.packaging.specifiers import Specifier
 
 
-# whitelist of packages where we can't test the min version
-SPECIAL_CASES_WHITELIST = {
+# allowlist of packages where we can't test the min version
+SPECIAL_CASES_ALLOWLIST = {
     # celery 4.x cannot be installed in our test env due to pip version conflict where
     # installing the 4.x version fails because of a celery metadata bug requiring pip<24.1
     "celery": ">=4.4",
@@ -113,8 +113,8 @@ def test_supported_versions_align_with_registry(
                 constraint_major_minor = _get_major_minor(specifier.version)
                 expected_major_minor = f"{constraint_major_minor[0]}.{constraint_major_minor[1]}"
 
-                # we need to whitelist some special cases where we can't test the min version
-                if module_name in SPECIAL_CASES_WHITELIST and specifier.version in SPECIAL_CASES_WHITELIST[module_name]:
+                # we need to allowlist some special cases where we can't test the min version
+                if module_name in SPECIAL_CASES_ALLOWLIST and specifier.version in SPECIAL_CASES_ALLOWLIST[module_name]:
                     continue
 
                 errors.append(
