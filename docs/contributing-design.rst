@@ -40,9 +40,10 @@ This is the series of steps involved in autoinstrumentation:
 1. import bootstrap.sitecustomize, preload, clean up loaded modules, execute preexisting sitecustomizes
 2. start products
 3. set up an import hook for each integration
-4. when an integrated-with module is imported, the import hook calls the contrib's patch()
-5. patch() replaces important functions in the module with transparent wrappers. These wrappers use the core API to create a
-   tree of ExecutionContext objects. The context tree is traversed to generate the data to send to product intake.
+4. when an integrated-with module is imported, the import hook calls the contrib's patch(). patch() replaces important
+   functions in the module with transparent wrappers.
+5. These wrappers use the core API to create a tree of ExecutionContext objects. The context tree is traversed
+   to generate the data to send to product intake.
 
 Step 1: Bootstrap
 -----------------
@@ -61,14 +62,44 @@ an integrated-with module that the application uses, which can lead to undefined
 Step 2: Start Products
 ----------------------
 
+The Products implemented by the library conform to a Product Manager Protocol, which controls common functionality
+like setup, start, and stop. Each enabled Product module is loaded into the Manager instance on import, which happens in
+sitecustomize. In turn, sitecustomize runs the Protocol with `manager.run_protocol()` and later runs additional Product
+setup steps via `preload.post_preload`. Together, these calls comprise the setup of Products that will operate during the
+application's lifetime.
 
 Step 3: Set Up Import Hooks
 ---------------------------
 
+The core functionality set up during step 2 is autoinstrumentation, which is a prerequisite for many of the other Products.
+
+Autoinstrumentation setup involves registering hooks that will execute when a particular module is imported. The list of
+modules whose imports trigger this registration is defined in `_monkey.py`. During this step, each of these modules has an
+import hook registered for it. In the rest of this document, these modules are called "Instrumented Modules".
+
+Note that as of this writing, autoinstrumentation is implemented as a side effect of the `_trace` Product's setup phase.
+In a more abstract sense, autoinstrumentation can function as its own Product, and in the future may be refactored as such.
 
 Step 4: Import Occurs
 ---------------------
 
+The next step of autoinstrumentation happens when the application imports an Instrumented Module. The import triggers the
+import hook that was registered in step 3. The function that the hook executes has the primary goal of calling the `patch()`
+function of the integration module located at `ddtrace.contrib.<integration-name>.patch`.
+
+The goal of an integration's `patch()` function is to invisibly wrap the Instrumented Module with logic that generates the
+data about the module that's necessary for any relevant Products. The most commonly used wrapping approach is based on the
+`wrapt` library, which is included as a vendored dependency in `ddtrace`. Inside of the wrappers, it's common for
+integrations to build trees of `core.ExecutionContext` objects that store information about the running application's
+call stack.
+
+Whatever approach is taken, this step only sets up logic that will run later.
 
 Step 5: Application Logic Runs
 ------------------------------
+
+When the application uses the Instrumented Module after importing it, the wrappers created in step 4 are executed. This causes
+data about the running application to be collected in memory, often as a tree of `ExecutionContext` objects. Any Product
+that was started in step 2 may access these data and use them to build a payload to send to the relevant intake endpoints.
+The classic example is the `_trace` Product, which periodically traverses the context tree for the purpose of creating a `Trace`
+object that is subsequently serialized and sent to Datadog to power a flamegraph in the Application Observability product.
