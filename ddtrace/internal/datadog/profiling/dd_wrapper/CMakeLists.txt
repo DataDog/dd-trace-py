@@ -24,7 +24,8 @@ include(FindInfer)
 include(CheckSymbolExists)
 
 # Load libdatadog
-include(FindLibdatadog)
+#include(FindLibdatadog)
+find_package(LibNative)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -82,9 +83,9 @@ add_ddup_config(dd_wrapper)
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
 if(WIN32)
-    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling)
+    target_link_libraries(dd_wrapper PRIVATE _native)
 else()
-    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling Threads::Threads)
+    target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 endif()
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
