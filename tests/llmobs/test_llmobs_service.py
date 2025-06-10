@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
@@ -914,7 +915,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
 
 
 def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, mock_llmobs_logs):
@@ -933,7 +934,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
 
 
 def test_submit_evaluation_ml_app_raises_warning(llmobs, mock_llmobs_logs):
@@ -1197,7 +1198,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -1226,7 +1227,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -1263,7 +1264,7 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="token_count",
             metric_type="score",
             score_value=35,
@@ -1372,7 +1373,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
-            mock_llmobs_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+            mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
             mock_activate.assert_called_once_with(dummy_context)
 
 
@@ -2148,7 +2149,7 @@ def test_submit_evaluation_for_enqueues_writer_with_categorical_metric(llmobs, m
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -2177,7 +2178,7 @@ def test_submit_evaluation_for_enqueues_writer_with_score_metric(llmobs, mock_ll
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="sentiment",
             metric_type="score",
             score_value=0.9,

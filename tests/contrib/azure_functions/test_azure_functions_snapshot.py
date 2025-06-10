@@ -107,6 +107,13 @@ def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> 
     assert azure_functions_client.get("/api/httpgetfunctionnamenodecorator", headers=DEFAULT_HEADERS).status_code == 200
 
 
+@pytest.mark.snapshot
+def test_http_get_function_name_decorator_order(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.get("/api/httpgetfunctionnamedecoratororder", headers=DEFAULT_HEADERS).status_code == 200
+    )
+
+
 @pytest.mark.parametrize(
     "azure_functions_client",
     [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
@@ -116,6 +123,30 @@ def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> 
 @pytest.mark.snapshot
 def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
+
+
+@pytest.mark.snapshot
+def test_service_bus_queue(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post(
+            "/admin/functions/servicebusqueue",
+            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
+            data=json.dumps({"input": '{"msg": "test message"}'}),
+        ).status_code
+        == 202
+    )
+
+
+@pytest.mark.snapshot
+def test_service_bus_topic(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.post(
+            "/admin/functions/servicebustopic",
+            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
+            data=json.dumps({"input": '{"msg": "test message"}'}),
+        ).status_code
+        == 202
+    )
 
 
 @pytest.mark.snapshot

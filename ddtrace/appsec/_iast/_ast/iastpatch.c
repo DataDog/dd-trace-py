@@ -18,8 +18,9 @@ static size_t cached_packages_count = 0;
 
 /* Static Lists */
 static const char* static_allowlist[] = {
-    "jinja2.", "pygments.", "multipart.", "sqlalchemy.", "python_multipart.", "attrs.",     "jsonschema.",
-    "s3fs.",   "mysql.",    "pymysql.",   "markupsafe.", "werkzeug.utils.",   "langchain.", "langchain_core."
+    "jinja2.",     "pygments.",       "multipart.", "sqlalchemy.",     "python_multipart.",
+    "attrs.",      "jsonschema.",     "s3fs.",      "mysql.",          "pymysql.",
+    "markupsafe.", "werkzeug.utils.", "langchain.", "langchain_core.", "django.http.response"
 };
 static const size_t static_allowlist_count = sizeof(static_allowlist) / sizeof(static_allowlist[0]);
 
