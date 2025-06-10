@@ -110,44 +110,47 @@ _REQUEST_BODIES = {
 }
 
 _MOCK_AI21_RESPONSE_DATA = (
-    b'{"completions": [{"data": {"text": "A neural network is like a brain made of '
-    b'tiny computers that learn from examples, just like how you learn from your toys!"}}]}'
+    b'{"completions": [{"data": {"text": "A LLM chain is like a relay race where each AI model passes '
+    b'information to the next one to solve complex tasks together, similar to how a team of experts '
+    b'work together to solve a problem!"}}]}'
 )
 
 _MOCK_AMAZON_RESPONSE_DATA = (
-    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "Datadog is like '
-    b'a smart doctor for your computer systems, helping companies keep their websites and apps running smoothly.", '
+    b'{"inputTextTokenCount": 10, "results": [{"tokenCount": 35, "outputText": "A LLM chain is a sequence of AI models '
+    b'working together, where each model builds upon the previous one\'s output to solve complex tasks.", '
     b'"completionReason": "FINISH"}]}'
 )
 
 _MOCK_AMAZON_STREAM_RESPONSE_DATA = (
-    b'{"outputText": "Datadog is like a smart doctor for your computer systems, helping companies '
-    b'keep their websites and apps running smoothly.", "completionReason": "FINISH"}'
+    b'{"outputText": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks.", "completionReason": "FINISH"}'
 )
 
 _MOCK_ANTHROPIC_RESPONSE_DATA = (
-    b'{"completion": "I can understand and respond to complex questions while maintaining context '
-    b'and providing detailed, accurate information.", "stop_reason": "stop_sequence"}'
+    b'{"completion": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks.", "stop_reason": "stop_sequence"}'
 )
 
 _MOCK_ANTHROPIC_MESSAGE_RESPONSE_DATA = (
-    b'{"content": "A hobbit destroys a powerful ring to save Middle-earth from darkness.", "stop_reason": "max_tokens"}'
+    b'{"content": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks.", "stop_reason": "max_tokens"}'
 )
 
 _MOCK_COHERE_RESPONSE_DATA = (
-    b'{"generations": [{"text": "A LLM chain is like a relay race where each AI model passes '
-    b'information to the next one to solve complex tasks together", '
+    b'{"generations": [{"text": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks", '
     b'"finish_reason": "MAX_TOKENS", "id": "e9b9cff2-2404-4bc2-82ec-e18c424849f7"}]}'
 )
 
 _MOCK_COHERE_STREAM_RESPONSE_DATA = (
-    b'{"generations": [{"text": "A LLM chain is like a relay race where each AI model passes '
-    b'information to the next one to solve complex tasks together"}], '
+    b'{"generations": [{"text": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks"}], '
     b'"is_finished": true, "finish_reason": "MAX_TOKENS"}'
 )
 
 _MOCK_META_RESPONSE_DATA = (
-    b'{"generation": "Lorem ipsum is placeholder text used in design to show how text will look in a layout.", '
+    b'{"generation": "A LLM chain is a sequence of AI models working together, where each model builds '
+    b'upon the previous one\'s output to solve complex tasks.", '
     b'"stop_reason": "max_tokens"}'
 )
 

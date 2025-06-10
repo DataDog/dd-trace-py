@@ -98,18 +98,18 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_compl
 def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_completion):
     mock_generate.return_value = mock_langchain_llm_generate_response
     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
-    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    llm.invoke("What is the capital of France?")
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
-        input_value=json.dumps([{"content": "Can you explain what Descartes meant by 'I think, therefore I am'?"}]),
+        input_value=json.dumps([{"content": "What is the capital of France?"}]),
     )
 
     # span created from request with non-proxy URL should result in an LLM span
     llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
-    llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+    llm.invoke("What is the capital of France?")
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 2
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
