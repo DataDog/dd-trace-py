@@ -10,9 +10,9 @@ medium:
 
 deep:
   <<: *base
-  max_depth: 300
+  max_depth: 400
 
 deep-profiled:
   <<: *base
-  max_depth: 300
+  max_depth: 400
   profiler_enabled: true

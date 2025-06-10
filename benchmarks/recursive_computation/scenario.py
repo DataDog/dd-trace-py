@@ -16,7 +16,7 @@ class RecursiveComputation(bm.Scenario):
     profiler_enabled: bool
 
     def cpu_intensive_computation(self, depth: int) -> int:
-        limit = 1000 + (depth * 100)
+        limit = 100 + (depth * 10)
         primes = []
 
         for num in range(2, limit):
@@ -38,12 +38,17 @@ class RecursiveComputation(bm.Scenario):
             span.set_tag("profiler.enabled", self.profiler_enabled)
             span.set_tag("component", "recursive_computation")
 
-            start_time = time.time()
-            result = self.cpu_intensive_computation(depth)
-            compute_time = time.time() - start_time
+            if depth % 3 == 0:
+                start_time = time.time()
+                result = self.cpu_intensive_computation(depth)
+                compute_time = time.time() - start_time
 
-            span.set_metric("computation.time_ms", compute_time * 1000)
-            span.set_metric("computation.result", result)
+                span.set_metric("computation.time_ms", compute_time * 1000)
+                span.set_metric("computation.result", result)
+            else:
+                result = depth
+                span.set_metric("computation.time_ms", 0)
+                span.set_metric("computation.result", result)
 
             if depth < self.max_depth:
                 child_result = self.recursive_traced_computation(depth + 1)
