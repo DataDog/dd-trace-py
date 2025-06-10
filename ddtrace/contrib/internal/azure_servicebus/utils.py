@@ -9,6 +9,7 @@ from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.propagation.http import HTTPPropagator
 
 
 def create_context(context_name, pin):
@@ -24,10 +25,10 @@ def create_context(context_name, pin):
     )
 
 
-def get_application_properties(message_arg_value):
+def handle_service_bus_message_arg(span, message_arg_value):
     if isinstance(message_arg_value, (azure_servicebus.ServiceBusMessage, azure_servicebus_amqp.AmqpAnnotatedMessage)):
-        message = message_arg_value
-        application_properties = message.application_properties
+        message_arg_value.application_properties
+        inject_context(span, message_arg_value)
     elif (
         isinstance(message_arg_value, list)
         and message_arg_value
@@ -35,10 +36,19 @@ def get_application_properties(message_arg_value):
             message_arg_value[0], (azure_servicebus.ServiceBusMessage, azure_servicebus_amqp.AmqpAnnotatedMessage)
         )
     ):
-        # TODO: only inject context on first message? Apparently this is an OTel standard
-        message = message_arg_value[0]
-        application_properties = message.application_properties
-    else:
-        application_properties = {}
+        for message in message_arg_value:
+            inject_context(span, message)
 
-    return application_properties
+
+def inject_context(span, message):
+    # message.application_properties is of type Dict[str | bytes, PrimitiveTypes] | Dict[str | bytes, Any] | None
+    # HTTPPropagator.inject expects type of Dict[str, str]
+    # Inject the context into an empty dictionary and merge it with message.application_properties to preserve the original type
+    inject_carrier = {}
+    HTTPPropagator.inject(span.context, inject_carrier)
+
+    # Set application_properties to empty dictionary if None
+    if not message.application_properties:
+        message.application_properties = {}
+
+    message.application_properties.update(inject_carrier)

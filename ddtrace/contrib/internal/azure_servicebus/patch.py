@@ -14,7 +14,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
-from .utils import get_application_properties
+from .utils import handle_service_bus_message_arg
 
 
 config._add(
@@ -63,9 +63,10 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
-        message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
-        application_properties = get_application_properties(message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus, application_properties))
+        if config.azure_servicebus.distributed_tracing:
+            message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
+            handle_service_bus_message_arg(ctx.span, message_arg_value)
+        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
 
         return wrapped(*args, **kwargs)
 
@@ -78,9 +79,10 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
     with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
-        message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
-        application_properties = get_application_properties(message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus, application_properties))
+        if config.azure_servicebus.distributed_tracing:
+            message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
+            handle_service_bus_message_arg(ctx.span, message_arg_value)
+        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
 
         return await wrapped(*args, **kwargs)
 

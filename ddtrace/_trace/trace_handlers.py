@@ -862,13 +862,10 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, application_properties):
+def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config):
     span = ctx.span
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-
-    if azure_servicebus_config.distributed_tracing and span:
-        HTTPPropagator.inject(span.context, application_properties)
 
 
 def listen():

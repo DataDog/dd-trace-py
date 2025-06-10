@@ -94,3 +94,7 @@ def timer(timer: func.TimerRequest) -> None:
 @app.timer_trigger(schedule="0 0 0 1 1 *", arg_name="timer")
 async def timer_async(timer: func.TimerRequest) -> None:
     pass
+
+# TODO: test cases
+# None headers
+# byte headers
