@@ -230,11 +230,14 @@ elif sys.version_info >= (3, 10):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
@@ -258,11 +261,14 @@ elif sys.version_info >= (3, 9):
 
     CONTEXT_RETURN.parse(
         r"""
+            pop_block
             load_const                  {context}
             load_method                 $__return__
             rot_three
             rot_three
             call_method                 1
+            rot_two
+            pop_top
         """
     )
 
