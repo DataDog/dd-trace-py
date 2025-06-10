@@ -49,7 +49,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
 
 @skip_if_testagent
 @parametrize_with_all_encodings()
-def test_priority_sampling_rate_honored():
+def test_priority_sampling_rate_honored(DD_TRACE_API_VERSION):
     import time
 
     from ddtrace.constants import _SAMPLING_PRIORITY_KEY  # noqa
@@ -93,7 +93,7 @@ def test_priority_sampling_rate_honored():
 
 @skip_if_testagent
 @parametrize_with_all_encodings()
-def test_priority_sampling_response():
+def test_priority_sampling_response(DD_TRACE_API_VERSION):
     import time
 
     from ddtrace.trace import tracer as t
@@ -131,7 +131,7 @@ def test_agent_sample_rate_keep():
 
 @skip_if_testagent
 @parametrize_with_all_encodings()
-def test_sampling_rate_honored_tracer_configure():
+def test_priority_rate_honored_tracer_configure(DD_TRACE_API_VERSION):
     import time
 
     from ddtrace.trace import TraceFilter

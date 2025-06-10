@@ -41,7 +41,7 @@ apm_configuration_default:
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_DEBUG": ["TRUE", "1"]}, err=None)
-def test_get_configuration_debug_logs():
+def test_get_configuration_debug_logs(DD_TRACE_DEBUG):
     """
     Verify stable config debug log enablement
     """
@@ -73,7 +73,7 @@ apm_configuration_default:
 
 
 @pytest.mark.subprocess(parametrize={"DD_VERSION": ["b", None]})
-def test_get_configuration_from_disk_local_config_priority(tmp_path):
+def test_get_configuration_from_disk_local_config_priority(DD_VERSION, tmp_path):
     """
     Verify the order:
     local stable config < environment variables
