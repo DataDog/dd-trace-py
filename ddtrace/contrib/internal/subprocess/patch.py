@@ -93,6 +93,9 @@ def patch() -> List[str]:
     """
     patched: List[str] = []
 
+    if not asm_config._load_modules:
+        return patched
+
     import os  # nosec
     import subprocess  # nosec
 
