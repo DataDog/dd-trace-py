@@ -30,7 +30,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"tornado": ">=6.2.0"}
+    return {"tornado": ">=6.0.0"}
 
 
 def patch():

@@ -872,10 +872,11 @@ Other
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
-   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
      type: Boolean
      default: False
      version_added:
+       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
        v3.2.0: Adds initial support
 
      description: |
