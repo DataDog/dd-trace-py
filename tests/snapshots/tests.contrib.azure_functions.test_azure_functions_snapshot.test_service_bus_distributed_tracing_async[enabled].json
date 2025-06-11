@@ -1,0 +1,250 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/httppostrootservicebusasync",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6849d90d00000000",
+      "aas.function.name": "http_post_root_servicebus_async",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/httppostrootservicebusasync",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httppostrootservicebusasync",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 25661
+    },
+    "duration": 2088765585,
+    "start": 1749670157723798712
+  },
+     {
+       "name": "azure.servicebus.produce",
+       "service": "azure_servicebus",
+       "resource": "azure.servicebus.produce",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_servicebus",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 9163708,
+       "start": 1749670158251280171
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebusqueue",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebusqueue",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 50042,
+          "start": 1749670158657035296
+        },
+     {
+       "name": "azure.servicebus.produce",
+       "service": "azure_servicebus",
+       "resource": "azure.servicebus.produce",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "6849d90d00000000",
+         "component": "azure_servicebus",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 4367083,
+       "start": 1749670158261499754
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebusqueue",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 3,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebusqueue",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 32375,
+          "start": 1749670158658889171
+        },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebusqueue",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 3,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebusqueue",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 19208,
+          "start": 1749670158659080088
+        },
+     {
+       "name": "azure.servicebus.produce",
+       "service": "azure_servicebus",
+       "resource": "azure.servicebus.produce",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "6849d90d00000000",
+         "component": "azure_servicebus",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 6389292,
+       "start": 1749670159277508713
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebustopic",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 4,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebustopic",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 27209,
+          "start": 1749670159400000296
+        },
+     {
+       "name": "azure.servicebus.produce",
+       "service": "azure_servicebus",
+       "resource": "azure.servicebus.produce",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "6849d90d00000000",
+         "component": "azure_servicebus",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 6890083,
+       "start": 1749670159284028255
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebustopic",
+          "trace_id": 0,
+          "span_id": 10,
+          "parent_id": 5,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebustopic",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 36584,
+          "start": 1749670159398388546
+        },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebustopic",
+          "trace_id": 0,
+          "span_id": 11,
+          "parent_id": 5,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "6849d90d00000000",
+            "aas.function.name": "servicebustopic",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "runtime-id": "dfb82b4bc0d24955b015d9325da0fc7a",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 25661
+          },
+          "duration": 19833,
+          "start": 1749670159398636213
+        }]]

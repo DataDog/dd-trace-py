@@ -2784,6 +2784,7 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.20.0", latest],
+                "azure.servicebus": latest,
                 "requests": latest,
             },
         ),
