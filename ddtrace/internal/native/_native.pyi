@@ -205,18 +205,18 @@ class TraceExporterBuilder:
         :param token: The test session token to use for authentication.
         """
         ...
-    def set_input_format(self, format: str) -> TraceExporterBuilder:
+    def set_input_format(self, input_format: str) -> TraceExporterBuilder:
         """
         Set the input format for the trace data.
-        :param format: The format to use for input traces (supported values are "v0.4" and "v0.5").
-        :raises ValueError: If format is not a supported value.
+        :param input_format: The format to use for input traces (supported values are "v0.4" and "v0.5").
+        :raises ValueError: If input_format is not a supported value.
         """
         ...
-    def set_output_format(self, format: str) -> TraceExporterBuilder:
+    def set_output_format(self, output_format: str) -> TraceExporterBuilder:
         """
         Set the output format for the trace data.
-        :param format: The format to use for output traces (supported values are "v0.4" and "v0.5").
-        :raises ValueError: If format is not a supported value.
+        :param output_format: The format to use for output traces (supported values are "v0.4" and "v0.5").
+        :raises ValueError: If output_format is not a supported value.
         """
         ...
     def set_client_computed_top_level(self) -> TraceExporterBuilder:

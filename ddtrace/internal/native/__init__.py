@@ -3,22 +3,20 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+# Exceptions used by the TraceExporter
+from ._native import AgentError  # noqa: F401
+from ._native import BuilderError  # noqa: F401
 from ._native import DDSketch  # noqa: F401
+from ._native import DeserializationError  # noqa: F401
+from ._native import IoError  # noqa: F401
+from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
+from ._native import RequestError  # noqa: F401
+from ._native import SerializationError  # noqa: F401
+from ._native import TraceExporter  # noqa: F401
+from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import store_metadata  # noqa: F401
-from ._native import TraceExporter, TraceExporterBuilder
-
-# Exceptions used by the TraceExporter
-from ._native import (
-    AgentError,
-    BuilderError,
-    DeserializationError,
-    IoError,
-    NetworkError,
-    RequestError,
-    SerializationError,
-)
 
 
 def get_configuration_from_disk() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, Optional[str]]]:

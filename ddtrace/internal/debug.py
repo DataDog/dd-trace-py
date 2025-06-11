@@ -59,7 +59,7 @@ def collect(tracer):
         agent_url = "AGENTLESS"
         agent_error = None
     elif isinstance(tracer._span_aggregator.writer, AgentWriter) or isinstance(
-        trace._span_aggregator.writer, NativeWriter
+        tracer._span_aggregator.writer, NativeWriter
     ):
         writer = tracer._span_aggregator.writer
         agent_url = writer.agent_url
