@@ -117,4 +117,9 @@ def get_log_injection_state(raw_config: Optional[str]) -> str:
             return LogInjectionState.STRUCTURED
         elif normalized in ("true", "1"):
             return LogInjectionState.ENABLED
+        else:
+            logging.warning(
+                "Invalid log injection state '%s'. Expected 'true', 'false', or 'structured'. Defaulting to 'false'.",
+                raw_config,
+            )
     return LogInjectionState.DISABLED
