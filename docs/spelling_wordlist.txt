@@ -286,6 +286,7 @@ subdirectory
 subdomains
 submodule
 submodules
+subpackages
 Subprocess
 substring
 suitespec
