@@ -54,7 +54,10 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     finally:
         # streamed spans finished separately when stream generator is exhausted
         if span.error or not stream:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generation_response)
             span.finish()
+    # print(span._pprint())
     return generation_response
 
 
