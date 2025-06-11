@@ -26,44 +26,54 @@ def normalize_contents(contents):
     
     This function normalizes all these variants into a list of dicts
     """
-    if not contents:
-        return []
-    
-    if not isinstance(contents, list):
-        contents = [contents]
-    
-    normalized = []
-    for content in contents:
-        if hasattr(content, 'model_dump'):
-            # pydantic model (ContentUnion)
-            normalized.append(content.model_dump(exclude_none=True))
-        elif isinstance(content, dict):
-            # already a dict (ContentUnionDict)
-            normalized.append(content)
-        else:
-            # fallback - convert to string representation
-            normalized.append({"content": str(content)})
-    
-    return normalized
+    def extract_content(content):
+        role = _get_attr(content, "role", None)
+        parts = _get_attr(content, "parts", None)
+
+        #if parts is missing and content itself is a PartUnion or list[PartUnion]
+        if parts is None:
+            if isinstance(content, list):
+                parts = content
+            else:
+                parts = [content]
+
+        elif not isinstance(parts, list):
+            parts = [parts]
+
+        return {"role": role, "parts": parts}
+
+    if isinstance(contents, list):
+        return [extract_content(c) for c in contents]
+    return [extract_content(contents)]
+
 
 def tag_request(span, integration, instance, args, kwargs):
     contents = get_argument_value(args, kwargs, -1,  "contents")
     generation_config = get_argument_value(args, kwargs, -1, "config", optional=True)
     generation_config_dict = config_to_dict(generation_config)
 
-    if generation_config_dict:
-        for k, v in generation_config_dict.items():
-            span.set_tag_str("google_genai.generation_config.%s" % k, str(v))
+    for k, v in generation_config_dict.items():
+        span.set_tag_str("google_genai.generation_config.%s" % k, str(v))
 
     # performance optimization????
     if not integration.is_pc_sampled_span(span):
         return
+    
+    #should I set tag for system instructions? they are already in the config.
 
-    # if contents:
-    #     normalized_contents = normalize_contents(contents)
-    #     for content_idx, content in enumerate(normalized_contents):
-    #         _tag_request_content(span, integration, content, content_idx)
+    normalized_contents = normalize_contents(contents)
+    for content_idx, content in enumerate(normalized_contents):
+        _tag_request_content(span, integration, content, content_idx)
 
+def _tag_request_content(span, integration, content, content_idx):
+    role = _get_attr(content, "role", None)
+    if role:
+        span.set_tag_str("google_genai.request.contents.%d.role" % content_idx, str(role))
+    parts = _get_attr(content, "parts", None)
+    if parts:
+        for part_idx, part in enumerate(parts):
+            # see below for warning on tag_response_part_google
+            tag_response_part_google("google_genai", span, integration, part, part_idx, content_idx)
 
 def tag_response(span, generation_response, integration, instance):
     candidates = _get_attr(generation_response, "candidates", [])
