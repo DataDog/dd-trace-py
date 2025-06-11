@@ -470,7 +470,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestSuite.mark_itr_skipped(suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
-            InternalTestSuite.finish(suite_id)
+        InternalTestSuite.finish(suite_id)
         if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
             InternalTestModule.finish(module_id)
 
