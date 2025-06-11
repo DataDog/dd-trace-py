@@ -88,7 +88,7 @@ function of the integration module located at `ddtrace.contrib.<integration-name
 
 The goal of an integration's `patch()` function is to invisibly wrap the Instrumented Module with logic that generates the
 data about the module that's necessary for any relevant Products. The most commonly used wrapping approach is based on the
-`wrapt` library, which is included as a vendored dependency in `ddtrace`. Inside of the wrappers, it's common for
+`wrapt` library, which is included as a vendored dependency in `ddtrace`. Another approach, employed by certain components of the appsec product, involves decompiling the imported module into its abstract syntax tree, modifying it, and then recompiling the module. Inside of the wrappers, it's common for
 integrations to build trees of `core.ExecutionContext` objects that store information about the running application's
 call stack.
 
