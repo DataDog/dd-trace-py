@@ -12,6 +12,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import safe_json
 
@@ -300,10 +301,8 @@ def _model_invocation_input_span(
     model_input: Dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
 ) -> Optional[Dict[str, Any]]:
     """Translates a Bedrock model invocation input trace into a LLMObs span event."""
-    model = model_input.get("foundationModel", "")
-    # TODO: Handle model parsing correctly
-    model_name = model.split(".", 1)[-1] if model else ""
-    model_provider = model.split(".", 1)[0] if model else ""
+    model_id = model_input.get("foundationModel", "")
+    model_name, model_provider = parse_model_id(model_id)
     text = json.loads(model_input.get("text", "{}"))
     input_messages = [{"content": text.get("system", ""), "role": "system"}]
     for message in text.get("messages", []):
