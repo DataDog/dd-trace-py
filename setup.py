@@ -24,6 +24,7 @@ from setuptools.command.build_py import build_py as BuildPyCommand  # isort: ski
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
+from distutils.dep_util import newer_group
 
 
 try:
@@ -312,6 +313,8 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
+
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
@@ -350,6 +353,35 @@ class CMakeBuild(build_ext):
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext):
+        if IS_EDITABLE and self.INCREMENTAL:
+            # DEV: Rudimentary incremental build support. We copy the logic from
+            # setuptools' build_ext command, best effort.
+            full_path = Path(self.get_ext_fullpath(ext.name))
+            ext_path = Path(ext.source_dir, full_path.name)
+
+            # Collect all the source files within the source directory. We exclude
+            # Python sources and anything that does not have a suffix (most likely
+            # a binary file), or that has the same name as the extension binary.
+            sources = (
+                [
+                    _
+                    for _ in Path(ext.source_dir).rglob("**")
+                    if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in (".py", ".pyc", ".pyi")
+                ]
+                if ext.source_dir
+                else []
+            )
+            if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+                print(f"skipping '{ext.name}' CMake extension (up-to-date)")
+
+                # We need to copy the binary where setuptools expects it
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ext_path, full_path)
+
+                return
+            else:
+                print(f"building '{ext.name}' CMake extension")
+
         # Define the build and output directories
         output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
         extension_basename = Path(self.get_ext_fullpath(ext.name)).name
@@ -459,11 +491,15 @@ class DebugMetadata:
         with open(cls.metadata_file, "w") as f:
             f.write(f"Total time: {total_s:0.2f}s\n")
             f.write("Environment:\n")
-            f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
-            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
-            f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
-            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
+            for n, v in [
+                ("CARGO_BUILD_JOBS", os.getenv("CARGO_BUILD_JOBS", "unset")),
+                ("CMAKE_BUILD_PARALLEL_LEVEL", os.getenv("CMAKE_BUILD_PARALLEL_LEVEL", "unset")),
+                ("DD_COMPILE_MODE", COMPILE_MODE),
+                ("DD_USE_SCCACHE", SCCACHE_COMPILE),
+                ("DD_FAST_BUILD", FAST_BUILD),
+                ("DD_CMAKE_INCREMENTAL_BUILD", CMakeBuild.INCREMENTAL),
+            ]:
+                print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
