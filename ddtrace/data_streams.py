@@ -2,7 +2,7 @@ import ddtrace
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 
 
-def set_consume_checkpoint(typ, source, carrier_get):
+def set_consume_checkpoint(typ, source, carrier_get, manual_checkpoint=True):
     """
     :param typ: The type of the checkpoint, usually the streaming technology being used.
         Examples include kafka, kinesis, sns etc. (str)
@@ -14,7 +14,10 @@ def set_consume_checkpoint(typ, source, carrier_get):
     if ddtrace.config._data_streams_enabled:
         processor = ddtrace.tracer.data_streams_processor
         processor.decode_pathway_b64(carrier_get(PROPAGATION_KEY_BASE_64))
-        return processor.set_checkpoint(["type:" + typ, "topic:" + source, "direction:in", "manual_checkpoint:true"])
+        tags = ["type:" + typ, "topic:" + source, "direction:in"]
+        if manual_checkpoint:
+            tags.append("manual_checkpoint:true")
+        return processor.set_checkpoint(tags)
 
 
 def set_produce_checkpoint(typ, target, carrier_set):

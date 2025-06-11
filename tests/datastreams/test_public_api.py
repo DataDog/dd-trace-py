@@ -30,3 +30,18 @@ def test_public_api():
                 sorted(["direction:in", "manual_checkpoint:true", "type:kinesis", "topic:stream-123"]), parent_hash
             )
             assert got.hash == expected
+
+
+def test_manual_checkpoint_behavior():
+    headers = {}
+    with mock.patch("ddtrace.tracer", new=MockedTracer()):
+        with mock.patch("ddtrace.config", new=MockedConfig()):
+            with mock.patch.object(MockedTracer().data_streams_processor, "set_checkpoint") as mock_set_checkpoint:
+                set_consume_checkpoint("kinesis", "stream-123", headers.get)
+                called_tags = mock_set_checkpoint.call_args[0][0]
+                assert "manual_checkpoint:true" in called_tags
+
+                mock_set_checkpoint.reset_mock()
+                set_consume_checkpoint("kinesis", "stream-123", headers.get, manual_checkpoint=False)
+                called_tags = mock_set_checkpoint.call_args[0][0]
+                assert "manual_checkpoint:true" not in called_tags
