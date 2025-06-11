@@ -1,8 +1,17 @@
+import base64
+from http.cookies import SimpleCookie
 import io
 import json
+from typing import Any
+from typing import Dict
+from typing import Union
+from urllib.parse import parse_qs
 
 import xmltodict
 
+from ddtrace._trace.span import Span
+from ddtrace.appsec._asm_request_context import _call_waf
+from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.contrib import trace_utils
@@ -74,6 +83,152 @@ def _on_set_http_meta(
         for k, v in addresses:
             if v is not None:
                 set_waf_address(k, v)
+
+
+# AWS Lambda
+def _normalize_headers(
+    request_headers: Dict[str, str],
+) -> Dict[str, Union[str, None]]:
+    """Normalize headers according to the WAF expectations.
+
+    The WAF expects headers to be lowercased and empty values to be None.
+    """
+    headers: Dict[str, Union[str, None]] = {}
+    for key, value in request_headers.items():
+        normalized_key = http_utils.normalize_header_name(key)
+        if value:
+            headers[normalized_key] = str(value)
+        else:
+            headers[normalized_key] = None
+    return headers
+
+
+def _parse_lambda_http_body(
+    headers: Dict[str, Union[str, None]],
+    body: Union[str, None],
+    is_body_base64: bool,
+) -> Union[str, Dict[str, Any], None]:
+    """Parse the request body for an AWS Lambda function"""
+    if body is None:
+        return None
+    if is_body_base64:
+        try:
+            body = base64.b64decode(body).decode()
+        except (ValueError, TypeError):
+            pass  # If decoding fails, we just leave body as is
+
+    try:
+        content_type = headers.get("Content-Type")
+        if not content_type:
+            return None
+
+        if content_type in ("application/json", "application/vnd.api+json", "text/json"):
+            return json.loads(body)
+        elif content_type == ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+            return parse_qs(body)
+        elif content_type in ("application/xml", "text/xml"):
+            return xmltodict.parse(body)
+        elif content_type == "multipart/form-data":
+            return http_utils.parse_form_multipart(body, headers)
+        elif content_type == "text/plain":
+            return body
+        else:
+            return None
+
+    except Exception:
+        return None
+
+
+def _extract_cookies_from_headers(
+    request_headers: Dict[str, Union[str, None]],
+) -> Union[Dict[str, str], None]:
+    """Extract cookies from the WAF headers."""
+    cookie_names = {"cookie", "set-cookie"}
+    for name in cookie_names:
+        if name in request_headers:
+            cookie = SimpleCookie()
+            header = request_headers[name]
+            del request_headers[name]
+            if isinstance(header, list):
+                for h in header:
+                    cookie.load(h)
+            elif header:
+                cookie.load(header)
+            return {k: str(v) for k, v in cookie.items()}
+    return None
+
+
+def _on_lambda_start_request(
+    span: Span,
+    request_headers: Dict[str, str],
+    request_ip: Union[str, None],
+    body: Union[str, None],
+    is_body_base64: bool,
+    raw_uri: str,
+    route: str,
+    method: str,
+    parsed_query: Dict[str, Any],
+):
+    if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
+        return
+
+    headers = _normalize_headers(request_headers)
+    request_body = _parse_lambda_http_body(headers, body, is_body_base64)
+    request_cookies = _extract_cookies_from_headers(headers)
+
+    core.dispatch(
+        "set_http_meta_for_asm",
+        (
+            span,
+            request_ip,
+            raw_uri,
+            route,
+            method,
+            headers,
+            request_cookies,
+            parsed_query,
+            None,  # request_path_params, not applicable for Lambda
+            request_body,
+            None,  # Response status code
+            None,  # Response headers
+            None,  # Response cookies
+        ),
+    )
+
+    _call_waf_first(("aws_lambda",))
+
+
+def _on_lambda_start_response(
+    span: Span,
+    status_code: str,
+    response_headers: Dict[str, str],
+):
+    if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
+        return
+
+    waf_headers = _normalize_headers(response_headers)
+    response_cookies = _extract_cookies_from_headers(waf_headers)
+
+    core.dispatch(
+        "set_http_meta_for_asm",
+        (
+            span,
+            None,  # request_ip, already sent
+            None,  # raw_uri, already sent
+            None,  # route, already sent
+            None,  # method, already sent
+            None,  # request_headers, already sent
+            None,  # request_cookies, already sent
+            None,  # parsed_query, already sent
+            None,  # request_path_params, not applicable for Lambda
+            None,  # request_body, already sent
+            status_code,
+            waf_headers,
+            response_cookies,
+        ),
+    )
+
+    _call_waf(("aws_lambda",))
 
 
 # ASGI
@@ -305,6 +460,9 @@ def listen():
     core.on("flask.start_response.blocked", _on_start_response_blocked)
 
     core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+
+    core.on("aws_lambda.start_request", _on_lambda_start_request)
+    core.on("aws_lambda.start_response", _on_lambda_start_response)
 
     core.on("grpc.server.response.message", _on_grpc_server_response)
     core.on("grpc.server.data", _on_grpc_server_data)
