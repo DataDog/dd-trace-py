@@ -8,9 +8,9 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
-from ddtrace.contrib.internal.google_genai._utils import tag_request
-from ddtrace.contrib.internal.google_genai._utils import tag_response
-from ddtrace.contrib.internal.google_genai._utils import extract_model_name_google_genai
+# from ddtrace.contrib.internal.google_genai._utils import tag_request
+# from ddtrace.contrib.internal.google_genai._utils import tag_response
+from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
 from ddtrace.trace import Pin
 
 
@@ -33,34 +33,27 @@ def get_version():
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    generations = None
-    stream = False # TODO: handle streamed responses
+    generation_response = None
+    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model = extract_model_name_google_genai(kwargs.get("model", "")),
-        submit_to_llmobs=True,
+        provider=provider_name,
+        model = model_name,
+        submit_to_llmobs=False, #TODO: change to True when we eventually submit to llmobs
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
         generation_response = func(*args, **kwargs)
-        if stream:
-            pass # TODO: handle streamed responses
-        tag_response(span, generation_response, integration, instance)
     except:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        # streamed spans finished separately when stream generator is exhausted
-        if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generation_response)
-            span.finish()
-    # print(span._pprint())
+        span.finish()
     return generation_response
 
-
+@with_traced_module
+def traced_generate_stream(genai, pin, func, instance, args, kwargs):
+    pass
 
 
 def patch():
