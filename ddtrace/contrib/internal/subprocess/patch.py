@@ -594,7 +594,7 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         Retrieves command details stored by _traced_subprocess_init and completes
         the span with execution results and exit code.
     """
-    if not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled):
+    if should_trace_subprocess():
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:

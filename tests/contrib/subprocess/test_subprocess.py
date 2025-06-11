@@ -254,7 +254,7 @@ def test_ossystem_disabled(tracer, config):
     with override_global_config(config):
         patch()
         pin = Pin.get_from(os)
-        # TODO: PIN is None in GitLab with py3.12 and this config:
+        # TODO(APPSEC-57964): PIN is None in GitLab with py3.12 and this config:
         #  {'_asm_enabled': False, '_bypass_instrumentation_for_waf': False, '_iast_enabled': False}
         if pin:
             pin._clone(tracer=tracer).onto(os)
@@ -264,7 +264,7 @@ def test_ossystem_disabled(tracer, config):
 
         spans = tracer.pop()
         assert spans
-        # TODO: GitLab with py3.12 returns two spans for those configurations.
+        # TODO(APPSEC-57964): GitLab with py3.12 returns two spans for those configurations.
         #  Is override_global_config not triggering a restart?
         #  {'_remote_config_enabled': True}
         #  {'_remote_config_enabled': False}
@@ -410,7 +410,7 @@ def test_osspawn_variants(tracer, function, mode, arguments):
                     ret = function(mode, arguments[0], arguments)
             else:
                 ret = function(mode, arguments[0], *arguments)
-            # TODO: Gitlab raises at some point
+            # TODO(APPSEC-57964): Gitlab raises at some point
             #  Traceback (most recent call last):
             #    File "/3.10.16/lib/python3.10/multiprocessing/util.py", line 357, in _exit_function
             #      p.join()
