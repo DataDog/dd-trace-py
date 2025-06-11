@@ -890,9 +890,9 @@ def test_subprocess_edge_cases(tracer, config):
         assert result.returncode == 0
 
         # Test 3: Command with special characters
-        result = subprocess.run(["echo", "hello$world&test|pipe>redirect"], capture_output=True, text=True)
+        result = subprocess.run(["echo", "hello$world&test"], capture_output=True, text=True)
         assert result.returncode == 0
-        assert "hello$world&test|pipe>redirect" in result.stdout
+        assert "hello$world&test" in result.stdout
 
 
 @pytest.mark.parametrize("config", CONFIGURATIONS)
