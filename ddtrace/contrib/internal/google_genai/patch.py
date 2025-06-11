@@ -44,10 +44,10 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     )
     try:
         tag_request(span, integration, instance, args, kwargs)
-        generations = func(*args, **kwargs)
+        generation_response = func(*args, **kwargs)
         if stream:
             pass # TODO: handle streamed responses
-        tag_response(span, generations, integration, instance)
+        tag_response(span, generation_response, integration, instance)
     except:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -55,7 +55,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         # streamed spans finished separately when stream generator is exhausted
         if span.error or not stream:
             span.finish()
-    return generations
+    return generation_response
 
 
 
