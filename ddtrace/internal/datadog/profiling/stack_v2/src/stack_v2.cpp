@@ -191,6 +191,70 @@ stack_v2_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uintptr_t greenlet_id; // map key
+    PyObject* name;
+    PyObject* frame;
+
+    if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
+        return NULL;
+
+    StringTable::Key greenlet_name;
+
+    try {
+        greenlet_name = string_table.key(name);
+    } catch (StringTable::Error&) {
+        // We failed to get this task but we keep going
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
+        return NULL;
+    }
+
+    Sampler::get().track_greenlet(greenlet_id, greenlet_name, frame);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+untrack_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uintptr_t greenlet_id;
+    if (!PyArg_ParseTuple(args, "l", &greenlet_id))
+        return NULL;
+
+    Sampler::get().untrack_greenlet(greenlet_id);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+link_greenlets(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uintptr_t parent, child;
+
+    if (!PyArg_ParseTuple(args, "ll", &child, &parent))
+        return NULL;
+
+    Sampler::get().link_greenlets(parent, child);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    uintptr_t greenlet_id;
+    PyObject* frame;
+
+    if (!PyArg_ParseTuple(args, "lO", &greenlet_id, &frame))
+        return NULL;
+
+    Sampler::get().update_greenlet_frame(greenlet_id, frame);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef _stack_v2_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_v2_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_v2_stop, METH_VARARGS, "Stop the sampler" },
@@ -205,6 +269,12 @@ static PyMethodDef _stack_v2_methods[] = {
     { "track_asyncio_loop", stack_v2_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
     { "init_asyncio", stack_v2_init_asyncio, METH_VARARGS, "Initialise asyncio tracking" },
     { "link_tasks", stack_v2_link_tasks, METH_VARARGS, "Link two tasks" },
+    // greenlet support
+    { "track_greenlet", track_greenlet, METH_VARARGS, "Map a greenlet with its identifier" },
+    { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
+    { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
+    { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
+
     { "set_adaptive_sampling", stack_v2_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { NULL, NULL, 0, NULL }
 };
