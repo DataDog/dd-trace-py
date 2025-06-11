@@ -30,10 +30,7 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
             for chunk in self.__wrapped__:
                 self._stream_chunks.append(chunk)
                 yield chunk
-        except GeneratorExit:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            raise
-        except Exception:
+        except (GeneratorExit, Exception):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:

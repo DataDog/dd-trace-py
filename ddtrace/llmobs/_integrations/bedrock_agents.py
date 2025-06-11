@@ -187,7 +187,7 @@ def _translate_custom_orchestration_trace(
         parent_id=trace_step_id,
         span_kind="tool",
         start_ns=start_ns,
-        output_val=custom_orchestration_event.get("text", "")
+        output_val=custom_orchestration_event.get("text", ""),
     )
     return span_event, False
 
@@ -242,7 +242,7 @@ def _translate_failure_trace(
         duration_ns=duration_ns,
         error=True,
         error_msg=error_msg,
-        error_type=error_type
+        error_type=error_type,
     )
     return span_event, True
 
@@ -351,7 +351,13 @@ def _model_invocation_input_span(
     for message in text.get("messages", []):
         input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
     span_event = _build_span_event(
-        "modelInvocation", root_span, trace_step_id, "llm", start_ns=start_ns, metadata={"model_name": model_name, "model_provider": model_provider}, input_val=input_messages
+        "modelInvocation",
+        root_span,
+        trace_step_id,
+        "llm",
+        start_ns=start_ns,
+        metadata={"model_name": model_name, "model_provider": model_provider},
+        input_val=input_messages,
     )
     return span_event
 

@@ -1,4 +1,3 @@
-
 _MODEL_TYPE_IDENTIFIERS = (
     "foundation-model/",
     "custom-model/",
