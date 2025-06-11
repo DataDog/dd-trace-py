@@ -31,6 +31,7 @@ for pid in children:
     os.waitpid(pid, 0)
 
 extra_services = ddtrace.config._get_extra_services()
+extra_services.discard("sqlite")  # coverage
 assert len(extra_services) == min(10 * {child_services}, 64), extra_services
 assert all(re.match(r"extra_service_\\d+_\\d+", service) for service in extra_services)
 """
