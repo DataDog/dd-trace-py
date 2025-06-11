@@ -1,3 +1,5 @@
+from typing import Dict
+
 import structlog
 
 import ddtrace
@@ -23,6 +25,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(structlog, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"structlog": ">=20.2.0"}
 
 
 def _tracer_injection(_, __, event_dict):

@@ -344,6 +344,22 @@ Traces
      version_added:
         v1.9.0:
 
+   DD_TRACE_SAFE_INSTRUMENTATION_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        Whether to enable safe instrumentation.
+
+        When enabled, ``ddtrace`` will check if the version of an installed package is compatible with the respective ``ddtrace`` integration
+        patching the package. If the version is not compatible, ``ddtrace`` will not patch the respective package.
+
+        This is useful to avoid application crashes from patching packages that are incompatible with the ``ddtrace`` supported integration 
+        version ranges.
+     
+     version_added:
+        v3.11.0:
+
 Trace Context propagation
 -------------------------
 
