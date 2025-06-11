@@ -481,8 +481,6 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
-        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
@@ -537,7 +535,7 @@ class Config(object):
             "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
+            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_TRACE_RUNTIME_ID_ENABLED"], False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -649,9 +647,11 @@ class Config(object):
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
-        self._lib_was_injected = False
+        # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
+        self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

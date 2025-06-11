@@ -856,10 +856,11 @@ Other
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
-   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+   DD_TRACE_RUNTIME_ID_ENABLED:
      type: Boolean
      default: False
      version_added:
+       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
        v3.2.0: Adds initial support
 
      description: |
@@ -919,11 +920,9 @@ Other
       default: "user.id,account.id,session.id"
 
       description: |
-         A comma-separated list of baggage keys to be automatically attached as tags on spans.
-         For each key specified, if a corresponding baggage key is present and has a non-empty value,
-         the key-value pair will be added to the span's metadata using the key name formatted as ``baggage.<key>``.
-         If you want to turn off this feature, set the configuration value to an empty string.
-         When set to `*`, **all** baggage keys will be converted into span tags. Use with caution: this may unintentionally expose sensitive or internal data if not used intentionally.
+          A comma-separated list of baggage keys, sent via HTTP headers, to automatically tag as baggage.<key> on the local root span.
+          Only baggage extracted from incoming headers is supported. Baggage set via ``Context.set_baggage_item(..., ...)`` is not included. Keys must have non-empty values. 
+          Set to * to tag all baggage keys (use with caution to avoid exposing sensitive data). Set to an empty string to disable the feature.
 
       version_added: 
          v3.6.0:

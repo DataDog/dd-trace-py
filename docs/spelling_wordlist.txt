@@ -30,6 +30,8 @@ autodetected
 autopatching
 autoreload
 autoreloading
+avro
+Avro
 aws
 AWS
 ARN
@@ -83,8 +85,11 @@ doctest
 dogpile
 dogpile.cache
 dogstatsd
+dramatiq
+Dramatiq
 dsn
 dunder
+eg
 elasticsearch
 elasticsearch1
 elasticsearch7
@@ -101,7 +106,9 @@ exec
 Fargate
 fastapi
 Firehose
+fnmatch
 formatter
+freezegun
 generativeai
 gevent
 Gitlab
@@ -151,6 +158,7 @@ libdatadog
 libddwaf
 lifecycle
 linters
+litellm
 LLM
 lockfiles
 logbook
@@ -270,6 +278,7 @@ subdirectory
 subdomains
 submodule
 submodules
+Subprocess
 substring
 suitespec
 TensorBoard
@@ -307,6 +316,7 @@ versioned
 vertexai
 vertica
 w3c
+Webbrowser
 websocket
 websockets
 whitelist

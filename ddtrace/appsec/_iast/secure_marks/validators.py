@@ -9,7 +9,7 @@ from typing import Callable
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
 
 def create_validator(
@@ -17,7 +17,7 @@ def create_validator(
 ) -> Any:
     """Create a validator function wrapper that marks arguments as secure for a specific vulnerability type."""
     # Apply the validator function
-    result = wrapped(args, kwargs)
+    result = wrapped(*args, **kwargs)
     for arg in args:
         if isinstance(arg, str):
             ranges = get_tainted_ranges(arg)
@@ -78,3 +78,37 @@ def cmdi_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dic
         True if validation passed, False otherwise
     """
     return create_validator(VulnerabilityType.COMMAND_INJECTION, wrapped, instance, args, kwargs)
+
+
+def unvalidated_redirect_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+    """Validator for unvalidated redirect functions.
+
+    Args:
+        wrapped: The original validator function
+        instance: The instance the function is bound to (if any)
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        True if validation passed, False otherwise
+    """
+    return create_validator(VulnerabilityType.UNVALIDATED_REDIRECT, wrapped, instance, args, kwargs)
+
+
+def header_injection_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+    return create_validator(VulnerabilityType.HEADER_INJECTION, wrapped, instance, args, kwargs)
+
+
+def ssrf_validator(wrapped: Callable, instance: Any, args: Sequence, kwargs: dict) -> bool:
+    """Validator for ssrf functions.
+
+    Args:
+        wrapped: The original validator function
+        instance: The instance the function is bound to (if any)
+        args: Positional arguments
+        kwargs: Keyword arguments
+
+    Returns:
+        True if validation passed, False otherwise
+    """
+    return create_validator(VulnerabilityType.SSRF, wrapped, instance, args, kwargs)

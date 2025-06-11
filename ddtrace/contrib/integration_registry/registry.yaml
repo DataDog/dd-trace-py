@@ -6,7 +6,7 @@ integrations:
   - aiobotocore
   tested_versions_by_dependency:
     aiobotocore:
-      min: 1.4.2
+      min: 1.0.7
       max: 2.16.0
 
 - integration_name: aiohttp
@@ -16,8 +16,8 @@ integrations:
   - aiohttp
   tested_versions_by_dependency:
     aiohttp:
-      min: 3.10.5
-      max: 3.10.9
+      min: 3.7.4.post0
+      max: 3.12.11
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -50,7 +50,7 @@ integrations:
   - aiopg
   tested_versions_by_dependency:
     aiopg:
-      min: 1.4.0
+      min: 0.16.0
       max: 1.4.0
 
 - integration_name: aioredis
@@ -66,7 +66,7 @@ integrations:
   - algoliasearch
   tested_versions_by_dependency:
     algoliasearch:
-      min: 2.6.3
+      min: 2.5.0
       max: 2.6.3
 
 - integration_name: anthropic
@@ -76,8 +76,8 @@ integrations:
   - anthropic
   tested_versions_by_dependency:
     anthropic:
-      min: 0.49.0
-      max: 0.49.0
+      min: 0.28.1
+      max: 0.52.2
 
 - integration_name: aredis
   is_external_package: true
@@ -104,7 +104,7 @@ integrations:
   - asyncpg
   tested_versions_by_dependency:
     asyncpg:
-      min: 0.23.0
+      min: 0.22.0
       max: 0.30.0
 
 - integration_name: avro
@@ -138,7 +138,7 @@ integrations:
   - azure-functions
   tested_versions_by_dependency:
     azure-functions:
-      min: 1.21.3
+      min: 1.20.0
       max: 1.21.3
 
 - integration_name: boto
@@ -202,7 +202,7 @@ integrations:
   - cherrypy
   tested_versions_by_dependency:
     cherrypy:
-      min: 17.4.2
+      min: 17.0.0
       max: 18.10.0
 
 - integration_name: consul
@@ -232,8 +232,8 @@ integrations:
   - crewai
   tested_versions_by_dependency:
     crewai:
-      min: 0.108.0
-      max: 0.108.0
+      min: 0.102.0
+      max: 0.121.1
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -246,7 +246,7 @@ integrations:
   - django
   tested_versions_by_dependency:
     django:
-      min: 2.2.1
+      min: 2.2.28
       max: 5.2.0
 
 - integration_name: dogpile_cache
@@ -258,13 +258,13 @@ integrations:
   - dogpile_cache
   tested_versions_by_dependency:
     dogpile-cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
     dogpile.cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
     dogpile_cache:
-      min: 0.9.2
+      min: 0.6.8
       max: 1.3.3
 
 - integration_name: dramatiq
@@ -274,7 +274,7 @@ integrations:
   - dramatiq
   tested_versions_by_dependency:
     dramatiq:
-      min: 1.17.0
+      min: 1.10.0
       max: 1.17.0
 
 - integration_name: elasticsearch
@@ -361,9 +361,13 @@ integrations:
 
 - integration_name: freezegun
   is_external_package: true
-  is_tested: false
+  is_tested: true
   dependency_names:
   - freezegun
+  tested_versions_by_dependency:
+    freezegun:
+      min: 1.3.1
+      max: 1.5.2
 
 - integration_name: futures
   is_external_package: false
@@ -386,7 +390,7 @@ integrations:
   - google-generativeai
   tested_versions_by_dependency:
     google-generativeai:
-      min: 0.8.3
+      min: 0.7.2
       max: 0.8.3
 
 - integration_name: graphql
@@ -518,7 +522,7 @@ integrations:
   - mako
   tested_versions_by_dependency:
     mako:
-      min: 1.1.6
+      min: 1.0.14
       max: 1.3.8
 
 - integration_name: mariadb
@@ -548,7 +552,7 @@ integrations:
   - mongoengine
   tested_versions_by_dependency:
     mongoengine:
-      min: 0.29.1
+      min: 0.23.1
       max: 0.29.1
 
 - integration_name: mysql
@@ -589,7 +593,7 @@ integrations:
   tested_versions_by_dependency:
     openai-agents:
       min: 0.0.8
-      max: 0.0.8
+      max: 0.0.16
 
 - integration_name: protobuf
   is_external_package: true
@@ -609,7 +613,7 @@ integrations:
   - psycopg2-binary
   tested_versions_by_dependency:
     psycopg:
-      min: 3.2.1
+      min: 3.0.18
       max: 3.2.1
     psycopg2-binary:
       min: 2.8.6
@@ -662,7 +666,7 @@ integrations:
   - pynamodb
   tested_versions_by_dependency:
     pynamodb:
-      min: 5.5.1
+      min: 5.0.3
       max: 5.5.1
 
 - integration_name: pyodbc
@@ -693,7 +697,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 8.1.1
+      max: 8.3.5
 
 - integration_name: pytest_bdd
   is_external_package: true
@@ -738,7 +742,7 @@ integrations:
   - requests
   tested_versions_by_dependency:
     requests:
-      min: 2.22.0
+      min: 2.20.1
       max: 2.32.3
 
 - integration_name: rq

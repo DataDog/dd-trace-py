@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import typing as t
 
+from _pytest.runner import runtestprotocol
 import pytest
 
 from ddtrace import DDTraceDeprecationWarning
@@ -15,13 +16,14 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _extract_reason
 from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_module_path_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_names_from_item
 from ddtrace.contrib.internal.pytest._utils import _get_session_command
@@ -37,6 +39,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -97,6 +100,18 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+
+
+class XdistHooks:
+    @pytest.hookimpl
+    def pytest_configure_node(self, node):
+        main_session_span = InternalTestSession.get_span()
+        if main_session_span:
+            root_span = main_session_span.span_id
+        else:
+            root_span = 0
+
+        node.workerinput["root_span"] = root_span
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -249,6 +264,9 @@ def pytest_configure(config: pytest_Config) -> None:
                 from ddtrace.contrib.internal.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
 
                 config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
+
+            if config.pluginmanager.hasplugin("xdist"):
+                config.pluginmanager.register(XdistHooks())
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -280,7 +298,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="2" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -296,7 +314,27 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         InternalTestSession.set_library_capabilities(library_capabilities)
 
-        InternalTestSession.start()
+        extracted_context = None
+        if hasattr(session.config, "workerinput"):
+            from ddtrace._trace.context import Context
+            from ddtrace.constants import USER_KEEP
+
+            received_root_span = session.config.workerinput.get("root_span", "MISSING_SPAN")
+            try:
+                root_span = int(received_root_span)
+                extracted_context = Context(
+                    trace_id=1,
+                    span_id=root_span,  # This span_id here becomes context.span_id for the parent context
+                    sampling_priority=USER_KEEP,
+                )
+            except ValueError:
+                log.debug(
+                    "pytest_sessionstart: Could not convert root_span %s to int",
+                    received_root_span,
+                )
+
+        InternalTestSession.start(extracted_context)
+
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
@@ -397,6 +435,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    if not InternalTest.is_finished(test_id):
+        log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
+        InternalTest.finish(test_id)
+
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
 
@@ -416,9 +458,8 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestModule.finish(module_id)
 
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_protocol(item, nextitem) -> None:
-    """Discovers tests, and starts tests, suites, and modules, then handles coverage data collection"""
+@pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
+def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     if not is_test_visibility_enabled():
         yield
         return
@@ -428,20 +469,103 @@ def pytest_runtest_protocol(item, nextitem) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
-    # Yield control back to pytest to run the test
     yield
 
     try:
-        return _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
     except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
-        return
 
 
-def _process_result(item, call, result) -> _TestOutcome:
+@pytest.hookimpl(specname="pytest_runtest_protocol")
+def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
+    if not is_test_visibility_enabled():
+        return None
+
+    try:
+        _pytest_run_one_test(item, nextitem)
+        return True  # Do not run pytest's internal `pytest_runtest_protocol`.
+
+    except Exception:  # noqa: E722
+        log.warning("Encountered internal error while running test, disabling Datadog CI Visibility", exc_info=True)
+        _disable_ci_visibility()
+        return None
+
+
+def _pytest_run_one_test(item, nextitem):
+    item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+    reports = runtestprotocol(item, nextitem=nextitem, log=False)
+    test_outcome = _process_reports(item, reports)
+
+    reports_dict = {report.when: report for report in reports}
+
+    test_id = _get_test_id_from_item(item)
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    setup_or_teardown_failed = False
+
+    if not InternalTest.is_finished(test_id):
+        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+
+    for report in reports:
+        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
+            setup_or_teardown_failed = True
+
+        if report.when == TestPhase.CALL or "failed" in report.outcome:
+            if is_quarantined or is_disabled:
+                # Ensure test doesn't count as failed for pytest's exit status logic
+                # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
+                report.outcome = OUTCOME_QUARANTINED
+
+        if report.failed or report.skipped:
+            InternalTest.stash_set(test_id, "failure_longrepr", report.longrepr)
+
+    retry_handler = None
+
+    if setup_or_teardown_failed:
+        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+        retry_handler = attempt_to_fix_handle_retries
+    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        retry_handler = efd_handle_retries
+    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        retry_handler = atr_handle_retries
+
+    if retry_handler:
+        # Retry handler is responsible for logging the test reports.
+        retry_handler(
+            test_id=test_id,
+            item=item,
+            test_reports=reports_dict,
+            test_outcome=test_outcome,
+            is_quarantined=is_quarantined,
+        )
+    else:
+        # If no retry handler, we log the reports ourselves.
+        for report in reports:
+            item.ihook.pytest_runtest_logreport(report=report)
+
+    item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+
+
+def _process_reports(item, reports) -> _TestOutcome:
+    final_outcome = None
+    for report in reports:
+        outcome = _process_result(item, report)
+        if final_outcome is None or final_outcome.status is None:
+            final_outcome = outcome
+            if final_outcome.status is not None:
+                return final_outcome
+    return final_outcome
+
+
+def _process_result(item, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
-    has_exception = call.excinfo is not None
+    report_excinfo = excinfo_by_report.get(result)
+    has_exception = report_excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
     # add it as a tag immediately:
@@ -456,7 +580,7 @@ def _process_result(item, call, result) -> _TestOutcome:
     # - the test passed with xfail
     # - we are tearing down the test
     # DEV NOTE: some skip scenarios (eg: skipif) have an exception during setup
-    if call.when != "teardown" and not (has_exception or result.failed):
+    if result.when != TestPhase.TEARDOWN and not (has_exception or result.failed):
         return _TestOutcome()
 
     xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
@@ -478,7 +602,7 @@ def _process_result(item, call, result) -> _TestOutcome:
                     InternalTest.set_tag(test_id, XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
                 return _TestOutcome(TestStatus.PASS)
 
-        return _TestOutcome(TestStatus.SKIP, _extract_reason(call))
+        return _TestOutcome(TestStatus.SKIP, report_excinfo.value if report_excinfo else None)
 
     if result.passed:
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
@@ -497,12 +621,12 @@ def _process_result(item, call, result) -> _TestOutcome:
         return _TestOutcome(TestStatus.FAIL)
 
     # NOTE: for ATR and EFD purposes, we need to know if the test failed during setup or teardown.
-    if call.when == "setup" and result.failed:
+    if result.when == TestPhase.SETUP and result.failed:
         InternalTest.stash_set(test_id, "setup_failed", True)
-    elif call.when == "teardown" and result.failed:
+    elif result.when == TestPhase.TEARDOWN and result.failed:
         InternalTest.stash_set(test_id, "teardown_failed", True)
 
-    exc_info = TestExcInfo(call.excinfo.type, call.excinfo.value, call.excinfo.tb) if call.excinfo else None
+    exc_info = TestExcInfo(report_excinfo.type, report_excinfo.value, report_excinfo.tb) if report_excinfo else None
 
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
@@ -513,47 +637,16 @@ def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome
         return
 
     original_result = outcome.get_result()
-
-    test_id = _get_test_id_from_item(item)
-
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
-    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
-
-    test_outcome = _process_result(item, call, original_result)
+    test_outcome = _process_result(item, original_result)
 
     # A None value for test_outcome.status implies the test has not finished yet
     # Only continue to finishing the test if the test has finished, or if tearing down the test
-    if test_outcome.status is None and call.when != "teardown":
+    if test_outcome.status is None and call.when != TestPhase.TEARDOWN:
         return
 
     # Support for pytest-benchmark plugin
     if item.config.pluginmanager.hasplugin("benchmark"):
         _set_benchmark_data_from_item(item)
-
-    # Record a result if we haven't already recorded it:
-    if not InternalTest.is_finished(test_id):
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
-
-    if original_result.failed and (is_quarantined or is_disabled):
-        # Ensure test doesn't count as failed for pytest's exit status logic
-        # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
-        original_result.outcome = OUTCOME_QUARANTINED
-
-    if original_result.failed or original_result.skipped:
-        InternalTest.stash_set(test_id, "failure_longrepr", original_result.longrepr)
-
-    # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed
-    # NOTE: this mutates the original result's outcome
-    if InternalTest.stash_get(test_id, "setup_failed") or InternalTest.stash_get(test_id, "teardown_failed"):
-        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-        return
-    if is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        return attempt_to_fix_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        return efd_handle_retries(test_id, item, call.when, original_result, test_outcome)
-    if InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        return atr_handle_retries(test_id, item, call.when, original_result, test_outcome, is_quarantined)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -561,6 +654,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
     outcome: pytest_TestReport
     outcome = yield
+
+    # DEV: Make excinfo available for later use, when we don't have the `call` object anymore.
+    # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
+    excinfo_by_report[outcome.get_result()] = call.excinfo
 
     if not is_test_visibility_enabled():
         return
@@ -616,6 +713,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
+    print_test_report_links(terminalreporter)
     return
 
 
@@ -654,13 +752,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.attempt_to_fix_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
@@ -676,7 +767,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
-    InternalTestSession.finish(force_finish_children=True)
+    InternalTestSession.finish(
+        force_finish_children=True,
+        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
+    )
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -716,7 +810,7 @@ def pytest_report_teststatus(
     user_properties = getattr(report, "user_properties", [])
     is_quarantined = USER_PROPERTY_QUARANTINED in user_properties
     if is_quarantined:
-        if report.when == "teardown":
+        if report.when == TestPhase.TEARDOWN:
             return (OUTCOME_QUARANTINED, "q", ("QUARANTINED", {"blue": True}))
         else:
             # Don't show anything for setup and call of quarantined tests, regardless of

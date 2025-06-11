@@ -145,6 +145,7 @@ microbenchmarks:
         - "flask_sqli"
         - "core_api"
         - "otel_span"
+        - "otel_sdk_span"
         - "appsec_iast_aspects"
         - "appsec_iast_aspects_ospath"
         - "appsec_iast_aspects_re_module"
@@ -161,9 +162,9 @@ microbenchmarks:
         - "rate_limiter"
         - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
+        - "recursive_computation"
         - "telemetry_add_metric"
         - "startup"
-        - "ddtrace_run"
 
 "microbenchmarks flaky":
   extends: .benchmarks
