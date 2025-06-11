@@ -22,7 +22,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             span.set_tag_str("google_genai.request.model", model)
 
     def _llmobs_set_tags(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any | None = None, operation: str = "") -> None:
-        # is this only used for streamed responses???
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
