@@ -34,6 +34,7 @@ config._add(
 
 
 def get_version() -> str:
+    """Get the version string for the subprocess integration."""
     return ""
 
 
@@ -46,25 +47,62 @@ _LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
 
 
 def add_str_callback(name: str, callback: Callable[[str], None]):
+    """Add a callback function for string commands.
+
+    Args:
+        name: Unique identifier for the callback
+        callback: Function that will be called with string command arguments
+    """
     _STR_CALLBACKS[name] = callback
 
 
 def del_str_callback(name: str):
+    """Remove a string command callback.
+
+    Args:
+        name: Identifier of the callback to remove
+    """
     _STR_CALLBACKS.pop(name, None)
 
 
 def add_lst_callback(name: str, callback: Callable[[Union[List[str], str]], None]):
+    """Add a callback function for list commands.
+
+    Args:
+        name: Unique identifier for the callback
+        callback: Function that will be called with list/tuple command arguments
+    """
     _LST_CALLBACKS[name] = callback
 
 
 def del_lst_callback(name: str):
+    """Remove a list command callback.
+
+    Args:
+        name: Identifier of the callback to remove
+    """
     _LST_CALLBACKS.pop(name, None)
 
 
+def should_trace_subprocess():
+    return not asm_config._bypass_instrumentation_for_waf and (asm_config._asm_enabled or asm_config._iast_enabled)
+
+
 def patch() -> List[str]:
-    if not asm_config._load_modules:
-        return []
+    """Patch subprocess and os functions to enable security monitoring.
+
+    This function instruments various subprocess and os functions to provide
+    security monitoring capabilities for AAP (Application Attack Protection)
+    and IAST (Interactive Application Security Testing).
+
+    Note:
+        Patching always occurs because AAP can be enabled dynamically via remote config.
+        Already patched functions are skipped.
+    """
     patched: List[str] = []
+
+    if not asm_config._load_modules:
+        return patched
 
     import os  # nosec
     import subprocess  # nosec
@@ -102,6 +140,13 @@ def patch() -> List[str]:
 
 @dataclass(eq=False)
 class SubprocessCmdLineCacheEntry:
+    """Cache entry for storing parsed subprocess command line data.
+
+    This class stores the parsed and processed command line arguments,
+    environment variables, and metadata to avoid recomputing the same
+    command line parsing multiple times.
+    """
+
     binary: Optional[str] = None
     arguments: Optional[List] = None
     truncated: bool = False
@@ -111,6 +156,13 @@ class SubprocessCmdLineCacheEntry:
 
 
 class SubprocessCmdLine:
+    """Parser and scrubber for subprocess command lines.
+
+    This class handles parsing, scrubbing, and caching of subprocess command lines
+    for security monitoring. It supports both shell and non-shell commands,
+    scrubs sensitive information, and provides caching for performance.
+    """
+
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
     _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
     _CACHE_DEQUE: Deque[str] = collections.deque()
@@ -119,6 +171,7 @@ class SubprocessCmdLine:
 
     @classmethod
     def _add_new_cache_entry(cls, key, env_vars, binary, arguments, truncated):
+        """Add a new entry to the command line cache."""
         if key in cls._CACHE:
             return
 
@@ -142,6 +195,10 @@ class SubprocessCmdLine:
 
     @classmethod
     def _clear_cache(cls):
+        """Clear all entries from the command line cache.
+
+        Thread-safe method to completely clear the cache and deque.
+        """
         with cls._CACHE_LOCK:
             cls._CACHE_DEQUE.clear()
             cls._CACHE.clear()
@@ -169,6 +226,11 @@ class SubprocessCmdLine:
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
     def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
+        """
+        For shell=True, the shell_args is parsed to extract environment variables,
+        binary, and arguments. For shell=False, the first element is the binary
+        and the rest are arguments.
+        """
         cache_key = str(shell_args) + str(shell)
         self._cache_entry = SubprocessCmdLine._CACHE.get(cache_key)
         if self._cache_entry:
@@ -205,6 +267,15 @@ class SubprocessCmdLine:
             )
 
     def scrub_env_vars(self, tokens):
+        """Extract and scrub environment variables from shell command tokens.
+
+        Args:
+            tokens: List of command tokens to process
+
+        Side effects:
+            Updates self.env_vars, self.binary, and self.arguments
+            Environment variables not in allowlist are scrubbed (value replaced with '?')
+        """
         for idx, token in enumerate(tokens):
             if re.match(self._COMPILED_ENV_VAR_REGEXP, token):
                 var, value = token.split("=")
@@ -223,8 +294,24 @@ class SubprocessCmdLine:
                 break
 
     def scrub_arguments(self):
+        """Scrub sensitive information from command arguments.
+
+        This method processes command arguments to remove or obscure sensitive
+        information like passwords, API keys, tokens, etc. It handles both
+        standalone sensitive arguments and argument-value pairs.
+
+        Side effects:
+            Updates self.arguments with scrubbed values (sensitive data replaced with '?')
+
+        Scrubbing rules:
+        1. If binary is in denylist, scrub all arguments
+        2. For each argument matching sensitive patterns:
+           - If it contains '=', scrub the entire argument
+           - If it's followed by another option, scrub only this argument
+           - If it's followed by a value, scrub the value instead
+        """
         # if the binary is in the denylist, scrub all arguments
-        if self.binary.lower() in self.BINARIES_DENYLIST:
+        if self.binary and self.binary.lower() in self.BINARIES_DENYLIST:
             self.arguments = ["?" for _ in self.arguments]
             return
 
@@ -280,6 +367,17 @@ class SubprocessCmdLine:
         self.arguments = new_args
 
     def truncate_string(self, str_: str) -> str:
+        """Truncate a string if it exceeds the size limit.
+
+        Args:
+            str_: String to potentially truncate
+
+        Returns:
+            str: Original string if under limit, or truncated string with message
+
+        Side effects:
+            Sets self.truncated = True if truncation occurred
+        """
         oversize = len(str_) - self.TRUNCATE_LIMIT
 
         if oversize <= 0:
@@ -292,31 +390,69 @@ class SubprocessCmdLine:
         return str_[0 : -(oversize + len(msg))] + msg
 
     def _as_list_and_string(self) -> Tuple[List[str], str]:
+        """Generate both list and string representations of the command.
+
+        Returns:
+            Tuple[List[str], str]: (command_as_list, command_as_string)
+
+        Note:
+            The string representation may be truncated if it exceeds size limits.
+            The list representation is derived from the truncated string.
+        """
         total_list = self.env_vars + [self.binary] + self.arguments
         truncated_str = self.truncate_string(join(total_list))
         truncated_list = shlex.split(truncated_str)
         return truncated_list, truncated_str
 
     def as_list(self):
-        if self._cache_entry.as_list is not None:
+        """Get the command as a list of strings.
+
+        Returns:
+            List[str]: Command represented as list of arguments
+
+        Note:
+            Result is cached for performance. Includes environment variables,
+            binary, and arguments in that order.
+        """
+        if self._cache_entry and self._cache_entry.as_list is not None:
             return self._cache_entry.as_list
 
         list_res, str_res = self._as_list_and_string()
-        self._cache_entry.as_list = list_res
-        self._cache_entry.as_string = str_res
+        if self._cache_entry:
+            self._cache_entry.as_list = list_res
+            self._cache_entry.as_string = str_res
         return list_res
 
     def as_string(self):
-        if self._cache_entry.as_string is not None:
+        """Get the command as a shell-quoted string.
+
+        Returns:
+            str: Command represented as a shell-quoted string
+
+        Note:
+            Result is cached for performance. String may be truncated if
+            it exceeds the size limit.
+        """
+        if self._cache_entry and self._cache_entry.as_string is not None:
             return self._cache_entry.as_string
 
         list_res, str_res = self._as_list_and_string()
-        self._cache_entry.as_list = list_res
-        self._cache_entry.as_string = str_res
+        if self._cache_entry:
+            self._cache_entry.as_list = list_res
+            self._cache_entry.as_string = str_res
         return str_res
 
 
 def unpatch() -> None:
+    """Remove instrumentation from subprocess and os functions.
+
+    This function removes all patches applied by the patch() function,
+    restoring the original behavior of subprocess and os functions.
+    Also clears the command line cache.
+
+    Note:
+        Safe to call multiple times. Missing attributes are ignored.
+    """
     import os  # nosec
     import subprocess  # nosec
 
@@ -331,13 +467,21 @@ def unpatch() -> None:
 
 @trace_utils.with_traced_module
 def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
+    """Traced wrapper for os.system function.
+
+    Note:
+        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Creates spans with shell command details, exit codes, and component tags.
+    """
+    if should_trace_subprocess():
+        try:
+            if isinstance(args[0], str):
+                for callback in _STR_CALLBACKS.values():
+                    callback(args[0])
+            shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
+        except Exception:  # noqa:E722
+            log.debug("Could not trace subprocess execution for os.system", exc_info=True)
             return wrapped(*args, **kwargs)
-        if isinstance(args[0], str):
-            for callback in _STR_CALLBACKS.values():
-                callback(args[0])
-        shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
@@ -346,31 +490,40 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             span.set_tag_str(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
-        return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution for os.system", exc_info=True)
+            return ret
+    else:
         return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def _traced_fork(module, pin, wrapped, instance, args, kwargs):
+    """Traced wrapper for os.fork function.
+
+    Note:
+        Only instruments when AAP or IAST is enabled.
+        Creates spans with fork operation details.
+    """
+
     if not (asm_config._asm_enabled or asm_config._iast_enabled):
         return wrapped(*args, **kwargs)
-    try:
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag(COMMANDS.EXEC, ["os.fork"])
-            span.set_tag_str(COMMANDS.COMPONENT, "os")
-            ret = wrapped(*args, **kwargs)
-        return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution for os.fork", exc_info=True)
+
+    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
+        span.set_tag(COMMANDS.EXEC, ["os.fork"])
+        span.set_tag_str(COMMANDS.COMPONENT, "os")
         return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
+    """Traced wrapper for os._spawnvef function (used by all os.spawn* variants).
+
+    Note:
+        Only instruments when AAP or IAST is enabled.
+        Creates spans with spawn operation details and exit codes for P_WAIT mode.
+    """
     if not (asm_config._asm_enabled or asm_config._iast_enabled):
         return wrapped(*args, **kwargs)
+
     try:
         mode, file, func_args, _, _ = args
         if isinstance(func_args, (list, tuple, str)):
@@ -378,39 +531,47 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
             for callback in _LST_CALLBACKS.values():
                 callback(commands)
         shellcmd = SubprocessCmdLine(func_args, shell=False)
-
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
-            if shellcmd.truncated:
-                span.set_tag_str(COMMANDS.TRUNCATED, "true")
-            span.set_tag_str(COMMANDS.COMPONENT, "os")
-
-            if mode == os.P_WAIT:
-                ret = wrapped(*args, **kwargs)
-                span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
-                return ret
-    except Exception:  # noqa:E722
+    except Exception:
         log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
+        return wrapped(*args, **kwargs)
 
-    return wrapped(*args, **kwargs)
+    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+        span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
+        if shellcmd.truncated:
+            span.set_tag_str(COMMANDS.TRUNCATED, "true")
+        span.set_tag_str(COMMANDS.COMPONENT, "os")
+
+        ret = wrapped(*args, **kwargs)
+        if mode == os.P_WAIT:
+            span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+        return ret
 
 
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
+    """Traced wrapper for subprocess.Popen.__init__ method.
+
+    Note:
+        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Stores command details in context for later use by _traced_subprocess_wait.
+        Creates a span that will be completed by the wait() method.
+    """
+    if should_trace_subprocess():
+        try:
+            cmd_args = args[0] if len(args) else kwargs["args"]
+            if isinstance(cmd_args, (list, tuple, str)):
+                if kwargs.get("shell", False):
+                    for callback in _STR_CALLBACKS.values():
+                        callback(cmd_args)
+                else:
+                    for callback in _LST_CALLBACKS.values():
+                        callback(cmd_args)
+            cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
+            is_shell = kwargs.get("shell", False)
+            shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
+        except Exception:  # noqa:E722
+            log.debug("Could not trace subprocess execution", exc_info=True)
             return wrapped(*args, **kwargs)
-        cmd_args = args[0] if len(args) else kwargs["args"]
-        if isinstance(cmd_args, (list, tuple, str)):
-            if kwargs.get("shell", False):
-                for callback in _STR_CALLBACKS.values():
-                    callback(cmd_args)
-            else:
-                for callback in _LST_CALLBACKS.values():
-                    callback(cmd_args)
-        cmd_args_list = shlex.split(cmd_args) if isinstance(cmd_args, str) else cmd_args
-        is_shell = kwargs.get("shell", False)
-        shellcmd = SubprocessCmdLine(cmd_args_list, shell=is_shell)  # nosec
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
             core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
@@ -423,17 +584,21 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             else:
                 core.set_item(COMMANDS.CTX_SUBP_LINE, shellcmd.as_list())
             core.set_item(COMMANDS.CTX_SUBP_BINARY, shellcmd.binary)
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution", exc_info=True)
-
-    return wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
+    else:
+        return wrapped(*args, **kwargs)
 
 
 @trace_utils.with_traced_module
 def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
-    try:
-        if asm_config._bypass_instrumentation_for_waf or not (asm_config._asm_enabled or asm_config._iast_enabled):
-            return wrapped(*args, **kwargs)
+    """Traced wrapper for subprocess.Popen.wait method.
+
+    Note:
+        Only instruments when AAP or IAST is enabled and WAF bypass is not active.
+        Retrieves command details stored by _traced_subprocess_init and completes
+        the span with execution results and exit code.
+    """
+    if should_trace_subprocess():
         binary = core.get_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
@@ -449,6 +614,5 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
             ret = wrapped(*args, **kwargs)
             span.set_tag_str(COMMANDS.EXIT_CODE, str(ret))
             return ret
-    except Exception:  # noqa:E722
-        log.debug("Could not trace subprocess execution", exc_info=True)
+    else:
         return wrapped(*args, **kwargs)
