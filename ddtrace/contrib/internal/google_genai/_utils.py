@@ -1,4 +1,6 @@
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._integrations.utils import tag_response_part_google
+from ddtrace.llmobs._utils import _get_attr
 
 def extract_model_name_google_genai(model_name):
     if not model_name:
@@ -24,8 +26,6 @@ def normalize_contents(contents):
     
     This function normalizes all these variants into a list of dicts
     """
-    if not contents:
-        return []
     if not contents:
         return []
     
@@ -65,23 +65,28 @@ def tag_request(span, integration, instance, args, kwargs):
     #         _tag_request_content(span, integration, content, content_idx)
 
 
-def tag_response(span, generations, integration, instance):
-    for candidate_idx, candidate in enumerate(generations.candidates):
+def tag_response(span, generation_response, integration, instance):
+    candidates = _get_attr(generation_response, "candidates", [])
+    for candidate_idx, candidate in enumerate(candidates):
         if candidate.finish_reason:
             span.set_tag_str("google_genai.response.candidates.%d.finish_reason" % candidate_idx, candidate.finish_reason)
-        if candidate.content.role:
+        if candidate.content and candidate.content.role:
             span.set_tag_str("google_genai.response.candidates.%d.content.role" % candidate_idx, str(candidate.content.role))
         # if candidate.token_count:
         #     span.set_tag_str("google_genai.response.candidates.%d.token_count" % candidate_idx, str(candidate.token_count))
         if not integration.is_pc_sampled_span(span):
-            return
-        
-        for part_idx, part in enumerate(candidate.content.parts):
-            tag_response_part_google("google_genai", span, integration, part, part_idx, candidate_idx)
+            continue
+        if candidate.content:
+            parts = _get_attr(candidate.content, "parts", [])
+            for part_idx, part in enumerate(parts):
+                # using this for now, but this function checks for text and function call, whereas only one of these fields 
+                # will be set at a time. also, should we check for the other fields?
+                tag_response_part_google("google_genai", span, integration, part, part_idx, candidate_idx)
     
-    token_counts = generations.usage_metadata
+    token_counts = _get_attr(generation_response, "usage_metadata", None)
     if not token_counts:
         return
-    span.set_metric("google_genai.response.prompt_tokens", token_counts.prompt_token_count if token_counts.prompt_token_count else 0)
-    span.set_metric("google_genai.response.total_tokens", token_counts.total_token_count if token_counts.total_token_count else 0)
+    span.set_metric("google_genai.response.prompt_tokens", _get_attr(token_counts, "prompt_token_count", 0))
+    # no completion token count, substitute with candidate token count??? look above
+    span.set_metric("google_genai.response.total_tokens", _get_attr(token_counts, "total_token_count", 0))
 
