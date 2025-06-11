@@ -6,8 +6,6 @@ Add all monkey-patching that needs to run by default here
 import typing as t
 
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import LogInjectionState
-from ddtrace._logger import set_log_formatting
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
@@ -86,10 +84,4 @@ if config._llmobs_enabled:
 
 @register_post_preload
 def _():
-    if config._logs_injection == LogInjectionState.ENABLED:
-        # Only set the formatter is DD_LOGS_INJECTION is set to True. We do not want to modify
-        # unstructured logs if the user has not enabled logs injection.
-        # The DD log format must be set after the logging module has been patched, otherwise the
-        # formatter will raise an exception.
-        set_log_formatting()
     tracer._generate_diagnostic_logs()
