@@ -46,3 +46,24 @@ def test_manual_checkpoint_behavior():
                 set_consume_checkpoint("kinesis", "stream-123", headers.get, manual_checkpoint=False)
                 called_tags = mock_set_checkpoint.call_args[0][0]
                 assert "manual_checkpoint:true" not in called_tags
+
+
+def test_manual_checkpoint_hash_behavior():
+    headers = {}
+    mocked_tracer = MockedTracer()
+    with mock.patch("ddtrace.tracer", new=mocked_tracer):
+        with mock.patch("ddtrace.config", new=MockedConfig()):
+            got_with_manual = set_consume_checkpoint("kinesis", "stream-123", headers.get)
+            got_without_manual = set_consume_checkpoint("kinesis", "stream-123", headers.get, manual_checkpoint=False)
+
+            ctx = DataStreamsCtx(mocked_tracer.data_streams_processor, 0, 0, 0)
+
+            tags_with_manual = ["direction:in", "manual_checkpoint:true", "type:kinesis", "topic:stream-123"]
+            expected_with_manual = ctx._compute_hash(sorted(tags_with_manual), 0)
+
+            tags_without_manual = ["direction:in", "type:kinesis", "topic:stream-123"]
+            expected_without_manual = ctx._compute_hash(sorted(tags_without_manual), 0)
+
+            assert got_with_manual.hash == expected_with_manual
+            assert got_without_manual.hash == expected_without_manual
+            assert got_with_manual.hash != got_without_manual.hash
