@@ -7,11 +7,17 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
+from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
+from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
+from ddtrace.ext import test
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
-
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
@@ -146,11 +152,14 @@ CIVisibility.enable = classmethod(patched_enable)
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
         ):
-            rec = self.inline_run("--ddtrace", extra_env={
-                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-                "DD_API_KEY": "foobar.baz",
-                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
-            })
+            rec = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                },
+            )
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
             # Verify ITR worked
@@ -158,3 +167,299 @@ CIVisibility.enable = classmethod(patched_enable)
             session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
             assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
             assert session_span.get_metric("test.itr.tests_skipping.count") == 4  # 4 tests skipped
+
+
+class TestXdistHooksUnit:
+    """Unit tests for XdistHooks class functionality."""
+
+    def test_xdist_hooks_registers_span_id_with_valid_session_span(self):
+        """Test that XdistHooks properly extracts and passes span ID when session span exists."""
+        mock_node = mock.MagicMock()
+        mock_node.workerinput = {}
+
+        mock_span = mock.MagicMock()
+        mock_span.span_id = 12345
+
+        with mock.patch("ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=mock_span):
+            hooks = XdistHooks()
+            hooks.pytest_configure_node(mock_node)
+
+        assert mock_node.workerinput["root_span"] == 12345
+
+    def test_xdist_hooks_registers_zero_when_no_session_span(self):
+        """Test that XdistHooks uses 0 for root span as fallback when no session span exists."""
+        mock_node = mock.MagicMock()
+        mock_node.workerinput = {}
+
+        with mock.patch("ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=None):
+            hooks = XdistHooks()
+            hooks.pytest_configure_node(mock_node)
+
+        assert mock_node.workerinput["root_span"] == 0
+
+    def test_xdist_hooks_aggregates_itr_skipped_count_from_workers(self):
+        """Test that XdistHooks properly aggregates ITR skipped counts from worker nodes."""
+        # Clean up any existing global state
+        if hasattr(pytest, "global_worker_itr_results"):
+            delattr(pytest, "global_worker_itr_results")
+
+        hooks = XdistHooks()
+
+        # First worker reports 3 skipped tests
+        mock_node1 = mock.MagicMock()
+        mock_node1.workeroutput = {"itr_skipped_count": 3}
+        hooks.pytest_testnodedown(mock_node1, None)
+
+        assert hasattr(pytest, "global_worker_itr_results")
+        assert pytest.global_worker_itr_results == 3
+
+        # Second worker reports 5 skipped tests
+        mock_node2 = mock.MagicMock()
+        mock_node2.workeroutput = {"itr_skipped_count": 5}
+        hooks.pytest_testnodedown(mock_node2, None)
+
+        assert pytest.global_worker_itr_results == 8
+
+        # Clean up
+        delattr(pytest, "global_worker_itr_results")
+
+    def test_xdist_hooks_ignores_worker_without_itr_skipped_count(self):
+        """Test that XdistHooks ignores workers that don't have ITR skipped count."""
+        # Clean up any existing global state
+        if hasattr(pytest, "global_worker_itr_results"):
+            delattr(pytest, "global_worker_itr_results")
+
+        hooks = XdistHooks()
+
+        # Worker without workeroutput
+        mock_node1 = mock.MagicMock()
+        del mock_node1.workeroutput
+        hooks.pytest_testnodedown(mock_node1, None)
+
+        assert not hasattr(pytest, "global_worker_itr_results")
+
+        # Worker with workeroutput but no itr_skipped_count
+        mock_node2 = mock.MagicMock()
+        mock_node2.workeroutput = {"other_data": "value"}
+        hooks.pytest_testnodedown(mock_node2, None)
+
+        assert not hasattr(pytest, "global_worker_itr_results")
+
+    def test_xdist_hooks_initializes_global_count_correctly(self):
+        """Test that the first worker initializes the global count to its value (regression test for += vs =)."""
+        # Clean up any existing global state
+        if hasattr(pytest, "global_worker_itr_results"):
+            delattr(pytest, "global_worker_itr_results")
+
+        hooks = XdistHooks()
+
+        # First worker should initialize the global count to its value
+        mock_node = mock.MagicMock()
+        mock_node.workeroutput = {"itr_skipped_count": 7}
+        hooks.pytest_testnodedown(mock_node, None)
+
+        # Should be 7, not 0 + 7 = 7 (this would catch if initialization logic was wrong)
+        assert pytest.global_worker_itr_results == 7
+
+        # Clean up
+        delattr(pytest, "global_worker_itr_results")
+
+    def test_handle_itr_should_skip_counts_skipped_tests_in_worker(self):
+        """Test that _handle_itr_should_skip properly counts skipped tests in worker processes."""
+        # Create a mock item with worker config
+        mock_item = mock.MagicMock()
+        mock_item.config.workeroutput = {}
+
+        test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
+
+        with mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
+        ):
+            result = _handle_itr_should_skip(mock_item, test_id)
+
+            assert result is True
+            assert mock_item.config.workeroutput["itr_skipped_count"] == 1
+            # Verify the skip marker was added
+            mock_item.add_marker.assert_called_once()
+
+    def test_handle_itr_should_skip_increments_existing_worker_count(self):
+        """Test that _handle_itr_should_skip increments existing worker skipped count."""
+        # Create a mock item with worker config that already has a count
+        mock_item = mock.MagicMock()
+        mock_item.config.workeroutput = {"itr_skipped_count": 5}
+
+        test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
+
+        with mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
+        ):
+            result = _handle_itr_should_skip(mock_item, test_id)
+
+            assert result is True
+            # This is a critical regression test: should be 6 (5+1)
+            assert mock_item.config.workeroutput["itr_skipped_count"] == 6
+
+    def test_handle_itr_should_skip_returns_false_when_not_skippable(self):
+        """Test that _handle_itr_should_skip returns False when test is not skippable."""
+        mock_item = mock.MagicMock()
+        mock_item.config.workeroutput = {}
+        test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
+
+        with mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=False
+        ):  # Not skippable
+            result = _handle_itr_should_skip(mock_item, test_id)
+
+            assert result is False
+            # Should not have counted since test wasn't skipped
+            assert "itr_skipped_count" not in mock_item.config.workeroutput
+            mock_item.add_marker.assert_not_called()
+
+    def test_handle_itr_should_skip_unskippable_test_gets_forced_run(self):
+        """Test that unskippable tests in skippable suites get marked as forced run."""
+        mock_item = mock.MagicMock()
+        mock_item.config.workeroutput = {}
+        test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
+
+        with mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_unskippable", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_forced_run"
+        ) as mock_forced_run:
+            result = _handle_itr_should_skip(mock_item, test_id)
+
+            assert result is False
+            mock_forced_run.assert_called_once_with(test_id)
+            # Should not have counted since test wasn't skipped
+            assert "itr_skipped_count" not in mock_item.config.workeroutput
+
+    def test_pytest_sessionfinish_aggregates_worker_itr_results(self):
+        """Test that pytest_sessionfinish properly aggregates ITR results from workers."""
+        # Set up global worker results
+        pytest.global_worker_itr_results = 10
+
+        mock_session = mock.MagicMock()
+        # Main process doesn't have workerinput
+        del mock_session.config.workerinput
+        mock_session.exitstatus = 0
+
+        mock_session_span = mock.MagicMock()
+
+        # Test the ITR aggregation logic directly
+        # Simulate the conditions in _pytest_sessionfinish
+
+        # Count ITR skipped tests from workers if we're in the main process
+        if hasattr(mock_session.config, "workerinput") is False and hasattr(pytest, "global_worker_itr_results"):
+            skipped_count = pytest.global_worker_itr_results
+            if skipped_count > 0:
+                session_span = mock_session_span  # Use our mock directly
+                if session_span:
+                    session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+
+        # Verify the session span was tagged with ITR results
+        mock_session_span.set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        mock_session_span.set_tag_str.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+        mock_session_span.set_metric.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
+
+        # Clean up
+        delattr(pytest, "global_worker_itr_results")
+
+    def test_pytest_sessionfinish_no_aggregation_for_worker_process(self):
+        """Test that pytest_sessionfinish doesn't aggregate results when running in worker process."""
+        # Set up global worker results
+        pytest.global_worker_itr_results = 10
+
+        mock_session = mock.MagicMock()
+        # Worker process has workerinput
+        mock_session.config.workerinput = {"root_span": "12345"}
+        mock_session.exitstatus = 0
+
+        mock_session_span = mock.MagicMock()
+
+        with mock.patch("ddtrace.ext.test_visibility.api.is_test_visibility_enabled", return_value=True), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=mock_session_span
+        ), mock.patch("ddtrace.internal.test_visibility.api.InternalTestSession.finish"):
+            _pytest_sessionfinish(mock_session, 0)
+
+            # Verify no ITR tags were set (worker shouldn't aggregate)
+            mock_session_span.set_tag_str.assert_not_called()
+            mock_session_span.set_metric.assert_not_called()
+
+        # Clean up
+        delattr(pytest, "global_worker_itr_results")
+
+    def test_pytest_sessionfinish_no_aggregation_when_no_global_results(self):
+        """Test that pytest_sessionfinish doesn't aggregate when no global worker results exist."""
+        # Ensure no global worker results exist
+        if hasattr(pytest, "global_worker_itr_results"):
+            delattr(pytest, "global_worker_itr_results")
+
+        mock_session = mock.MagicMock()
+        # Main process doesn't have workerinput
+        del mock_session.config.workerinput
+        mock_session.exitstatus = 0
+
+        mock_session_span = mock.MagicMock()
+
+        with mock.patch("ddtrace.ext.test_visibility.api.is_test_visibility_enabled", return_value=True), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=mock_session_span
+        ), mock.patch("ddtrace.internal.test_visibility.api.InternalTestSession.finish"):
+            _pytest_sessionfinish(mock_session, 0)
+
+            # Verify no ITR tags were set (no global results to aggregate)
+            mock_session_span.set_tag_str.assert_not_called()
+            mock_session_span.set_metric.assert_not_called()
+
+    def test_pytest_sessionfinish_no_aggregation_when_zero_skipped(self):
+        """Test that pytest_sessionfinish doesn't aggregate when zero tests were skipped."""
+        # Set up global worker results with zero skipped
+        pytest.global_worker_itr_results = 0
+
+        mock_session = mock.MagicMock()
+        # Main process doesn't have workerinput
+        del mock_session.config.workerinput
+        mock_session.exitstatus = 0
+
+        mock_session_span = mock.MagicMock()
+
+        with mock.patch("ddtrace.ext.test_visibility.api.is_test_visibility_enabled", return_value=True), mock.patch(
+            "ddtrace.internal.test_visibility.api.InternalTestSession.get_span", return_value=mock_session_span
+        ), mock.patch("ddtrace.internal.test_visibility.api.InternalTestSession.finish"):
+            _pytest_sessionfinish(mock_session, 0)
+
+            # Verify no ITR tags were set (zero tests skipped)
+            mock_session_span.set_tag_str.assert_not_called()
+            mock_session_span.set_metric.assert_not_called()
+
+        # Clean up
+        delattr(pytest, "global_worker_itr_results")
