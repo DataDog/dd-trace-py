@@ -10,7 +10,6 @@ def config(
     service: StringType,
     version: StringType,
     tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]],
-    max_nframes: Optional[int],
     timeline_enabled: Optional[bool],
     output_filename: Optional[str],
     sample_pool_capacity: Optional[int],

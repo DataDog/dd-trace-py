@@ -76,7 +76,7 @@ join_pthread_samplers(std::vector<pthread_t>& threads, std::atomic<bool>& done)
 void
 sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
     std::atomic<bool> done(false);
     std::vector<pthread_t> thread_handles;
     std::vector<unsigned int> ids;
