@@ -86,12 +86,13 @@ class DynamicInstrumentationConfig(DDConfig):
         help="Timeout in seconds for uploading Dynamic Instrumentation payloads",
     )
 
-    upload_flush_interval = DDConfig.v(
+    upload_interval_seconds = DDConfig.v(
         float,
-        "upload.flush_interval",
+        "upload.interval_seconds",
         default=1.0,  # seconds
         help_type="Float",
         help="Interval in seconds for flushing the dynamic logs upload queue",
+        deprecations=[("upload.flush_interval", None, "4.0")],
     )
 
     diagnostics_interval = DDConfig.v(
