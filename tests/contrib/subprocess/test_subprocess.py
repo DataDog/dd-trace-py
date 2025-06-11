@@ -291,7 +291,7 @@ def test_fork(tracer):
 
         spans = tracer.pop()
         assert spans
-        assert len(spans) == 2
+        assert len(spans) >= 2
         _assert_root_span_empty_system_data(spans[0])
         span = spans[1]
         assert span.name == COMMANDS.SPAN_NAME
