@@ -34,9 +34,10 @@ def test_public_api():
 
 def test_manual_checkpoint_behavior():
     headers = {}
-    with mock.patch("ddtrace.tracer", new=MockedTracer()):
+    mocked_tracer = MockedTracer()
+    with mock.patch("ddtrace.tracer", new=mocked_tracer):
         with mock.patch("ddtrace.config", new=MockedConfig()):
-            with mock.patch.object(MockedTracer().data_streams_processor, "set_checkpoint") as mock_set_checkpoint:
+            with mock.patch.object(mocked_tracer.data_streams_processor, "set_checkpoint") as mock_set_checkpoint:
                 set_consume_checkpoint("kinesis", "stream-123", headers.get)
                 called_tags = mock_set_checkpoint.call_args[0][0]
                 assert "manual_checkpoint:true" in called_tags
