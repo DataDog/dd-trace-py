@@ -2,7 +2,6 @@ import os
 
 import azure.servicebus as azure_servicebus
 import azure.servicebus.aio as azure_servicebus_aio
-
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config

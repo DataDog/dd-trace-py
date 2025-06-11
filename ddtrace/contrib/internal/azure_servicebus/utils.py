@@ -2,7 +2,6 @@ import azure.servicebus as azure_servicebus
 import azure.servicebus.amqp as azure_servicebus_amqp
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
@@ -41,9 +40,13 @@ def handle_service_bus_message_arg(span, message_arg_value):
 
 
 def inject_context(span, message):
-    # message.application_properties is of type Dict[str | bytes, PrimitiveTypes] | Dict[str | bytes, Any] | None
-    # HTTPPropagator.inject expects type of Dict[str, str]
-    # Inject the context into an empty dictionary and merge it with message.application_properties to preserve the original type
+    """
+    message.application_properties is of type Dict[str | bytes, PrimitiveTypes] | Dict[str | bytes, Any] | None
+    while HTTPPropagator.inject expects type of Dict[str, str].
+
+    Inject the context into an empty dictionary and merge it with message.application_properties
+    to preserve the original type.
+    """
     inject_carrier = {}
     HTTPPropagator.inject(span.context, inject_carrier)
 
