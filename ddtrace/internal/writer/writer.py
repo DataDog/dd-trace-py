@@ -15,6 +15,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
+import ddtrace.internal.native as native
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
@@ -40,7 +41,6 @@ from ..sma import SimpleMovingAverage
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
-import ddtrace.internal.native as native
 
 
 if TYPE_CHECKING:  # pragma: no cover
