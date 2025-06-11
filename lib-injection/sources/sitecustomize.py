@@ -25,7 +25,14 @@ def parse_version(version):
         constraint_idx = constraint_match.start()
         numeric = version[constraint_idx:]
         constraint = version[:constraint_idx]
-        parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
+
+        version_parts = []
+        for part in numeric.split("."):
+            match = re.match(r"(\d+)", part)
+            if match:
+                version_parts.append(int(match.group(1)))
+
+        parsed_version = tuple(version_parts)
         return Version(parsed_version, constraint)
     except Exception:
         return Version((0, 0), "")

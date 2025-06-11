@@ -78,6 +78,7 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
+    env["DD_INJECT_FORCE"] = "false"
 
     try:
         import_line = ""
@@ -122,6 +123,59 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
         assert (
             not unexpectedly_disabled
         ), f"Found unexpected disabled integrations: {unexpectedly_disabled}. stderr: {stderr}"
+
+    except subprocess.CalledProcessError as e:
+        pytest.fail(f"Subprocess failed:\\nExit Code: {e.returncode}\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
+    except subprocess.TimeoutExpired as e:
+        pytest.fail(f"Subprocess timed out:\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
+
+
+def test_core_dependency_conflict_guardrail(test_venv):
+    """
+    Tests that lib-injection is aborted when a core dependency conflicts with a package
+    installed in the user's environment.
+    """
+    # opentelemetry-api>1 is a ddtrace core dependency. Install an older version to create a conflict.
+    packages_to_install = {"opentelemetry-api": "0.17b0"}
+    venv_factory_func = test_venv
+    python_executable, sitecustomize_dir, base_env, venv_dir = venv_factory_func(packages_to_install)
+
+    # Environment for the subprocess
+    env = base_env.copy()
+    venv_pythonpath = base_env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{sitecustomize_dir}{os.pathsep}{venv_pythonpath}"
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_INJECTION_ENABLED"] = "true"
+    env["DD_INJECT_FORCE"] = "false"
+
+    script_to_run_conflict = """
+import sys
+try:
+    import ddtrace
+    print("ddtrace was imported successfully, which is an error.")
+    sys.exit(1)
+except ImportError:
+    print("ddtrace import failed as expected.")
+"""
+
+    try:
+        result = subprocess.run(
+            [python_executable, "-c", script_to_run_conflict],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=venv_dir,
+            check=True,
+            timeout=180,
+        )
+        stderr = result.stderr
+        stdout = result.stdout
+
+        # Check that the abort log message is present
+        assert "Found incompatible ddtrace dependencies" in stderr
+        assert "Aborting dd-trace-py installation" in stderr
+        # Check that ddtrace was not actually imported
+        assert "ddtrace import failed as expected" in stdout
 
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Subprocess failed:\\nExit Code: {e.returncode}\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
