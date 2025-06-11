@@ -5,6 +5,7 @@ use data_pipeline::trace_exporter::{
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
+use exceptions::TraceExporterErrorPy;
 
 /// A wrapper arround [TraceExporterBuilder]
 ///
@@ -194,7 +195,7 @@ impl TraceExporterPy {
                 .send(&data, trace_count)
             {
                 Ok(res) => Ok(res.body),
-                Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
+                Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
     }
@@ -213,7 +214,7 @@ impl TraceExporterPy {
             .shutdown(Some(Duration::from_nanos(timeout_ns)))
         {
             Ok(_) => Ok(()),
-            Err(e) => Err(exceptions::TraceExporterErrorPy::from(e).into()),
+            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
         }
     }
 
@@ -226,17 +227,16 @@ impl TraceExporterPy {
         let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
             "TraceExporter has already been consumed",
         ))?;
-        exporter.run_worker();
-        Ok(())
+        match exporter.run_worker() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
+        }
     }
 
     fn stop_worker(&self) -> PyResult<()> {
-        self.inner
-            .as_ref()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .stop_worker();
+        if let Some(exporter) = self.inner.as_ref() {
+            exporter.stop_worker();
+        }
         Ok(())
     }
 }

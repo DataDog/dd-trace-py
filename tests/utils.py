@@ -1064,7 +1064,7 @@ def snapshot_context(
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
-            if isinstance(tracer._writer, NativeWriter):
+            if isinstance(tracer._span_aggregator.writer, NativeWriter):
                 tracer._span_aggregator.writer.set_test_session_token(token)
             else:
                 # Patch the tracer writer to include the test token header for all requests.
@@ -1108,7 +1108,7 @@ def snapshot_context(
             # Force a flush so all traces are submitted.
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                if isinstance(tracer._writer, NativeWriter):
+                if isinstance(tracer._span_aggregator.writer, NativeWriter):
                     tracer._span_aggregator.writer.set_test_session_token(None)
                 else:
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
