@@ -13,6 +13,7 @@ from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import safe_json
 
@@ -43,12 +44,23 @@ def _build_span_event(
     start_ns=None,
     duration_ns=None,
     error=None,
+    error_msg=None,
+    error_type=None,
     span_id=None,
+    metadata=None,
+    input_val=None,
+    output_val=None,
 ):
-    return {
+    if span_id is None:
+        span_id = rand128bits()
+    apm_trace_id = format_trace_id(root_span.trace_id)
+    llmobs_trace_id = root_span._get_ctx_item(LLMOBS_TRACE_ID)
+    if llmobs_trace_id is None:
+        llmobs_trace_id = root_span.trace_id
+    span_event = {
         "name": span_name,
-        "span_id": str(span_id or rand128bits()),
-        "trace_id": format_trace_id(root_span.trace_id),
+        "span_id": str(span_id),
+        "trace_id": format_trace_id(llmobs_trace_id),
         "parent_id": str(parent_id or root_span.span_id),
         "tags": ["ml_app:{}".format(_get_ml_app(root_span))],
         "start_ns": int(start_ns or root_span.start_ns),
@@ -61,7 +73,24 @@ def _build_span_event(
             "output": {},
         },
         "metrics": {},
+        "_dd": {
+            "span_id": str(span_id),
+            "trace_id": format_trace_id(llmobs_trace_id),
+            "apm_trace_id": apm_trace_id,
+        },
     }
+    if metadata is not None:
+        span_event["meta"]["metadata"] = metadata
+    io_key = "messages" if span_kind == "llm" else "value"
+    if input_val is not None:
+        span_event["meta"]["input"][io_key] = input_val
+    if output_val is not None:
+        span_event["meta"]["output"][io_key] = output_val
+    if error_msg is not None:
+        span_event["meta"][ERROR_MSG] = error_msg
+    if error_type is not None:
+        span_event["meta"][ERROR_TYPE] = error_type
+    return span_event
 
 
 def _extract_trace_step_id(bedrock_trace_obj):
@@ -121,14 +150,14 @@ def _create_or_update_bedrock_trace_step_span(trace, trace_step_id, inner_span_e
     if not span_event:
         start_ns = root_span.start_ns if not inner_span_event else inner_span_event.get("start_ns", root_span.start_ns)
         span_event = _build_span_event(
-            "{} Step".format(trace_type),
-            root_span,
-            root_span.span_id,
-            "workflow",
+            span_name="{} Step".format(trace_type),
+            root_span=root_span,
+            parent_id=root_span.span_id,
+            span_kind="workflow",
             start_ns=start_ns,
             span_id=trace_step_id,
+            metadata={"bedrock_trace_id": trace_step_id},
         )
-        span_event["meta"]["metadata"] = {"bedrock_trace_id": trace_step_id}
         span_dict[trace_step_id] = span_event
     trace_step_input = span_event.get("meta", {}).get("input", {})
     if not trace_step_input and inner_span_event and inner_span_event.get("meta", {}).get("input"):
@@ -152,8 +181,14 @@ def _translate_custom_orchestration_trace(
     custom_orchestration_event = custom_orchestration_trace.get("event", {})
     if not custom_orchestration_event or not isinstance(custom_orchestration_event, dict):
         return None, False
-    span_event = _build_span_event("customOrchestration", root_span, trace_step_id, "tool", start_ns=start_ns)
-    span_event["meta"]["output"]["value"] = custom_orchestration_event.get("text", "")
+    span_event = _build_span_event(
+        span_name="customOrchestration",
+        root_span=root_span,
+        parent_id=trace_step_id,
+        span_kind="tool",
+        start_ns=start_ns,
+        output_val=custom_orchestration_event.get("text", "")
+    )
     return span_event, False
 
 
@@ -196,11 +231,18 @@ def _translate_failure_trace(
         raise BedrockFailureException(failure_trace.get("failureReason", ""))
     except BedrockFailureException:
         root_span.set_exc_info(*sys.exc_info())
+    error_msg = failure_trace.get("failureReason", "")
+    error_type = failure_trace.get("failureType", "")
     span_event = _build_span_event(
-        "failureEvent", root_span, trace_step_id, "task", start_ns=start_ns, duration_ns=duration_ns, error=True
-    )
-    span_event["meta"].update(
-        {ERROR_MSG: failure_trace.get("failureReason", ""), ERROR_TYPE: failure_trace.get("failureType", "")}
+        span_name="failureEvent",
+        root_span=root_span,
+        parent_id=trace_step_id,
+        span_kind="task",
+        start_ns=start_ns,
+        duration_ns=duration_ns,
+        error=True,
+        error_msg=error_msg,
+        error_type=error_type
     )
     return span_event, True
 
@@ -220,19 +262,20 @@ def _translate_guardrail_trace(
         "inputAssessments": guardrail_trace.get("inputAssessments", []),
         "outputAssessments": guardrail_trace.get("outputAssessments", []),
     }
+    guardrail_triggered = bool(action == "INTERVENED")
     span_event = _build_span_event(
-        "guardrail",
-        root_span,
-        trace_step_id,
-        "task",
+        span_name="guardrail",
+        root_span=root_span,
+        parent_id=trace_step_id,
+        span_kind="task",
         start_ns=start_ns,
         duration_ns=duration_ns,
-        error=bool(action == "INTERVENED"),
+        error=guardrail_triggered,
+        error_msg="Guardrail intervened" if guardrail_triggered else None,
+        error_type="GuardrailTriggered" if guardrail_triggered else None,
+        output_val=safe_json(guardrail_output),
     )
-    span_event["output"]["value"] = safe_json(guardrail_output)
-    if action == "INTERVENED":
-        span_event["meta"][ERROR_MSG] = "Guardrail intervened"
-        span_event["meta"][ERROR_TYPE] = "GuardrailTriggered"
+    if guardrail_triggered:
         try:
             raise BedrockGuardrailTriggeredException("Guardrail intervened")
         except BedrockGuardrailTriggeredException:
@@ -307,9 +350,9 @@ def _model_invocation_input_span(
     input_messages = [{"content": text.get("system", ""), "role": "system"}]
     for message in text.get("messages", []):
         input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
-    span_event = _build_span_event("modelInvocation", root_span, trace_step_id, "llm", start_ns=start_ns)
-    span_event["meta"]["metadata"] = {"model_name": model_name, "model_provider": model_provider}
-    span_event["meta"]["input"]["messages"] = input_messages
+    span_event = _build_span_event(
+        "modelInvocation", root_span, trace_step_id, "llm", start_ns=start_ns, metadata={"model_name": model_name, "model_provider": model_provider}, input_val=input_messages
+    )
     return span_event
 
 
@@ -344,8 +387,9 @@ def _rationale_span(
     rationale: Dict[str, Any], trace_step_id: str, start_ns: int, root_span: Span
 ) -> Optional[Dict[str, Any]]:
     """Translates a Bedrock rationale trace into a LLMObs span event."""
-    span_event = _build_span_event("reasoning", root_span, trace_step_id, "task", start_ns=start_ns)
-    span_event["output"]["value"] = rationale.get("text", "")
+    span_event = _build_span_event(
+        "reasoning", root_span, trace_step_id, "task", start_ns=start_ns, output_val=rationale.get("text", "")
+    )
     return span_event
 
 
@@ -378,9 +422,9 @@ def _invocation_input_span(
         bedrock_tool_call = invocation_input.get("knowledgeBaseLookupInput", {})
         span_name = bedrock_tool_call.get("knowledgeBaseId")
         tool_args = {"text": str(bedrock_tool_call.get("text", ""))}
-    span_event = _build_span_event(span_name, root_span, trace_step_id, "tool", start_ns)
-    span_event["meta"]["metadata"] = tool_metadata
-    span_event["meta"]["input"]["value"] = safe_json(tool_args)
+    span_event = _build_span_event(
+        span_name, root_span, trace_step_id, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
+    )
     return span_event
 
 

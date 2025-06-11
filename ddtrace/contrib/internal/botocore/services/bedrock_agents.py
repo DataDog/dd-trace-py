@@ -44,7 +44,7 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
             try:
                 self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
             except Exception as e:
-                log.error("Error translating Bedrock traces: %s", e)
+                log.error("Error translating Bedrock traces: %s", e, exc_info=True)
             self._dd_integration.llmobs_set_tags(self._dd_span, self._args, self._kwargs, response, operation="agent")
             self._dd_span.finish()
 
