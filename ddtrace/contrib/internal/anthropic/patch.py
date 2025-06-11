@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import anthropic
 
@@ -27,6 +28,10 @@ log = get_logger(__name__)
 def get_version():
     # type: () -> str
     return getattr(anthropic, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"anthropic": ">=0.28.0"}
 
 
 config._add(

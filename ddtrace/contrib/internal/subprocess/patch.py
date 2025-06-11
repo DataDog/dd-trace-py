@@ -38,6 +38,10 @@ def get_version() -> str:
     return ""
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"subprocess": "*"}
+
+
 _STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
 _LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
 
