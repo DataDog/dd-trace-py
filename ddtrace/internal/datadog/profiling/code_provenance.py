@@ -6,11 +6,11 @@ import sys
 import sysconfig
 import typing as t
 
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.packages import _package_for_root_module_mapping
 
 
 class Library:
-
     def __init__(
         self,
         kind: str,
@@ -60,7 +60,7 @@ class CodeProvenance:
                     spec = importlib.util.find_spec(name)
                     if spec and spec.origin == "frozen":
                         python_stdlib.paths.add(f"<frozen {spec.name}>")
-                except Exception: # nosec
+                except Exception:  # nosec
                     continue
 
         self.libraries.append(python_stdlib)
@@ -69,6 +69,8 @@ class CodeProvenance:
 
         libraries: t.Dict[str, Library] = {}
 
+        _, _, main_package = gitmetadata.get_git_tags()
+
         site_packages = Path(sysconfig.get_path("purelib"))
         for module, dist in module_to_distribution.items():
             name = dist.name
@@ -76,9 +78,15 @@ class CodeProvenance:
             if module.startswith("__pycache__/"):
                 module = module[len("__pycache__/") :].split(".")[0] + ".py"
 
+            # If the user installed their code like a library and is running it
+            # as the main package (python -m my_package), and they explicitly
+            # specified that that's the main package, make sure it shows up as
+            # "my code" in the UI. Do this by leaving the "kind" blank
+            kind = "library" if name != main_package else ""
+
             lib = libraries.get(name)
             if lib is None:
-                lib = Library(kind="library", name=name, version=dist.version, paths=set())
+                lib = Library(kind=kind, name=name, version=dist.version, paths=set())
                 libraries[name] = lib
 
             # We assume that each module is a directory or a python file
