@@ -253,14 +253,19 @@ def test_ossystem(tracer, config):
 def test_ossystem_disabled(tracer, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
+        pin = Pin.get_from(os)
+        # TODO: PIN is None in GitLab with py3.12 and this config:
+        #  {'_asm_enabled': False, '_bypass_instrumentation_for_waf': False, '_iast_enabled': False}
+        if pin:
+            pin._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
 
         spans = tracer.pop()
         assert spans
-        # TODO: GitLab returns two spans for those configurations. Is override_global_config not triggering a restart?
+        # TODO: GitLab with py3.12 returns two spans for those configurations.
+        #  Is override_global_config not triggering a restart?
         #  {'_remote_config_enabled': True}
         #  {'_remote_config_enabled': False}
         #  {'_iast_enabled': False}

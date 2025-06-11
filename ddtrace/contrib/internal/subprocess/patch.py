@@ -473,6 +473,8 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             shellcmd = SubprocessCmdLine(args[0], shell=True)  # nosec
         except Exception:  # noqa:E722
             log.debug("Could not trace subprocess execution for os.system", exc_info=True)
+            return wrapped(*args, **kwargs)
+
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             span.set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
             if shellcmd.truncated:
