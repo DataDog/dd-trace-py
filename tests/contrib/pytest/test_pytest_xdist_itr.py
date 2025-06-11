@@ -9,16 +9,10 @@ import pytest
 
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
-from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 
-# Create ITR-enabled settings for the main process
-# Create ITR-disabled settings for the main process
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
@@ -80,46 +74,9 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistITRTestCase(PytestTestCaseBase):
-    @pytest.fixture(autouse=True, scope="function")
-    def setup_sitecustomize(self):
-        """Setup basic sitecustomize for pytest xdist ITR tests"""
-        sitecustomize_content = """
-# Basic sitecustomize.py
-import os
-import sys
-
-# Set up environment early
-os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "1"
-os.environ["DD_API_KEY"] = "foobar.baz"
-os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "0"
-# NOTE: NOT setting _DD_CIVISIBILITY_ITR_SUITE_MODE to use test-level skipping
-os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"  # Explicitly set to false for test-level skipping
-"""
-        self.testdir.makepyfile(sitecustomize=sitecustomize_content)
-
     def inline_run(self, *args, **kwargs):
-        # Add -n 2 to the end of the command line arguments and reduce verbosity
-        args = list(args) + ["-n", "2", "-q", "--tb=no"]
-
-        # Set up PYTHONPATH to include the testdir so sitecustomize.py can be found
-
-        # Get extra_env from kwargs if provided
-        extra_env = kwargs.get("extra_env", {})
-
-        # Get the current testdir path
-        testdir_path = str(self.testdir.tmpdir)
-
-        # Set PYTHONPATH to include testdir first, then existing PYTHONPATH
-        current_pythonpath = os.environ.get("PYTHONPATH", "")
-        if current_pythonpath:
-            new_pythonpath = testdir_path + os.pathsep + current_pythonpath
-        else:
-            new_pythonpath = testdir_path
-
-        # Add PYTHONPATH to extra_env
-        extra_env["PYTHONPATH"] = new_pythonpath
-        kwargs["extra_env"] = extra_env
-
+        # Add -n 2 to the end of the command line arguments
+        args = list(args) + ["-n", "2"]
         return super().inline_run(*args, **kwargs)
 
     def test_pytest_xdist_itr_skips_tests(self):
@@ -127,17 +84,7 @@ os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"  # Explicitly set to fal
         # Create a simplified sitecustomize with just the essential ITR setup
         itr_skipping_sitecustomize = """
 # sitecustomize.py - Simplified ITR setup for xdist
-import os
 from unittest import mock
-
-# Set up environment for agentless mode with suite-level skipping
-os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = "1"
-os.environ["DD_API_KEY"] = "foobar.baz"
-os.environ["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "0"
-os.environ["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
-
-# Enable test visibility in worker processes
-mock.patch("ddtrace.ext.test_visibility.api.is_test_visibility_enabled", return_value=True).start()
 
 # Import required modules
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -146,9 +93,6 @@ from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId, TestModuleId
 
-# Configure ddtrace
-from ddtrace import config as ddconfig
-ddconfig._ci_visibility_agentless_enabled = True
 
 # Create ITR settings and data
 itr_settings = TestVisibilityAPISettings(
@@ -167,10 +111,6 @@ itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippa
 # Mock API calls to return our settings
 mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
-    return_value=itr_settings
-).start()
-mock.patch(
-    "ddtrace.internal.ci_visibility._api_client.EVPProxyTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
 ).start()
 
@@ -192,10 +132,6 @@ CIVisibility.enable = classmethod(patched_enable)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
 
-        # Main process setup - much simpler now
-        mock_ddconfig = _get_default_civisibility_ddconfig()
-        mock_ddconfig._ci_visibility_agentless_enabled = True
-
         itr_settings = TestVisibilityAPISettings(
             coverage_enabled=False,
             skipping_enabled=True,
@@ -207,30 +143,14 @@ CIVisibility.enable = classmethod(patched_enable)
             test_management=TestManagementSettings(),
         )
 
-        # Create the same ITR data for main process
-        skippable_suites = {
-            TestSuiteId(TestModuleId(""), "test_pass.py"),
-            TestSuiteId(TestModuleId(""), "test_fail.py"),
-        }
-        itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
-
-        def set_itr_data(self):
-            self._itr_data = itr_data
-
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", mock_ddconfig), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
-            return_value=itr_settings,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client.EVPProxyTestVisibilityAPIClient.fetch_settings",
-            return_value=itr_settings,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip", side_effect=set_itr_data
-        ), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
-        ), mock.patch(
-            "ddtrace.ext.test_visibility.api.is_test_visibility_enabled", return_value=True
         ):
-            rec = self.inline_run("--ddtrace")
+            rec = self.inline_run("--ddtrace", extra_env={
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                "DD_API_KEY": "foobar.baz",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+            })
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
             # Verify ITR worked
