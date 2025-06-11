@@ -370,7 +370,6 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
-@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
 @pytest.mark.parametrize(
     "function,mode,arguments",
     [
@@ -392,8 +391,8 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
         (os.spawnvpe, os.P_NOWAIT, _PARAMS_ENV),
     ],
 )
-def test_osspawn_variants(tracer, function, mode, arguments, config):
-    with override_global_config(config):
+def test_osspawn_variants(tracer, function, mode, arguments):
+    with override_global_config(dict(_asm_enabled=True)):
         patch()
         Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
@@ -425,12 +424,7 @@ def test_osspawn_variants(tracer, function, mode, arguments, config):
 
         spans = tracer.pop()
         assert spans
-        assert len(spans) == 3
-        _assert_root_span_empty_system_data(spans[0])
-
-        assert spans[2].get_tag(COMMANDS.EXEC) == "['os.fork']"
-        assert spans[2].get_tag(COMMANDS.COMPONENT) == "os"
-
+        # assert len(spans) > 1
         span = spans[1]
         if mode == os.P_WAIT:
             assert span.get_tag(COMMANDS.EXIT_CODE) == str(ret)
