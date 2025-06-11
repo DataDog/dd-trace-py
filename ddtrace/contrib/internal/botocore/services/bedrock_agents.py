@@ -5,6 +5,11 @@ import wrapt
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.llmobs._integrations import BedrockIntegration
+from ddtrace.internal.logger import get_logger
+
+
+log = get_logger(__name__)
 
 
 class TracedBotocoreEventStream(wrapt.ObjectProxy):
@@ -15,7 +20,7 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
         self._stream_chunks = []
-        self._dd_integration = integration
+        self._dd_integration: BedrockIntegration = integration
         self._dd_span = span
         self._args = args
         self._kwargs = kwargs
@@ -36,7 +41,10 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
                 return
             traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
             response = _process_streamed_response_chunks(chunks)
-            self._dd_integration.translate_bedrock_traces(traces, chunks, self._dd_span)
+            try:
+                self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
+            except Exception as e:
+                log.error("Error translating Bedrock traces: %s", e)
             self._dd_integration.llmobs_set_tags(self._dd_span, self._args, self._kwargs, response, operation="agent")
             self._dd_span.finish()
 

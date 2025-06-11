@@ -46,14 +46,6 @@ def mock_tracer(bedrock_client):
 
 
 @pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy):
-    mock_tracer = DummyTracer()
-    pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
 def mock_tracer_agent(bedrock_agent_client):
     pin = Pin.get_from(bedrock_agent_client)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
@@ -84,18 +76,6 @@ def bedrock_client(boto3, request_vcr):
         region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
     )
     client = session.client("bedrock-runtime")
-    yield client
-
-
-@pytest.fixture
-def bedrock_client_proxy(boto3):
-    session = boto3.Session(
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    client = session.client("bedrock-runtime", endpoint_url="http://0.0.0.0:4000")
     yield client
 
 
