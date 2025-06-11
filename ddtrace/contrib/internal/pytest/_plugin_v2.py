@@ -785,14 +785,23 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         ModuleCodeCollector.uninstall()
 
     # Count ITR skipped tests from workers if we're in the main process
-    if hasattr(session.config, "workerinput") is False and hasattr(pytest, "global_worker_itr_results"):
+    if not hasattr(session.config, "workerinput") and hasattr(pytest, "global_worker_itr_results"):
         skipped_count = pytest.global_worker_itr_results
         if skipped_count > 0:
-            session_span = InternalTestSession.get_span()
-            if session_span:
-                session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+            # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
+            # during session finishing, it will use the correct worker-aggregated count
+            session_instance = InternalTestSession
+            if session_instance:
+                session_instance._itr_skipped_count = skipped_count
+
+                # HACK:
+                # Also set the ITR tags directly on the session span since the normal _set_itr_tags
+                # flow may have already completed before worker results were aggregated
+                session_span = session_instance.get_span()
+                if session_span:
+                    session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
 
     InternalTestSession.finish(
         force_finish_children=True,

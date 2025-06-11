@@ -86,7 +86,7 @@ class PytestXdistITRTestCase(PytestTestCaseBase):
         return super().inline_run(*args, **kwargs)
 
     def test_pytest_xdist_itr_skips_tests(self):
-        """Test that ITR skips tests when enabled."""
+        """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
         itr_skipping_sitecustomize = """
 # sitecustomize.py - Simplified ITR setup for xdist
@@ -151,6 +151,9 @@ CIVisibility.enable = classmethod(patched_enable)
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=True,
         ):
             rec = self.inline_run(
                 "--ddtrace",
@@ -162,11 +165,12 @@ CIVisibility.enable = classmethod(patched_enable)
             )
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
-            # Verify ITR worked
-            spans = self.pop_spans()
-            session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-            assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-            assert session_span.get_metric("test.itr.tests_skipping.count") == 4  # 4 tests skipped
+        spans = self.pop_spans()
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        # Verify number of skipped tests in session
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 4
 
 
 class TestXdistHooksUnit:
