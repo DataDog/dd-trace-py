@@ -616,29 +616,37 @@ def test_collect_gevent_thread_task():
 
     ddup.upload()
 
-    # expected_task_ids = {thread.ident for thread in threads}
-
     profile = pprof_utils.parse_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    # checked_thread = False
-
-    # for sample in samples:
-    #     task_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task id")
-    #     task_id = int(task_id_label.num)
-    #     if task_id in expected_task_ids:
-    #         pprof_utils.assert_stack_event(
-    #             profile,
-    #             sample,
-    #             pprof_utils.StackEvent(
-    #                 task_name=r"TestThread \d+$",
-    #                 task_id=task_id,
-    #             ),
-    #         )
-    #         checked_thread = True
-
-    # assert checked_thread, "No samples found for the expected threads"
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=r"Greenlet-\d+$",
+            locations=[
+                # Since we're using recursive function _fib(), we expect to have
+                # multiple locations for _fib(n) = _fib(n-1) + _fib(n-2)
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+            ],
+        ),
+    )
 
 
 def test_max_time_usage():
