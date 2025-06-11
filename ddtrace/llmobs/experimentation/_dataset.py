@@ -1,6 +1,7 @@
 import csv
 import json
 import time
+import sys
 from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
 from urllib.parse import quote
 
@@ -33,7 +34,7 @@ class Dataset:
     """
 
     def __init__(
-        self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = ""
+        self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = "", version: Optional[int] = None
     ) -> None:
         """
         Initialize a Dataset instance, optionally loading data from Datadog if none is provided.
@@ -44,17 +45,25 @@ class Dataset:
                 must contain 'input' and 'expected_output' fields. Both values can be strings or dictionaries.
                 If None, attempts to pull the dataset from Datadog.
             description (str, optional): Optional description of the dataset. Defaults to "".
+            version (int, optional): Specific version of the dataset to retrieve when pulling from Datadog.
+                Only used when data is None. If None, uses the latest version. Defaults to None.
 
         Raises:
-            ValueError: If the data is invalid (violates structure or size constraints).
+            ValueError: If the data is invalid (violates structure or size constraints), or if version is 
+                specified when data is provided, or if the specified version doesn't exist in Datadog.
         """
+        # Validate that version is only used when fetching from Datadog
+        if data is not None and version is not None:
+            raise ValueError("Version parameter can only be used when fetching from Datadog (data=None)")
+            
         self.name = name
         self.description = description
 
         # If no data provided, attempt to pull from Datadog
         if data is None:
-            print(f"No data provided, pulling dataset '{name}' from Datadog...")
-            pulled_dataset = self.pull(name)
+            version_msg = f" (version {version})" if version is not None else ""
+            print(f"No data provided, pulling dataset '{name}'{version_msg} from Datadog...")
+            pulled_dataset = self.pull(name, version)
             self._data = pulled_dataset._data
             self._datadog_dataset_id = pulled_dataset._datadog_dataset_id
             self._datadog_dataset_version = pulled_dataset._datadog_dataset_version
@@ -206,35 +215,35 @@ class Dataset:
         if not all(isinstance(row, dict) for row in data):
             raise ValueError("All rows must be dictionaries.")
 
-        expected_keys = None
-        if hasattr(self, '_data') and self._data:
-            expected_keys = set(k for k in self._data[0].keys() if k != 'record_id')
+        # Identify the set of keys (excluding optional 'record_id') already present in the **existing**
+        # dataset, if any.  We only enforce *mandatory* keys ('input', 'expected_output') across
+        # records – additional metadata keys (e.g. 'datadog') are allowed to vary from one record
+        # to another.
+        existing_keys: Optional[set] = None
+        if hasattr(self, "_data") and self._data:
+            existing_keys = {k for k in self._data[0].keys() if k != "record_id"}
 
-        first_row_keys = set(data[0].keys())
+        # Mandatory fields that every record must have.
+        required_keys = {"input", "expected_output"}
 
-        # Validate new data against existing structure if present.
-        if expected_keys is not None:
-            # Allow record_id to be present or not in new data
-            new_keys = {k for k in first_row_keys if k != 'record_id'}
-            if new_keys != expected_keys:
-                raise ValueError(
-                    f"Record structure doesn't match dataset. Expected keys {sorted(expected_keys)}, "
-                    f"got {sorted(new_keys)}"
-                )
-
-        required_keys = {'input', 'expected_output'}
-        if not required_keys.issubset(first_row_keys):
-            missing = required_keys - first_row_keys
-            raise ValueError(f"Records must contain 'input' and 'expected_output' fields. Missing: {missing}")
-
-        # Validate consistency within new data
-        for row in data:
+        for idx, row in enumerate(data):
             row_keys = set(row.keys())
-            if row_keys != first_row_keys:
+
+            # Check for mandatory fields.
+            if not required_keys.issubset(row_keys):
+                missing = required_keys - row_keys
                 raise ValueError(
-                    f"Inconsistent keys in data. Expected {sorted(first_row_keys)}, "
-                    f"got {sorted(row_keys)}"
+                    f"Record at index {idx} is missing required field(s): {sorted(missing)}"
                 )
+
+            # When a dataset already contains data, ensure new rows at least share the same mandatory
+            # keys.  Extra metadata keys are perfectly acceptable and do *not* need to match.
+            if existing_keys is not None:
+                if not required_keys.issubset(existing_keys):
+                    # This should never happen – existing records should have been validated already.
+                    raise ValueError("Existing dataset records are missing mandatory keys.")
+
+        # All basic checks passed – dataset rows can legitimately have different optional/metadata keys.
 
     @classmethod
     def pull(cls, name: str, version: int = None) -> "Dataset":
@@ -664,6 +673,17 @@ class Dataset:
         if input_columns is None or expected_output_columns is None:
             raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
 
+        # Store the original field size limit to restore it later
+        original_field_size_limit = csv.field_size_limit()
+        
+        try:
+            # Increase CSV field size limit to handle large text blobs (e.g., research papers)
+            # Use maxsize to effectively remove the limit, but with a reasonable fallback
+            csv.field_size_limit(sys.maxsize)
+        except OverflowError:
+            # Some systems may not support sys.maxsize, fallback to a very large number
+            csv.field_size_limit(10 * 1024 * 1024)  # 10MB limit
+
         data = []
         try:
             # First check if the file exists and is not empty before parsing
@@ -750,6 +770,9 @@ class Dataset:
                 raise  # Re-raise DatasetFileErrors intentionally raised above
             else:
                 raise DatasetFileError(f"Unexpected error reading or processing CSV file: {e}") from e
+        finally:
+            # Always restore the original field size limit
+            csv.field_size_limit(original_field_size_limit)
 
         return cls(name=name, data=data, description=description)
 
