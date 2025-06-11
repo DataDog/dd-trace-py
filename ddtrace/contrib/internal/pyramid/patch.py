@@ -1,3 +1,5 @@
+from typing import Dict
+
 import pyramid
 import pyramid.config
 import wrapt
@@ -30,6 +32,10 @@ def get_version():
         import importlib_metadata  # type: ignore[no-redef]
 
     return str(importlib_metadata.version(pyramid.__package__))
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pyramid": ">=1.10"}
 
 
 def patch():
