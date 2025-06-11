@@ -413,7 +413,7 @@ def test_osspawn_variants(tracer, function, mode, arguments, config):
                 ret = function(mode, arguments[0], *arguments)
             # TODO: Gitlab raises at some point
             #  Traceback (most recent call last):
-            #    File "/root/.pyenv/versions/3.10.16/lib/python3.10/multiprocessing/util.py", line 357, in _exit_function
+            #    File "/3.10.16/lib/python3.10/multiprocessing/util.py", line 357, in _exit_function
             #      p.join()
             #    File "/root/.pyenv/versions/3.10.16/lib/python3.10/multiprocessing/process.py", line 147, in join
             #      assert self._parent_pid == os.getpid(), 'can only join a child process'
