@@ -101,8 +101,8 @@ def python_version_is_compatible(marker_str, current_python_version_str):
     return requirement_is_compatible(required_spec, current_python_version_str)
 
 
-def requirement_is_compatible(required_spec, installed_version):
-    installed_version = parse_version(installed_version)
+def requirement_is_compatible(required_spec, installed_version_str):
+    installed_version = parse_version(installed_version_str)
     constraint = required_spec.constraint
     if constraint in ("<", "<="):
         return True  # minimum "less than" means there is no minimum

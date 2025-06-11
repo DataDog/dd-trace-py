@@ -26,7 +26,7 @@ jobs:
         run: pyenv global 3.10 3.8 3.9 3.11 3.12 3.13
 
       - name: Install Dependencies
-        run: pip install --upgrade pip && pip install riot==0.20.1
+        run: pip install --upgrade pip && pip install riot==0.20.1 & pip install toml==0.10.2
 
       - name: Generate riot locks
         run: scripts/compile-and-prune-test-requirements
