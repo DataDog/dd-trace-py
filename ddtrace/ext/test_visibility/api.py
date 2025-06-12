@@ -116,20 +116,20 @@ class TestBase(_TestVisibilityAPIBase):
         return _get_item_tag(item_id, tag_name)
 
     @staticmethod
-    def set_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any, recurse: bool = False):
-        _set_item_tag(item_id, tag_name, tag_value, recurse)
+    def set_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any):
+        _set_item_tag(item_id, tag_name, tag_value)
 
     @staticmethod
-    def set_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any], recurse: bool = False):
-        _set_item_tags(item_id, tags, recurse)
+    def set_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]):
+        _set_item_tags(item_id, tags)
 
     @staticmethod
-    def delete_tag(item_id: TestVisibilityItemId, tag_name: str, recurse: bool = False):
-        _delete_item_tag(item_id, tag_name, recurse)
+    def delete_tag(item_id: TestVisibilityItemId, tag_name: str):
+        _delete_item_tag(item_id, tag_name)
 
     @staticmethod
-    def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str], recurse: bool = False):
-        _delete_item_tags(item_id, tag_names, recurse)
+    def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str]):
+        _delete_item_tags(item_id, tag_names)
 
     @staticmethod
     def is_finished(item_id: TestVisibilityItemId) -> bool:
