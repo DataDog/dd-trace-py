@@ -484,9 +484,6 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
     if not messages:
         return processed
 
-    if not isinstance(messages, list):
-        messages = [messages]
-
     for item in messages:
         message = {}
         message_type = getattr(item, "type", "")
@@ -539,14 +536,11 @@ def openai_get_metadata_from_response(response: Optional[Any]) -> Dict[str, Any]
         return {}
 
     metadata = {}
-    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation"]:
+    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text"]:
         if hasattr(response, field):
             value = getattr(response, field)
             if value is not None:
                 metadata[field] = load_oai_span_data_value(value)
-
-    if hasattr(response, "text") and response.text:
-        metadata["text"] = load_oai_span_data_value(response.text)
 
     if hasattr(response, "usage") and hasattr(response.usage, "output_tokens_details"):
         metadata["reasoning_tokens"] = response.usage.output_tokens_details.reasoning_tokens
