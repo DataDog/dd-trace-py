@@ -757,35 +757,6 @@ view = [
     "python scripts/ci_visibility/view_snapshot.py {args:}",
 ]
 
-[envs.selenium]
-template = "selenium"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "hypothesis",
-    "selenium~=4.0",
-    "webdriver-manager"
-]
-
-[evs.selenium.env-vars]
-DD_AGENT_TRACER_URL = "9126"
-
-[envs.selenium.scripts]
-test = [
-    "pip freeze",
-    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/selenium {args:}",
-]
-
-[[envs.selenium.matrix]]
-python = ["3.10", "3.12"]
-tested_pytest_plugin_version = ["v1", "v2"]
-
-[envs.selenium.overrides]
-matrix.tested_pytest_plugin_version.env-vars = [
-    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "true", if = ["v1"]},
-    { key = "_TESTED_PYTEST_LEGACY_PLUGIN", value = "false", if = ["v2"]}
-]
-
 [envs.appsec_integrations_pygoat]
 template = "appsec_integrations_pygoat"
 dependencies = [
