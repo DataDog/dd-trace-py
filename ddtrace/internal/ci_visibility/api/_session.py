@@ -109,7 +109,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
     def set_skipped_count(self, skipped_count: int):
         self._itr_skipped_count = skipped_count
-        self._set_itr_tags(True)
+        self._set_itr_tags(self._session_settings.itr_test_skipping_enabled)
 
     def set_covered_lines_pct(self, coverage_pct: float):
         self.set_tag(test.TEST_LINES_PCT, coverage_pct)
