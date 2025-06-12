@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import litellm
 
@@ -21,6 +22,10 @@ config._add("litellm", {})
 def get_version() -> str:
     version_module = getattr(litellm, "_version", None)
     return getattr(version_module, "version", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"litellm": "*"}
 
 
 @with_traced_module

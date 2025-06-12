@@ -826,8 +826,8 @@ integrations:
   - tornado
   tested_versions_by_dependency:
     tornado:
-      min: 6.2.0
-      max: 6.4.1
+      min: 6.0.4
+      max: 6.5.1
 
 - integration_name: unittest
   is_external_package: false

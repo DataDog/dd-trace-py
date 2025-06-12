@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 from urllib import parse
 
 import urllib3
@@ -41,6 +42,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(urllib3, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"urllib3": ">=1.25.0"}
 
 
 def patch():

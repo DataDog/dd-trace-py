@@ -1,4 +1,5 @@
 import contextlib
+from typing import Dict
 
 import pymongo
 
@@ -66,6 +67,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(pymongo, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pymongo": ">=3.8.0"}
 
 
 def patch():

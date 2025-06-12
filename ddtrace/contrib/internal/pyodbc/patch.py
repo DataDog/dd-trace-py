@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import pyodbc
 
@@ -26,6 +27,10 @@ config._add(
 def get_version():
     # type: () -> str
     return pyodbc.version
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pyodbc": ">=4.0.31"}
 
 
 def patch():

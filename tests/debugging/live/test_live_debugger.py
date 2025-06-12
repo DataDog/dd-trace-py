@@ -2,7 +2,7 @@ from collections import Counter
 import typing as t
 
 import ddtrace
-from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.internal import core
 from tests.debugging.mocking import MockLogsIntakeUploaderV1
@@ -12,7 +12,7 @@ from tests.debugging.utils import create_trigger_function_probe
 from tests.utils import TracerTestCase
 
 
-class MockSpanCodeOriginProcessor(SpanCodeOriginProcessor):
+class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorExit):
     __uploader__ = MockLogsIntakeUploaderV1
 
     @classmethod
