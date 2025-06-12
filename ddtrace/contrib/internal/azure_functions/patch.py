@@ -78,7 +78,6 @@ def _wrap_http_trigger(pin, func, function_name, trigger_arg_name):
 
     def pre_dispatch(ctx, kwargs):
         req = kwargs.get(trigger_arg_name)
-        ctx.set_item("req_span", ctx.span)
         return ("azure.functions.request_call_modifier", (ctx, config.azure_functions, req))
 
     def post_dispatch(ctx, res):
@@ -98,7 +97,6 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name):
         )
 
     def pre_dispatch(ctx, kwargs):
-        ctx.set_item("trigger_span", ctx.span)
         return (
             "azure.functions.trigger_call_modifier",
             (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER),
@@ -115,7 +113,6 @@ def _wrap_timer_trigger(pin, func, function_name):
         return create_context("azure.functions.patched_timer", pin, resource_name)
 
     def pre_dispatch(ctx, kwargs):
-        ctx.set_item("trigger_span", ctx.span)
         return (
             "azure.functions.trigger_call_modifier",
             (ctx, config.azure_functions, function_name, trigger_type, SpanKind.INTERNAL),
