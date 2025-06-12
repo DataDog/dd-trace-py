@@ -6,13 +6,14 @@ ospathbasename_noaspect:
   <<: *ospathbasename_aspect
   function_name: "ospathbasename_noaspect"
 
-ospathdirname_aspect: &ospathdirname_aspect
-  warmups: 1
-  function_name: "iast_ospathdirname_aspect"
-
-ospathdirname_noaspect:
-  <<: *ospathdirname_aspect
-  function_name: "ospathdirname_noaspect"
+# TODO: Big regression flakiness (APPSEC-57818)
+#ospathdirname_aspect: &ospathdirname_aspect
+#  warmups: 1
+#  function_name: "iast_ospathdirname_aspect"
+#
+#ospathdirname_noaspect:
+#  <<: *ospathdirname_aspect
+#  function_name: "ospathdirname_noaspect"
 
 ospathjoin_aspect: &ospathjoin_aspect
   warmups: 1

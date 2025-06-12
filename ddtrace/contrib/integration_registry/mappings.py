@@ -17,6 +17,7 @@ EXCLUDED_FROM_TESTING = {
     "gunicorn",
     "dbapi",
     "dbapi_async",
+    "selenium",
 }
 
 DEPENDENCY_TO_INTEGRATION_MAPPING_SPECIAL_CASES = {

@@ -1556,7 +1556,8 @@ def test_connection(client, test_spans):
     assert span.get_tag("django.db.alias") == "default"
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(["-x", __file__]))
+    # --reuse-db needed so the subprocess will not delete the main process database.
+    sys.exit(pytest.main(["-x", "--reuse-db", __file__]))
     """.format(
         expected_service_name
     )

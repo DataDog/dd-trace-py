@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
+from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
@@ -55,11 +57,13 @@ def boto3(aws_credentials, mock_llmobs_span_writer, ddtrace_global_config):
     global_config = {"_dd_api_key": "<not-a-real-api_key>"}
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
+        urllib3_unpatch()
         patch()
         import boto3
 
         yield boto3
         unpatch()
+        urllib3_patch()
 
 
 @pytest.fixture

@@ -1,19 +1,14 @@
-from io import BytesIO
 import json
 import os
 
-import botocore
 import mock
-from mock import patch as mock_patch
 import pytest
-import urllib3
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
-from tests.contrib.botocore.bedrock_utils import _MOCK_RESPONSE_DATA
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
@@ -72,18 +67,6 @@ def bedrock_client(boto3, request_vcr):
 
 
 @pytest.fixture
-def bedrock_client_proxy(boto3):
-    session = boto3.Session(
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    bedrock_client = session.client("bedrock-runtime", endpoint_url="http://0.0.0.0:4000")
-    yield bedrock_client
-
-
-@pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
@@ -93,14 +76,6 @@ def mock_tracer(bedrock_client):
     mock_tracer = DummyTracer()
     pin = Pin.get_from(bedrock_client)
     pin._override(bedrock_client, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy):
-    mock_tracer = DummyTracer()
-    pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=mock_tracer)
     yield mock_tracer
 
 
@@ -119,70 +94,6 @@ def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
 @pytest.fixture
 def llmobs_events(bedrock_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
-
-
-@pytest.fixture
-def mock_invoke_model_http():
-    yield botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
-
-
-@pytest.fixture
-def mock_invoke_model_http_error():
-    yield botocore.awsrequest.AWSResponse("fake-url", 403, [], None)
-
-
-@pytest.fixture
-def mock_invoke_model_response():
-    yield {
-        "ResponseMetadata": {
-            "RequestId": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
-            "HTTPStatusCode": 200,
-            "HTTPHeaders": {
-                "date": "Wed, 05 Mar 2025 18:13:31 GMT",
-                "content-type": "application/json",
-                "content-length": "285",
-                "connection": "keep-alive",
-                "x-amzn-requestid": "fddf10b3-c895-4e5d-9b21-3ca963708b03",
-                "x-amzn-bedrock-invocation-latency": "2823",
-                "x-amzn-bedrock-output-token-count": "91",
-                "x-amzn-bedrock-input-token-count": "10",
-            },
-            "RetryAttempts": 0,
-        },
-        "contentType": "application/json",
-        "body": botocore.response.StreamingBody(
-            urllib3.response.HTTPResponse(
-                body=BytesIO(_MOCK_RESPONSE_DATA),
-                status=200,
-                headers={"Content-Type": "application/json"},
-                preload_content=False,
-            ),
-            291,
-        ),
-    }
-
-
-@pytest.fixture
-def mock_invoke_model_response_error():
-    yield {
-        "Error": {
-            "Message": "The security token included in the request is expired",
-            "Code": "ExpiredTokenException",
-        },
-        "ResponseMetadata": {
-            "RequestId": "b1c68b9a-552a-466b-b761-4ee6b710ece4",
-            "HTTPStatusCode": 403,
-            "HTTPHeaders": {
-                "date": "Wed, 05 Mar 2025 21:45:12 GMT",
-                "content-type": "application/json",
-                "content-length": "67",
-                "connection": "keep-alive",
-                "x-amzn-requestid": "b1c68b9a-552a-466b-b761-4ee6b710ece4",
-                "x-amzn-errortype": "ExpiredTokenException:http://internal.amazon.com/coral/com.amazon.coral.service/",
-            },
-            "RetryAttempts": 0,
-        },
-    }
 
 
 @pytest.mark.parametrize(
@@ -219,75 +130,6 @@ class TestLLMObsBedrock:
             token_metrics=token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-
-    @classmethod
-    def _test_llmobs_invoke_proxy(
-        cls,
-        provider,
-        bedrock_client,
-        mock_tracer,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-        n_output=1,
-    ):
-        body = _REQUEST_BODIES[provider]
-        if provider == "cohere":
-            body = {
-                "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-                "temperature": 0.9,
-                "p": 1.0,
-                "k": 0,
-                "max_tokens": 10,
-                "stop_sequences": [],
-                "stream": False,
-                "num_generations": n_output,
-            }
-        # mock out the completions response
-        with mock_patch.object(bedrock_client, "_make_request") as mock_invoke_model_call:
-            mock_invoke_model_call.return_value = mock_invoke_model_http, mock_invoke_model_response
-            body, model = json.dumps(body), _MODELS[provider]
-            response = bedrock_client.invoke_model(body=body, modelId=model)
-            json.loads(response.get("body").read())
-
-        assert len(mock_tracer.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
-        LLMObs.disable()
-
-    @classmethod
-    def _test_llmobs_invoke_stream_proxy(
-        cls,
-        provider,
-        bedrock_client,
-        mock_tracer,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-        n_output=1,
-    ):
-        body = _REQUEST_BODIES[provider]
-        if provider == "cohere":
-            body = {
-                "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
-                "temperature": 0.9,
-                "p": 1.0,
-                "k": 0,
-                "max_tokens": 10,
-                "stop_sequences": [],
-                "stream": False,
-                "num_generations": n_output,
-            }
-        # mock out the completions response
-        with mock_patch.object(bedrock_client, "_make_request") as mock_invoke_model_call:
-            mock_invoke_model_call.return_value = mock_invoke_model_http, mock_invoke_model_response
-            body, model = json.dumps(body), _MODELS[provider]
-            response = bedrock_client.invoke_model(body=body, modelId=model)
-            for _ in response.get("body"):
-                pass
-
-        assert len(mock_tracer.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
-        LLMObs.disable()
 
     @classmethod
     def _test_llmobs_invoke(cls, provider, bedrock_client, mock_tracer, llmobs_events, cassette_name=None, n_output=1):
@@ -346,265 +188,6 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == cls.expected_llmobs_span_event(span, n_output, message="message" in provider)
-
-    def test_llmobs_ai21_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "ai21",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_amazon_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "amazon",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_anthropic_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "anthropic",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_anthropic_message_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "anthropic_message",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_cohere_single_output_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "cohere",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_cohere_multi_output_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "cohere",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-            n_output=2,
-        )
-
-    def test_llmobs_meta_invoke_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_proxy(
-            "meta",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_amazon_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "amazon",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_anthropic_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "anthropic",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_anthropic_message_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "anthropic_message",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_cohere_single_output_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "cohere",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_cohere_multi_output_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "cohere",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-            n_output=2,
-        )
-
-    def test_llmobs_meta_invoke_stream_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http,
-        mock_invoke_model_response,
-    ):
-        self._test_llmobs_invoke_stream_proxy(
-            "meta",
-            bedrock_client_proxy,
-            mock_tracer_proxy,
-            llmobs_events,
-            mock_invoke_model_http,
-            mock_invoke_model_response,
-        )
-
-    def test_llmobs_error_proxy(
-        self,
-        ddtrace_global_config,
-        bedrock_client_proxy,
-        mock_tracer_proxy,
-        llmobs_events,
-        mock_invoke_model_http_error,
-        mock_invoke_model_response_error,
-    ):
-        import botocore
-
-        with pytest.raises(botocore.exceptions.ClientError):
-            # mock out the completions response
-            with mock_patch.object(bedrock_client_proxy, "_make_request") as mock_invoke_model_call:
-                mock_invoke_model_call.return_value = mock_invoke_model_http_error, mock_invoke_model_response_error
-                body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
-                response = bedrock_client_proxy.invoke_model(body=body, modelId=model)
-                json.loads(response.get("body").read())
-
-        assert len(mock_tracer_proxy.pop_traces()[0]) == 1
-        assert len(llmobs_events) == 0
-        LLMObs.disable()
 
     def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, mock_tracer, llmobs_events):
         self._test_llmobs_invoke("ai21", bedrock_client, mock_tracer, llmobs_events)

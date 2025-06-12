@@ -21,6 +21,7 @@ def shutdown(request):
 
 urlpatterns = [
     handler(r"^$", views.index),
+    handler(r"^shutdown$", shutdown),
     # This must precede composed-view.
     handler("appsec/response-header/$", views.magic_header_key, name="response-header"),
     handler("appsec/body/$", views.body_view, name="body_view"),
@@ -41,6 +42,7 @@ urlpatterns = [
         views.xss_secure_mark,
         name="xss_secure_mark",
     ),
+    handler("appsec/header-injection-secure/$", views.header_injection_secure, name="header_injection"),
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
     handler("appsec/unvalidated_redirect_url/$", views.unvalidated_redirect_url, name="unvalidated_redirect_url"),
     handler(
@@ -69,6 +71,7 @@ urlpatterns = [
         views.unvalidated_redirect_path_multiple_sources,
         name="unvalidated_redirect_path_multiple_sources",
     ),
+    handler("appsec/ssrf_requests/$", views.ssrf_requests, name="ssrf_requests"),
     handler("appsec/taint-checking-enabled/$", views.taint_checking_enabled_view, name="taint_checking_enabled_view"),
     handler(
         "appsec/taint-checking-disabled/$", views.taint_checking_disabled_view, name="taint_checking_disabled_view"

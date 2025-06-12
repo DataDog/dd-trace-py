@@ -1,12 +1,12 @@
 import inspect
 import os
+from typing import Dict
 
 from boto import __version__
 import boto.connection
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -50,6 +50,10 @@ config._add(
 def get_version():
     # type: () -> str
     return __version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"boto": "*"}
 
 
 def patch():
@@ -125,9 +129,6 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag(http.STATUS_CODE, result.status)
         span.set_tag_str(http.METHOD, result._method)
 
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
-
         return result
 
 
@@ -188,9 +189,6 @@ def patched_auth_request(original_func, instance, args, kwargs):
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, result.status)
         span.set_tag_str(http.METHOD, result._method)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
 
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 

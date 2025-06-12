@@ -668,5 +668,5 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
     @classmethod
     def install(cls, shallow=True):
-        cls._shallow = shallow
+        cls.shallow = shallow
         return super().install()

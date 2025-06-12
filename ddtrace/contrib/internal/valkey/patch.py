@@ -67,6 +67,7 @@ To configure particular valkey instances use the :class:`Pin <ddtrace.Pin>` API:
     client.get("my-key")
 """
 import os
+from typing import Dict
 
 import valkey
 import wrapt
@@ -98,6 +99,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(valkey, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"valkey": ">=6.0.0"}
 
 
 def patch():

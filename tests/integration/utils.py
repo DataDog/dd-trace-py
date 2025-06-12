@@ -36,10 +36,12 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(env=None, out="", err=""):
+def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):
     if env is None:
         env = dict()
-    return pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err)
+    return pytest.mark.subprocess(
+        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err, check_logs=check_logs
+    )
 
 
 def mark_snapshot(f):

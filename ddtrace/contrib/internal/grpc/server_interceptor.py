@@ -2,7 +2,6 @@ import grpc
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -104,10 +103,6 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
         span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
-
-        sample_rate = config.grpc_server.get_analytics_sample_rate()
-        if sample_rate is not None:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         # access server context by taking second argument as server context
         # if not found, skip using context to tag span with server state information

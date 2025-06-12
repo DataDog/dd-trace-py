@@ -13,7 +13,6 @@ from wrapt import FunctionWrapper
 import xmltodict
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -256,10 +255,6 @@ def _before_request_tags(pin, span, request):
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
     span._metrics[_SPAN_MEASURED_KEY] = 1
-
-    analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
-    if analytics_sr is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, analytics_sr)
 
     span.set_tag_str("django.request.class", func_name(request))
 

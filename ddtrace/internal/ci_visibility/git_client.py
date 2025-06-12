@@ -27,6 +27,7 @@ from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.trace import Tracer  # noqa: F401
 
 from .. import telemetry
@@ -239,6 +240,7 @@ class CIVisibilityGitClient(object):
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                 record_objects_pack_data(0, 0)
         finally:
+            telemetry_config.DEPENDENCY_COLLECTION = False
             telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod

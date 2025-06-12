@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Fixed API Security sampling when running in standalone mode (without APM tracing enabled).

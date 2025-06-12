@@ -19,7 +19,7 @@ from typing import Union  # noqa:F401
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -355,7 +355,7 @@ def _get_blocked_template(accept_header_value):
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return content
         except (OSError, IOError) as e:  # noqa: B014
-            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
+            log.warning("Could not load custom template at %s: %s", template_path, str(e))
 
     # No user-defined template at this point
     if need_html_template:

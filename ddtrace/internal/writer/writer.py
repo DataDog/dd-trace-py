@@ -543,9 +543,8 @@ class AgentWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self):
-        # type: () -> HTTPWriter
-        return self.__class__(
+    def recreate(self) -> HTTPWriter:
+        new_instance = self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
@@ -557,6 +556,7 @@ class AgentWriter(HTTPWriter):
             headers=self._headers,
             report_metrics=self._report_metrics,
         )
+        return new_instance
 
     @property
     def agent_url(self):

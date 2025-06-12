@@ -108,10 +108,16 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             error_msg = oai_span.get_error_message()
             error_data = oai_span.get_error_data()
             span.error = 1
+            """
+            The error message from openai agents is actually a more concise description of the error.
+            while the error data contains the full error object.
+            Thus, we set the LLM Obs span's error type to the openai span's error message
+            and the LLM Obs span's error message to the openai span's error data.
+            """
             if error_msg:
-                span.set_tag("error.type", json.dumps(error_data))
+                span.set_tag("error.type", error_msg)
             if error_data and error_msg:
-                span.set_tag("error.message", error_msg)
+                span.set_tag("error.message", json.dumps(error_data))
 
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)

@@ -1,32 +1,32 @@
-from typing import TYPE_CHECKING  # noqa:I001
 from types import ModuleType
-import asyncpg
+from typing import TYPE_CHECKING  # noqa:I001
+from typing import Dict
 
-from ddtrace.trace import Pin
-from ddtrace import config
-from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
+import asyncpg
 import wrapt
 
-from ddtrace.constants import SPAN_KIND
+from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils_async import with_traced_module
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
+from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.trace_utils_async import with_traced_module
+from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Dict  # noqa:F401
     from typing import Union  # noqa:F401
 
     from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
@@ -50,6 +50,10 @@ log = get_logger(__name__)
 def get_version():
     # type: () -> str
     return getattr(asyncpg, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"asyncpg": ">=0.22.0"}
 
 
 def _get_connection_tags(conn):

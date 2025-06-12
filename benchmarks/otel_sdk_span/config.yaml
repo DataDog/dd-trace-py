@@ -1,0 +1,50 @@
+# Scenarios should be consistent with dd-trace-py/benchmarks/span/config.yml
+start: &base
+  nspans: 1000
+  ntags: 0
+  ltags: 0
+  nmetrics: 0
+  finishspan: false
+  telemetry: false
+  add_event: false
+  add_link: false
+  get_context: false
+  is_recording: false
+  record_exception: false
+  set_status: false
+  update_name: false
+add-tags:
+  <<: *base
+  ntags: 100
+  ltags: 100
+add-metrics:
+  <<: *base
+  nmetrics: 100
+add-event:
+  <<: *base
+  add_event: true
+add-link:
+  <<: *base
+  add_link: true
+get-context:
+  <<: *base
+  get_context: true
+is-recording:
+  <<: *base
+  is_recording: true
+record-exception:
+  <<: *base
+  record_exception: true
+set-status:
+  <<: *base
+  set_status: true
+update-name:
+  <<: *base
+  update_name: true
+start-finish:
+  <<: *base
+  finishspan: true
+start-finish-telemetry:
+  <<: *base
+  finishspan: true
+  telemetry: true

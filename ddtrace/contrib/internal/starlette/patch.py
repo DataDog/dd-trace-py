@@ -52,6 +52,10 @@ def get_version():
 _STARLETTE_VERSION = parse_version(get_version())
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"starlette": ">=0.14.0"}
+
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))

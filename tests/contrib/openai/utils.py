@@ -1,60 +1,7 @@
 import os
 
-import openai
 import vcr
 
-
-mock_openai_completions_response = openai.types.Completion(
-    id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
-    choices=[
-        openai.types.CompletionChoice(
-            finish_reason="stop", index=0, logprobs=None, text="Hello! How can I assist you today?"
-        ),
-        openai.types.CompletionChoice(
-            finish_reason="stop", index=1, logprobs=None, text="Hello! How can I assist you today?"
-        ),
-    ],
-    created=1741107585,
-    model="gpt-3.5-turbo",
-    object="text_completion",
-    system_fingerprint=None,
-)
-mock_openai_chat_completions_response = openai.types.chat.ChatCompletion(
-    id="chatcmpl-B7RpFsUAXS7aCZlt6jCshVym5yLhN",
-    choices=[
-        openai.types.chat.chat_completion.Choice(
-            finish_reason="stop",
-            index=0,
-            logprobs=None,
-            message=openai.types.chat.ChatCompletionMessage(
-                content="The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
-                refusal=None,
-                role="assistant",
-                audio=None,
-                function_call=None,
-                tool_calls=None,
-            ),
-        ),
-        openai.types.chat.chat_completion.Choice(
-            finish_reason="stop",
-            index=1,
-            logprobs=None,
-            message=openai.types.chat.ChatCompletionMessage(
-                content="The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
-                refusal=None,
-                role="assistant",
-                audio=None,
-                function_call=None,
-                tool_calls=None,
-            ),
-        ),
-    ],
-    created=1741114957,
-    model="gpt-3.5-turbo",
-    object="chat.completion",
-    service_tier="default",
-    system_fingerprint=None,
-)
 
 multi_message_input = [
     {"role": "system", "content": "You are a helpful assistant."},

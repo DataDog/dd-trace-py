@@ -575,22 +575,20 @@ def _set_headers_and_response(response, headers, *_):
             set_body_response(response)
 
 
-def _call_waf_first(integration, *_):
+def _call_waf_first(integration, *_) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_request"
     logger.debug(info, extra=log_extra)
-    result = call_waf_callback()
-    return result.derivatives if result is not None else None
+    call_waf_callback()
 
 
-def _call_waf(integration, *_):
+def _call_waf(integration, *_) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_response"
     logger.debug(info, extra=log_extra)
-    result = call_waf_callback()
-    return result.derivatives if result is not None else None
+    call_waf_callback()
 
 
 def _on_block_decided(callback):
@@ -666,7 +664,7 @@ def asm_listen():
     core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _call_waf_first, "waf")
+    core.on("flask.start_response", _call_waf_first)
 
     core.on("django.start_response.post", _call_waf_first)
     core.on("django.finalize_response", _call_waf)

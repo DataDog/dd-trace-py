@@ -6,8 +6,6 @@ import pytest
 
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import mark_snapshot
-from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
@@ -269,17 +267,18 @@ def test_snapshot_skip():
         pass
 
 
-@parametrize_with_all_encodings
-@mark_snapshot
-def test_setting_span_tags_and_metrics_generates_no_error_logs():
-    import ddtrace
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
+    from ddtrace import tracer
 
-    s = ddtrace.tracer.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.set_metric("number1", 123)
-    s.set_metric("number2", 12.0)
-    s.set_metric("number3", "1")
-    s.finish()
+    with override_global_config(dict(_trace_api=encoding)):
+        s = tracer.trace("operation", service="my-svc")
+        s.set_tag("env", "my-env")
+        s.set_metric("number1", 123)
+        s.set_metric("number2", 12.0)
+        s.set_metric("number3", "1")
+        s.finish()
 
 
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])

@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: redundant locking was removed from the memory profiler.
+    This reduces the baseline overhead of the memory profiler substantially,
+    and resolves several subtle correctness issues.
