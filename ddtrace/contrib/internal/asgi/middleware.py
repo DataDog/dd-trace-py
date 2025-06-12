@@ -1,8 +1,7 @@
+from functools import wraps
 import ipaddress
 import os
 import sys
-import time
-from functools import wraps
 from typing import Any
 from typing import Mapping
 from typing import Optional
@@ -10,7 +9,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -265,9 +263,10 @@ class TraceMiddleware:
                 websocket.message.frames
                 """
                 try:
-                    if (
-                        self.integration_config._trace_asgi_websocket_messages
-                        and message.get("type") in ("websocket.send", "websocket.close", "websocket.accept")
+                    if self.integration_config._trace_asgi_websocket_messages and message.get("type") in (
+                        "websocket.send",
+                        "websocket.close",
+                        "websocket.accept",
                     ):
                         with self.tracer.trace(
                             "websocket.send",
@@ -303,7 +302,6 @@ class TraceMiddleware:
                                 send_span.set_tag_str("websocket.message.type", "binary")
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
                             return await send(message)
-
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -349,7 +347,7 @@ class TraceMiddleware:
                                 close_span.set_metric("websocket.close.code", code)
                             if reason:
                                 close_span.set_tag("websocket.close.reason", reason)
-                            
+
                             return await send(message)
                     response_headers = _extract_headers(message)
                 except Exception:
@@ -400,7 +398,7 @@ class TraceMiddleware:
 
                 if not self.integration_config._trace_asgi_websocket_messages:
                     return await receive()
-                
+
                 # Use a generic span name that covers all message types
                 resource_name = f"websocket {scope.get('path', '')}"
 
@@ -447,7 +445,6 @@ class TraceMiddleware:
                         recv_span.set_tag_str("websocket.message.type", "receive")
                         core.dispatch("asgi.websocket.receive", (message,))
 
-
                         if "text" in message:
                             recv_span.set_tag_str("websocket.message.type", "text")
                             recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
@@ -478,7 +475,7 @@ class TraceMiddleware:
                     elif message["type"] == "websocket.disconnect":
                         recv_span.name = "websocket.close"
                         recv_span.set_tag_str("websocket.message.type", "disconnect")
-                        
+
                         if self.integration_config._websocket_messages_separate:
                             # should act like websocket.receive (incoming message) case
                             recv_span.set_link(
