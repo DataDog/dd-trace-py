@@ -1,7 +1,7 @@
 import os
 
 import azure.servicebus as azure_servicebus
-import azure.servicebus.aio as azure_servicebus_async
+import azure.servicebus.aio as azure_servicebus_aio
 
 from ddtrace import patch
 
@@ -105,7 +105,7 @@ async def http_post_root_servicebus_async(req: func.HttpRequest) -> func.HttpRes
         application_properties={"property": "val", b"byteproperty": b"byteval"},
     )
     message_with_properties_none = azure_servicebus.ServiceBusMessage("test message 2")
-    async with azure_servicebus_async.ServiceBusClient.from_connection_string(
+    async with azure_servicebus_aio.ServiceBusClient.from_connection_string(
         conn_str=os.getenv("CONNECTION_STRING", "")
     ) as servicebus_client:
         async with servicebus_client.get_queue_sender(queue_name="queue.1") as queue_sender:
