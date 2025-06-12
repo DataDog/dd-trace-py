@@ -75,7 +75,7 @@ def _get_tracer(tracer=None):
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
-    if config._logs_injection == LogInjectionState.DISABLED:
+    if config._logs_injection != LogInjectionState.ENABLED:
         # log injection is opt-in for non-structured logging
         return record
 
@@ -103,8 +103,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
-    if config._logs_injection == LogInjectionState.DISABLED:
-        # log injection is opt out for structured logging
+    if config._logs_injection != LogInjectionState.ENABLED:
         return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
