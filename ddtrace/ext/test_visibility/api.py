@@ -293,10 +293,10 @@ class TestSuite(TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def start(item_id: TestSuiteId):
-        log.debug("Starting suite %s", item_id)
-        from ddtrace.internal.ci_visibility.recorder import on_start_suite
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_start_suite(item_id)
+        log.debug("Starting suite %s", item_id)
+        CIVisibility.get_suite_by_id(item_id).start()
 
     class FinishArgs(NamedTuple):
         suite_id: TestSuiteId

@@ -372,7 +372,10 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def efd_start_retry(self, retry_number: int) -> None:
         self._efd_get_retry_test(retry_number).start()
 
-    def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
+    def efd_finish_retry(
+        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None, skip_reason: str = None
+    ) -> None:
+        # TODO: use skip_reason for something
         retry_test = self._efd_get_retry_test(retry_number)
 
         if status is not None:

@@ -35,21 +35,21 @@ def _get_item_tag(item_id: TestVisibilityItemId, name: str) -> Any:
     return CIVisibility.get_item_by_id(item_id).get_tag(name)
 
 
-def _set_item_tag(item_id: TestVisibilityItemId, name: str, value: Any, recurse: bool = False) -> None:
+def _set_item_tag(item_id: TestVisibilityItemId, name: str, value: Any) -> None:
     # Lazy import to avoid circular dependency
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
     CIVisibility.get_item_by_id(item_id).set_tag(name, value)
 
 
-def _set_item_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any], recurse: bool = False) -> None:
+def _set_item_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]) -> None:
     # Lazy import to avoid circular dependency
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
     CIVisibility.get_item_by_id(item_id).set_tags(tags)
 
 
-def _delete_item_tag(item_id: TestVisibilityItemId, name: str, recurse: bool = False) -> None:
+def _delete_item_tag(item_id: TestVisibilityItemId, name: str) -> None:
     # Lazy import to avoid circular dependency
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
 

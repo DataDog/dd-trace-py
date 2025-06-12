@@ -83,13 +83,25 @@ class EFDTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_finish_retry(finish_args: "EFDTestMixin.EFDRetryFinishArgs") -> None:
-        log.debug("Finishing EFD retry %s for test %s", finish_args.retry_number, finish_args.test_id)
-        # Lazy import to avoid circular dependency
+    def efd_finish_retry(
+        item_id: InternalTestId,
+        retry_number: int,
+        status: ext_api.TestStatus,
+        skip_reason: t.Optional[str] = None,
+        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+    ):
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        CIVisibility.get_test_by_id(finish_args.test_id).efd_finish_retry(
-            finish_args.retry_number, finish_args.status, finish_args.exc_info
+        log.debug(
+            "Finishing EFD test retry %s for item %s, status: %s, skip_reason: %s, exc_info: %s",
+            retry_number,
+            item_id,
+            status,
+            skip_reason,
+            exc_info,
+        )
+        CIVisibility.get_test_by_id(item_id).efd_finish_retry(
+            retry_number=retry_number, status=status, skip_reason=skip_reason, exc_info=exc_info
         )
 
     @staticmethod
