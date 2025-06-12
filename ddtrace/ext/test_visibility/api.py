@@ -211,20 +211,20 @@ class TestSession(_TestVisibilityAPIBase):
         return _get_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
-    def set_tag(tag_name: str, tag_value: Any, recurse: bool = False):
-        _set_item_tag(TestSessionId(), tag_name, tag_value, recurse)
+    def set_tag(tag_name: str, tag_value: Any):
+        _set_item_tag(TestSessionId(), tag_name, tag_value)
 
     @staticmethod
-    def set_tags(tags: Dict[str, Any], recurse: bool = False):
-        _set_item_tags(TestSessionId(), tags, recurse)
+    def set_tags(tags: Dict[str, Any]):
+        _set_item_tags(TestSessionId(), tags)
 
     @staticmethod
-    def delete_tag(tag_name: str, recurse: bool = False):
-        _delete_item_tag(TestSessionId(), tag_name, recurse)
+    def delete_tag(tag_name: str):
+        _delete_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
-    def delete_tags(tag_names: List[str], recurse: bool = False):
-        _delete_item_tags(TestSessionId(), tag_names, recurse)
+    def delete_tags(tag_names: List[str]):
+        _delete_item_tags(TestSessionId(), tag_names)
 
 
 class TestModule(TestBase):
