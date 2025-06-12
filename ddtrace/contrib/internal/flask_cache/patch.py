@@ -4,6 +4,7 @@ Datadog trace code for flask_cache
 
 import logging
 import typing
+from typing import Dict
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -40,6 +41,10 @@ def get_version():
         return getattr(flask_caching, "__version__", "")
     except ImportError:
         return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"flask_cache": ">=0.13"}
 
 
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):

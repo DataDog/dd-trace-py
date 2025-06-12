@@ -173,6 +173,7 @@ rq,~=1.8.0
 ruamel.yaml,0
 sanic,~=20.12
 sanic-testing,~=0.8.3
+selenium,~=4.0
 slotscheck,==0.17.0
 snowflake-connector-python,~=2.3.0
 spyne,0
@@ -191,6 +192,7 @@ vcrpy,==4.2.1
 vertexai,0
 vertica-python,>=0.6.0
 virtualenv-clone,0
+webdriver-manager,0
 websockets,<11.0
 webtest,0
 werkzeug,<1.0
