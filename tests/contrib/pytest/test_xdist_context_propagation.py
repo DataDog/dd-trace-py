@@ -130,8 +130,9 @@ def test_pytest_sessionstart_handles_invalid_span_id_gracefully():
 
 def test_pytest_sessionstart_handles_missing_workerinput():
     """Test that pytest_sessionstart handles missing workerinput (main process)."""
-    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
     import pytest
+
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
 
     # Mock session config without workerinput (simulates main process)
     mock_session = MagicMock()
@@ -165,9 +166,12 @@ def test_pytest_sessionstart_handles_missing_workerinput():
 
 
 def test_pytest_sessionstart_handles_missing_workerinput_with_global_worker_results():
-    """Test that pytest_sessionstart handles missing workerinput when global_worker_itr_results exists (demonstrates the original bug)."""
-    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
+    """
+    Test that pytest_sessionstart handles missing workerinput when global_worker_itr_results exists
+    """
     import pytest
+
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
 
     # Mock session config without workerinput (simulates main process)
     mock_session = MagicMock()
