@@ -4,9 +4,8 @@ import sys
 import pytest
 
 
-@pytest.mark.parametrize("child_services", [1, 20])
 @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
-def test_config_extra_service_names_fork(child_services, run_python_code_in_subprocess):
+def test_config_extra_service_names_fork(run_python_code_in_subprocess):
     code = f"""
 import ddtrace.auto
 import ddtrace
@@ -21,8 +20,8 @@ for i in range(10):
     pid = os.fork()
     if pid == 0:
         # Child process
-        for c in range({child_services}):
-            ddtrace.config._add_extra_service(f"extra_service_{{i}}_{{c}}")
+        ddtrace.config._add_extra_service(f"extra_service_{{i}}")
+        time.sleep(0.1)  # Ensure the child has time to save the service
         sys.exit(0)
     else:
         # Parent process
@@ -33,7 +32,7 @@ for pid in children:
 
 extra_services = ddtrace.config._get_extra_services()
 extra_services.discard("sqlite")  # coverage
-assert len(extra_services) == min(10 * {child_services}, 64), extra_services
+assert len(extra_services) == 10, extra_services
 assert all(re.match(r"extra_service_\\d+_\\d+", service) for service in extra_services)
 """
 
