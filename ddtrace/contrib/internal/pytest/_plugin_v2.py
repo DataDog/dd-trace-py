@@ -788,7 +788,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         ModuleCodeCollector.uninstall()
 
     # Count ITR skipped tests from workers if we're in the main process
-    if not hasattr(session.config, "workerinput") and hasattr(pytest, "global_worker_itr_results"):
+    if hasattr(pytest, "global_worker_itr_results"):
         skipped_count = pytest.global_worker_itr_results
         if skipped_count > 0:
             # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called

@@ -1103,7 +1103,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_session(distributed_children = False, context: Optional[Context] = None) -> None:
+def _on_start_session(distributed_children: bool = False, context: Optional[Context] = None) -> None:
     log.debug("Handling start session")
     session = CIVisibility.get_session()
     session.start(context)
