@@ -39,29 +39,41 @@ class InternalTestBase(ext_api.TestBase):
     def stash_set(item_id, key: str, value: object):
         log.debug("Stashing value %s for key %s in item %s", value, key, item_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_item_stash_set
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_item_stash_set(item_id, key, value)
+        CIVisibility.get_item_by_id(item_id).stash_set(key, value)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def stash_get(item_id: ext_api.TestVisibilityItemId, key: str):
+    def stash_get(item_id: ext_api.TestVisibilityItemId, key: str) -> t.Optional[object]:
         log.debug("Getting stashed value for key %s in item %s", key, item_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_item_stash_get
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        stash_value = on_item_stash_get(item_id, key)
-        log.debug("Got stashed value %s for key %s in item %s", stash_value, key, item_id)
-        return stash_value
+        return CIVisibility.get_item_by_id(item_id).stash_get(key)
 
     @staticmethod
     @_catch_and_log_exceptions
     def stash_delete(item_id: ext_api.TestVisibilityItemId, key: str):
         log.debug("Deleting stashed value for key %s in item %s", key, item_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_item_stash_delete
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_item_stash_delete(item_id, key)
+        CIVisibility.get_item_by_id(item_id).stash_delete(key)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def overwrite_attributes(overwrite_attribute_args: "InternalTest.OverwriteAttributesArgs") -> None:
+        log.debug("Overwriting attributes: %s", overwrite_attribute_args)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+        CIVisibility.get_test_by_id(overwrite_attribute_args.test_id).overwrite_attributes(
+            overwrite_attribute_args.name,
+            overwrite_attribute_args.suite_name,
+            overwrite_attribute_args.parameters,
+            overwrite_attribute_args.codeowners,
+        )
 
 
 class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin, AttemptToFixSessionMixin):
@@ -76,91 +88,87 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin,
     @staticmethod
     @_catch_and_log_exceptions
     def get_codeowners() -> t.Optional[_Codeowners]:
-        log.debug("Getting codeowners object")
+        log.debug("Getting codeowners")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_get_codeowners
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        codeowners: t.Optional[_Codeowners] = on_session_get_codeowners()
-        return codeowners
+        return CIVisibility.get_codeowners()
 
     @staticmethod
     @_catch_and_log_exceptions
     def get_tracer() -> t.Optional[Tracer]:
-        log.debug("Getting test session tracer")
+        log.debug("Getting tracer")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_get_tracer
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        tracer: t.Optional[Tracer] = on_session_get_tracer()
-        log.debug("Got test session tracer: %s", tracer)
-        return tracer
+        return CIVisibility.get_tracer()
 
     @staticmethod
     @_catch_and_log_exceptions
     def get_workspace_path() -> t.Optional[Path]:
-        log.debug("Getting session workspace path")
+        log.debug("Getting workspace path")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_get_workspace_path
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        workspace_path: Path = on_session_get_workspace_path()
-        return workspace_path
+        path_str = CIVisibility.get_workspace_path()
+        return Path(path_str) if path_str is not None else None
 
     @staticmethod
     @_catch_and_log_exceptions
     def should_collect_coverage() -> bool:
-        log.debug("Checking if coverage should be collected for session")
+        log.debug("Checking if should collect coverage")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_should_collect_coverage
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        _should_collect_coverage = bool(on_session_should_collect_coverage())
-        log.debug("Coverage should be collected: %s", _should_collect_coverage)
-        return _should_collect_coverage
+        return CIVisibility.should_collect_coverage()
 
     @staticmethod
     @_catch_and_log_exceptions
     def is_test_skipping_enabled() -> bool:
         log.debug("Checking if test skipping is enabled")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_is_test_skipping_enabled
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        _is_test_skipping_enabled = bool(on_session_is_test_skipping_enabled())
-        log.debug("Test skipping is enabled: %s", _is_test_skipping_enabled)
-        return _is_test_skipping_enabled
+        return CIVisibility.test_skipping_enabled()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def set_covered_lines_pct(coverage_pct: float):
-        log.debug("Setting covered lines percentage for session to %s", coverage_pct)
+    def set_covered_lines_pct(coverage_pct: float) -> None:
+        log.debug("Setting coverage percentage for session to %s", coverage_pct)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_set_covered_lines_pct
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_session_set_covered_lines_pct(coverage_pct)
+        CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
 
     @staticmethod
     @_catch_and_log_exceptions
     def get_path_codeowners(path: Path) -> t.Optional[t.List[str]]:
-        log.debug("Getting codeowners object for path %s", path)
+        log.debug("Getting codeowners for path %s", path)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_get_path_codeowners
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        path_codeowners: t.Optional[t.List[str]] = on_session_get_path_codeowners(path)
-        return path_codeowners
+        codeowners = CIVisibility.get_codeowners()
+        if codeowners is None:
+            return None
+        return codeowners.of(str(path))
 
     @staticmethod
     @_catch_and_log_exceptions
     def set_library_capabilities(capabilities: LibraryCapabilities) -> None:
+        log.debug("Setting library capabilities")
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_set_library_capabilities
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_session_set_library_capabilities(capabilities)
+        CIVisibility.set_library_capabilities(capabilities)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def set_itr_tags(skipped_count: int):
-        log.debug("Setting itr session tags: %d", skipped_count)
+    def set_itr_skipped_count(skipped_count: int) -> None:
+        log.debug("Setting skipped count: %d", skipped_count)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_session_set_itr_skipped_count
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_session_set_itr_skipped_count(skipped_count)
+        CIVisibility.get_session().set_skipped_count(skipped_count)
 
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):
@@ -197,51 +205,45 @@ class InternalTest(
         from ddtrace.ext.test_visibility.api import Test
         from ddtrace.internal.ci_visibility.recorder import on_finish_test
 
-        on_finish_test(Test.FinishArgs(item_id, status, reason, exc_info))
+        # Test.FinishArgs requires a non-optional status, so provide a default if None
+        final_status = status if status is not None else ext_api.TestStatus.PASS
+        on_finish_test(Test.FinishArgs(item_id, final_status, reason, exc_info))
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_new_test(item_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s is new", item_id)
+    def is_new(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+        log.debug("Checking if test %s is new", test_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_is_new_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        is_new = bool(on_is_new_test(item_id))
-        log.debug("Test %s is new: %s", item_id, is_new)
-        return is_new
+        return CIVisibility.get_test_by_id(test_id).is_new()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_quarantined_test(item_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s is quarantined", item_id)
+    def is_quarantined(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+        log.debug("Checking if test %s is quarantined", test_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_is_quarantined_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        is_quarantined = bool(on_is_quarantined_test(item_id))
-        log.debug("Test %s is quarantined: %s", item_id, is_quarantined)
-        return is_quarantined
+        return CIVisibility.get_test_by_id(test_id).is_quarantined()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_disabled_test(item_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s is disabled", item_id)
+    def is_disabled(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+        log.debug("Checking if test %s is disabled", test_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_is_disabled_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        is_disabled = bool(on_is_disabled_test(item_id))
-        log.debug("Test %s is disabled: %s", item_id, is_disabled)
-        return is_disabled
+        return CIVisibility.get_test_by_id(test_id).is_disabled()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_attempt_to_fix(item_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s is attempt to fix", item_id)
+    def is_attempt_to_fix(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+        log.debug("Checking if test %s is attempt to fix", test_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_is_attempt_to_fix
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        is_attempt_to_fix = bool(on_is_attempt_to_fix(item_id))
-        log.debug("Test %s is attempt to fix: %s", item_id, is_attempt_to_fix)
-        return is_attempt_to_fix
+        return CIVisibility.get_test_by_id(test_id).is_attempt_to_fix()
 
     class OverwriteAttributesArgs(NamedTuple):
         test_id: InternalTestId
@@ -249,6 +251,12 @@ class InternalTest(
         suite_name: t.Optional[str] = None
         parameters: t.Optional[str] = None
         codeowners: t.Optional[t.List[str]] = None
+
+    class FinishTestArgs(NamedTuple):
+        test_id: InternalTestId
+        status: t.Optional[TestStatus] = None
+        skip_reason: t.Optional[str] = None
+        exc_info: t.Optional[TestExcInfo] = None
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -265,4 +273,15 @@ class InternalTest(
 
         on_test_overwrite_attributes(
             InternalTest.OverwriteAttributesArgs(item_id, name, suite_name, parameters, codeowners)
+        )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def finish_test(finish_args: "InternalTest.FinishTestArgs") -> None:
+        log.debug("Finishing test %s with status %s", finish_args.test_id, finish_args.status)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+        CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
+            finish_args.status, finish_args.skip_reason, finish_args.exc_info
         )
