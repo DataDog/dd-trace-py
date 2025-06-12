@@ -520,8 +520,8 @@ def _pytest_run_one_test(item, nextitem):
     reports_dict = {report.when: report for report in reports}
 
     test_id = _get_test_id_from_item(item)
-    is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_quarantined = InternalTest.is_quarantined(test_id)
+    is_disabled = InternalTest.is_disabled(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
