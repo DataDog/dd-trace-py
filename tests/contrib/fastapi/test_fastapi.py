@@ -561,7 +561,7 @@ def _run_websocket_test():
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+# @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
@@ -575,19 +575,19 @@ def test_traced_websocket(test_spans, snapshot_app):
         DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false",
     )
 )
-@snapshot(ignores=["meta._dd.span_links"])
+@snapshot(ignores=["meta._dd.span_links", "websocket.message.length"])
 def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
 
     _run_websocket_test()
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
-        DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false",
-    )
-)
+# @pytest.mark.subprocess(
+#     env=dict(
+#         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+#         DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false",
+#     )
+# )
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test

@@ -1,6 +1,8 @@
 import ipaddress
 import os
 import sys
+import time
+from functools import wraps
 from typing import Any
 from typing import Mapping
 from typing import Optional
@@ -8,6 +10,7 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -254,6 +257,7 @@ class TraceMiddleware:
 
             global_root_span = span_from_scope(scope)
 
+            @wraps(send)
             async def wrapped_send(message):
                 """
                 websocket.message.type
@@ -263,7 +267,7 @@ class TraceMiddleware:
                 try:
                     if (
                         self.integration_config._trace_asgi_websocket_messages
-                        and message.get("type") == "websocket.send"
+                        and message.get("type") in ("websocket.send", "websocket.close", "websocket.accept")
                     ):
                         with self.tracer.trace(
                             "websocket.send",
@@ -298,6 +302,8 @@ class TraceMiddleware:
                             elif "binary" in message:
                                 send_span.set_tag_str("websocket.message.type", "binary")
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
+                            return await send(message)
+
 
                     elif (
                         self.integration_config._trace_asgi_websocket_messages
@@ -343,6 +349,8 @@ class TraceMiddleware:
                                 close_span.set_metric("websocket.close.code", code)
                             if reason:
                                 close_span.set_tag("websocket.close.reason", reason)
+                            
+                            return await send(message)
                     response_headers = _extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
@@ -377,6 +385,7 @@ class TraceMiddleware:
                     ):
                         span.finish()
 
+            @wraps(receive)
             async def wrapped_receive():
                 """
                 tags:
@@ -389,119 +398,118 @@ class TraceMiddleware:
                 _dd.dm.resource
                 """
 
+                if not self.integration_config._trace_asgi_websocket_messages:
+                    return await receive()
+                
+                # Use a generic span name that covers all message types
+                resource_name = f"websocket {scope.get('path', '')}"
+
+                # Create and start the span to wrap the receive operation
+                if self.integration_config._websocket_messages_separate:
+                    recv_span = self.tracer.start_span(
+                        name="websocket.receive",
+                        service=span.service,
+                        resource=resource_name,
+                        span_type="websocket",
+                        child_of=None,
+                        activate=False,
+                    )
+                else:
+                    recv_span = self.tracer.start_span(
+                        name="websocket.receive",
+                        service=span.service,
+                        resource=resource_name,
+                        span_type="websocket",
+                        child_of=span,
+                        activate=False,
+                    )
+
+                previous_context = self.tracer.context_provider.active()
+                self.tracer.context_provider.activate(recv_span)
+
                 try:
-                    message = await receive()
-                    if (
-                        self.integration_config._trace_asgi_websocket_messages
-                        and message["type"] == "websocket.receive"
-                    ):
+                    recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                    recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+
+                    try:
+                        # Receive the message within the span context
+                        message = await receive()
+                    except Exception as e:
+                        # set exception tracking for receive operation
+                        (exc_type, exc_val, exc_tb) = sys.exc_info()
+                        recv_span.set_exc_info(exc_type, exc_val, exc_tb)
+                        self.handle_exception_span(e, span)
+                        raise
+
+                    # Set message type tag and specific span name based on message type
+                    if message["type"] == "websocket.receive":
+                        recv_span.name = "websocket.receive"
+                        recv_span.set_tag_str("websocket.message.type", "receive")
+                        core.dispatch("asgi.websocket.receive", (message,))
+
+
+                        if "text" in message:
+                            recv_span.set_tag_str("websocket.message.type", "text")
+                            recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
+                        elif "binary" in message:
+                            recv_span.set_tag_str("websocket.message.type", "binary")
+                            recv_span.set_metric("websocket.message.length", len(message["bytes"]))
+
+                        # since asgi is a high level framework, frames is always 1
+                        recv_span.set_metric("websocket.message.frames", 1)
+
+                        if (
+                            self.integration_config._websocket_messages_separate
+                            and self.integration_config._asgi_websockets_inherit_sampling
+                        ):
+                            recv_span.set_metric("_dd.dm.inherited", 1)
+                            recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                            recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                            recv_span.set_tag_str(
+                                SAMPLING_DECISION_TRACE_TAG_KEY,
+                                global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
+                            )
+
                         if self.integration_config._websocket_messages_separate:
-                            span_context_manager = self.tracer.start_span(
-                                name="websocket.receive",
-                                service=span.service,
-                                resource=f"websocket {scope.get('path', '')}",
-                                span_type="websocket",
-                                child_of=None,
+                            recv_span.set_link(
+                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
                             )
-                        else:
-                            span_context_manager = self.tracer.trace(
-                                name="websocket.receive",
-                                service=span.service,
-                                resource=f"websocket {scope.get('path', '')}",
-                                span_type="websocket",
-                            )
-                        with span_context_manager as recv_span:
-                            recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-                            recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-                            core.dispatch("asgi.websocket.receive", (message,))
-                            # the span should have link to http handshake span
-                            # the link should have attribute dd.kind set to executed_by
-                            if self.integration_config._websocket_messages_separate:
-                                recv_span.set_link(
-                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
-                                )
 
-                            if "text" in message:
-                                recv_span.set_tag_str("websocket.message.type", "text")
-                                recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
-                            elif "binary" in message:
-                                recv_span.set_tag_str("websocket.message.type", "binary")
-                                recv_span.set_metric("websocket.message.length", len(message["bytes"]))
-
-                            # since asgi is a high level framework, frames is always 1
-                            recv_span.set_metric("websocket.message.frames", 1)
-
-                            if (
-                                self.integration_config._websocket_messages_separate
-                                and self.integration_config._asgi_websockets_inherit_sampling
-                            ):
-                                recv_span.set_metric("_dd.dm.inherited", 1)
-                                recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                                recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
-                                recv_span.set_tag_str(
-                                    SAMPLING_DECISION_TRACE_TAG_KEY,
-                                    global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
-                                )
-
-                    elif (
-                        self.integration_config._trace_asgi_websocket_messages
-                        and message["type"] == "websocket.disconnect"
-                    ):
-                        # peer closes the connection
-                        # in this case the span will be trace root (will behave like the websocket.receive use case)
+                    elif message["type"] == "websocket.disconnect":
+                        recv_span.name = "websocket.close"
+                        recv_span.set_tag_str("websocket.message.type", "disconnect")
+                        
                         if self.integration_config._websocket_messages_separate:
-                            span_context_manager = self.tracer.start_span(
-                                name="websocket.close",
-                                service=span.service,
-                                resource=f"websocket {scope.get('path', '')}",
-                                span_type="websocket",
-                                child_of=None,
-                            )
-                        else:
-                            span_context_manager = self.tracer.trace(
-                                name="websocket.close",
-                                service=span.service,
-                                resource=f"websocket {scope.get('path', '')}",
-                                span_type="websocket",
+                            # should act like websocket.receive (incoming message) case
+                            recv_span.set_link(
+                                trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
                             )
 
-                        with span_context_manager as close_span:
-                            close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-                            close_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+                        if (
+                            self.integration_config._websocket_messages_separate
+                            and self.integration_config._asgi_websockets_inherit_sampling
+                        ):
+                            recv_span.set_metric("_dd.dm.inherited", 1)
+                            recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                            recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                            recv_span.set_tag_str(
+                                SAMPLING_DECISION_TRACE_TAG_KEY,
+                                global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
+                            )
 
-                            if self.integration_config._websocket_messages_separate:
-                                # should act like websocket.receive (incoming message) case
-                                close_span.set_link(
-                                    trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
-                                )
-
-                            if (
-                                self.integration_config._websocket_messages_separate
-                                and self.integration_config._asgi_websockets_inherit_sampling
-                            ):
-                                close_span.set_metric("_dd.dm.inherited", 1)
-                                close_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                                close_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
-                                close_span.set_tag_str(
-                                    SAMPLING_DECISION_TRACE_TAG_KEY,
-                                    global_root_span._meta[SAMPLING_DECISION_TRACE_TAG_KEY],
-                                )
-
-                            code = message.get("code")
-                            reason = message.get("reason")
-                            if code is not None:
-                                close_span.set_metric("websocket.close.code", code)
-                            if reason:
-                                close_span.set_tag("websocket.close.reason", reason)
-                            core.dispatch("asgi.websocket.disconnect", (message,))
-                            if span and span.error == 0:
-                                span.finish()
+                        code = message.get("code")
+                        reason = message.get("reason")
+                        if code is not None:
+                            recv_span.set_metric("websocket.close.code", code)
+                        if reason:
+                            recv_span.set_tag("websocket.close.reason", reason)
+                        core.dispatch("asgi.websocket.disconnect", (message,))
+                        if span and span.error == 0:
+                            span.finish()
                     return message
-                except Exception as exc:
-                    (exc_type, exc_val, exc_tb) = sys.exc_info()
-                    span.set_exc_info(exc_type, exc_val, exc_tb)
-                    self.handle_exception_span(exc, span)
-                    raise
+                finally:
+                    self.tracer.context_provider.activate(previous_context)
+                    recv_span.finish()
 
             async def wrapped_blocked_send(message):
                 result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
@@ -529,7 +537,6 @@ class TraceMiddleware:
                         span.finish()
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
-
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
