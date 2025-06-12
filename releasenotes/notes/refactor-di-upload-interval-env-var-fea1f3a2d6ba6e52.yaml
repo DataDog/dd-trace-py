@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    dynamic instrumentation: The ``DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL`` environment variable has been
+    deprecated in favor of ``DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS``. The old environment variable will be
+    removed in a future major release.

@@ -1,3 +1,5 @@
+from typing import Dict
+
 import grpc
 from wrapt import wrap_function_wrapper as _w
 
@@ -86,6 +88,10 @@ if HAS_GRPC_AIO:
             distributed_tracing_enabled=True,
         ),
     )
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"grpc": ">=1.34"}
 
 
 def patch():

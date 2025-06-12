@@ -14,17 +14,9 @@ from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
 
+DI_PRODUCT_KEY = "dynamic-instrumentation"
+
 log = get_logger(__name__)
-
-
-def is_di_enabled() -> bool:
-    if (di_product := product_manager.__products__.get("dynamic-instrumentation")) is None:
-        return False
-
-    if (di_config := getattr(di_product, "config", None)) is None:
-        return False
-
-    return di_config.enabled
 
 
 def _rc_callback(data: t.List[Payload], test_tracer=None):
@@ -57,7 +49,7 @@ def _rc_callback(data: t.List[Payload], test_tracer=None):
             log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
             if not SymbolDatabaseUploader.is_installed():
                 try:
-                    SymbolDatabaseUploader.install(shallow=not is_di_enabled())
+                    SymbolDatabaseUploader.install(shallow=not product_manager.is_enabled(DI_PRODUCT_KEY))
                     log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                 except Exception:
                     log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
