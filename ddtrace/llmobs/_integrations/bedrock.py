@@ -23,6 +23,7 @@ from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
 
@@ -31,8 +32,8 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    _spans = {}  # Maps LLMObs span ID to LLMObs span events
-    _active_span_by_step_id = {}  # Maps trace step ID to currently active span
+    _spans: Dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
+    _active_span_by_step_id: Dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
