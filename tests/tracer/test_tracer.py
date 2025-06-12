@@ -322,7 +322,7 @@ class TracerTestCases(TracerTestCase):
                 def _inner_wrapper(*args, **kwargs):
                     wrapped_generator = func(*args, **kwargs)
                     try:
-                        value = yield next(wrapped_generator)
+                        yield next(wrapped_generator)
                     except BaseException as e:
                         result["handled"] = True
                         wrapped_generator.throw(e)
@@ -339,7 +339,10 @@ class TracerTestCases(TracerTestCase):
             except NotImplementedError:
                 raise ValueError()
 
-        exception_note = "The expected exception should bubble up from a traced generator-based context manager that yields another generator"
+        exception_note = (
+            "The expected exception should bubble up from a traced generator-based context manager "
+            "that yields another generator"
+        )
         try:
             with wrapper():
                 raise NotImplementedError()
@@ -347,9 +350,10 @@ class TracerTestCases(TracerTestCase):
             assert isinstance(e, ValueError), exception_note
         else:
             assert False, exception_note
-        assert result[
-            "handled"
-        ], "Exceptions raised by traced generator-based context managers that yield generators should be visible to the caller"
+        assert result["handled"], (
+            "Exceptions raised by traced generator-based context managers that yield generators should be "
+            "visible to the caller"
+        )
 
     def test_tracer_disabled(self):
         self.tracer.enabled = True
