@@ -20,7 +20,6 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
-from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content

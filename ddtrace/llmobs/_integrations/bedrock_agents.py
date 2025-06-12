@@ -6,14 +6,14 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
-from ddtrace._trace.span import Span
 from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
+from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import safe_json
 
