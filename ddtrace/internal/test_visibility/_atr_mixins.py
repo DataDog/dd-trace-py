@@ -74,13 +74,18 @@ class ATRTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_finish_retry(finish_args: "ATRTestMixin.ATRRetryFinishArgs") -> None:
-        log.debug("Finishing ATR retry %s for test %s", finish_args.retry_number, finish_args.test_id)
+    def atr_finish_retry(
+        test_id: InternalTestId,
+        retry_number: int,
+        status: ext_api.TestStatus,
+        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+    ) -> None:
+        log.debug("Finishing ATR retry %s for test %s", retry_number, test_id)
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        CIVisibility.get_test_by_id(finish_args.test_id).atr_finish_retry(
-            finish_args.retry_number, finish_args.status, finish_args.exc_info
+        CIVisibility.get_test_by_id(test_id).atr_finish_retry(
+            retry_number=retry_number, status=status, exc_info=exc_info
         )
 
     @staticmethod

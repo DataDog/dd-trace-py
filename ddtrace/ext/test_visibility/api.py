@@ -185,10 +185,13 @@ class TestSession(_TestVisibilityAPIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def start(distributed_children: bool = False, context: Optional[Context] = None):
-        log.debug("Starting session")
-        from ddtrace.internal.ci_visibility.recorder import on_start_session
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_start_session(distributed_children, context)
+        log.debug("Starting session")
+        session = CIVisibility.get_session()
+        session.start(context)
+        if distributed_children:
+            session.set_distributed_children()
 
     class FinishArgs(NamedTuple):
         force_finish_children: bool
@@ -200,11 +203,12 @@ class TestSession(_TestVisibilityAPIBase):
         force_finish_children: bool = False,
         override_status: Optional[TestStatus] = None,
     ):
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        from ddtrace.internal.ci_visibility.recorder import on_finish_session
-
-        on_finish_session(TestSession.FinishArgs(force_finish_children, override_status))
+        session = CIVisibility.get_session()
+        session.finish(force_finish_children, override_status)
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
@@ -240,18 +244,28 @@ class TestModule(TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
-        log.debug("Registered module %s", item_id)
-        from ddtrace.internal.ci_visibility.recorder import on_discover_module
+        from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_discover_module(TestModule.DiscoverArgs(item_id, module_path))
+        log.debug("Registered module %s", item_id)
+        session = CIVisibility.get_session()
+
+        session.add_child(
+            item_id,
+            TestVisibilityModule(
+                item_id.name,
+                CIVisibility.get_session_settings(),
+                module_path,
+            ),
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
     def start(item_id: TestModuleId):
-        log.debug("Starting module %s", item_id)
-        from ddtrace.internal.ci_visibility.recorder import on_start_module
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_start_module(item_id)
+        log.debug("Starting module %s", item_id)
+        CIVisibility.get_module_by_id(item_id).start()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -266,9 +280,9 @@ class TestModule(TestBase):
             override_status,
             force_finish_children,
         )
-        from ddtrace.internal.ci_visibility.recorder import on_finish_module
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_finish_module(TestModule.FinishArgs(item_id, override_status, force_finish_children))
+        CIVisibility.get_module_by_id(item_id).finish()
 
 
 class TestSuite(TestBase):
@@ -286,9 +300,20 @@ class TestSuite(TestBase):
     ):
         """Registers a test suite with the Test Visibility service."""
         log.debug("Registering suite %s, source: %s", item_id, source_file_info)
-        from ddtrace.internal.ci_visibility.recorder import on_discover_suite
+        from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_discover_suite(TestSuite.DiscoverArgs(item_id, codeowners, source_file_info))
+        module = CIVisibility.get_module_by_id(item_id.parent_id)
+
+        module.add_child(
+            item_id,
+            TestVisibilitySuite(
+                item_id.name,
+                CIVisibility.get_session_settings(),
+                codeowners,
+                source_file_info,
+            ),
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -316,9 +341,9 @@ class TestSuite(TestBase):
             force_finish_children,
             override_status,
         )
-        from ddtrace.internal.ci_visibility.recorder import on_finish_suite
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_finish_suite(TestSuite.FinishArgs(item_id, force_finish_children, override_status))
+        CIVisibility.get_suite_by_id(item_id).finish(force_finish_children, override_status)
 
 
 class Test(TestBase):
@@ -344,17 +369,51 @@ class Test(TestBase):
             source_file_info,
             resource,
         )
-        from ddtrace.internal.ci_visibility.recorder import on_discover_test
+        from ddtrace.internal.ci_visibility._api_client import TestProperties
+        from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_discover_test(Test.DiscoverArgs(item_id, codeowners, source_file_info, resource))
+        log.debug("Handling discovery for test %s", item_id)
+        suite = CIVisibility.get_suite_by_id(item_id.parent_id)
+
+        # New tests are currently only considered for EFD:
+        # - if known tests were fetched properly (enforced by is_known_test)
+        # - if they have no parameters
+        if CIVisibility.is_known_tests_enabled() and item_id.parameters is None:
+            is_new = not CIVisibility.is_known_test(item_id)
+        else:
+            is_new = False
+
+        test_properties = None
+        if CIVisibility.is_test_management_enabled():
+            test_properties = CIVisibility.get_test_properties(item_id)
+
+        if not test_properties:
+            test_properties = TestProperties()
+
+        suite.add_child(
+            item_id,
+            TestVisibilityTest(
+                item_id.name,
+                CIVisibility.get_session_settings(),
+                parameters=item_id.parameters,
+                codeowners=codeowners,
+                source_file_info=source_file_info,
+                resource=resource,
+                is_new=is_new,
+                is_quarantined=test_properties.quarantined,
+                is_disabled=test_properties.disabled,
+                is_attempt_to_fix=test_properties.attempt_to_fix,
+            ),
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
     def start(item_id: TestId):
         log.debug("Starting test %s", item_id)
-        from ddtrace.internal.ci_visibility.recorder import on_start_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_start_test(item_id)
+        CIVisibility.get_test_by_id(item_id).start()
 
     class FinishArgs(NamedTuple):
         test_id: TestId
@@ -377,17 +436,17 @@ class Test(TestBase):
             skip_reason,
             exc_info,
         )
-        from ddtrace.internal.ci_visibility.recorder import on_finish_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_finish_test(Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info))
+        CIVisibility.get_test_by_id(item_id).finish_test(status, skip_reason, exc_info)
 
     @staticmethod
     @_catch_and_log_exceptions
     def set_parameters(item_id: TestId, params: str):
         log.debug("Setting test %s parameters to %s", item_id, params)
-        from ddtrace.internal.ci_visibility.recorder import on_set_test_parameters
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_set_test_parameters(item_id, params)
+        CIVisibility.get_test_by_id(item_id).set_parameters(params)
 
     @staticmethod
     @_catch_and_log_exceptions

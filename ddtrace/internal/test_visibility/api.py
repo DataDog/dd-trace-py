@@ -200,14 +200,12 @@ class InternalTest(
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
         override_finish_time: t.Optional[float] = None,
     ):
-        log.debug("Finishing test with status: %s, reason: %s", status, reason)
         # Lazy import to avoid circular dependency
-        from ddtrace.ext.test_visibility.api import Test
-        from ddtrace.internal.ci_visibility.recorder import on_finish_test
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        # Test.FinishArgs requires a non-optional status, so provide a default if None
+        log.debug("Finishing test with status: %s, reason: %s", status, reason)
         final_status = status if status is not None else ext_api.TestStatus.PASS
-        on_finish_test(Test.FinishArgs(item_id, final_status, reason, exc_info))
+        CIVisibility.get_test_by_id(item_id).finish_test(final_status, reason, exc_info)
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -267,13 +265,12 @@ class InternalTest(
         parameters: t.Optional[str] = None,
         codeowners: t.Optional[t.List[str]] = None,
     ):
-        log.debug("Overwriting attributes for test %s", item_id)
         # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import on_test_overwrite_attributes
+        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        on_test_overwrite_attributes(
-            InternalTest.OverwriteAttributesArgs(item_id, name, suite_name, parameters, codeowners)
-        )
+        log.debug("Overwriting attributes for test %s", item_id)
+
+        CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
 
     @staticmethod
     @_catch_and_log_exceptions

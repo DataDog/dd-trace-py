@@ -97,11 +97,8 @@ class ITRMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def add_coverage_data(add_coverage_args: "ITRMixin.AddCoverageArgs") -> None:
+    def add_coverage_data(item_id, coverage_data) -> None:
         """Adds coverage data to an item, merging with existing coverage data if necessary"""
-        item_id = add_coverage_args.item_id
-        coverage_data = add_coverage_args.coverage_data
-
         log.debug("Adding coverage data for item id %s", item_id)
 
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):

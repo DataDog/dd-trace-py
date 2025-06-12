@@ -13,20 +13,15 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace._trace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
-from ddtrace.ext.test_visibility.api import Test
 from ddtrace.ext.test_visibility.api import TestId
-from ddtrace.ext.test_visibility.api import TestModule
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSession
-from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -72,11 +67,8 @@ from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFixTestMixin
-from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
-from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
@@ -1091,188 +1083,3 @@ def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
     CIVisibility.add_session(session)
     CIVisibility.set_test_session_name(test_command=discover_args.test_command)
-
-
-@_requires_civisibility_enabled
-def on_start_session(distributed_children: bool = False, context: Optional[Context] = None) -> None:
-    log.debug("Handling start session")
-    session = CIVisibility.get_session()
-    session.start(context)
-    if distributed_children:
-        session.set_distributed_children()
-
-
-@_requires_civisibility_enabled
-def on_finish_session(finish_args: TestSession.FinishArgs) -> None:
-    log.debug("Handling finish session")
-    session = CIVisibility.get_session()
-    session.finish(finish_args.force_finish_children, finish_args.override_status)
-
-
-@_requires_civisibility_enabled
-def on_discover_module(discover_args: TestModule.DiscoverArgs) -> None:
-    log.debug("Handling discovery for module %s", discover_args.module_id)
-    session = CIVisibility.get_session()
-
-    session.add_child(
-        discover_args.module_id,
-        TestVisibilityModule(
-            discover_args.module_id.name,
-            CIVisibility.get_session_settings(),
-            discover_args.module_path,
-        ),
-    )
-
-
-@_requires_civisibility_enabled
-def on_start_module(module_id: TestModuleId) -> None:
-    log.debug("Handling start for module id %s", module_id)
-    CIVisibility.get_module_by_id(module_id).start()
-
-
-@_requires_civisibility_enabled
-def on_finish_module(finish_args: TestModule.FinishArgs) -> None:
-    log.debug("Handling finish for module id %s", finish_args.module_id)
-    CIVisibility.get_module_by_id(finish_args.module_id).finish()
-
-
-@_requires_civisibility_enabled
-def on_discover_suite(discover_args: TestSuite.DiscoverArgs) -> None:
-    log.debug("Handling discovery for suite args %s", discover_args)
-    module = CIVisibility.get_module_by_id(discover_args.suite_id.parent_id)
-
-    module.add_child(
-        discover_args.suite_id,
-        TestVisibilitySuite(
-            discover_args.suite_id.name,
-            CIVisibility.get_session_settings(),
-            discover_args.codeowners,
-            discover_args.source_file_info,
-        ),
-    )
-
-
-@_requires_civisibility_enabled
-def on_start_suite(suite_id: TestSuiteId) -> None:
-    log.debug("Handling start for suite id %s", suite_id)
-    CIVisibility.get_suite_by_id(suite_id).start()
-
-
-@_requires_civisibility_enabled
-def on_finish_suite(finish_args: TestSuite.FinishArgs) -> None:
-    log.debug("Handling finish for suite id %s", finish_args.suite_id)
-    CIVisibility.get_suite_by_id(finish_args.suite_id).finish(
-        finish_args.force_finish_children, finish_args.override_status
-    )
-
-
-@_requires_civisibility_enabled
-def on_discover_test(discover_args: Test.DiscoverArgs) -> None:
-    log.debug("Handling discovery for test %s", discover_args.test_id)
-    suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
-
-    # New tests are currently only considered for EFD:
-    # - if known tests were fetched properly (enforced by is_known_test)
-    # - if they have no parameters
-    if CIVisibility.is_known_tests_enabled() and discover_args.test_id.parameters is None:
-        is_new = not CIVisibility.is_known_test(discover_args.test_id)
-    else:
-        is_new = False
-
-    test_properties = None
-    if CIVisibility.is_test_management_enabled():
-        test_properties = CIVisibility.get_test_properties(discover_args.test_id)
-
-    if not test_properties:
-        test_properties = TestProperties()
-
-    suite.add_child(
-        discover_args.test_id,
-        TestVisibilityTest(
-            discover_args.test_id.name,
-            CIVisibility.get_session_settings(),
-            parameters=discover_args.test_id.parameters,
-            codeowners=discover_args.codeowners,
-            source_file_info=discover_args.source_file_info,
-            resource=discover_args.resource,
-            is_new=is_new,
-            is_quarantined=test_properties.quarantined,
-            is_disabled=test_properties.disabled,
-            is_attempt_to_fix=test_properties.attempt_to_fix,
-        ),
-    )
-
-
-@_requires_civisibility_enabled
-def on_start_test(test_id: TestId) -> None:
-    log.debug("Handling start for test id %s", test_id)
-    CIVisibility.get_test_by_id(test_id).start()
-
-
-@_requires_civisibility_enabled
-def on_finish_test(finish_args: Test.FinishArgs) -> None:
-    log.debug("Handling finish for test id %s, with status %s", finish_args.test_id, finish_args.status)
-    CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
-        finish_args.status, finish_args.skip_reason, finish_args.exc_info
-    )
-
-
-@_requires_civisibility_enabled
-def on_set_test_parameters(item_id: TestId, parameters: str) -> None:
-    log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
-    CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
-
-
-@_requires_civisibility_enabled
-def on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs) -> None:
-    item_id = set_benchmark_data_args.test_id
-    data = set_benchmark_data_args.benchmark_data
-    is_benchmark = set_benchmark_data_args.is_benchmark
-    log.debug("Handling set benchmark data for test id %s, data %s, is_benchmark %s", item_id, data, is_benchmark)
-    CIVisibility.get_test_by_id(item_id).set_benchmark_data(data, is_benchmark)
-
-
-@_requires_civisibility_enabled
-def on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.OverwriteAttributesArgs) -> None:
-    item_id = overwrite_attribute_args.test_id
-    name = overwrite_attribute_args.name
-    suite_name = overwrite_attribute_args.suite_name
-    parameters = overwrite_attribute_args.parameters
-    codeowners = overwrite_attribute_args.codeowners
-
-    log.debug("Handling overwrite attributes: %s", overwrite_attribute_args)
-    CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
-    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_should_retry()
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> Optional[int]:
-    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(start_immediately)
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int) -> None:
-    CIVisibility.get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_finish_retry(
-    attempt_to_fix_finish_args: AttemptToFixTestMixin.AttemptToFixRetryFinishArgs,
-) -> None:
-    CIVisibility.get_test_by_id(attempt_to_fix_finish_args.test_id).attempt_to_fix_finish_retry(
-        attempt_to_fix_finish_args.retry_number, attempt_to_fix_finish_args.status, attempt_to_fix_finish_args.exc_info
-    )
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
-    return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
-
-
-@_requires_civisibility_enabled
-def on_attempt_to_fix_session_has_failed_tests() -> bool:
-    return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
