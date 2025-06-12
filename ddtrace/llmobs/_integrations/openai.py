@@ -53,7 +53,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id in ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse"):
+        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        if operation_id in traced_operations:
             submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 

@@ -277,7 +277,7 @@ def _loop_handler(span, chunk, streamed_chunks):
         span.set_tag_str("openai.response.model", model)
 
     response = getattr(chunk, "response", None)
-    if hasattr(chunk, "type") and chunk.type == "response.completed":
+    if getattr(chunk, "type", "") == "response.completed":
         streamed_chunks[0].append(response)
 
     # Completions/chat completions are returned as `choices`
@@ -302,8 +302,8 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
         if integration.is_pc_sampled_span(span) and not operation_type == "response":
-            _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
+            _tag_streamed_completions(integration, span, formatted_completions)
+        _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
         integration.llmobs_set_tags(
             span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
         )
@@ -311,8 +311,8 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
-def _tag_streamed_response(integration, span, completions_or_messages=None):
-    """Tagging logic for streamed completions, chat completions, and responses."""
+def _tag_streamed_completions(integration, span, completions_or_messages=None):
+    """Tagging logic for streamed completions and chat completions."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
         if text:
@@ -333,7 +333,7 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, response, prompts, messages, kwargs):
+def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
     """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """

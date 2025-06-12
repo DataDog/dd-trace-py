@@ -430,13 +430,11 @@ def openai_get_input_messages_from_response_input(
                 processed_item["content"] = processed_item_content
                 processed_item["role"] = item["role"]
         elif "call_id" in item and "arguments" in item:
-            """
-            Process `ResponseFunctionToolCallParam` type from input messages
-            """
+            # Process `ResponseFunctionToolCallParam` type from input messages
             try:
                 arguments = json.loads(item["arguments"])
             except json.JSONDecodeError:
-                arguments = item["arguments"]
+                arguments = str(item["arguments"])
             processed_item["tool_calls"] = [
                 {
                     "tool_id": item["call_id"],
@@ -446,16 +444,14 @@ def openai_get_input_messages_from_response_input(
                 }
             ]
         elif "call_id" in item and "output" in item:
-            """
-            Process `FunctionCallOutput` type from input messages
-            """
+            # Process `FunctionCallOutput` type from input messages
             output = item["output"]
 
             if isinstance(output, str):
                 try:
                     output = json.loads(output)
                 except json.JSONDecodeError:
-                    output = {"output": output}
+                    output = {"output": str(output)}
             processed_item["role"] = "tool"
             processed_item["content"] = output
             processed_item["tool_id"] = item["call_id"]
@@ -465,7 +461,7 @@ def openai_get_input_messages_from_response_input(
     return processed
 
 
-def openai_get_output_messages_from_response_object(response: Optional[Any]) -> List[Dict[str, Any]]:
+def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Dict[str, Any]]:
     """
     Parses the output to openai responses api into a list of output messages
 
@@ -475,13 +471,11 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
     Returns:
         - A list of processed messages
     """
-    if not response or not hasattr(response, "output"):
+    if not response or not getattr(response, "output", None):
         return []
 
     messages: List[Any] = response.output
     processed: List[Dict[str, Any]] = []
-    if not messages:
-        return processed
 
     for item in messages:
         message = {}
@@ -497,7 +491,7 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
             message.update(
                 {
                     "role": "reasoning",
-                    "content": json.dumps(
+                    "content": safe_json(
                         {
                             "summary": getattr(item, "summary", ""),
                             "encrypted_content": getattr(item, "encrypted_content", ""),
@@ -511,10 +505,8 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
                 {
                     "tool_calls": [
                         {
-                            "tool_id": item.call_id,
-                            "arguments": json.loads(item.arguments)
-                            if isinstance(item.arguments, str)
-                            else item.arguments,
+                            "tool_id": getattr(item, "call_id", ""),
+                            "arguments": json.loads(getattr(item, "arguments", "")),
                             "name": getattr(item, "name", ""),
                             "type": getattr(item, "type", "function"),
                         }
@@ -569,7 +561,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     may have not been present in the original request.
     """
     span._set_ctx_item(METADATA, openai_get_metadata_from_response(response))
-    output_messages = openai_get_output_messages_from_response_object(response)
+    output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 

@@ -782,11 +782,10 @@ class TestLLMObsOpenaiV1:
     def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
-            import os
-
-            api_key = os.getenv("OPENAI_API_KEY")
+            # import os
+            # api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
-            client = openai.OpenAI(api_key=api_key)
+            client = openai.OpenAI()
             input_messages = "What is the weather like in Boston today?"
             resp = client.responses.create(
                 tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
@@ -853,14 +852,15 @@ class TestLLMObsOpenaiV1:
                     resp_model = chunk.response.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        response_tool_function_expected_output[0]["tool_calls"][0]["tool_id"] = "call_lGe2JKQEBSP15opZ3KfxtEUC"
+        streamed_response_tool_expected_output = response_tool_function_expected_output.copy()
+        streamed_response_tool_expected_output[0]["tool_calls"][0]["tool_id"] = "call_lGe2JKQEBSP15opZ3KfxtEUC"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=response_tool_function_expected_output,
+                output_messages=streamed_response_tool_expected_output,
                 metadata={
                     "temperature": 1.0,
                     "top_p": 1.0,
