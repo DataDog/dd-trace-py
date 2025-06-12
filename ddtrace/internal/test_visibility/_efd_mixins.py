@@ -47,12 +47,6 @@ class EFDSessionMixin:
 
 
 class EFDTestMixin:
-    class EFDRetryFinishArgs(t.NamedTuple):
-        test_id: InternalTestId
-        retry_number: int
-        status: ext_api.TestStatus
-        exc_info: t.Optional[ext_api.TestExcInfo]
-
     @staticmethod
     @_catch_and_log_exceptions
     def efd_should_retry(test_id: InternalTestId) -> bool:

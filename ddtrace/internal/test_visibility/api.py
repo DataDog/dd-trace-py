@@ -250,12 +250,6 @@ class InternalTest(
         parameters: t.Optional[str] = None
         codeowners: t.Optional[t.List[str]] = None
 
-    class FinishTestArgs(NamedTuple):
-        test_id: InternalTestId
-        status: t.Optional[TestStatus] = None
-        skip_reason: t.Optional[str] = None
-        exc_info: t.Optional[TestExcInfo] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def overwrite_attributes(
@@ -271,14 +265,3 @@ class InternalTest(
         log.debug("Overwriting attributes for test %s", item_id)
 
         CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
-
-    @staticmethod
-    @_catch_and_log_exceptions
-    def finish_test(finish_args: "InternalTest.FinishTestArgs") -> None:
-        log.debug("Finishing test %s with status %s", finish_args.test_id, finish_args.status)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-        CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
-            finish_args.status, finish_args.skip_reason, finish_args.exc_info
-        )
