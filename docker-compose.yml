@@ -144,13 +144,13 @@ services:
         ports:
           - "127.0.0.1:5433:5433"
     azurite:
-        image: mcr.microsoft.com/azure-storage/azurite
+        image: mcr.microsoft.com/azure-storage/azurite:3.34.0
         ports:
             - "127.0.0.1:10000:10000"
             - "127.0.0.1:10001:10001"
             - "127.0.0.1:10002:10002"
     azureservicebusemulator:
-        image: mcr.microsoft.com/azure-messaging/servicebus-emulator
+        image: mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2
         ports:
             - "127.0.0.1:5672:5672"
             - "127.0.0.1:5300:5300"
@@ -159,7 +159,7 @@ services:
             MSSQL_SA_PASSWORD: "Localtestpass1!"
             SQL_SERVER: dd-trace-py-azuresqledge-1
     azuresqledge:
-        image: mcr.microsoft.com/azure-sql-edge
+        image: mcr.microsoft.com/azure-sql-edge:1.0.7
         environment:
             ACCEPT_EULA: "Y"
             MSSQL_SA_PASSWORD: "Localtestpass1!"
