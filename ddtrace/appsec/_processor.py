@@ -232,7 +232,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
+        if not (span.span_type == SpanTypes.HTTP or span.span_type in asm_config._asm_processed_span_types):
             return None
 
         if _asm_request_context.get_blocked():
@@ -365,7 +365,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
             self._ddwaf._at_request_end()
             _asm_request_context.end_context(span)
