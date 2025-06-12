@@ -25,6 +25,11 @@ try:
 except ImportError:
     LangGraphPregel = None
 
+try:
+    from langgraph.errors import ParentCommand as LangGraphParentCommandError
+except ImportError:
+    LangGraphParentCommandError = None
+
 LANGGRAPH_VERSION = parse_version(get_version())
 
 config._add("langgraph", {})
@@ -81,8 +86,9 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     result = None
     try:
         result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except Exception as e:
+        if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+            span.set_exc_info(*sys.exc_info())
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
@@ -107,8 +113,9 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
     result = None
     try:
         result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except Exception as e:
+        if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+            span.set_exc_info(*sys.exc_info())
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
@@ -167,8 +174,9 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
                 span.finish()
                 break
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
                 span.finish()
                 raise
@@ -237,8 +245,9 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
                     span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
                 )
@@ -280,8 +289,9 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
                     span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
                 )
