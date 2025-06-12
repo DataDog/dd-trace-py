@@ -78,7 +78,7 @@ suites:
       - tests/appsec/iast_packages/*
     runner: riot
     timeout: 50m
-  appsec_iast_tdd_propagation:
+  iast_tdd_propagation:
     parallelism: 5
     paths:
       - '@bootstrap'
