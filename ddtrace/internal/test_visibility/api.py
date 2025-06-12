@@ -141,6 +141,12 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin,
     def set_library_capabilities(capabilities: LibraryCapabilities) -> None:
         core.dispatch("test_visibility.session.set_library_capabilities", (capabilities,))
 
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_itr_tags(skipped_count: int):
+        log.debug("Setting itr session tags: %d", skipped_count)
+        core.dispatch("test_visibility.session.set_itr_skipped_count", (skipped_count,))
+
 
 class InternalTestModule(ext_api.TestModule, InternalTestBase):
     pass

@@ -180,9 +180,9 @@ class TestSession(_TestVisibilityAPIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(context: Optional[Context] = None):
+    def start(distributed_children: bool = False, context: Optional[Context] = None):
         log.debug("Starting session")
-        core.dispatch("test_visibility.session.start", (context,))
+        core.dispatch("test_visibility.session.start", (distributed_children, context))
 
     class FinishArgs(NamedTuple):
         force_finish_children: bool

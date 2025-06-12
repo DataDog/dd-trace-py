@@ -332,6 +332,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         InternalTestSession.set_library_capabilities(library_capabilities)
 
         extracted_context = None
+        distributed_children = False
         if hasattr(session.config, "workerinput"):
             from ddtrace._trace.context import Context
             from ddtrace.constants import USER_KEEP
@@ -349,8 +350,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                     "pytest_sessionstart: Could not convert root_span %s to int",
                     received_root_span,
                 )
+        elif hasattr(pytest, "global_worker_itr_results"):
+            distributed_children = True
 
-        InternalTestSession.start(extracted_context)
+        InternalTestSession.start(distributed_children, extracted_context)
 
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
@@ -790,18 +793,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if skipped_count > 0:
             # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
             # during session finishing, it will use the correct worker-aggregated count
-            session_instance = InternalTestSession
-            if session_instance:
-                session_instance._itr_skipped_count = skipped_count
-
-                # HACK:
-                # Also set the ITR tags directly on the session span since the normal _set_itr_tags
-                # flow may have already completed before worker results were aggregated
-                session_span = session_instance.get_span()
-                if session_span:
-                    session_span.set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    session_span.set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+            InternalTestSession.set_itr_tags(skipped_count)
 
     InternalTestSession.finish(
         force_finish_children=True,
