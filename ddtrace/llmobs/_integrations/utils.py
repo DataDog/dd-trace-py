@@ -491,9 +491,8 @@ def openai_get_output_messages_from_response_object(response: Optional[Any]) -> 
         if message_type == "message":
             text = ""
             for content in item.content:
-                if hasattr(content, "text") or hasattr(content, "refusal"):
-                    text += getattr(content, "text", "")
-                    text += getattr(content, "refusal", "")
+                text += getattr(content, "text", "")
+                text += getattr(content, "refusal", "")
             message.update({"role": getattr(item, "role", "assistant"), "content": text})
         elif message_type == "reasoning":
             message.update(
@@ -537,10 +536,9 @@ def openai_get_metadata_from_response(response: Optional[Any]) -> Dict[str, Any]
 
     metadata = {}
     for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text"]:
-        if hasattr(response, field):
-            value = getattr(response, field)
-            if value is not None:
-                metadata[field] = load_oai_span_data_value(value)
+        value = getattr(response, field, None)
+        if value is not None:
+            metadata[field] = load_oai_span_data_value(value)
 
     if hasattr(response, "usage") and hasattr(response.usage, "output_tokens_details"):
         metadata["reasoning_tokens"] = response.usage.output_tokens_details.reasoning_tokens
