@@ -2,7 +2,7 @@
 Enabling
 ~~~~~~~~
 The dramatiq integration will trace background tasks as marked by the @dramatiq.actor
-decorator. To trace your dramatiq app, call the patch method:
+decorator. To trace your dramatiq app, call the patch method::
 
     import dramatiq
     from ddtrace import patch

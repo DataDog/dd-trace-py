@@ -1,3 +1,7 @@
+=======
+import os
+from typing import Dict
+
 import fastapi
 import fastapi.routing
 from wrapt import ObjectProxy
@@ -38,8 +42,8 @@ def get_version():
     return getattr(fastapi, "__version__", "")
 
 
-def _supported_versions():
-    return {"fastapi": ">=0.57.0"}
+def _supported_versions() -> Dict[str, str]:
+    return {"fastapi": ">=0.64.0"}
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):

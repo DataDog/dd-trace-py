@@ -193,6 +193,9 @@ def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
     if not supported_versions_spec:
         return False
 
+    if supported_versions_spec == "*":
+        return True
+
     try:
         specifier_set = SpecifierSet(supported_versions_spec)
         return Version(version) in specifier_set
