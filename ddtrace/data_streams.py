@@ -8,7 +8,9 @@ def set_consume_checkpoint(typ, source, carrier_get, manual_checkpoint=True):
         Examples include kafka, kinesis, sns etc. (str)
     :param source: The source of data. This can be a topic, exchange or stream name. (str)
     :param carrier_get: A function used to extract context from the carrier (function (str) -> str)
-    :param manual_checkpoint: Whether this checkpoint was manually set. Keep true if manually instrumenting. Manual instrumentation always overrides automatic instrumentation in the case a call is both manually and automatically instrumented. (bool)
+    :param manual_checkpoint: Whether this checkpoint was manually set. Keep true if manually instrumenting.
+        Manual instrumentation always overrides automatic instrumentation in the case a call is both
+        manually and automatically instrumented. (bool)
 
     :returns DataStreamsCtx | None
     """
