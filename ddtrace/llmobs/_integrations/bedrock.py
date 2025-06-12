@@ -81,6 +81,11 @@ class BedrockIntegration(BaseLLMIntegration):
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
+                """
+                At this point, we signal to `_output_stream_processor` that we're done with the stream
+                and ready to get the final results. This causes `_output_stream_processor` to break out of the
+                while loop, do some final processing, and return the final results.
+                """
                 try:
                     response.send(None)
                 except StopIteration as e:
