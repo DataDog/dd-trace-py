@@ -1424,7 +1424,7 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
 
 
 @contextmanager
-def override_third_party_packages(packages: list[str]):
+def override_third_party_packages(packages: List[str]):
     try:
         original_callonce = _third_party_packages.__wrapped__.__callonce_result__
     except AttributeError:
