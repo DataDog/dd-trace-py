@@ -282,7 +282,8 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput"):  # Main process
+                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                    # Main process
                     pytest.global_worker_itr_results = 0
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
