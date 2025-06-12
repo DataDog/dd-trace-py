@@ -21,7 +21,6 @@ for i in range(10):
     pid = os.fork()
     if pid == 0:
         # Child process
-        print(ddtrace.config._extra_services_queue)
         for c in range({child_services}):
             ddtrace.config._add_extra_service(f"extra_service_{{i}}_{{c}}")
         sys.exit(0)
