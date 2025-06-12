@@ -137,17 +137,6 @@ class TestBase(_TestVisibilityAPIBase):
 
 
 class TestSession(_TestVisibilityAPIBase):
-    class DiscoverArgs(NamedTuple):
-        test_command: str
-        reject_duplicates: bool
-        test_framework: str
-        test_framework_version: str
-        session_operation_name: str
-        module_operation_name: str
-        suite_operation_name: str
-        test_operation_name: str
-        root_dir: Optional[Path] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
@@ -169,17 +158,15 @@ class TestSession(_TestVisibilityAPIBase):
         from ddtrace.internal.ci_visibility.recorder import on_discover_session
 
         on_discover_session(
-            TestSession.DiscoverArgs(
-                test_command,
-                reject_duplicates,
-                test_framework,
-                test_framework_version,
-                session_operation_name,
-                module_operation_name,
-                suite_operation_name,
-                test_operation_name,
-                root_dir,
-            )
+            test_command,
+            reject_duplicates,
+            test_framework,
+            test_framework_version,
+            session_operation_name,
+            module_operation_name,
+            suite_operation_name,
+            test_operation_name,
+            root_dir,
         )
 
     @staticmethod
@@ -232,10 +219,6 @@ class TestSession(_TestVisibilityAPIBase):
 
 
 class TestModule(TestBase):
-    class DiscoverArgs(NamedTuple):
-        module_id: TestModuleId
-        module_path: Optional[Path] = None
-
     class FinishArgs(NamedTuple):
         module_id: TestModuleId
         override_status: Optional[TestStatus] = None
@@ -286,11 +269,6 @@ class TestModule(TestBase):
 
 
 class TestSuite(TestBase):
-    class DiscoverArgs(NamedTuple):
-        suite_id: TestSuiteId
-        codeowners: Optional[List[str]] = None
-        source_file_info: Optional[TestSourceFileInfo] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
@@ -347,12 +325,6 @@ class TestSuite(TestBase):
 
 
 class Test(TestBase):
-    class DiscoverArgs(NamedTuple):
-        test_id: TestId
-        codeowners: Optional[List[str]] = None
-        source_file_info: Optional[TestSourceFileInfo] = None
-        resource: Optional[str] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(

@@ -21,7 +21,6 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestModuleId
-from ddtrace.ext.test_visibility.api import TestSession
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
@@ -1019,7 +1018,17 @@ def _requires_civisibility_enabled(func: Callable) -> Callable:
 
 
 @_requires_civisibility_enabled
-def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
+def on_discover_session(
+    test_command,
+    reject_duplicates,
+    test_framework,
+    test_framework_version,
+    session_operation_name,
+    module_operation_name,
+    suite_operation_name,
+    test_operation_name,
+    root_dir,
+) -> None:
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -1033,10 +1042,10 @@ def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
         raise CIVisibilityError(error_msg)
 
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
-    workspace_path = discover_args.root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
+    workspace_path = root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
 
     # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
-    test_framework_telemetry_name = _get_test_framework_telemetry_name(discover_args.test_framework)
+    test_framework_telemetry_name = _get_test_framework_telemetry_name(test_framework)
 
     efd_api_settings = CIVisibility.get_efd_api_settings()
     if efd_api_settings is None or not CIVisibility.is_efd_enabled():
@@ -1053,15 +1062,15 @@ def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
     session_settings = TestVisibilitySessionSettings(
         tracer=tracer,
         test_service=test_service,
-        test_command=discover_args.test_command,
-        reject_duplicates=discover_args.reject_duplicates,
-        test_framework=discover_args.test_framework,
+        test_command=test_command,
+        reject_duplicates=reject_duplicates,
+        test_framework=test_framework,
         test_framework_metric_name=test_framework_telemetry_name,
-        test_framework_version=discover_args.test_framework_version,
-        session_operation_name=discover_args.session_operation_name,
-        module_operation_name=discover_args.module_operation_name,
-        suite_operation_name=discover_args.suite_operation_name,
-        test_operation_name=discover_args.test_operation_name,
+        test_framework_version=test_framework_version,
+        session_operation_name=session_operation_name,
+        module_operation_name=module_operation_name,
+        suite_operation_name=suite_operation_name,
+        test_operation_name=test_operation_name,
         workspace_path=workspace_path,
         is_unsupported_ci=CIVisibility.is_unknown_ci(),
         itr_enabled=CIVisibility.is_itr_enabled(),
@@ -1082,4 +1091,4 @@ def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
     )
 
     CIVisibility.add_session(session)
-    CIVisibility.set_test_session_name(test_command=discover_args.test_command)
+    CIVisibility.set_test_session_name(test_command=test_command)
