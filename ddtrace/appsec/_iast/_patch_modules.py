@@ -174,28 +174,12 @@ def _apply_custom_security_controls():
         log.warning("Failed to load custom security controls", exc_info=True)
 
 
-def _get_module_and_method(security_control: SecurityControl):
-    """Determine the target module and method"""
-    if "." in security_control.method_name:
-        # Handle cases like "Popen.__init__" or "ResponseHeaders._convert_to_charset"
-        target_module = security_control.module_path
-        target_method = security_control.method_name
-    else:
-        # Simple method name
-        target_module = security_control.module_path
-        target_method = security_control.method_name
-    return target_module, target_method
-
-
 def _apply_security_control(control: SecurityControl):
     """Apply a single security control configuration.
 
     Args:
         control: SecurityControl object containing the configuration
     """
-    # Determine the target module and method
-    target_module, target_method = _get_module_and_method(control)
-
     # Create the appropriate wrapper function
     if control.control_type == SC_SANITIZER:
         wrapper_func = functools.partial(create_sanitizer, control.vulnerability_types)
@@ -208,8 +192,8 @@ def _apply_security_control(control: SecurityControl):
     base_module = control.module_path.split(".")[0]
     when_imported(base_module)(
         lambda _: try_wrap_function_wrapper(
-            target_module,
-            target_method,
+            control.module_path,
+            control.method_name,
             wrapper_func,
         )
     )
@@ -230,5 +214,4 @@ def _unapply_security_control():
     """
     security_controls = get_security_controls_from_env()
     for control in security_controls:
-        target_module, target_method = _get_module_and_method(control)
-        try_unwrap(target_module, target_method)
+        try_unwrap(control.module_path, control.method_name)
