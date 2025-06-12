@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import pymysql
 import wrapt
@@ -39,6 +40,10 @@ CONN_ATTR_BY_TAG = {
     db.USER: "user",
     db.NAME: "db",
 }
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pymysql": ">=0.10"}
 
 
 def patch():

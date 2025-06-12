@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 from openai import version
 
@@ -31,6 +32,10 @@ config._add(
 def get_version():
     # type: () -> str
     return version.VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"openai": ">=1.0"}
 
 
 OPENAI_VERSION = parse_version(get_version())

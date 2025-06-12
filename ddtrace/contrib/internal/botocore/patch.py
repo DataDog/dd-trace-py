@@ -133,6 +133,10 @@ def get_version():
     return __version__
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"botocore": "*"}
+
+
 def patch():
     if getattr(botocore.client, "_datadog_patch", False):
         return

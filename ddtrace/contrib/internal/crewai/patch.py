@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import crewai
 
@@ -15,6 +16,10 @@ def get_version() -> str:
 
 
 config._add("crewai", {})
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"crewai": ">=0.102"}
 
 
 @with_traced_module

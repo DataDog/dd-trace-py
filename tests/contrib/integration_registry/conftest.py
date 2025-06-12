@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+import re
 from typing import Any
+from typing import Dict
 from typing import List
 from typing import Set
 
@@ -171,3 +173,44 @@ def riot_venv_names() -> set[str]:
     if not names:
         pytest.fail("No integration Venv names found in riotfile.venv structure.")
     return names
+
+
+@pytest.fixture(scope="module")
+def docs_index_path(project_root: Path) -> Path:
+    """Returns the path to docs/index.rst."""
+    return project_root / "docs" / "index.rst"
+
+
+@pytest.fixture(scope="module")
+def dependency_to_integration_mapping() -> Dict[str, str]:
+    """Returns the dependency to integration mapping from the registry mappings."""
+    from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
+
+    return DEPENDENCY_TO_INTEGRATION_MAPPING
+
+
+@pytest.fixture(scope="module")
+def documented_versions(docs_index_path: Path, dependency_to_integration_mapping: Dict[str, str]) -> Dict[str, str]:
+    """Parse the supported versions table from docs/index.rst."""
+    if not docs_index_path.exists():
+        pytest.fail(f"Documentation file not found: {docs_index_path}")
+
+    with open(docs_index_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    versions = {}
+    pattern = r"\|\s*:ref:`([^`]+)`[^|]*\|\s*([^|]+?)\s*\|\s*[^|]*\|"
+
+    for match in re.finditer(pattern, content):
+        doc_name = match.group(1).strip()
+        version_spec = match.group(2).strip()
+
+        # Clean up documented name
+        if " (" in doc_name:
+            doc_name = doc_name.split(" (")[0]
+
+        # Map to integration name using registry dependency mapping
+        integration_name = dependency_to_integration_mapping.get(doc_name, doc_name)
+        versions[integration_name] = version_spec
+
+    return versions

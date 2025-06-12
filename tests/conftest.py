@@ -25,7 +25,6 @@ from urllib import parse
 import warnings
 
 from _pytest.runner import call_and_report
-from _pytest.runner import pytest_runtest_protocol as default_pytest_runtest_protocol
 import pytest
 
 import ddtrace
@@ -415,11 +414,11 @@ def pytest_collection_modifyitems(session, config, items):
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item):
     if item.get_closest_marker("skip"):
-        return default_pytest_runtest_protocol(item, None)
+        return None
 
     skipif = item.get_closest_marker("skipif")
     if skipif and skipif.args[0]:
-        return default_pytest_runtest_protocol(item, None)
+        return None
 
     marker = item.get_closest_marker("subprocess")
     if marker:

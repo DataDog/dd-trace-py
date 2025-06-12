@@ -162,6 +162,7 @@ exclude-modules = '''
   | tests.profiling.collector.pprof_421_pb2
   # TODO: resolve slot inheritance issues with profiling
   | ddtrace.profiling.collector
+  | ddtrace.profiling._gevent
   | ddtrace,appsec,iast,_taint_tracking.vendor
   | ddtrace.appsec._ddwaf.ddwaf_types
   | ddtrace.appsec._iast._taint_tracking
