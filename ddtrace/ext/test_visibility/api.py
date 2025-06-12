@@ -86,6 +86,7 @@ class TestExcInfo:
 def enable_test_visibility(config: Optional[Any] = None):
     log.debug("Enabling Test Visibility with config: %s", config)
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
     CIVisibility.enable(config=config)
 
     if not is_test_visibility_enabled():
@@ -95,6 +96,7 @@ def enable_test_visibility(config: Optional[Any] = None):
 @_catch_and_log_exceptions
 def is_test_visibility_enabled():
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
     return CIVisibility.enabled
 
 
@@ -102,6 +104,7 @@ def is_test_visibility_enabled():
 def disable_test_visibility():
     log.debug("Disabling Test Visibility")
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
     CIVisibility.disable()
     if is_test_visibility_enabled():
         log.warning("Failed to disable Test Visibility")
@@ -164,6 +167,7 @@ class TestSession(_TestVisibilityAPIBase):
             return
 
         from ddtrace.internal.ci_visibility.recorder import on_discover_session
+
         on_discover_session(
             TestSession.DiscoverArgs(
                 test_command,
@@ -183,6 +187,7 @@ class TestSession(_TestVisibilityAPIBase):
     def start(distributed_children: bool = False, context: Optional[Context] = None):
         log.debug("Starting session")
         from ddtrace.internal.ci_visibility.recorder import on_start_session
+
         on_start_session(distributed_children, context)
 
     class FinishArgs(NamedTuple):
@@ -198,6 +203,7 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
         from ddtrace.internal.ci_visibility.recorder import on_finish_session
+
         on_finish_session(TestSession.FinishArgs(force_finish_children, override_status))
 
     @staticmethod
@@ -236,6 +242,7 @@ class TestModule(TestBase):
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
         log.debug("Registered module %s", item_id)
         from ddtrace.internal.ci_visibility.recorder import on_discover_module
+
         on_discover_module(TestModule.DiscoverArgs(item_id, module_path))
 
     @staticmethod
@@ -243,6 +250,7 @@ class TestModule(TestBase):
     def start(item_id: TestModuleId):
         log.debug("Starting module %s", item_id)
         from ddtrace.internal.ci_visibility.recorder import on_start_module
+
         on_start_module(item_id)
 
     @staticmethod
@@ -259,6 +267,7 @@ class TestModule(TestBase):
             force_finish_children,
         )
         from ddtrace.internal.ci_visibility.recorder import on_finish_module
+
         on_finish_module(TestModule.FinishArgs(item_id, override_status, force_finish_children))
 
 
@@ -278,6 +287,7 @@ class TestSuite(TestBase):
         """Registers a test suite with the Test Visibility service."""
         log.debug("Registering suite %s, source: %s", item_id, source_file_info)
         from ddtrace.internal.ci_visibility.recorder import on_discover_suite
+
         on_discover_suite(TestSuite.DiscoverArgs(item_id, codeowners, source_file_info))
 
     @staticmethod
@@ -285,6 +295,7 @@ class TestSuite(TestBase):
     def start(item_id: TestSuiteId):
         log.debug("Starting suite %s", item_id)
         from ddtrace.internal.ci_visibility.recorder import on_start_suite
+
         on_start_suite(item_id)
 
     class FinishArgs(NamedTuple):
@@ -306,6 +317,7 @@ class TestSuite(TestBase):
             override_status,
         )
         from ddtrace.internal.ci_visibility.recorder import on_finish_suite
+
         on_finish_suite(TestSuite.FinishArgs(item_id, force_finish_children, override_status))
 
 
@@ -333,6 +345,7 @@ class Test(TestBase):
             resource,
         )
         from ddtrace.internal.ci_visibility.recorder import on_discover_test
+
         on_discover_test(Test.DiscoverArgs(item_id, codeowners, source_file_info, resource))
 
     @staticmethod
@@ -340,6 +353,7 @@ class Test(TestBase):
     def start(item_id: TestId):
         log.debug("Starting test %s", item_id)
         from ddtrace.internal.ci_visibility.recorder import on_start_test
+
         on_start_test(item_id)
 
     class FinishArgs(NamedTuple):
@@ -364,6 +378,7 @@ class Test(TestBase):
             exc_info,
         )
         from ddtrace.internal.ci_visibility.recorder import on_finish_test
+
         on_finish_test(Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info))
 
     @staticmethod
@@ -371,6 +386,7 @@ class Test(TestBase):
     def set_parameters(item_id: TestId, params: str):
         log.debug("Setting test %s parameters to %s", item_id, params)
         from ddtrace.internal.ci_visibility.recorder import on_set_test_parameters
+
         on_set_test_parameters(item_id, params)
 
     @staticmethod
