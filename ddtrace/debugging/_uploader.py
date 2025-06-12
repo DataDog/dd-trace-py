@@ -45,7 +45,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     RETRY_ATTEMPTS = 3
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        super().__init__(interval if interval is not None else di_config.upload_flush_interval)
+        super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
         self._queue = self.__queue__(encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full)
         self._collector = self.__collector__(self._queue)
