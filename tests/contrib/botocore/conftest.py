@@ -82,7 +82,6 @@ def bedrock_client(boto3, request_vcr):
 @pytest.fixture
 def bedrock_agent_client(boto3, request_vcr):
     session = boto3.Session(
-        profile_name="account-admin-601427279990",
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
         aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
