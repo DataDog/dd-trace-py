@@ -32,7 +32,6 @@ from ddtrace.ext.test_visibility.api import TestSuite
 from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
-from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
@@ -1036,7 +1035,7 @@ def _requires_civisibility_enabled(func: Callable) -> Callable:
 
 
 @_requires_civisibility_enabled
-def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
+def on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
@@ -1103,7 +1102,7 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_session(distributed_children: bool = False, context: Optional[Context] = None) -> None:
+def on_start_session(distributed_children: bool = False, context: Optional[Context] = None) -> None:
     log.debug("Handling start session")
     session = CIVisibility.get_session()
     session.start(context)
@@ -1112,75 +1111,75 @@ def _on_start_session(distributed_children: bool = False, context: Optional[Cont
 
 
 @_requires_civisibility_enabled
-def _on_finish_session(finish_args: TestSession.FinishArgs) -> None:
+def on_finish_session(finish_args: TestSession.FinishArgs) -> None:
     log.debug("Handling finish session")
     session = CIVisibility.get_session()
     session.finish(finish_args.force_finish_children, finish_args.override_status)
 
 
 @_requires_civisibility_enabled
-def _on_session_is_test_skipping_enabled() -> bool:
+def on_session_is_test_skipping_enabled() -> bool:
     log.debug("Handling is test skipping enabled")
     return CIVisibility.test_skipping_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_session_get_workspace_path() -> Optional[Path]:
+def on_session_get_workspace_path() -> Optional[Path]:
     log.debug("Handling finish for session id %s")
     path_str = CIVisibility.get_workspace_path()
     return Path(path_str) if path_str is not None else None
 
 
 @_requires_civisibility_enabled
-def _on_session_should_collect_coverage() -> bool:
+def on_session_should_collect_coverage() -> bool:
     log.debug("Handling should collect coverage")
     return CIVisibility.should_collect_coverage()
 
 
 @_requires_civisibility_enabled
-def _on_session_get_codeowners() -> Optional[Codeowners]:
+def on_session_get_codeowners() -> Optional[Codeowners]:
     log.debug("Getting codeowners")
     return CIVisibility.get_codeowners()
 
 
 @_requires_civisibility_enabled
-def _on_session_get_tracer() -> Optional[Tracer]:
+def on_session_get_tracer() -> Optional[Tracer]:
     log.debug("Getting tracer")
     return CIVisibility.get_tracer()
 
 
 @_requires_civisibility_enabled
-def _on_session_is_atr_enabled() -> bool:
+def on_session_is_atr_enabled() -> bool:
     log.debug("Getting Auto Test Retries enabled")
     return CIVisibility.is_atr_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_session_is_efd_enabled() -> bool:
+def on_session_is_efd_enabled() -> bool:
     log.debug("Getting Early Flake Detection enabled")
     return CIVisibility.is_efd_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_session_set_covered_lines_pct(coverage_pct) -> None:
+def on_session_set_covered_lines_pct(coverage_pct) -> None:
     log.debug("Setting coverage percentage for session to %s", coverage_pct)
     CIVisibility.get_session().set_covered_lines_pct(coverage_pct)
 
 
 @_requires_civisibility_enabled
-def _on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> None:
+def on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> None:
     log.debug("Setting library capabilities")
     CIVisibility.set_library_capabilities(capabilities)
 
 
 @_requires_civisibility_enabled
-def _on_session_set_itr_skipped_count(skipped_count: int) -> None:
+def on_session_set_itr_skipped_count(skipped_count: int) -> None:
     log.debug("Setting skipped count: %d", skipped_count)
     CIVisibility.get_session().set_skipped_count(skipped_count)
 
 
 @_requires_civisibility_enabled
-def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
+def on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
     if codeowners is None:
@@ -1188,34 +1187,8 @@ def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     return codeowners.of(str(path))
 
 
-def _register_session_handlers() -> None:
-    log.debug("Registering session handlers")
-    core.on("test_visibility.session.discover", _on_discover_session)
-    core.on("test_visibility.session.start", _on_start_session)
-    core.on("test_visibility.session.finish", _on_finish_session)
-    core.on("test_visibility.session.get_codeowners", _on_session_get_codeowners, "codeowners")
-    core.on("test_visibility.session.get_tracer", _on_session_get_tracer, "tracer")
-    core.on("test_visibility.session.get_path_codeowners", _on_session_get_path_codeowners, "path_codeowners")
-    core.on("test_visibility.session.get_workspace_path", _on_session_get_workspace_path, "workspace_path")
-    core.on("test_visibility.session.is_atr_enabled", _on_session_is_atr_enabled, "is_atr_enabled")
-    core.on("test_visibility.session.is_efd_enabled", _on_session_is_efd_enabled, "is_efd_enabled")
-    core.on(
-        "test_visibility.session.should_collect_coverage",
-        _on_session_should_collect_coverage,
-        "should_collect_coverage",
-    )
-    core.on(
-        "test_visibility.session.is_test_skipping_enabled",
-        _on_session_is_test_skipping_enabled,
-        "is_test_skipping_enabled",
-    )
-    core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
-    core.on("test_visibility.session.set_library_capabilities", _on_session_set_library_capabilities)
-    core.on("test_visibility.session.set_itr_skipped_count", _on_session_set_itr_skipped_count)
-
-
 @_requires_civisibility_enabled
-def _on_discover_module(discover_args: TestModule.DiscoverArgs) -> None:
+def on_discover_module(discover_args: TestModule.DiscoverArgs) -> None:
     log.debug("Handling discovery for module %s", discover_args.module_id)
     session = CIVisibility.get_session()
 
@@ -1230,26 +1203,19 @@ def _on_discover_module(discover_args: TestModule.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_module(module_id: TestModuleId) -> None:
+def on_start_module(module_id: TestModuleId) -> None:
     log.debug("Handling start for module id %s", module_id)
     CIVisibility.get_module_by_id(module_id).start()
 
 
 @_requires_civisibility_enabled
-def _on_finish_module(finish_args: TestModule.FinishArgs) -> None:
+def on_finish_module(finish_args: TestModule.FinishArgs) -> None:
     log.debug("Handling finish for module id %s", finish_args.module_id)
     CIVisibility.get_module_by_id(finish_args.module_id).finish()
 
 
-def _register_module_handlers() -> None:
-    log.debug("Registering module handlers")
-    core.on("test_visibility.module.discover", _on_discover_module)
-    core.on("test_visibility.module.start", _on_start_module)
-    core.on("test_visibility.module.finish", _on_finish_module)
-
-
 @_requires_civisibility_enabled
-def _on_discover_suite(discover_args: TestSuite.DiscoverArgs) -> None:
+def on_discover_suite(discover_args: TestSuite.DiscoverArgs) -> None:
     log.debug("Handling discovery for suite args %s", discover_args)
     module = CIVisibility.get_module_by_id(discover_args.suite_id.parent_id)
 
@@ -1265,28 +1231,21 @@ def _on_discover_suite(discover_args: TestSuite.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_suite(suite_id: TestSuiteId) -> None:
+def on_start_suite(suite_id: TestSuiteId) -> None:
     log.debug("Handling start for suite id %s", suite_id)
     CIVisibility.get_suite_by_id(suite_id).start()
 
 
 @_requires_civisibility_enabled
-def _on_finish_suite(finish_args: TestSuite.FinishArgs) -> None:
+def on_finish_suite(finish_args: TestSuite.FinishArgs) -> None:
     log.debug("Handling finish for suite id %s", finish_args.suite_id)
     CIVisibility.get_suite_by_id(finish_args.suite_id).finish(
         finish_args.force_finish_children, finish_args.override_status
     )
 
 
-def _register_suite_handlers() -> None:
-    log.debug("Registering suite handlers")
-    core.on("test_visibility.suite.discover", _on_discover_suite)
-    core.on("test_visibility.suite.start", _on_start_suite)
-    core.on("test_visibility.suite.finish", _on_finish_suite)
-
-
 @_requires_civisibility_enabled
-def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
+def on_discover_test(discover_args: Test.DiscoverArgs) -> None:
     log.debug("Handling discovery for test %s", discover_args.test_id)
     suite = CIVisibility.get_suite_by_id(discover_args.test_id.parent_id)
 
@@ -1323,37 +1282,37 @@ def _on_discover_test(discover_args: Test.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
+def on_is_new_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is new test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_new()
 
 
 @_requires_civisibility_enabled
-def _on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
+def on_is_quarantined_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is quarantined test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_quarantined()
 
 
 @_requires_civisibility_enabled
-def _on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
+def on_is_disabled_test(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is disabled test for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_disabled()
 
 
 @_requires_civisibility_enabled
-def _on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
+def on_is_attempt_to_fix(test_id: Union[TestId, InternalTestId]) -> bool:
     log.debug("Handling is attempt to fix for test %s", test_id)
     return CIVisibility.get_test_by_id(test_id).is_attempt_to_fix()
 
 
 @_requires_civisibility_enabled
-def _on_start_test(test_id: TestId) -> None:
+def on_start_test(test_id: TestId) -> None:
     log.debug("Handling start for test id %s", test_id)
     CIVisibility.get_test_by_id(test_id).start()
 
 
 @_requires_civisibility_enabled
-def _on_finish_test(finish_args: Test.FinishArgs) -> None:
+def on_finish_test(finish_args: Test.FinishArgs) -> None:
     log.debug("Handling finish for test id %s, with status %s", finish_args.test_id, finish_args.status)
     CIVisibility.get_test_by_id(finish_args.test_id).finish_test(
         finish_args.status, finish_args.skip_reason, finish_args.exc_info
@@ -1361,13 +1320,13 @@ def _on_finish_test(finish_args: Test.FinishArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_set_test_parameters(item_id: TestId, parameters: str) -> None:
+def on_set_test_parameters(item_id: TestId, parameters: str) -> None:
     log.debug("Handling set parameters for test id %s, parameters %s", item_id, parameters)
     CIVisibility.get_test_by_id(item_id).set_parameters(parameters)
 
 
 @_requires_civisibility_enabled
-def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs) -> None:
+def on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchmarkDataArgs) -> None:
     item_id = set_benchmark_data_args.test_id
     data = set_benchmark_data_args.benchmark_data
     is_benchmark = set_benchmark_data_args.is_benchmark
@@ -1376,7 +1335,7 @@ def _on_set_benchmark_data(set_benchmark_data_args: BenchmarkTestMixin.SetBenchm
 
 
 @_requires_civisibility_enabled
-def _on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.OverwriteAttributesArgs) -> None:
+def on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.OverwriteAttributesArgs) -> None:
     item_id = overwrite_attribute_args.test_id
     name = overwrite_attribute_args.name
     suite_name = overwrite_attribute_args.suite_name
@@ -1387,68 +1346,45 @@ def _on_test_overwrite_attributes(overwrite_attribute_args: InternalTest.Overwri
     CIVisibility.get_test_by_id(item_id).overwrite_attributes(name, suite_name, parameters, codeowners)
 
 
-def _register_test_handlers():
-    log.debug("Registering test handlers")
-    core.on("test_visibility.test.discover", _on_discover_test)
-    core.on("test_visibility.test.is_new", _on_is_new_test, "is_new")
-    core.on("test_visibility.test.is_quarantined", _on_is_quarantined_test, "is_quarantined")
-    core.on("test_visibility.test.is_disabled", _on_is_disabled_test, "is_disabled")
-    core.on("test_visibility.test.is_attempt_to_fix", _on_is_attempt_to_fix, "is_attempt_to_fix")
-    core.on("test_visibility.test.start", _on_start_test)
-    core.on("test_visibility.test.finish", _on_finish_test)
-    core.on("test_visibility.test.set_parameters", _on_set_test_parameters)
-    core.on("test_visibility.test.set_benchmark_data", _on_set_benchmark_data)
-    core.on("test_visibility.test.overwrite_attributes", _on_test_overwrite_attributes)
-
-
 @_requires_civisibility_enabled
-def _on_item_get_span(item_id: TestVisibilityItemId) -> Optional[Span]:
+def on_item_get_span(item_id: TestVisibilityItemId) -> Optional[Span]:
     log.debug("Handing get_span for item %s", item_id)
     item = CIVisibility.get_item_by_id(item_id)
     return item.get_span()
 
 
 @_requires_civisibility_enabled
-def _on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
+def on_item_is_finished(item_id: TestVisibilityItemId) -> bool:
     log.debug("Handling is finished for item %s", item_id)
     return CIVisibility.get_item_by_id(item_id).is_finished()
 
 
 @_requires_civisibility_enabled
-def _on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -> None:
+def on_item_stash_set(item_id: TestVisibilityItemId, key: str, value: object) -> None:
     log.debug("Handling stash set for item %s, key %s, value %s", item_id, key, value)
     CIVisibility.get_item_by_id(item_id).stash_set(key, value)
 
 
 @_requires_civisibility_enabled
-def _on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
+def on_item_stash_get(item_id: TestVisibilityItemId, key: str) -> Optional[object]:
     log.debug("Handling stash get for item %s, key %s", item_id, key)
     return CIVisibility.get_item_by_id(item_id).stash_get(key)
 
 
 @_requires_civisibility_enabled
-def _on_item_stash_delete(item_id: TestVisibilityItemId, key: str) -> None:
+def on_item_stash_delete(item_id: TestVisibilityItemId, key: str) -> None:
     log.debug("Handling stash delete for item %s, key %s", item_id, key)
     CIVisibility.get_item_by_id(item_id).stash_delete(key)
 
 
-def _register_item_handlers() -> None:
-    log.debug("Registering item handlers")
-    core.on("test_visibility.item.get_span", _on_item_get_span, "span")
-    core.on("test_visibility.item.is_finished", _on_item_is_finished, "is_finished")
-    core.on("test_visibility.item.stash_set", _on_item_stash_set)
-    core.on("test_visibility.item.stash_get", _on_item_stash_get, "stash_value")
-    core.on("test_visibility.item.stash_delete", _on_item_stash_delete)
-
-
 @_requires_civisibility_enabled
-def _on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
+def on_get_coverage_data(item_id: Union[TestSuiteId, TestId]) -> Optional[Dict[Path, CoverageLines]]:
     log.debug("Handling get coverage data for item %s", item_id)
     return CIVisibility.get_item_by_id(item_id).get_coverage_data()
 
 
 @_requires_civisibility_enabled
-def _on_add_coverage_data(add_coverage_args: ITRMixin.AddCoverageArgs) -> None:
+def on_add_coverage_data(add_coverage_args: ITRMixin.AddCoverageArgs) -> None:
     """Adds coverage data to an item, merging with existing coverage data if necessary"""
     item_id = add_coverage_args.item_id
     coverage_data = add_coverage_args.coverage_data
@@ -1462,14 +1398,8 @@ def _on_add_coverage_data(add_coverage_args: ITRMixin.AddCoverageArgs) -> None:
     CIVisibility.get_item_by_id(item_id).add_coverage_data(coverage_data)
 
 
-def _register_coverage_handlers() -> None:
-    log.debug("Registering coverage handlers")
-    core.on("test_visibility.item.get_coverage_data", _on_get_coverage_data, "coverage_data")
-    core.on("test_visibility.item.add_coverage_data", _on_add_coverage_data)
-
-
 @_requires_civisibility_enabled
-def _on_get_tag(get_tag_args: TestBase.GetTagArgs) -> Any:
+def on_get_tag(get_tag_args: TestBase.GetTagArgs) -> Any:
     item_id = get_tag_args.item_id
     key = get_tag_args.name
     log.debug("Handling get tag for item id %s, key %s", item_id, key)
@@ -1477,7 +1407,7 @@ def _on_get_tag(get_tag_args: TestBase.GetTagArgs) -> Any:
 
 
 @_requires_civisibility_enabled
-def _on_set_tag(set_tag_args: TestBase.SetTagArgs) -> None:
+def on_set_tag(set_tag_args: TestBase.SetTagArgs) -> None:
     item_id = set_tag_args.item_id
     key = set_tag_args.name
     value = set_tag_args.value
@@ -1486,7 +1416,7 @@ def _on_set_tag(set_tag_args: TestBase.SetTagArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_set_tags(set_tags_args: TestBase.SetTagsArgs) -> None:
+def on_set_tags(set_tags_args: TestBase.SetTagsArgs) -> None:
     item_id = set_tags_args.item_id
     tags = set_tags_args.tags
     log.debug("Handling set tags for item id %s, tags %s", item_id, tags)
@@ -1494,7 +1424,7 @@ def _on_set_tags(set_tags_args: TestBase.SetTagsArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_delete_tag(delete_tag_args: TestBase.DeleteTagArgs) -> None:
+def on_delete_tag(delete_tag_args: TestBase.DeleteTagArgs) -> None:
     item_id = delete_tag_args.item_id
     key = delete_tag_args.name
     log.debug("Handling delete tag for item id %s, key %s", item_id, key)
@@ -1502,24 +1432,15 @@ def _on_delete_tag(delete_tag_args: TestBase.DeleteTagArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_delete_tags(delete_tags_args: TestBase.DeleteTagsArgs) -> None:
+def on_delete_tags(delete_tags_args: TestBase.DeleteTagsArgs) -> None:
     item_id = delete_tags_args.item_id
     keys = delete_tags_args.names
     log.debug("Handling delete tags for item id %s, keys %s", item_id, keys)
     CIVisibility.get_item_by_id(item_id).delete_tags(keys)
 
 
-def _register_tag_handlers() -> None:
-    log.debug("Registering tag handlers")
-    core.on("test_visibility.item.get_tag", _on_get_tag, "tag_value")
-    core.on("test_visibility.item.set_tag", _on_set_tag)
-    core.on("test_visibility.item.set_tags", _on_set_tags)
-    core.on("test_visibility.item.delete_tag", _on_delete_tag)
-    core.on("test_visibility.item.delete_tags", _on_delete_tags)
-
-
 @_requires_civisibility_enabled
-def _on_itr_finish_item_skipped(item_id: Union[TestSuiteId, TestId]) -> None:
+def on_itr_finish_item_skipped(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling finish ITR skipped for item id %s", item_id)
     if not isinstance(item_id, (TestSuiteId, TestId)):
         log.warning("Only suites or tests can be skipped, not %s", type(item_id))
@@ -1528,25 +1449,25 @@ def _on_itr_finish_item_skipped(item_id: Union[TestSuiteId, TestId]) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_itr_mark_unskippable(item_id: Union[TestSuiteId, TestId]) -> None:
+def on_itr_mark_unskippable(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling marking %s unskippable", item_id)
     CIVisibility.get_item_by_id(item_id).mark_itr_unskippable()
 
 
 @_requires_civisibility_enabled
-def _on_itr_mark_forced_run(item_id: Union[TestSuiteId, TestId]) -> None:
+def on_itr_mark_forced_run(item_id: Union[TestSuiteId, TestId]) -> None:
     log.debug("Handling marking %s as forced run", item_id)
     CIVisibility.get_item_by_id(item_id).mark_itr_forced_run()
 
 
 @_requires_civisibility_enabled
-def _on_itr_was_forced_run(item_id: TestVisibilityItemId) -> bool:
+def on_itr_was_forced_run(item_id: TestVisibilityItemId) -> bool:
     log.debug("Handling marking %s as forced run", item_id)
     return CIVisibility.get_item_by_id(item_id).was_itr_forced_run()
 
 
 @_requires_civisibility_enabled
-def _on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> bool:
+def on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> bool:
     """Skippable items are fetched as part CIVisibility.enable(), so they are assumed to be available."""
     log.debug("Handling is item skippable for item id %s", item_id)
 
@@ -1562,7 +1483,7 @@ def _on_itr_is_item_skippable(item_id: Union[TestSuiteId, TestId]) -> bool:
 
 
 @_requires_civisibility_enabled
-def _on_itr_is_item_unskippable(item_id: Union[TestSuiteId, TestId]) -> bool:
+def on_itr_is_item_unskippable(item_id: Union[TestSuiteId, TestId]) -> bool:
     log.debug("Handling is item unskippable for %s", item_id)
     if not isinstance(item_id, (TestSuiteId, TestId)):
         raise CIVisibilityError("Only suites or tests can be unskippable")
@@ -1570,147 +1491,107 @@ def _on_itr_is_item_unskippable(item_id: Union[TestSuiteId, TestId]) -> bool:
 
 
 @_requires_civisibility_enabled
-def _on_itr_was_item_skipped(item_id: Union[TestSuiteId, TestId]) -> bool:
+def on_itr_was_item_skipped(item_id: Union[TestSuiteId, TestId]) -> bool:
     log.debug("Handling was item skipped for %s", item_id)
     return CIVisibility.get_item_by_id(item_id).is_itr_skipped()
 
 
-def _register_itr_handlers() -> None:
-    log.debug("Registering ITR-related handlers")
-    core.on("test_visibility.itr.finish_skipped_by_itr", _on_itr_finish_item_skipped)
-    core.on("test_visibility.itr.is_item_skippable", _on_itr_is_item_skippable, "is_item_skippable")
-    core.on("test_visibility.itr.was_item_skipped", _on_itr_was_item_skipped, "was_item_skipped")
-
-    core.on("test_visibility.itr.is_item_unskippable", _on_itr_is_item_unskippable, "is_item_unskippable")
-    core.on("test_visibility.itr.mark_forced_run", _on_itr_mark_forced_run)
-    core.on("test_visibility.itr.mark_unskippable", _on_itr_mark_unskippable)
-    core.on("test_visibility.itr.was_forced_run", _on_itr_was_forced_run, "was_forced_run")
-
-
-#
-# EFD handlers
-#
-
-
 @_requires_civisibility_enabled
-def _on_efd_is_enabled() -> bool:
+def on_efd_is_enabled() -> bool:
     return CIVisibility.get_session().efd_is_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_efd_session_is_faulty() -> bool:
+def on_efd_session_is_faulty() -> bool:
     return CIVisibility.get_session().efd_is_faulty_session()
 
 
 @_requires_civisibility_enabled
-def _on_efd_session_has_efd_failed_tests() -> bool:
+def on_efd_session_has_efd_failed_tests() -> bool:
     return CIVisibility.get_session().efd_has_failed_tests()
 
 
 @_requires_civisibility_enabled
-def _on_efd_should_retry_test(test_id: InternalTestId) -> bool:
+def on_efd_should_retry_test(test_id: InternalTestId) -> bool:
     return CIVisibility.get_test_by_id(test_id).efd_should_retry()
 
 
 @_requires_civisibility_enabled
-def _on_efd_add_retry(test_id: InternalTestId, retry_number: int) -> Optional[int]:
-    return CIVisibility.get_test_by_id(test_id).efd_add_retry(retry_number)
+def on_efd_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> Optional[int]:
+    return CIVisibility.get_test_by_id(test_id).efd_add_retry(start_immediately)
 
 
 @_requires_civisibility_enabled
-def _on_efd_start_retry(test_id: InternalTestId, retry_number: int) -> None:
+def on_efd_start_retry(test_id: InternalTestId, retry_number: int) -> None:
     CIVisibility.get_test_by_id(test_id).efd_start_retry(retry_number)
 
 
 @_requires_civisibility_enabled
-def _on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs) -> None:
+def on_efd_finish_retry(efd_finish_args: EFDTestMixin.EFDRetryFinishArgs) -> None:
     CIVisibility.get_test_by_id(efd_finish_args.test_id).efd_finish_retry(
         efd_finish_args.retry_number, efd_finish_args.status, efd_finish_args.exc_info
     )
 
 
 @_requires_civisibility_enabled
-def _on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
+def on_efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
     return CIVisibility.get_test_by_id(test_id).efd_get_final_status()
 
 
-def _register_efd_handlers() -> None:
-    log.debug("Registering EFD handlers")
-    core.on("test_visibility.efd.is_enabled", _on_efd_is_enabled, "is_enabled")
-    core.on("test_visibility.efd.session_is_faulty", _on_efd_session_is_faulty, "is_faulty_session")
-    core.on("test_visibility.efd.session_has_failed_tests", _on_efd_session_has_efd_failed_tests, "has_failed_tests")
-    core.on("test_visibility.efd.should_retry_test", _on_efd_should_retry_test, "should_retry_test")
-    core.on("test_visibility.efd.add_retry", _on_efd_add_retry, "retry_number")
-    core.on("test_visibility.efd.start_retry", _on_efd_start_retry)
-    core.on("test_visibility.efd.finish_retry", _on_efd_finish_retry)
-    core.on("test_visibility.efd.get_final_status", _on_efd_get_final_status, "efd_final_status")
-
-
 @_requires_civisibility_enabled
-def _on_atr_is_enabled() -> bool:
+def on_atr_is_enabled() -> bool:
     return CIVisibility.is_atr_enabled()
 
 
 @_requires_civisibility_enabled
-def _on_atr_session_has_failed_tests() -> bool:
+def on_atr_session_has_failed_tests() -> bool:
     return CIVisibility.get_session().atr_has_failed_tests()
 
 
 @_requires_civisibility_enabled
-def _on_atr_should_retry_test(item_id: InternalTestId) -> bool:
+def on_atr_should_retry_test(item_id: InternalTestId) -> bool:
     return CIVisibility.get_test_by_id(item_id).atr_should_retry()
 
 
 @_requires_civisibility_enabled
-def _on_atr_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
-    return CIVisibility.get_test_by_id(item_id).atr_add_retry(retry_number)
+def on_atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).atr_add_retry(start_immediately)
 
 
 @_requires_civisibility_enabled
-def _on_atr_start_retry(test_id: InternalTestId, retry_number: int) -> None:
+def on_atr_start_retry(test_id: InternalTestId, retry_number: int) -> None:
     CIVisibility.get_test_by_id(test_id).atr_start_retry(retry_number)
 
 
 @_requires_civisibility_enabled
-def _on_atr_finish_retry(atr_finish_args: ATRTestMixin.ATRRetryFinishArgs) -> None:
+def on_atr_finish_retry(atr_finish_args: ATRTestMixin.ATRRetryFinishArgs) -> None:
     CIVisibility.get_test_by_id(atr_finish_args.test_id).atr_finish_retry(
         atr_finish_args.retry_number, atr_finish_args.status, atr_finish_args.exc_info
     )
 
 
 @_requires_civisibility_enabled
-def _on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
+def on_atr_get_final_status(test_id: InternalTestId) -> TestStatus:
     return CIVisibility.get_test_by_id(test_id).atr_get_final_status()
 
 
-def _register_atr_handlers() -> None:
-    log.debug("Registering ATR handlers")
-    core.on("test_visibility.atr.is_enabled", _on_atr_is_enabled, "is_enabled")
-    core.on("test_visibility.atr.session_has_failed_tests", _on_atr_session_has_failed_tests, "has_failed_tests")
-    core.on("test_visibility.atr.should_retry_test", _on_atr_should_retry_test, "should_retry_test")
-    core.on("test_visibility.atr.add_retry", _on_atr_add_retry, "retry_number")
-    core.on("test_visibility.atr.start_retry", _on_atr_start_retry)
-    core.on("test_visibility.atr.finish_retry", _on_atr_finish_retry)
-    core.on("test_visibility.atr.get_final_status", _on_atr_get_final_status, "atr_final_status")
-
-
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
+def on_attempt_to_fix_should_retry_test(item_id: InternalTestId) -> bool:
     return CIVisibility.get_test_by_id(item_id).attempt_to_fix_should_retry()
 
 
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_add_retry(item_id: InternalTestId, retry_number: int) -> Optional[int]:
-    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(retry_number)
+def on_attempt_to_fix_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> Optional[int]:
+    return CIVisibility.get_test_by_id(item_id).attempt_to_fix_add_retry(start_immediately)
 
 
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int) -> None:
+def on_attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int) -> None:
     CIVisibility.get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
 
 
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_finish_retry(
+def on_attempt_to_fix_finish_retry(
     attempt_to_fix_finish_args: AttemptToFixTestMixin.AttemptToFixRetryFinishArgs,
 ) -> None:
     CIVisibility.get_test_by_id(attempt_to_fix_finish_args.test_id).attempt_to_fix_finish_retry(
@@ -1719,43 +1600,10 @@ def _on_attempt_to_fix_finish_retry(
 
 
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
+def on_attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
     return CIVisibility.get_test_by_id(test_id).attempt_to_fix_get_final_status()
 
 
 @_requires_civisibility_enabled
-def _on_attempt_to_fix_session_has_failed_tests() -> bool:
+def on_attempt_to_fix_session_has_failed_tests() -> bool:
     return CIVisibility.get_session().attempt_to_fix_has_failed_tests()
-
-
-def _register_attempt_to_fix_handlers() -> None:
-    log.debug("Registering AttemptToFix handlers")
-    core.on(
-        "test_visibility.attempt_to_fix.should_retry_test", _on_attempt_to_fix_should_retry_test, "should_retry_test"
-    )
-    core.on("test_visibility.attempt_to_fix.add_retry", _on_attempt_to_fix_add_retry, "retry_number")
-    core.on("test_visibility.attempt_to_fix.start_retry", _on_attempt_to_fix_start_retry)
-    core.on("test_visibility.attempt_to_fix.finish_retry", _on_attempt_to_fix_finish_retry)
-    core.on(
-        "test_visibility.attempt_to_fix.session_has_failed_tests",
-        _on_attempt_to_fix_session_has_failed_tests,
-        "has_failed_tests",
-    )
-    core.on(
-        "test_visibility.attempt_to_fix.get_final_status",
-        _on_attempt_to_fix_get_final_status,
-        "attempt_to_fix_final_status",
-    )
-
-
-_register_session_handlers()
-_register_module_handlers()
-_register_suite_handlers()
-_register_test_handlers()
-_register_item_handlers()
-_register_tag_handlers()
-_register_coverage_handlers()
-_register_itr_handlers()
-_register_efd_handlers()
-_register_atr_handlers()
-_register_attempt_to_fix_handlers()

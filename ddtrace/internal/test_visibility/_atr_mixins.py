@@ -7,7 +7,6 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 
-
 log = get_logger(__name__)
 
 
@@ -22,88 +21,65 @@ class ATRSessionMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def atr_is_enabled() -> bool:
-        log.debug("Checking if Auto Test Retries is enabled for session")
-        is_enabled = core.dispatch_with_results("test_visibility.atr.is_enabled").is_enabled.value
-        log.debug("Auto Test Retries enabled: %s", is_enabled)
-        return is_enabled
+        log.debug("Checking if ATR is enabled")
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_is_enabled
+        return on_atr_is_enabled()
 
     @staticmethod
     @_catch_and_log_exceptions
     def atr_has_failed_tests() -> bool:
-        log.debug("Checking if session has failed tests for Auto Test Retries")
-        has_failed_tests = core.dispatch_with_results(
-            "test_visibility.atr.session_has_failed_tests"
-        ).has_failed_tests.value
-        log.debug("Session has ATR failed tests: %s", has_failed_tests)
-        return has_failed_tests
+        log.debug("Checking if ATR session has failed tests")
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_session_has_failed_tests
+        return on_atr_session_has_failed_tests()
 
 
 class ATRTestMixin:
-    @staticmethod
-    @_catch_and_log_exceptions
-    def atr_should_retry(item_id: InternalTestId) -> bool:
-        log.debug("Checking if item %s should be retried for Auto Test Retries", item_id)
-        should_retry_test = core.dispatch_with_results(
-            "test_visibility.atr.should_retry_test", (item_id,)
-        ).should_retry_test.value
-        log.debug("Item %s should be retried: %s", item_id, should_retry_test)
-        return should_retry_test
+    @dataclasses.dataclass
+    class ATRRetryFinishArgs:
+        test_id: InternalTestId
+        retry_number: int
+        status: ext_api.TestStatus
+        exc_info: t.Optional[t.Tuple[t.Type[BaseException], BaseException, t.Any]]
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> int:
-        log.debug("Adding Auto Test Retries retry for item %s", item_id)
-        retry_number = core.dispatch_with_results(
-            "test_visibility.atr.add_retry", (item_id, start_immediately)
-        ).retry_number.value
-        log.debug("Added Auto Test Retries retry %s for item %s", retry_number, item_id)
+    def atr_should_retry(test_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s should be retried by ATR", test_id)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_should_retry_test
+        return on_atr_should_retry_test(test_id)
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def atr_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_add_retry
+        retry_number = on_atr_add_retry(test_id, start_immediately)
+        log.debug("Adding ATR retry %s for test %s", retry_number, test_id)
         return retry_number
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_start_retry(item_id: InternalTestId) -> None:
-        log.debug("Starting retry for item %s", item_id)
-        core.dispatch("test_visibility.atr.start_retry", (item_id,))
-
-    class ATRRetryFinishArgs(t.NamedTuple):
-        test_id: InternalTestId
-        retry_number: int
-        status: ext_api.TestStatus
-        skip_reason: t.Optional[str] = None
-        exc_info: t.Optional[ext_api.TestExcInfo] = None
+    def atr_start_retry(test_id: InternalTestId, retry_number: int) -> None:
+        log.debug("Starting ATR retry %s for test %s", retry_number, test_id)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_start_retry
+        on_atr_start_retry(test_id, retry_number)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_finish_retry(
-        item_id: InternalTestId,
-        retry_number: int,
-        status: ext_api.TestStatus,
-        skip_reason: t.Optional[str] = None,
-        exc_info: t.Optional[ext_api.TestExcInfo] = None,
-    ):
-        log.debug(
-            "Finishing ATR test retry %s for item %s, status: %s, skip_reason: %s, exc_info: %s",
-            retry_number,
-            item_id,
-            status,
-            skip_reason,
-            exc_info,
-        )
-        core.dispatch(
-            "test_visibility.atr.finish_retry",
-            (
-                ATRTestMixin.ATRRetryFinishArgs(
-                    item_id, retry_number, status, skip_reason=skip_reason, exc_info=exc_info
-                ),
-            ),
-        )
+    def atr_finish_retry(finish_args: "ATRTestMixin.ATRRetryFinishArgs") -> None:
+        log.debug("Finishing ATR retry %s for test %s", finish_args.retry_number, finish_args.test_id)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_finish_retry
+        on_atr_finish_retry(finish_args)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_get_final_status(item_id: InternalTestId) -> ext_api.TestStatus:
-        log.debug("Getting final ATR status for item %s", item_id)
-        atr_final_status = core.dispatch_with_results(
-            "test_visibility.atr.get_final_status", (item_id,)
-        ).atr_final_status.value
-        log.debug("Final ATR status for item %s: %s", item_id, atr_final_status)
-        return atr_final_status
+    def atr_get_final_status(test_id: InternalTestId) -> ext_api.TestStatus:
+        log.debug("Getting ATR final status for test %s", test_id)
+        # Lazy import to avoid circular dependency
+        from ddtrace.internal.ci_visibility.recorder import on_atr_get_final_status
+        return on_atr_get_final_status(test_id)
