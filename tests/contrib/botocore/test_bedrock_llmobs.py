@@ -428,3 +428,55 @@ class TestLLMObsBedrock:
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_modified_stream(cls, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        """
+        Verify that LLM Obs tracing works even if stream chunks are modified mid-stream.
+        """
+        output_msg = ""
+        request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
+        with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
+            response = bedrock_client.converse_stream(**request_params)
+            for chunk in response["stream"]:
+                if "contentBlockDelta" in chunk and "delta" in chunk["contentBlockDelta"]:
+                    if "text" in chunk["contentBlockDelta"]["delta"]:
+                        output_msg += chunk["contentBlockDelta"]["delta"]["text"]
+                # delete keys from streamed chunk
+                [chunk.pop(key) for key in list(chunk.keys())]
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-3-sonnet-20240229-v1:0",
+            model_provider="anthropic",
+            input_messages=[
+                {"role": "system", "content": request_params.get("system")[0]["text"]},
+                {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
+            ],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": output_msg,
+                    "tool_calls": [
+                        {
+                            "arguments": {"concept": "distributed tracing"},
+                            "name": "fetch_concept",
+                            "tool_id": mock.ANY,
+                        }
+                    ],
+                }
+            ],
+            metadata={
+                "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
+                "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
+            },
+            token_metrics={
+                "input_tokens": 259,
+                "output_tokens": 64,
+                "total_tokens": 323,
+            },
+            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+        )

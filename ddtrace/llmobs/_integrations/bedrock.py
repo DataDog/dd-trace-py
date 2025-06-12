@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Generator
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -80,11 +81,13 @@ class BedrockIntegration(BaseLLMIntegration):
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
-                (
-                    output_messages,
-                    additional_metadata,
-                    streamed_usage_metrics,
-                ) = self._extract_output_message_for_converse_stream(response)
+                try:
+                    response.send(None)
+                except StopIteration as e:
+                    output_messages, additional_metadata, streamed_usage_metrics = e.value
+                finally:
+                    response.close()
+
                 metadata.update(additional_metadata)
                 usage_metrics.update(streamed_usage_metrics)
             else:
@@ -149,11 +152,15 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _extract_output_message_for_converse_stream(
-        streamed_body: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]]:
+    def _output_stream_processor() -> (
+        Generator[
+            None,
+            Dict[str, Any],
+            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+        ]
+    ):
         """
-        Extract output messages from streamed converse responses.
+        Listens for output chunks from a converse stream response and builds a list of output messages, usage metrics, and metadata.
 
         Converse stream response comes in chunks. The chunks we care about are:
         - a message start/stop event, or
@@ -173,7 +180,9 @@ class BedrockIntegration(BaseLLMIntegration):
 
         current_message: Optional[Dict[str, Any]] = None
 
-        for chunk in streamed_body:
+        chunk = yield
+
+        while chunk is not None:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
                 for token_type in ("input", "output", "total"):
@@ -219,6 +228,8 @@ class BedrockIntegration(BaseLLMIntegration):
                     get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
                 )
                 current_message = None
+
+            chunk = yield
 
         # Handle the case where we didn't receive an explicit message stop event
         if current_message is not None and current_message.get("content_block_indicies"):

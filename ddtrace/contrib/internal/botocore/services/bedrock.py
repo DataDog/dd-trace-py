@@ -121,23 +121,20 @@ class TracedBotocoreConverseStream(wrapt.ObjectProxy):
 
     def __init__(self, wrapped, ctx: core.ExecutionContext):
         super().__init__(wrapped)
-        self._stream_chunks = []
         self._execution_ctx = ctx
 
     def __iter__(self):
-        exception_raised = False
+        stream_processor = self._execution_ctx["bedrock_integration"]._output_stream_processor()
         try:
+            next(stream_processor)
             for chunk in self.__wrapped__:
-                self._stream_chunks.append(chunk)
+                stream_processor.send(chunk)
                 yield chunk
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            exception_raised = True
             raise
         finally:
-            if exception_raised:
-                return
-            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, self._stream_chunks])
+            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, stream_processor])
 
 
 def safe_token_count(token_count) -> Optional[int]:
