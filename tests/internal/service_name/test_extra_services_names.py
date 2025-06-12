@@ -1,10 +1,12 @@
 import os
+import sys
 
 import pytest
 
 
 @pytest.mark.parametrize("child_services", [1, 20])
-def test_config_extra_service_names(child_services, run_python_code_in_subprocess):
+@pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
+def test_config_extra_service_names_fork(child_services, run_python_code_in_subprocess):
     code = f"""
 import ddtrace.auto
 import ddtrace
@@ -38,5 +40,50 @@ assert all(re.match(r"extra_service_\\d+_\\d+", service) for service in extra_se
 
     env = os.environ.copy()
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
+
+
+def test_config_extra_service_names_duplicates(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
+import re
+import os
+import sys
+import time
+
+for _ in range(10):
+    ddtrace.config._add_extra_service("extra_service_1")
+
+extra_services = ddtrace.config._get_extra_services()
+extra_services.discard("sqlite")  # coverage
+assert extra_services == {"extra_service_1"}
+    """
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
+
+
+def test_config_extra_service_names_rc_disabled(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
+import re
+import os
+import sys
+import time
+
+for _ in range(10):
+    ddtrace.config._add_extra_service("extra_service_1")
+
+extra_services = ddtrace.config._get_extra_services()
+assert len(extra_services) == 0
+    """
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)
