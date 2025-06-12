@@ -2,6 +2,7 @@
 
 #include <Python.h>
 
+#include "_memalloc_debug.h"
 #include "_memalloc_tb.h"
 #include "vendor/cwisstable.h"
 
@@ -95,21 +96,21 @@ memalloc_heap_map_size(memalloc_heap_map_t* m)
     return HeapSamples_size(&m->map);
 }
 
-void
+traceback_t*
 memalloc_heap_map_insert(memalloc_heap_map_t* m, void* key, traceback_t* value)
 {
     HeapSamples_Entry k = { key = key, value = value };
     HeapSamples_Insert res = HeapSamples_insert(&m->map, &k);
+    traceback_t* prev = NULL;
     if (!res.inserted) {
-        /* This shouldn't happen, but due to the current try-locking implementation
-         * we can hypothetically fail to remove a sample, leading to two entries
-         * with the same pointer. If we see this key already, then the allocation
-         * for the existing entry was freed. Replace it with the new one
-         */
+        /* This should not happen. It means we did not properly remove a previously-tracked
+         * allocation from the map. This should probably be an assertion. Return the previous
+         * entry as it is for an allocation that has been freed. */
         HeapSamples_Entry* e = HeapSamples_Iter_get(&res.iter);
-        traceback_free(e->val);
+        prev = e->val;
         e->val = value;
     }
+    return prev;
 }
 
 bool
@@ -150,6 +151,8 @@ memalloc_heap_map_export(memalloc_heap_map_t* m)
         PyTuple_SET_ITEM(tb_and_size, 1, PyLong_FromSize_t(tb->size));
         PyList_SET_ITEM(heap_list, i, tb_and_size);
         i++;
+
+        memalloc_debug_gil_release();
     }
     return heap_list;
 }

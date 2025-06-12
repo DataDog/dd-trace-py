@@ -20,6 +20,10 @@ def do_fstring(a: str) -> str:
     return f"{a}"
 
 
+def do_fstring_operations(a, b):
+    return f"{a} + {b} = {a + b}"
+
+
 def do_zero_padding_fstring(a: int, spec: str = "05d") -> str:
     return f"{a:{spec}}"
 

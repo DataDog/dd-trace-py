@@ -726,9 +726,8 @@ def test_bad_encoding(monkeypatch, writer_class):
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],
 )
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
-def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls, writer_class):
-    writer = writer_class("http://dne:1234", api_version=init_api_version)
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+    writer = AgentWriter("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)

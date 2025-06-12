@@ -75,6 +75,10 @@ config._add(
 )
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"langchain": ">=0.1"}
+
+
 def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
@@ -171,8 +175,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -230,8 +233,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="llm",
         provider=llm_provider,
         model=model,
@@ -288,8 +290,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
@@ -385,8 +386,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.has_default_base_url(instance),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),

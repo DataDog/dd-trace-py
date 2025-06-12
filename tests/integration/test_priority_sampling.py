@@ -129,6 +129,39 @@ def test_agent_sample_rate_keep():
     assert span.get_tag("_dd.p.dm") == "-1"
 
 
+@skip_if_testagent
+@parametrize_with_all_encodings()
+def test_sampling_rate_honored_tracer_configure():
+    import time
+
+    from ddtrace.trace import TraceFilter
+    from ddtrace.trace import tracer as t
+    from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
+
+    _id = time.time()
+    service = "my-svc-{}".format(_id)
+
+    # send a ton of traces from different services to make the agent adjust its sample rate for ``service,env``
+    for i in range(100):
+        s = t.trace("operation", service="dummysvc{}".format(i))
+        s.finish()
+    t.flush()
+
+    _prime_tracer_with_priority_sample_rate_from_agent(t, service)
+
+    assert len(t._span_aggregator.sampling_processor.sampler._by_service_samplers)
+
+    class CustomFilter(TraceFilter):
+        def process_trace(self, trace):
+            for span in trace:
+                if span.name == "some_name":
+                    return None
+            return trace
+
+    t.configure(trace_processors=[CustomFilter()])  # Triggers AgentWriter recreate
+    assert len(t._span_aggregator.sampling_processor.sampler._by_service_samplers)
+
+
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 @pytest.mark.snapshot(agent_sample_rate_by_service={"service:test,env:": 0.0001})
 def test_agent_sample_rate_reject():

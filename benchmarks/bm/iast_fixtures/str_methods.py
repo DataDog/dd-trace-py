@@ -1263,10 +1263,6 @@ def do_customspec_formatspec():
     return f"{c!s:<20s}"
 
 
-def do_fstring(a, b):
-    return f"{a} + {b} = {a + b}"
-
-
 def _preprocess_lexer_input(text):
     """Apply preprocessing such as decoding the input, removing BOM and normalizing newlines."""
     # text now *is* a unicode string

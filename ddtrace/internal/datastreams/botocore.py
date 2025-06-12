@@ -139,33 +139,42 @@ def get_datastreams_context(message):
     Formats we're aware of:
         - message.Body.MessageAttributes._datadog.Value.decode() (SQS)
         - message.MessageAttributes._datadog.StringValue (SNS -> SQS)
-        - message.MesssageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
+        - message.MessageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
+        - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
     message_body = message
     try:
-        message_body = json.loads(message.get("Body"))
-    except ValueError:
-        log.debug("Unable to parse message body, treat as non-json")
+        body = message.get("Body")
+        if body:
+            message_body = json.loads(body)
+    except (ValueError, TypeError):
+        log.debug("Unable to parse message body as JSON, treat as non-json")
 
-    if "MessageAttributes" not in message_body:
+    message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
+    if not message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
 
-    if "_datadog" not in message_body["MessageAttributes"]:
+    if "_datadog" not in message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
+
+    datadog_attr = message_attributes["_datadog"]
 
     if message_body.get("Type") == "Notification":
         # This is potentially a DSM SNS notification
-        if message_body["MessageAttributes"]["_datadog"]["Type"] == "Binary":
-            context_json = json.loads(base64.b64decode(message_body["MessageAttributes"]["_datadog"]["Value"]).decode())
-    elif "StringValue" in message["MessageAttributes"]["_datadog"]:
+        if datadog_attr.get("Type") == "Binary":
+            context_json = json.loads(base64.b64decode(datadog_attr["Value"]).decode())
+    elif "StringValue" in datadog_attr:
         # The message originated from SQS
-        context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["StringValue"])
-    elif "BinaryValue" in message["MessageAttributes"]["_datadog"]:
+        context_json = json.loads(datadog_attr["StringValue"])
+    elif "stringValue" in datadog_attr:
+        # The message originated from Lambda
+        context_json = json.loads(datadog_attr["stringValue"])
+    elif "BinaryValue" in datadog_attr:
         # Raw message delivery
-        context_json = json.loads(message_body["MessageAttributes"]["_datadog"]["BinaryValue"].decode())
+        context_json = json.loads(datadog_attr["BinaryValue"].decode())
     else:
         log.debug("DataStreams did not handle message: %r", message)
 

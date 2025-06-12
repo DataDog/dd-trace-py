@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 from openai import version
 
@@ -31,6 +32,10 @@ config._add(
 def get_version():
     # type: () -> str
     return version.VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"openai": ">=1.0"}
 
 
 OPENAI_VERSION = parse_version(get_version())
@@ -206,14 +211,7 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
-
-    span = integration.trace(
-        pin,
-        endpoint_hook.OPERATION_ID,
-        base_url=base_url,
-    )
+    span = integration.trace(pin, endpoint_hook.OPERATION_ID)
     openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     resp, err = None, None
     if openai_api_key:

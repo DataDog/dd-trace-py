@@ -4,20 +4,26 @@ Class based views used for Django tests.
 
 import hashlib
 from html import escape
+import json
 import os
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
 import subprocess
 from typing import Any
+import urllib
+from urllib.parse import quote
 
+from django import VERSION as DJANGO_VERSION
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
+from django.views.decorators.csrf import csrf_exempt
+import requests
+from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -25,6 +31,14 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
+
+
+if DJANGO_VERSION < (3, 2, 0):
+    from unittest.mock import MagicMock
+
+    url_has_allowed_host_and_scheme = MagicMock()
+else:
+    from django.utils.http import url_has_allowed_host_and_scheme
 
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
@@ -347,6 +361,7 @@ def view_insecure_cookies_insecure_special_chars(request):
     return res
 
 
+@csrf_exempt
 def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
@@ -381,12 +396,29 @@ def xss_secure_mark(request):
     return render(request, "index.html", {"user_input": mark_safe(value_secure)})
 
 
+@csrf_exempt
 def header_injection(request):
     value = request.body.decode()
 
+    response = HttpResponse(f"OK:{value}", status=200)
+    if DJANGO_VERSION < (3, 2, 0):
+        # label iast_header_injection
+        response._headers["Header-Injection".lower()] = ("Header-Injection", value)
+
+    else:
+        # label iast_header_injection
+        response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
+    return response
+
+
+def header_injection_secure(request):
+    value = request.body.decode()
+
     response = HttpResponse("OK", status=200)
-    # label iast_header_injection
-    response.headers["Header-Injection"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        response["Header-Injection"] = value
+    else:
+        response.headers["Header-Injection"] = value
     return response
 
 
@@ -431,8 +463,10 @@ def unvalidated_redirect_path_multiple_sources(request):
 def unvalidated_redirect_url_header(request):
     value = request.GET.get("url")
     response = HttpResponse("OK", status=200)
-    # label unvalidated_redirect_url_header
-    response.headers["Location"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        response["Location"] = value
+    else:
+        response.headers["Location"] = value
     return response
 
 
@@ -472,3 +506,66 @@ def signup(request):
         User.objects.create_user(username=login, password=passwd)
         return HttpResponse("OK", status=200)
     return HttpResponse("Error", status=400)
+
+
+def ssrf_requests(request):
+    value = request.GET.get("url")
+    option = request.GET.get("option")
+    try:
+        if option == "path":
+            # label ssrf_requests_path
+            _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
+        elif option == "protocol":
+            # label ssrf_requests_protocol
+            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
+        elif option == "host":
+            # label ssrf_requests_host
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
+        elif option == "query":
+            # label ssrf_requests_query
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+        elif option == "query_with_fragment":
+            # label ssrf_requests_query_with_fragment
+            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+        elif option == "port":
+            # label ssrf_requests_port
+            _ = requests.get(f"http://localhost:{value}/", timeout=1)
+        elif option == "fragment1":
+            _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
+        elif option == "fragment2":
+            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
+        elif option == "fragment3":
+            _ = requests.get(
+                "http://localhost:8080/path-to-something/object_identifier?"
+                f"param1=value1&param2=value2#section3={value}",
+                timeout=1,
+            )
+        elif option == "query_param":
+            _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+        elif option == "urlencode_single":
+            params = urllib.parse.urlencode({"key1": value})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_multiple":
+            params = urllib.parse.urlencode({"key1": value, "key2": "static_value", "key3": "another_value"})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_nested":
+            nested_data = {"user": value, "filters": {"type": "report", "format": "json"}}
+            params = urllib.parse.urlencode({"data": json.dumps(nested_data)})
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "urlencode_with_fragment":
+            params = urllib.parse.urlencode({"search": value})
+            _ = requests.get(f"http://localhost:8080/?{params}#results", timeout=1)
+        elif option == "urlencode_doseq":
+            params = urllib.parse.urlencode({"ids": [value, "id2", "id3"]}, doseq=True)
+            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+        elif option == "safe_host":
+            if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                # label ssrf_requests_safe_host
+                _ = requests.get(f"http://{value}:8080/", timeout=1)
+            _ = requests.get(f"http://{value}:8080/", timeout=1)
+        elif option == "safe_path":
+            safe_path = quote(value)
+            _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
+    except ConnectionError:
+        pass
+    return HttpResponse("OK", status=200)

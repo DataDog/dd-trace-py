@@ -84,10 +84,7 @@ def shared_stream(
         "pin": pin,
         "operation_id": f"{instance.__module__}.{instance.__class__.__name__}",
         "interface_type": interface_type,
-        # submit to llmobs only if we detect an LLM request that is not being sent to a proxy
-        "submit_to_llmobs": (
-            integration.has_default_base_url(instance) if interface_type in ("chat_model", "llm") else True
-        ),
+        "submit_to_llmobs": True,
     }
 
     options.update(extra_options)

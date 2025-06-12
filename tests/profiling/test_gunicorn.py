@@ -40,14 +40,6 @@ def _get_worker_pids(stdout):
     return [int(_) for _ in re.findall(r"Booting worker with pid: (\d+)", stdout)]
 
 
-def test_gunicorn_tests_can_work():
-    # type: () -> None
-    from ddtrace.settings.profiling import config as profiler_config
-
-    assert profiler_config._force_legacy_exporter
-    assert not profiler_config.export.libdd_enabled
-
-
 def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     # type: (...) -> None
     filename = str(tmp_path / "gunicorn.pprof")
@@ -63,9 +55,9 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     assert proc.wait() == 0, output
     assert "module 'threading' has no attribute '_active'" not in output, output
 
-    utils.check_pprof_file("%s.%d.1" % (filename, proc.pid))
+    utils.check_pprof_file("%s.%d" % (filename, proc.pid))
     for pid in worker_pids:
-        utils.check_pprof_file("%s.%d.1" % (filename, pid))
+        utils.check_pprof_file("%s.%d" % (filename, pid))
 
 
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):

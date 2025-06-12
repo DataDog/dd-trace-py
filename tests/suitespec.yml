@@ -149,7 +149,7 @@ suites:
       - 'conftest.py'
       - '**/conftest.py'
     pattern: meta-testing
-    runner: hatch
+    runner: riot
     snapshot: false
   ddtracerun:
     parallelism: 3
@@ -208,7 +208,7 @@ suites:
     parallelism: 1
     paths:
       - 'ddtrace/**/*.py'
-    runner: hatch
+    runner: riot
     snapshot: false
   profile:
     env:

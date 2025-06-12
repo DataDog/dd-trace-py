@@ -23,7 +23,9 @@ jobs:
             Bootstrap import analysis
             require-checklist
             Validate changelog
-            devflow/*
+            Report codeowners
+            devflow/.*
+            dd-gitlab/.*
 
 # Why some checks are excluded?
 #
