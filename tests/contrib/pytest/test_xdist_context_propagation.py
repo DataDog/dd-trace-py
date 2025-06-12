@@ -96,7 +96,9 @@ def test_pytest_sessionstart_extracts_context_from_valid_workerinput():
 
         # Verify that start was called with the expected context
         mock_start.assert_called_once()
-        context = mock_start.call_args[0][0]
+        distributed_children = mock_start.call_args[0][0]
+        assert distributed_children is False  # No distributed children expected
+        context = mock_start.call_args[0][1]
         assert context is not None
         assert context.span_id == 54321
         assert context.trace_id == 1
@@ -122,8 +124,8 @@ def test_pytest_sessionstart_handles_invalid_span_id_gracefully():
     ):
         pytest_sessionstart(mock_session)
 
-        # Verify that start was called with None (no context extracted)
-        mock_start.assert_called_once_with(None)
+        # Verify that start was called with False, None (no distributed children, no context extracted)
+        mock_start.assert_called_once_with(False, None)
 
 
 def test_pytest_sessionstart_handles_missing_workerinput():
@@ -146,8 +148,8 @@ def test_pytest_sessionstart_handles_missing_workerinput():
     ):
         pytest_sessionstart(mock_session)
 
-        # Verify that start was called with None (no context for main process)
-        mock_start.assert_called_once_with(None)
+        # Verify that start was called with False (no distributed children), None (no context for main process)
+        mock_start.assert_called_once_with(False, None)
 
 
 def test_xdist_hooks_class_has_required_hookimpl():
