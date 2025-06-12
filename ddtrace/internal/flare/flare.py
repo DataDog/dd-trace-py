@@ -63,7 +63,7 @@ class Flare:
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare.prepare()")
         try:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
@@ -100,7 +100,7 @@ class Flare:
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare.send()")
         self.revert_configs()
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
@@ -136,7 +136,7 @@ class Flare:
             log.debug("Not sending tracer flare because another process is already sending it")
 
     def _generate_config_file(self, pid: int):
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare.generate_config_file()")
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
@@ -160,7 +160,7 @@ class Flare:
                 os.remove(config_file)
 
     def revert_configs(self):
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare.revert_configs()")
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
@@ -170,7 +170,7 @@ class Flare:
         ddlogger.setLevel(self.original_log_level)
 
     def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare._generate_payload()")
         zip_stream = io.BytesIO()
         with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for flare_file_name in self.flare_dir.iterdir():
@@ -202,12 +202,12 @@ class Flare:
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare._get_valid_logger_level()")
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
     def clean_up_files(self):
-        log.warning("JJJ Flare.__init__()")
+        log.warning("JJJ Flare.clean_up_files()")
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
