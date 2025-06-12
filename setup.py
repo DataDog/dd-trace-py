@@ -122,7 +122,7 @@ def verify_checksum_from_file(sha256_filename, filename):
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
     try:
-        assert expected_filename.endswith(filename)
+        assert expected_filename.endswith(Path(filename).name)
         assert expected_checksum == actual_checksum
     except AssertionError:
         print("Checksum verification error: Checksum and/or filename don't match:")
@@ -168,6 +168,9 @@ def is_64_bit_python():
 
 
 class LibraryDownload:
+    CACHE_DIR = HERE / ".download_cache"
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
+
     name = None
     download_dir = None
     version = None
@@ -216,20 +219,34 @@ class LibraryDownload:
                 archive_name,
             )
 
-            try:
-                filename, http_response = urlretrieve(download_address, archive_name)
-            except HTTPError as e:
-                print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
-                raise e
+            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else archive_name
+            if cls.USE_CACHE and not cls.CACHE_DIR.exists():
+                cls.CACHE_DIR.mkdir(parents=True)
 
-            # Verify checksum of downloaded file
-            if cls.expected_checksums is None:
-                sha256_address = download_address + ".sha256"
-                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
-                verify_checksum_from_file(sha256_filename, filename)
+            if not (cls.USE_CACHE and download_dest.exists()):
+                print(f"Downloading {archive_name} to {download_dest}")
+                start_ns = time.time_ns()
+                try:
+                    filename, _ = urlretrieve(download_address, str(download_dest))
+                except HTTPError as e:
+                    print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
+                    raise e
+
+                # Verify checksum of downloaded file
+                if cls.expected_checksums is None:
+                    sha256_address = download_address + ".sha256"
+                    sha256_filename, _ = urlretrieve(sha256_address, str(download_dest) + ".sha256")
+                    verify_checksum_from_file(sha256_filename, str(download_dest))
+                else:
+                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
+                    verify_checksum_from_hash(expected_checksum, str(download_dest))
+
+                DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
+
             else:
-                expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                verify_checksum_from_hash(expected_checksum, filename)
+                # If the file exists in the cache, we will use it
+                filename = str(download_dest)
+                print(f"Using cached {filename}")
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
@@ -249,7 +266,8 @@ class LibraryDownload:
                     renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
                     original_file.rename(renamed_file)
 
-            Path(filename).unlink()
+            if not cls.USE_CACHE:
+                Path(filename).unlink()
 
     @classmethod
     def run(cls):
@@ -475,6 +493,7 @@ class DebugMetadata:
     enabled = "_DD_DEBUG_EXT" in os.environ
     metadata_file = os.getenv("_DD_DEBUG_EXT_FILE", "debug_ext_metadata.txt")
     build_times = {}
+    download_times = {}
 
     @classmethod
     def dump_metadata(cls):
@@ -506,6 +525,18 @@ class DebugMetadata:
                 elapsed_s = elapsed_ns / 1e9
                 ext_percent = (elapsed_ns / total_ns) * 100.0
                 f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+
+            if cls.download_times:
+                download_total_ns = sum(cls.download_times.values())
+                download_total_s = download_total_ns / 1e9
+                download_percent = (download_total_ns / total_ns) * 100.0
+
+                f.write("Artifact download times:\n")
+                f.write(f"\tTotal: {download_total_s:0.2f}s ({download_percent:0.2f}%)\n")
+                for n, elapsed_ns in sorted(cls.download_times.items(), key=lambda x: x[1], reverse=True):
+                    elapsed_s = elapsed_ns / 1e9
+                    ext_percent = (elapsed_ns / total_ns) * 100.0
+                    f.write(f"\t{n}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
 
 
 def debug_build_extension(fn):

@@ -1,3 +1,5 @@
+from typing import Dict
+
 import sqlalchemy
 from wrapt import wrap_function_wrapper as _w
 
@@ -10,6 +12,10 @@ from .engine import _wrap_create_engine
 def get_version():
     # type: () -> str
     return getattr(sqlalchemy, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"sqlalchemy": ">=1.3"}
 
 
 def patch():

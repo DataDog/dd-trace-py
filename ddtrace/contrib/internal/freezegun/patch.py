@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
 
@@ -36,6 +38,10 @@ def get_version() -> str:
     except AttributeError:
         log.debug("Could not get freezegun version")
         return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"freezegun": "*"}
 
 
 def patch() -> None:

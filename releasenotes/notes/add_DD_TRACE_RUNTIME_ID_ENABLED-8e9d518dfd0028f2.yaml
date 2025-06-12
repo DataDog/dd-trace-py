@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracer: Adds the environment variable ``DD_TRACE_RUNTIME_ID_ENABLED`` to enable runtime metrics for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes. Previously, this was ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``.

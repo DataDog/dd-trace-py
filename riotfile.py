@@ -2536,7 +2536,8 @@ venv = Venv(
                 Venv(
                     # tornado added support for Python 3.8/3.9 in 6.1
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"tornado": ["~=6.1", "~=6.2"]},
+                    # tornado 6.0.x and pytest 8.x have a compatibility bug
+                    pkgs={"tornado": ["~=6.0.0", "~=6.2"], "pytest": "<=8"},
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
@@ -3077,6 +3078,36 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="selenium",
+            pys=["3.10", "3.12"],
+            pkgs={
+                "selenium": "~=4.0",
+                "webdriver-manager": latest,
+            },
+            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            env={
+                "DD_AGENT_TRACER_URL": "9126",
+            },
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-true",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-false",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "false",
+                            },
                         ),
                     ],
                 ),
