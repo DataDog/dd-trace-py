@@ -335,3 +335,17 @@ def test_logger_does_not_add_handler_when_configured():
     ddtrace_logger = logging.getLogger("ddtrace")
     assert len(ddtrace_logger.handlers) == 0
     assert ddtrace_logger.handlers == []
+
+
+def test_logger_log_level_from_env(monkeypatch):
+    monkeypatch.setenv("_DD_TESTING_DEBUG_LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("_DD_TESTING_WARNING_LOG_LEVEL", "WARNING")
+
+    assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
+    assert get_logger("ddtrace.testing.debug.foo").level == logging.DEBUG
+    assert get_logger("ddtrace.testing.debug").level == logging.DEBUG
+    assert get_logger("ddtrace.testing").level < logging.DEBUG
+
+    assert get_logger("ddtrace.testing.warning.foo.bar").level == logging.WARNING
+    assert get_logger("ddtrace.testing.warning.foo").level == logging.WARNING
+    assert get_logger("ddtrace.testing.warning").level == logging.WARNING
