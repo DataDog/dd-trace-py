@@ -51,7 +51,7 @@ class SecurityControl:
         vulnerability_types: List[VulnerabilityType],
         module_path: str,
         method_name: str,
-        parameters: Optional[List[str]] = None,
+        parameters: Optional[List[int]] = None,
     ):
         """Initialize a security control configuration.
 
