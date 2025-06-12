@@ -7,6 +7,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
+from ddtrace.appsec._iast._patch_modules import _unapply_security_control
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -15,7 +17,10 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -965,6 +970,68 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
+
+
+@pytest.mark.parametrize(
+    ("security_control", "match_function"),
+    [
+        (
+            "SANITIZER:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_sanitizer",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,2",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:2",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3,4",
+            False,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3",
+            False,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator",
+            True,
+        ),
+        ("INPUT_VALIDATOR:COMMAND_INJECTION:shlex:quote;SANITIZER:XSS:html:escape", False),
+    ],
+)
+def test_django_command_injection_security_control(client, tracer, security_control, match_function):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _appsec_enabled=False,
+            _iast_deduplication_enabled=False,
+            _iast_request_sampling=100.0,
+            _iast_security_controls=security_control,
+        )
+    ):
+        _apply_custom_security_controls()
+        span = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            span,
+            tracer,
+            url="/appsec/command-injection/security-control/",
+            payload="master",
+            content_type="application/json",
+        )
+
+        loaded = root_span.get_tag(IAST.JSON)
+        if match_function:
+            assert loaded is None
+        else:
+            assert loaded is not None
+        _end_iast_context_and_oce()
+        span.reset()
+        _unapply_security_control()
 
 
 def test_django_header_injection_secure(client, iast_span, tracer):

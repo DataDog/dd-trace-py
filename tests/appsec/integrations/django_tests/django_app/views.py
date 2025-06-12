@@ -47,6 +47,14 @@ def assert_origin(parameter: Any, origin_type: Any) -> None:
     assert sources[0].origin == origin_type
 
 
+def _security_control_sanitizer(parameter):
+    return parameter
+
+
+def _security_control_validator(param1, param2, parameter_to_validate, param3):
+    return None
+
+
 def index(request):
     response = HttpResponse("Hello, test app.")
     response["my-response-header"] = "my_response_value"
@@ -384,6 +392,15 @@ def command_injection_secure_mark(request):
     value = request.body.decode()
     # label iast_command_injection
     os.system("dir -l " + shlex.quote(value))
+
+    return HttpResponse("OK", status=200)
+
+
+def command_injection_security_control(request):
+    value = request.body.decode()
+    _security_control_validator(None, None, value, None)
+    # label iast_command_injection
+    os.system("dir -l " + _security_control_sanitizer(value))
 
     return HttpResponse("OK", status=200)
 

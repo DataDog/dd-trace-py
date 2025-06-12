@@ -374,6 +374,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES", "origin": "default", "value": 8},
         {"name": "DD_EXCEPTION_REPLAY_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_IAST_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
         {"name": "DD_IAST_ENABLED", "origin": "default", "value": False},
         {"name": "DD_IAST_MAX_CONCURRENT_REQUESTS", "origin": "default", "value": 2},
         {"name": "DD_IAST_REDACTION_ENABLED", "origin": "default", "value": True},
