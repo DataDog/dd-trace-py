@@ -3097,6 +3097,36 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="selenium",
+            pys=["3.10", "3.12"],
+            pkgs={
+                "selenium": "~=4.0",
+                "webdriver-manager": latest,
+            },
+            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            env={
+                "DD_AGENT_TRACER_URL": "9126",
+            },
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-true",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-false",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "false",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="freezegun",
             command="pytest tests/contrib/freezegun {cmdargs}",
             pkgs={
