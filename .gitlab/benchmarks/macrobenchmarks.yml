@@ -3,6 +3,10 @@ stages:
   - gate
   - notify
 
+include:
+ project: 'DataDog/benchmarking-platform-tools'
+ file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
+
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
 
@@ -380,24 +384,10 @@ check-slo-breaches:
     - cd platform && (git init && git remote add origin https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform && git pull origin python/macrobenchmarks)
     - bp-runner bp-runner.fail-on-breach.yml
 
-# See https://github.com/DataDog/slack-notifier/blob/master/gitlab-pipeline-templates/v3-sdm/template.yml.
 notify-slo-breaches:
+  extends: .notify-slo-breaches
   stage: notify
   needs: ["check-slo-breaches"]
-  tags: [ "arch:amd64" ]
   when: always
-  image: registry.ddbuild.io/slack-notifier:v27936653-9a2a7db-sdm-gbi-jammy@sha256:c9d1145319d1904fa72ea97904a15200d3cb684324723f9e1700bc02cc85065c
   variables:
     CHANNEL: "guild-dd-trace-py"
-  script:
-    - |
-      BRANCH_URL="https://github.com/DataDog/$CI_PROJECT_NAME/tree/$CI_COMMIT_REF_NAME"
-      COMMIT_URL="https://github.com/DataDog/$CI_PROJECT_NAME/commit/$CI_COMMIT_SHA"
-      BUILD_URL="$CI_PROJECT_URL/pipelines/$CI_PIPELINE_ID"
-    - |
-      if [ -f platform/artifacts/threshold_breach_detected ]; then
-        MESSAGE_TEXT=":x: <$BRANCH_URL|$CI_COMMIT_REF_NAME> <$COMMIT_URL|$CI_COMMIT_SHORT_SHA> - Performance SLOs in $CI_PROJECT_NAME were breached in <$BUILD_URL|$CI_PIPELINE_ID>! Please look into it."
-      elif [ -f platform/artifacts/warning_breach_detected ]; then
-        MESSAGE_TEXT=":warning: <$BRANCH_URL|$CI_COMMIT_REF_NAME> <$COMMIT_URL|$CI_COMMIT_SHORT_SHA> - Performance SLOs in $CI_PROJECT_NAME are about to be breached! A warning threshold in <$BUILD_URL|$CI_PIPELINE_ID> was triggered. Please look into it."
-      fi
-    - if [ -n "${MESSAGE_TEXT:-}" ]; then postmessage "$CHANNEL" "$MESSAGE_TEXT"; fi
