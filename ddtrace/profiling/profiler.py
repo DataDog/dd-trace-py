@@ -171,7 +171,6 @@ class _ProfilerInstance(service.Service):
             service=self.service,
             version=self.version,
             tags=self.tags,
-            max_nframes=profiling_config.max_frames,
             timeline_enabled=profiling_config.timeline_enabled,
             output_filename=profiling_config.output_pprof,
             sample_pool_capacity=profiling_config.sample_pool_capacity,
