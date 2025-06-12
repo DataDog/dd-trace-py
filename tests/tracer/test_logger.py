@@ -340,12 +340,24 @@ def test_logger_does_not_add_handler_when_configured():
 def test_logger_log_level_from_env(monkeypatch):
     monkeypatch.setenv("_DD_TESTING_DEBUG_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("_DD_TESTING_WARNING_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("_DD_PACKAGE_WITH_UNDERSCORE_SUBMODULE_LOG_LEVEL", "ERROR")
 
-    assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
-    assert get_logger("ddtrace.testing.debug.foo").level == logging.DEBUG
-    assert get_logger("ddtrace.testing.debug").level == logging.DEBUG
-    assert get_logger("ddtrace.testing").level < logging.DEBUG
+    import ddtrace.internal.logger as dd_logger
 
-    assert get_logger("ddtrace.testing.warning.foo.bar").level == logging.WARNING
-    assert get_logger("ddtrace.testing.warning.foo").level == logging.WARNING
-    assert get_logger("ddtrace.testing.warning").level == logging.WARNING
+    original_trie = dd_logger.LOG_LEVEL_TRIE
+    dd_logger.LOG_LEVEL_TRIE = dd_logger.LoggerPrefix.build_trie()
+    print(dd_logger.LOG_LEVEL_TRIE)
+
+    try:
+        assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
+        assert get_logger("ddtrace.testing.debug.foo").level == logging.DEBUG
+        assert get_logger("ddtrace.testing.debug").level == logging.DEBUG
+        assert get_logger("ddtrace.testing").level < logging.DEBUG
+
+        assert get_logger("ddtrace.testing.warning.foo.bar").level == logging.WARNING
+        assert get_logger("ddtrace.testing.warning.foo").level == logging.WARNING
+        assert get_logger("ddtrace.testing.warning").level == logging.WARNING
+
+        assert get_logger("ddtrace.package_with_underscore.submodule").level == logging.ERROR
+    finally:
+        dd_logger.LOG_LEVEL_TRIE = original_trie

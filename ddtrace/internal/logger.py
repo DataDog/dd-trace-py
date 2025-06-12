@@ -31,11 +31,15 @@ Usage:
 """
 
 import collections
+from dataclasses import dataclass
+from dataclasses import field
 import logging
 import os
 import time
 import traceback
 from typing import DefaultDict
+from typing import Dict
+from typing import Optional
 from typing import Tuple
 from typing import Union
 
@@ -44,6 +48,51 @@ SECOND = 1
 MINUTE = 60 * SECOND
 HOUR = 60 * MINUTE
 DAY = 24 * HOUR
+
+
+@dataclass
+class LoggerPrefix:
+    prefix: str
+    level: Optional[int] = None
+    children: Dict[str, "LoggerPrefix"] = field(default_factory=dict)
+
+    def lookup(self, name: str) -> Optional[int]:
+        """
+        Lookup the log level for a given logger name in the trie.
+
+        The name is split by '.' and each part is used to traverse the trie.
+        If a part is not found, it returns the level of the closest parent node.
+        """
+        parts = name.replace("_", ".").lower().split(".")
+        parts.pop(0)  # remove the ddtrace prefix
+        current = self
+        while parts:
+            if (part := parts.pop(0)) not in current.children:
+                return current.level
+            current = current.children[part]
+
+        return current.level
+
+    @classmethod
+    def build_trie(cls):
+        trie = cls(prefix="ddtrace", level=None, children={})
+
+        for logger_name, level in (
+            (k, v) for k, v in os.environ.items() if k.startswith("_DD_") and k.endswith("_LOG_LEVEL")
+        ):
+            # Remove the _DD_ prefix and _LOG_LEVEL suffix
+            logger_name = logger_name[4:-10]
+            parts = logger_name.lower().split("_")
+            current = trie.children
+            while parts:
+                if (part := parts.pop(0)) not in current:
+                    current[part] = cls(prefix=part, level=getattr(logging, level, None) if not parts else None)
+                current = current[part].children
+
+        return trie
+
+
+LOG_LEVEL_TRIE = LoggerPrefix.build_trie()
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -60,13 +109,8 @@ def get_logger(name: str) -> logging.Logger:
     # Set the log level from the environment variable of the closest parent
     # logger.
     if name.startswith("ddtrace."):  # for the whole of ddtrace we have DD_TRACE_DEBUG
-        (hierarchy := name.split(".")).pop(0)  # remove "ddtrace"
-        while hierarchy:
-            if (level_name := os.getenv("_DD_" + "_".join(hierarchy).upper() + "_LOG_LEVEL", None)) is not None:
-                if (level := getattr(logging, level_name, None)) is not None:
-                    logger.setLevel(level)
-                    break
-            hierarchy.pop()
+        if (level := LOG_LEVEL_TRIE.lookup(name)) is not None:
+            logger.setLevel(level)
 
     return logger
 
