@@ -5,8 +5,6 @@ from google import genai
 
 from ddtrace import config
 
-# from ddtrace.contrib.internal.google_genai._utils import tag_request
-# from ddtrace.contrib.internal.google_genai._utils import tag_response
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -17,12 +15,7 @@ from ddtrace.trace import Pin
 
 config._add(
     "google_genai",
-    {
-        "span_prompt_completion_sample_rate": float(
-            os.getenv("DD_GOOGLE_GENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE", 1.0)
-        ),
-        "span_char_limit": int(os.getenv("DD_GOOGLE_GENAI_SPAN_CHAR_LIMIT", 128)),
-    },
+    {},
 )
 
 
@@ -36,25 +29,34 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     generation_response = None
     provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
-    span = integration.trace(
+    with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,  # TODO: change to True when we eventually submit to llmobs
-    )
-    try:
-        generation_response = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        span.finish()
-    return generation_response
+        submit_to_llmobs=False,
+    ):
+        return func(*args, **kwargs)
+
 
 
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
+    # span = integration.trace(
+    #     pin,
+    #     "%s.%s" % (instance.__class__.__name__, func.__name__),
+    #     provider=provider_name,
+    #     model=model_name,
+    #     submit_to_llmobs=False,
+    # )
+    # try:
+    #     generation_response = func(*args, **kwargs)
+    # except Exception:
+    #     span.set_exc_info(*sys.exc_info())
+    #     raise
+    # finally:
+    #     span.finish()
+    # return generation_response
     pass
 
 
