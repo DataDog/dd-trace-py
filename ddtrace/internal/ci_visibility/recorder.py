@@ -127,6 +127,20 @@ def _get_custom_configurations() -> Dict[str, str]:
     return custom_configurations
 
 
+def _is_item_itr_skippable(item_id: TestVisibilityItemId, suite_skipping_mode: bool, itr_data: Optional[ITRData]):
+    if itr_data is None:
+        return False
+
+    if isinstance(item_id, TestSuiteId) and not suite_skipping_mode:
+        log.debug("Skipping mode is suite, but item is not a suite: %s", item_id)
+        return False
+
+    if isinstance(item_id, TestId) and suite_skipping_mode:
+        log.debug("Skipping mode is test, but item is not a test: %s", item_id)
+        return False
+    return item_id in itr_data.skippable_items
+
+
 class CIVisibilityTracer(Tracer):
     def __init__(self, *args, **kwargs) -> None:
         # Allows for multiple instances of the civis tracer to be created without logging a warning
@@ -859,17 +873,7 @@ class CIVisibility(Service):
         return self._tags.get(ci.WORKSPACE_PATH)
 
     def is_item_itr_skippable(self, item_id: TestVisibilityItemId) -> bool:
-        if self._itr_data is None:
-            return False
-
-        if isinstance(item_id, TestSuiteId) and not self._suite_skipping_mode:
-            log.debug("Skipping mode is suite, but item is not a suite: %s", item_id)
-            return False
-
-        if isinstance(item_id, TestId) and self._suite_skipping_mode:
-            log.debug("Skipping mode is test, but item is not a test: %s", item_id)
-            return False
-        return item_id in self._itr_data.skippable_items
+        return _is_item_itr_skippable(item_id, self._suite_skipping_mode, self._itr_data)
 
     def is_unknown_ci(self) -> bool:
         return self._tags.get(ci.PROVIDER_NAME) is None
