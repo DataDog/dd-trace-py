@@ -76,3 +76,27 @@ def test_google_genai_completion_error(google_genai_vcr, genai):
             contents='Why is the sky blue? Explain in 2-3 sentences.',
             not_an_argument='why am i here?', #invalid argument
         )
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_provider,expected_model",
+    [
+        ("projects/my-project-id/locations/us-central1/publishers/google/models/gemini-2.0-flash", "google", "gemini-2.0-flash"),
+        ("imagen-1.0", "google", "imagen-1.0"),
+        ("models/veo-1.0", "google", "veo-1.0"),
+        ("jamba-1.0", "ai21labs", "jamba-1.0"),
+        ("claude-3-opus", "anthropic", "claude-3-opus"),
+        ("publishers/meta/models/llama-3.1-405b-instruct-maas", "meta", "llama-3.1-405b-instruct-maas"),
+        ("mistral-7b", "mistral", "mistral-7b"),
+        ("weird_directory/unknown-model", "other", "unknown-model"),
+        ("", "other", "unknown"),
+    ],
+)
+def test_extract_provider_and_model_name_genai(model_name, expected_provider, expected_model):
+    from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
+    
+    kwargs = {"model": model_name}
+    provider, model = extract_provider_and_model_name_genai(kwargs)
+    
+    assert provider == expected_provider
+    assert model == expected_model
