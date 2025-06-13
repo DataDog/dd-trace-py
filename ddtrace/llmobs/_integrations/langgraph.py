@@ -7,6 +7,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 from typing import cast
+from weakref import WeakKeyDictionary
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -32,7 +33,7 @@ PREGEL_TASKS = "__pregel_tasks"
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
-    _graph_nodes_by_task_id: Dict[str, Any] = {}  # maps task_id to dictionary of name, span, and span_links
+    _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, Dict[str, Any]] = WeakKeyDictionary()
 
     def _llmobs_set_tags(
         self,
@@ -49,8 +50,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         config = get_argument_value(args, kwargs, 1, "config", optional=True)
         metadata = _get_attr(config, "metadata", {})
         instance_id = metadata.get("langgraph_checkpoint_ns", "").split(":")[-1]
-        invoked_node = self._graph_nodes_by_task_id.setdefault(instance_id, {})
-        invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
+        is_subgraph = config.get("metadata", {}).get("_dd.subgraph", False)
+
+        invoked_node = (
+            self._get_node_metadata_from_span(span, instance_id) if operation == "node" or is_subgraph else {}
+        )
 
         span_links = [_default_span_link(span)]
         invoked_node_span_links = invoked_node.get("span_links")
@@ -69,16 +73,25 @@ class LangGraphIntegration(BaseLLMIntegration):
                 INPUT_VALUE: format_langchain_io(inputs),
                 OUTPUT_VALUE: maybe_format_langchain_io(response)
                 or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
-                NAME: self._graph_nodes_by_task_id.get(instance_id, {}).get("name") or kwargs.get("name", span.name),
+                NAME: invoked_node.get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }
         )
 
-        if operation == "graph":
-            config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-            subgraph = config.get("metadata", {}).get("_dd.subgraph", False)
-            if not subgraph:
-                self._graph_nodes_by_task_id.clear()
+    def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> Dict[str, Any]:
+        """
+        Get the node metadata for a given span and its node instance id.
+        Additionally, set the span and trace ids on its metadata should another node in a later
+        tick of the graph need to be linked to this node.
+        """
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        invoked_node = (
+            self._graph_nodes_for_graph_by_task_id.setdefault(parent_span, {}).setdefault(instance_id, {})
+            if parent_span
+            else {}
+        )
+        invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
+        return invoked_node
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
@@ -112,7 +125,10 @@ class LangGraphIntegration(BaseLLMIntegration):
         """
         graph_caller_span = _get_nearest_llmobs_ancestor(graph_span) if graph_span else None
         output_span_links = [
-            {**self._graph_nodes_by_task_id[task_id]["span"], "attributes": {"from": "output", "to": "output"}}
+            {
+                **self._graph_nodes_for_graph_by_task_id[graph_span][task_id]["span"],
+                "attributes": {"from": "output", "to": "output"},
+            }
             for task_id in finished_tasks.keys()
         ]
         graph_span_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
@@ -127,6 +143,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                 }
             ]
             graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
+
         return
 
     def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
@@ -139,18 +156,21 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         used_finished_task_ids: Set[str] = set()
         for task_id, task in next_tasks.items():
-            queued_node = self._graph_nodes_by_task_id.setdefault(task_id, {})
+            queued_node = self._graph_nodes_for_graph_by_task_id.setdefault(graph_span, {}).setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            parent_ids = self._link_task_to_parents(task_id, task, task_trigger_channels_to_finished_tasks)
+            parent_ids = self._link_task_to_parents(
+                task, queued_node, graph_span, task_trigger_channels_to_finished_tasks
+            )
             used_finished_task_ids.update(parent_ids)
 
         self._link_finished_tasks_without_children(graph_span, finished_tasks, used_finished_task_ids)
 
     def _link_task_to_parents(
         self,
-        task_id: str,
         task,
+        queued_node,
+        graph_span: Span,
         task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
     ) -> List[str]:
         """
@@ -164,9 +184,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             if node_id is None:
                 continue
 
-            queued_node: Dict[str, Any] = self._graph_nodes_by_task_id.setdefault(task_id, {})
-
-            trigger_node_span = self._graph_nodes_by_task_id.get(node_id, {}).get("span")
+            trigger_node_span = self._graph_nodes_for_graph_by_task_id.get(graph_span, {}).get(node_id, {}).get("span")
             if not trigger_node_span:
                 continue
 
@@ -191,7 +209,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
         graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
         for finished_task_id in unused_finished_task_ids:
-            node = self._graph_nodes_by_task_id.get(finished_task_id)
+            node = self._graph_nodes_for_graph_by_task_id.get(graph_span, {}).get(finished_task_id)
             if node is None:
                 continue
 
@@ -306,17 +324,3 @@ def _default_span_link(span: Span) -> dict:
         "trace_id": format_trace_id(span.trace_id),
         "attributes": {"from": "input", "to": "input"},
     }
-
-
-def _is_subgraph(graph_span: Span) -> bool:
-    """Helper to denote whether the LangGraph graph this span represents is a sub-graph or a standalone graph.
-    Note that this only considers if this graph is nested in the execution of a larger graph,
-    not whether this graph is represented as a single node in the larger graph
-    (counterexample being a standalone graph called internally during a node execution).
-    """
-    graph_caller_span = _get_nearest_llmobs_ancestor(graph_span)
-    while graph_caller_span is not None:
-        if graph_caller_span.resource.endswith("LangGraph"):
-            return True
-        graph_caller_span = _get_nearest_llmobs_ancestor(graph_caller_span)
-    return False
