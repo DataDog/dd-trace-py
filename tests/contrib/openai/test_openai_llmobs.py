@@ -9,6 +9,7 @@ from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
+from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -791,14 +792,13 @@ class TestLLMObsOpenaiV1:
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        response_function_output = response_tool_function_expected_output.copy()
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=response_function_output,
+                output_messages=response_tool_function_expected_output,
                 metadata={
                     "tools": [
                         {
@@ -815,8 +815,8 @@ class TestLLMObsOpenaiV1:
                                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                                 },
                                 "required": ["location", "unit"],
-                                "strict": True,
                             },
+                            "strict": True,
                         }
                     ],
                     "tool_choice": "auto",
@@ -852,15 +852,13 @@ class TestLLMObsOpenaiV1:
                     resp_model = chunk.response.model
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        streamed_response_tool_expected_output = response_tool_function_expected_output.copy()
-        streamed_response_tool_expected_output[0]["tool_calls"][0]["tool_id"] = "call_lGe2JKQEBSP15opZ3KfxtEUC"
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp_model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=streamed_response_tool_expected_output,
+                output_messages=response_tool_function_expected_output_streamed,
                 metadata={
                     "temperature": 1.0,
                     "top_p": 1.0,

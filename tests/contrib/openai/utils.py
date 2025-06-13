@@ -89,6 +89,19 @@ response_tool_function_expected_output = [
     }
 ]
 
+response_tool_function_expected_output_streamed = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "type": "function_call",
+                "tool_id": "call_lGe2JKQEBSP15opZ3KfxtEUC",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+    }
+]
+
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
