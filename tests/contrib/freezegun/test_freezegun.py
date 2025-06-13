@@ -20,6 +20,7 @@ class TestFreezegunTestCase:
         yield
         unpatch()
 
+    @flaky(1759346444)
     def test_freezegun_unpatch(self):
         import freezegun
 
