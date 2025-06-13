@@ -276,13 +276,12 @@ class BedrockIntegration(BaseLLMIntegration):
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
 
-    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
-        instance = kwargs.get("instance", None)
+    def _get_base_url(self, instance: Any, **kwargs: Dict[str, Any]) -> Optional[str]:
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None
         return str(endpoint_host) if endpoint_host else None
 
     def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
-        base_url = self._get_base_url({"instance": ctx.get_item("instance")})
+        base_url = self._get_base_url(ctx.get_item("instance"))
         if self._is_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)

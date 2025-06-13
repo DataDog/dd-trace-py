@@ -66,7 +66,7 @@ class BaseLLMIntegration:
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
         )
         # determine if the span represents a proxy request
-        base_url = self._get_base_url(kwargs)
+        base_url = self._get_base_url(**kwargs)
         if self._is_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
@@ -115,7 +115,7 @@ class BaseLLMIntegration:
     ) -> None:
         raise NotImplementedError()
 
-    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_proxy_url(self, base_url: Optional[str] = None) -> bool:

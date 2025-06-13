@@ -89,7 +89,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA) or {}
-        base_url = kwargs.get("api_base")
+        base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
         if "metadata" in metadata:
             inner_metadata = {}
@@ -205,6 +205,5 @@ class LiteLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
 
-    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
-        base_url = kwargs.get("base_url")
-        return str(base_url) if base_url else None
+    def _get_base_url(self, base_url: Optional[str], **kwargs: Dict[str, Any]) -> Optional[str]:
+        return base_url

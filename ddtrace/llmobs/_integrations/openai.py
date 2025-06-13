@@ -174,8 +174,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return get_llmobs_metrics_tags("openai", span)
 
-    def _get_base_url(self, kwargs: Dict[str, Any]) -> Optional[str]:
-        instance = kwargs.get("instance", None)
+    def _get_base_url(self, instance: Any, **kwargs: Dict[str, Any]) -> Optional[str]:
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None

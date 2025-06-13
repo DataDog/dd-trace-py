@@ -247,7 +247,7 @@ class TestLLMObsLiteLLM:
                 stream=stream,
                 n=n,
                 stream_options={"include_usage": True},
-                api_base="http://localhost:4000",
+                base_url="http://localhost:4000",
             )
             if stream:
                 output_messages, token_metrics = consume_stream(resp, n)
@@ -266,7 +266,7 @@ class TestLLMObsLiteLLM:
                 "stream": stream,
                 "n": n,
                 "stream_options": {"include_usage": True},
-                "api_base": "http://localhost:4000",
+                "base_url": "http://localhost:4000",
                 "model": "gpt-3.5-turbo",
             },
             token_metrics=token_metrics,

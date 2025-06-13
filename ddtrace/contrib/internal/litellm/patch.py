@@ -34,7 +34,7 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
-        base_url=kwargs.get("api_base", None),
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
@@ -66,6 +66,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
@@ -97,6 +98,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
@@ -128,6 +130,7 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
