@@ -338,15 +338,13 @@ def _set_token_metrics_from_streamed_response(span, response, prompts, messages,
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
+    usage = None
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
-        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
-            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
-        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
-            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
-        total_tokens = getattr(usage, "total_tokens", 0)
     elif response and getattr(response, "usage", None):
         usage = response.usage
+
+    if usage:
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
             prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):

@@ -769,7 +769,6 @@ class TestLLMObsOpenaiV1:
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
-                    # "stream": True
                 },
                 token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
@@ -782,8 +781,6 @@ class TestLLMObsOpenaiV1:
     def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
-            # import os
-            # api_key = os.getenv("OPENAI_API_KEY")
             model = "gpt-4.1"
             client = openai.OpenAI()
             input_messages = "What is the weather like in Boston today?"
@@ -887,8 +884,6 @@ class TestLLMObsOpenaiV1:
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
-                    # "user": "ddtrace-test",
-                    # "stream": True,
                 },
                 token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
