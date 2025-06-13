@@ -452,9 +452,13 @@ def openai_get_input_messages_from_response_input(
                     output = json.loads(output)
                 except json.JSONDecodeError:
                     output = {"output": str(output)}
-            processed_item["role"] = "tool"
-            processed_item["content"] = output
-            processed_item["tool_id"] = item["call_id"]
+            processed_item.update(
+                {
+                    "role": "tool",
+                    "content": item["output"],
+                    "tool_id": item["call_id"],
+                }
+            )
         if processed_item:
             processed.append(processed_item)
 
