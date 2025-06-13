@@ -2,6 +2,16 @@
 
 This document provides a guide for an AI agent working within the `dd-trace-py` repository.
 
+## Agent setup script for openai codex
+
+Run this script to setup your environment before making any changes:
+
+`pip install riot==0.20.1 && ./scripts/dd-test.sh install <venv_name_of_inteerest> <python_version>`
+
+so for changes to the aiohttp integration, you can run:
+
+`pip install riot==0.20.1 && ./scripts/dd-test.sh install aiohttp 3.11`
+
 ## Project Overview
 
 `dd-trace-py` is the official Python library for Datadog APM. It provides Distributed Tracing, Continuous Profiling, Error Tracking, CI Visibility, and more.
@@ -33,7 +43,7 @@ riot -v run -p 3.8 -s requests
 
 For environments where dependency installation and test execution must be separate, the `scripts/dd-test.sh` script provides a two-stage workflow.
 
-#### 1. Install Dependencies
+#### 1. Install Dependencies Pre Setup for Testing 
 
 First, install the necessary dependencies for a specific `riot` virtual environment. Venvs can be found in the riotfile, named similarly
 to the feature / integration., ie requests integration has requests as the venv name.
