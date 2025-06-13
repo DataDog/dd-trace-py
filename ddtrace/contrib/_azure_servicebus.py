@@ -15,12 +15,19 @@ Global Configuration
 
 .. py:data:: ddtrace.config.azure_servicebus["service"]
 
-   The service name reported by default for azure_servicebus clients.
+   The service name reported by default for azure service bus clients.
 
-   This option can also be set with the ``DD_SERVICE`` environment
+   This option can also be set with the ``DD_AZURE_SERVICEBUS_SERVICE`` environment
    variable.
 
    Default: ``"azure_servicebus"``
 
-   # TODO: distributed tracing config
+.. py:data:: ddtrace.config.azure_servicebus['distributed_tracing']
+
+   Include distributed tracing headers in service bus messages sent from the azure service bus client.
+
+   This option can also be set with the ``DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING``
+   environment variable.
+
+   Default: ``True``
 """
