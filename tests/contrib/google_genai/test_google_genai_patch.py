@@ -1,0 +1,23 @@
+from ddtrace.contrib.internal.google_genai.patch import get_version
+from ddtrace.contrib.internal.google_genai.patch import patch
+from ddtrace.contrib.internal.google_genai.patch import unpatch
+from tests.contrib.patch import PatchTestCase
+
+
+class TestVertexAIPatch(PatchTestCase.Base):
+    __integration_name__ = "google_genai"
+    __module_name__ = "google.genai"
+    __patch_func__ = patch
+    __unpatch_func__ = unpatch
+    __get_version__ = get_version
+
+    def assert_module_patched(self, google_genai):
+        self.assert_wrapped(google_genai.models.Models.generate_content)
+
+
+    def assert_not_module_patched(self, google_genai):
+        self.assert_not_wrapped(google_genai.models.Models.generate_content)
+
+
+    def assert_not_module_double_patched(self, google_genai):
+        self.assert_not_double_wrapped(google_genai.models.Models.generate_content)
