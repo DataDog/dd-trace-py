@@ -4,7 +4,7 @@ from ddtrace.contrib.internal.google_genai.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
-class TestVertexAIPatch(PatchTestCase.Base):
+class TestGoogleGenAIPatch(PatchTestCase.Base):
     __integration_name__ = "google_genai"
     __module_name__ = "google.genai"
     __patch_func__ = patch
