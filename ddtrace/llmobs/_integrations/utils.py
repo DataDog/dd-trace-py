@@ -501,6 +501,12 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
                 }
             )
         elif message_type == "function_call":
+            arguments = getattr(item, "arguments", None)
+            if not isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = str(arguments)
             message.update(
                 {
                     "tool_calls": [
@@ -521,18 +527,27 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
     return processed
 
 
-def openai_get_metadata_from_response(response: Optional[Any]) -> Dict[str, Any]:
+def openai_get_metadata_from_response(response: Optional[Any], kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    metadata = {}
+    
+    # Add metadata from kwargs first, excluding certain fields
+    if kwargs:
+        metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
+    
     if not response:
         return {}
 
-    metadata = {}
+    # Add metadata from response
     for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text"]:
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_oai_span_data_value(value)
 
-    if hasattr(response, "usage") and hasattr(response.usage, "output_tokens_details"):
-        metadata["reasoning_tokens"] = response.usage.output_tokens_details.reasoning_tokens
+    usage = getattr(response, "usage", None)
+    output_tokens_details = getattr(usage, "output_tokens_details", None)
+    if output_tokens_details:
+        reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
+        metadata["reasoning_tokens"] = reasoning_tokens
 
     return metadata
 
@@ -548,7 +563,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_items(
         {
             INPUT_MESSAGES: input_messages,
-            METADATA: {k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")},
+            METADATA: openai_get_metadata_from_response(response, kwargs),
         }
     )
 
@@ -560,7 +575,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     The response object contains enriched metadata such as tool calls which
     may have not been present in the original request.
     """
-    span._set_ctx_item(METADATA, openai_get_metadata_from_response(response))
+    # span._set_ctx_item(METADATA, openai_get_metadata_from_response(response))
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 

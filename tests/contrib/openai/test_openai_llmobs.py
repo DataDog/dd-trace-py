@@ -722,10 +722,11 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={
-                    "temperature": 1.0,
-                    "max_output_tokens": 100,
+                metadata={           
                     "top_p": 0.9,
+                    "max_output_tokens": 100,
+                    "user": "ddtrace-test",
+                    "temperature": 1.0,
                     "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
@@ -762,6 +763,7 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"content": input_messages, "role": "user"}],
                 output_messages=[{"role": "assistant", "content": expected_completion}],
                 metadata={
+                    "stream": True,
                     "temperature": 1.0,
                     "top_p": 1.0,
                     "tools": [],
@@ -789,16 +791,15 @@ class TestLLMObsOpenaiV1:
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
+        response_function_output=response_tool_function_expected_output.copy()
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
                 model_name=resp.model,
                 model_provider="openai",
                 input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=response_tool_function_expected_output,
+                output_messages=response_function_output,
                 metadata={
-                    "temperature": 1.0,
-                    "top_p": 1.0,
                     "tools": [
                         {
                             "type": "function",
@@ -819,6 +820,8 @@ class TestLLMObsOpenaiV1:
                         }
                     ],
                     "tool_choice": "auto",
+                    "temperature": 1.0,
+                    "top_p": 1.0,
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
@@ -880,6 +883,8 @@ class TestLLMObsOpenaiV1:
                             "strict": True,
                         }
                     ],
+                    "user": "ddtrace-test",
+                    "stream": True,
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
