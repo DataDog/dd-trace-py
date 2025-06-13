@@ -443,7 +443,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: Optional[bool] = None,
-        proxy_urls: Optional[Set[str]] = None,
+        instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -458,6 +458,7 @@ class LLMObs(Service):
         :param str ml_app: The name of your ml application.
         :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
+        :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
@@ -478,7 +479,7 @@ class LLMObs(Service):
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
-        config._llmobs_proxy_urls = proxy_urls or config._llmobs_proxy_urls
+        config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
 
         error = None
         start_ns = time.time_ns()

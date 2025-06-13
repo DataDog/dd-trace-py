@@ -202,7 +202,7 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_proxy_urls="http://localhost:4000")])
+    @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_instrumented_proxy_urls="http://localhost:4000")])
     def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]

@@ -36,7 +36,7 @@ Francisco, CA is 73°F."
             _llmobs_enabled=True,
             _llmobs_sample_rate=1.0,
             _llmobs_ml_app="<ml-app-name>",
-            _llmobs_proxy_urls="http://localhost:4000",
+            _llmobs_instrumented_proxy_urls="http://localhost:4000",
         )
     ],
 )

@@ -495,7 +495,7 @@ class TestLLMObsBedrock:
             _llmobs_enabled=True,
             _llmobs_sample_rate=1.0,
             _llmobs_ml_app="<ml-app-name>",
-            _llmobs_proxy_urls="http://localhost:4000",
+            _llmobs_instrumented_proxy_urls="http://localhost:4000",
         ),
     ],
 )
@@ -546,7 +546,7 @@ class TestLLMObsBedrockProxy:
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
 
-        if "_llmobs_proxy_urls" in ddtrace_global_config:
+        if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
@@ -591,7 +591,7 @@ class TestLLMObsBedrockProxy:
             for _ in response.get("body"):
                 pass
 
-        if "_llmobs_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_proxy_urls"]:
+        if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]:
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
@@ -847,7 +847,7 @@ class TestLLMObsBedrockProxy:
                 response = bedrock_client_proxy.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
 
-        if "_llmobs_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_proxy_urls"]:
+        if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]:
             span = mock_tracer_proxy.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(

@@ -22,7 +22,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
             _llmobs_enabled=True,
             _llmobs_sample_rate=1.0,
             _llmobs_ml_app="<ml-app-name>",
-            _llmobs_proxy_urls="http://localhost:4000",
+            _llmobs_instrumented_proxy_urls="http://localhost:4000",
         )
     ],
 )

@@ -283,5 +283,5 @@ class BedrockIntegration(BaseLLMIntegration):
 
     def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
         base_url = self._get_base_url(ctx.get_item("instance"))
-        if self._is_proxy_url(base_url):
+        if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
