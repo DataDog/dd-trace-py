@@ -7,7 +7,6 @@ import socket
 import textwrap
 import time
 from typing import Set
-from unittest.mock import Mock
 
 import mock
 import msgpack
@@ -32,6 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
+from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
 import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
@@ -1382,65 +1382,54 @@ class TestIsITRSkippable:
         return {getattr(self, test_id) for test_id in vars(self.__class__) if re.match(r"^m\d_s\d_t\d$", test_id)}
 
     def test_is_item_itr_skippable_test_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
-            mock_instance._suite_skipping_mode = False
+        expected_skippable_test_ids = {
+            self.m1_s1_t1,
+            self.m1_s1_t2,
+            self.m1_s1_t5,
+            self.m2_s1_t3,
+            self.m2_s2_t2,
+            self.m2_s2_t4,
+            self.m2_s2_t6,
+            self.m2_s2_t7,
+            self.m3_s1_t5,
+            self.m3_s2_t1,
+            self.m3_s2_t6,
+            self.m3_s2_t7,
+        }
+        expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
+        suite_skipping_mode = False
 
-            expected_skippable_test_ids = {
-                self.m1_s1_t1,
-                self.m1_s1_t2,
-                self.m1_s1_t5,
-                self.m2_s1_t3,
-                self.m2_s2_t2,
-                self.m2_s2_t4,
-                self.m2_s2_t6,
-                self.m2_s2_t7,
-                self.m3_s1_t5,
-                self.m3_s2_t1,
-                self.m3_s2_t6,
-                self.m3_s2_t7,
-            }
-            expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        # Check skippable tests are correct
+        for test_id in expected_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is True
 
-            assert CIVisibility._instance is not None
+        # Check non-skippable tests are correct
+        for test_id in expected_non_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
-            # Check skippable tests are correct
-            for test_id in expected_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is True
-
-            # Check non-skippable tests are correct
-            for test_id in expected_non_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
-
-            # Check all suites are not skippable
-            for suite_id in self._get_all_suite_ids():
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+        # Check all suites are not skippable
+        for suite_id in self._get_all_suite_ids():
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
     def test_is_item_itr_skippable_suite_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
-            mock_instance._suite_skipping_mode = True
+        itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
+        suite_skipping_mode = True
 
-            expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
-            expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
+        expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
+        expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
 
-            assert CIVisibility._instance is not None
+        # Check skippable suites are correct
+        for suite_id in expected_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is True
 
-            # Check skippable suites are correct
-            for suite_id in expected_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is True
+        # Check non-skippable suites are correct
+        for suite_id in expected_non_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
-            # Check non-skippable suites are correct
-            for suite_id in expected_non_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
-
-            # Check all tests are not skippable
-            for test_id in self._get_all_test_ids():
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
+        # Check all tests are not skippable
+        for test_id in self._get_all_test_ids():
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
 
 class TestCIVisibilitySetTestSessionName(TracerTestCase):
@@ -1468,7 +1457,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
         """
         with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var(self):
@@ -1479,7 +1468,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
     def test_set_test_session_name_from_job_name_and_command(self):
@@ -1493,7 +1482,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_job-some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
@@ -1506,7 +1495,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
 
@@ -1522,7 +1511,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
     def test_set_library_capabilities(self):
         with _ci_override_env(), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_library_capabilities(
+            CIVisibility._instance.set_library_capabilities(
                 LibraryCapabilities(
                     early_flake_detection="1",
                     auto_test_retries=None,

@@ -472,7 +472,7 @@ def pytest_sessionstart(session):
         global _global_skipped_elements
         _global_skipped_elements = 0
 
-        workspace_path = _CIVisibility.get_workspace_path()
+        workspace_path = _CIVisibility._instance.get_workspace_path()
         if workspace_path is None:
             workspace_path = session.config.rootdir
 

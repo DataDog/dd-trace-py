@@ -9,10 +9,10 @@ from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility.api import TestExcInfo
-from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility.status import TestExcInfo
+from ddtrace.ext.test_visibility.status import TestSourceFileInfo
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
@@ -190,18 +190,18 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def finish_test(
         self,
         status: Optional[TestStatus] = None,
-        reason: Optional[str] = None,
+        skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
         override_finish_time: Optional[float] = None,
     ) -> None:
-        log.debug("Test Visibility: finishing %s, with status: %s, reason: %s", self, status, reason)
+        log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
         self.set_tag(test.TYPE, SpanTypes.TEST)
 
         if status is not None:
             self.set_status(status)
-        if reason is not None:
-            self.set_tag(test.SKIP_REASON, reason)
+        if skip_reason is not None:
+            self.set_tag(test.SKIP_REASON, skip_reason)
         if exc_info is not None:
             self._exc_info = exc_info
 
@@ -372,13 +372,20 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def efd_start_retry(self, retry_number: int) -> None:
         self._efd_get_retry_test(retry_number).start()
 
-    def efd_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None) -> None:
+    def efd_finish_retry(
+        self,
+        retry_number: int,
+        status: TestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
+    ) -> None:
+        # TODO: use skip_reason for something
         retry_test = self._efd_get_retry_test(retry_number)
 
         if status is not None:
             retry_test.set_status(status)
 
-        retry_test.finish_test(status, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
     def efd_get_final_status(self) -> EFDTestStatus:
         status_counts: Dict[TestStatus, int] = {
@@ -465,7 +472,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def atr_start_retry(self, retry_number: int):
         self._atr_get_retry_test(retry_number).start()
 
-    def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
+    def atr_finish_retry(
+        self,
+        retry_number: int,
+        status: TestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
+    ):
+        # TODO: Do something with skip reason
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
@@ -538,7 +552,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._attempt_to_fix_get_retry_test(retry_number).start()
 
     def attempt_to_fix_finish_retry(
-        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None
+        self,
+        retry_number: int,
+        status: TestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
     ):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 
