@@ -1,7 +1,3 @@
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations.utils import tag_response_part_google
-from ddtrace.llmobs._utils import _get_attr
-
 # https://cloud.google.com/vertex-ai/generative-ai/docs/model-garden/quickstart
 # for vertex, it seems like the best way to associate provider name with each call is based on the model name prefix
 MODEL_PREFIX_TO_PROVIDER = {
@@ -13,6 +9,7 @@ MODEL_PREFIX_TO_PROVIDER = {
     "llama": "meta",
     "mistral": "mistral",
 }
+
 
 def extract_provider_and_model_name_genai(kwargs):
     model_name = kwargs.get("model", "").split("/")[-1]
