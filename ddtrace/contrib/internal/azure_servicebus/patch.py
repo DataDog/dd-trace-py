@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import azure.servicebus as azure_servicebus
 import azure.servicebus.aio as azure_servicebus_aio
@@ -28,6 +29,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(azure_servicebus, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"azure.servicebus": ">=7.0.0"}
 
 
 def patch():
