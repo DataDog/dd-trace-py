@@ -198,7 +198,7 @@ class TestSession(_TestVisibilityAPIBase):
 
 class TestModule(TestBase):
     @staticmethod
-    def discover(item_id: TestModuleId, module_path: Optional[Path] = None):  # type: ignore[override]
+    def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
         from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 
         log.debug("Registered module %s", item_id)
@@ -215,7 +215,7 @@ class TestModule(TestBase):
         )
 
     @staticmethod
-    def start(item_id: TestModuleId, *args, **kwargs):  # type: ignore[override]
+    def start(item_id: TestModuleId, *args, **kwargs):
         log.debug("Starting module %s", item_id)
         require_ci_visibility_service().get_module_by_id(item_id).start()
 
@@ -240,7 +240,7 @@ class TestModule(TestBase):
 class TestSuite(TestBase):
     @staticmethod
     def discover(
-        item_id: TestSuiteId,  # type: ignore[override]
+        item_id: TestSuiteId,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
     ):
@@ -262,7 +262,7 @@ class TestSuite(TestBase):
         )
 
     @staticmethod
-    def start(item_id: TestSuiteId):  # type: ignore[override]
+    def start(item_id: TestSuiteId):
         log.debug("Starting suite %s", item_id)
         require_ci_visibility_service().get_suite_by_id(item_id).start()
 
@@ -284,7 +284,7 @@ class TestSuite(TestBase):
 
 class Test(TestBase):
     @staticmethod
-    def discover(  # type: ignore[override]
+    def discover(
         item_id: TestId,
         codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
@@ -338,7 +338,7 @@ class Test(TestBase):
         )
 
     @staticmethod
-    def start(item_id: TestId):  # type: ignore[override]
+    def start(item_id: TestId):
         log.debug("Starting test %s", item_id)
 
         require_ci_visibility_service().get_test_by_id(item_id).start()
