@@ -1,10 +1,6 @@
-import os
-import sys
-
 from google import genai
 
 from ddtrace import config
-
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -27,7 +23,6 @@ def get_version():
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    generation_response = None
     provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
     with integration.trace(
         pin,
