@@ -115,8 +115,6 @@ class TestBase(_TestVisibilityAPIBase):
 
     @staticmethod
     def delete_tag(item_id: TestVisibilityItemId, tag_name: str):
-        from ddtrace.ext.test_visibility._utils import _delete_item_tag
-
         _delete_item_tag(item_id, tag_name)
 
     @staticmethod
@@ -195,8 +193,6 @@ class TestSession(_TestVisibilityAPIBase):
 
     @staticmethod
     def delete_tag(tag_name: str):
-        from ddtrace.ext.test_visibility._utils import _delete_item_tag
-
         _delete_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
