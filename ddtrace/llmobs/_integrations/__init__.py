@@ -16,7 +16,7 @@ __all__ = [
     "BedrockIntegration",
     "CrewAIIntegration",
     "GeminiIntegration",
-    "GoogleGenAIIntegration", # TODO: remove gemini integration once google_genai is ready
+    "GoogleGenAIIntegration",  # TODO: remove gemini integration once google_genai is ready
     "LangChainIntegration",
     "LiteLLMIntegration",
     "OpenAIIntegration",
