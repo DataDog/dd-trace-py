@@ -36,8 +36,8 @@ from ddtrace.ext.test_visibility._utils import _set_item_tags
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
-from ddtrace.internal.logger import get_logger as _get_logger
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+from ddtrace.internal.logger import get_logger as _get_logger
 
 
 log = _get_logger(__name__)
@@ -193,6 +193,7 @@ class TestModule(TestBase):
     @_catch_and_log_exceptions
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
         from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+
         log.debug("Registered module %s", item_id)
         session = require_ci_visibility_service().get_session()
 

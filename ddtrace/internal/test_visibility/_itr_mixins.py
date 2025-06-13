@@ -4,10 +4,10 @@ import typing as t
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
-from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
 
 log = get_logger(__name__)
@@ -91,7 +91,6 @@ class ITRMixin:
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):
             log.warning("Coverage data can only be added to suites and tests, not %s", type(item_id))
             return
-
 
         require_ci_visibility_service().get_item_by_id(item_id).add_coverage_data(coverage_data)
 

@@ -1,6 +1,7 @@
 """Service registry to avoid circular imports in CI Visibility system."""
 import typing as t
 
+
 if t.TYPE_CHECKING:
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
