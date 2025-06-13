@@ -180,3 +180,6 @@ tests/appsec/iast/fixtures/aspects/unpatched_callers.py
 
 #MacOS files
 .DS_Store
+
+# Setup download cache
+.download_cache/
