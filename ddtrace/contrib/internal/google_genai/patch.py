@@ -14,6 +14,7 @@ config._add(
     {},
 )
 
+_supported_verions = ["1.19.0"]
 
 def get_version():
     # type: () -> str
