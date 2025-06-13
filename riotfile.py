@@ -2789,6 +2789,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pkgs={
+                "azure.servicebus": latest,
+                "pytest-asyncio": "==0.24.0",
+            },
+        ),
+        Venv(
             name="sourcecode",
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),

@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "azure.servicebus.produce",
+    "service": "azure_servicebus",
+    "resource": "azure.servicebus.produce",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.azure_servicebus",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "684c692700000000",
+      "component": "azure_servicebus",
+      "language": "python",
+      "runtime-id": "ceae509f4cb74712b86e1b16ffaaa14a",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 84154
+    },
+    "duration": 22529000,
+    "start": 1749838119790671055
+  }]]

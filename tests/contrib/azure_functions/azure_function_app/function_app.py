@@ -1,7 +1,6 @@
 import os
 
 import azure.servicebus as azure_servicebus
-import azure.servicebus.aio as azure_servicebus_aio
 
 from ddtrace import patch
 
@@ -81,39 +80,14 @@ def http_get_child(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route(route="httppostrootservicebus", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 def http_post_root_servicebus(req: func.HttpRequest) -> func.HttpResponse:
-    message_with_properties = azure_servicebus.ServiceBusMessage(
-        "test message 1",
-        application_properties={"property": "val", b"byteproperty": b"byteval"},
-    )
-    message_with_properties_none = azure_servicebus.ServiceBusMessage("test message 2")
+    message = azure_servicebus.ServiceBusMessage("test message")
     with azure_servicebus.ServiceBusClient.from_connection_string(
         conn_str=os.getenv("CONNECTION_STRING", "")
     ) as servicebus_client:
         with servicebus_client.get_queue_sender(queue_name="queue.1") as queue_sender:
-            queue_sender.send_messages(message_with_properties)
-            queue_sender.send_messages([message_with_properties, message_with_properties_none])
+            queue_sender.send_messages(message)
         with servicebus_client.get_topic_sender(topic_name="topic.1") as topic_sender:
-            topic_sender.send_messages(message_with_properties)
-            topic_sender.send_messages([message_with_properties, message_with_properties_none])
-    return func.HttpResponse("Hello Datadog!")
-
-
-@app.route(route="httppostrootservicebusasync", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-async def http_post_root_servicebus_async(req: func.HttpRequest) -> func.HttpResponse:
-    message_with_properties = azure_servicebus.ServiceBusMessage(
-        "test message 1",
-        application_properties={"property": "val", b"byteproperty": b"byteval"},
-    )
-    message_with_properties_none = azure_servicebus.ServiceBusMessage("test message 2")
-    async with azure_servicebus_aio.ServiceBusClient.from_connection_string(
-        conn_str=os.getenv("CONNECTION_STRING", "")
-    ) as servicebus_client:
-        async with servicebus_client.get_queue_sender(queue_name="queue.1") as queue_sender:
-            await queue_sender.send_messages(message_with_properties)
-            await queue_sender.send_messages([message_with_properties, message_with_properties_none])
-        async with servicebus_client.get_topic_sender(topic_name="topic.1") as topic_sender:
-            await topic_sender.send_messages(message_with_properties)
-            await topic_sender.send_messages([message_with_properties, message_with_properties_none])
+            topic_sender.send_messages(message)
     return func.HttpResponse("Hello Datadog!")
 
 
