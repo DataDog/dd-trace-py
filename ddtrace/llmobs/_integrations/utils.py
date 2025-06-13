@@ -541,10 +541,10 @@ def openai_get_metadata_from_response(
         metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
 
     if not response:
-        return {}
+        return metadata
 
     # Add metadata from response
-    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text"]:
+    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text", "user"]:
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_oai_span_data_value(value)
