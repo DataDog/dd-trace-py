@@ -5,6 +5,8 @@ from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
+from ddtrace._logger import set_log_formatting
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.utils import get_argument_value
 
@@ -73,6 +75,9 @@ def _get_tracer(tracer=None):
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
+    if config._logs_injection != LogInjectionState.ENABLED:
+        # log injection is opt-in for non-structured logging
+        return record
 
     setattr(record, RECORD_ATTR_VERSION, config.version or RECORD_ATTR_VALUE_EMPTY)
     setattr(record, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
@@ -98,6 +103,8 @@ def _w_makeRecord(func, instance, args, kwargs):
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
+    if config._logs_injection != LogInjectionState.ENABLED:
+        return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
     # has a "service" property
@@ -138,6 +145,13 @@ def patch():
             _w(logging.StrFormatStyle, "_format", _w_StrFormatStyle_format)
         else:
             _w(logging.StrFormatStyle, "format", _w_StrFormatStyle_format)
+
+    if config._logs_injection == LogInjectionState.ENABLED:
+        # Only set the formatter is DD_LOGS_INJECTION is set to True. We do not want to modify
+        # unstructured logs if a user has not enabled logs injection.
+        # Also, the Datadog log format must be set after the logging module has been patched,
+        # otherwise the formatter will raise an exception.
+        set_log_formatting()
 
 
 def unpatch():

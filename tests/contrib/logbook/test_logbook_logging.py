@@ -13,10 +13,10 @@ from ddtrace.trace import tracer
 from tests.utils import override_global_config
 
 
-handler = TestHandler()
+global_handler = TestHandler()
 
 
-def _test_logging(span, env, service, version):
+def _test_logging(span, env, service, version, handler=global_handler):
     dd_trace_id, dd_span_id = (span.trace_id, span.span_id) if span else (0, 0)
 
     if dd_trace_id > MAX_UINT_64BITS:
@@ -34,7 +34,7 @@ def _test_logging(span, env, service, version):
 def patch_logbook():
     try:
         patch()
-        handler.push_application()
+        global_handler.push_application()
         yield
     finally:
         unpatch()
@@ -44,7 +44,58 @@ def patch_logbook():
 def global_config():
     with override_global_config({"service": "logging", "env": "global.env", "version": "global.version"}):
         yield
-    handler.records.clear()
+    global_handler.records.clear()
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize=dict(DD_LOGS_INJECTION=["true", None]),
+    env=dict(DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv"),
+    out=None,
+    err=None,
+)
+def test_log_injection_enabled():
+    import logbook
+
+    from ddtrace import tracer
+    from tests.contrib.logbook.test_logbook_logging import _test_logging
+
+    handler = logbook.TestHandler()
+    handler.push_application()
+
+    with tracer.trace("test.logging") as span:
+        logbook.info("Hello!")
+
+    _test_logging(span, "ddenv", "dds", "vv", handler)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(DD_SERVICE="dds", DD_ENV="ddenv", DD_VERSION="vv", DD_LOGS_INJECTION="false"),
+    out=None,
+    err=None,
+)
+def test_log_injection_disabled():
+    import logbook
+
+    from ddtrace import tracer
+
+    handler = logbook.TestHandler()
+    handler.push_application()
+
+    with tracer.trace("test.logging"):
+        logbook.info("Hello!")
+
+    for record in handler.records:
+        assert (
+            "dd.trace_id",
+            "dd.span_id",
+            "dd.service",
+            "dd.env",
+            "dd.version",
+        ) not in record.extra, (
+            f"Trace info should not be injected when DD_LOGS_INJECTION is false record: {record.extra}"
+        )
 
 
 def test_log_trace_global_values():

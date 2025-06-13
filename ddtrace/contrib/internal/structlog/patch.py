@@ -4,6 +4,7 @@ import structlog
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_ENV
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SERVICE
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
@@ -32,6 +33,9 @@ def _supported_versions() -> Dict[str, str]:
 
 
 def _tracer_injection(_, __, event_dict):
+    if config._logs_injection == LogInjectionState.DISABLED:
+        return event_dict
+
     trace_details = ddtrace.tracer.get_log_correlation_context()
 
     # add ids to structlog event dictionary

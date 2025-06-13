@@ -741,9 +741,9 @@ Logs
 .. ddtrace-configuration-options::
 
    DD_LOGS_INJECTION:
-     type: Boolean
-     default: False
-     description: Enables :ref:`Logs Injection`.
+     type: string
+     default: structured
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
 
    DD_TRACE_DEBUG:
      type: Boolean
