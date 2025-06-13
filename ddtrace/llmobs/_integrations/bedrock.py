@@ -17,7 +17,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
-from ddtrace.llmobs._integrations.utils import update_input_output_value
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.trace import Span
 
 
@@ -108,7 +108,7 @@ class BedrockIntegration(BaseLLMIntegration):
             }
         )
 
-        update_input_output_value(span, span_kind)
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):

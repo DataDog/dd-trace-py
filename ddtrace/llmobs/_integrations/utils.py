@@ -474,7 +474,7 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
     return message
 
 
-def update_input_output_value(span: Span, span_kind: str = ""):
+def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
     """Helper to update the input and output value for workflow spans."""
     if span_kind != "workflow":
         return

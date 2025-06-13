@@ -17,7 +17,7 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
-from ddtrace.llmobs._integrations.utils import update_input_output_value
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
@@ -82,7 +82,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 METRICS: get_llmobs_metrics_tags("anthropic", span) if span_kind != "workflow" else {},
             }
         )
-        update_input_output_value(span, span_kind)
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(self, messages, system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None):
         """Extract input messages from the stored prompt.

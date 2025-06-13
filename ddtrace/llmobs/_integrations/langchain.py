@@ -31,7 +31,7 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
-from ddtrace.llmobs._integrations.utils import update_input_output_value
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -188,12 +188,12 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
-            update_input_output_value(span, "workflow" if is_workflow else "llm")
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
             # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
             is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
-            update_input_output_value(span, "workflow" if is_workflow else "llm")
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
