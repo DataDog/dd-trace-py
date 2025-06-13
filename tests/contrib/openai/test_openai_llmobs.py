@@ -950,6 +950,7 @@ class TestLLMObsOpenaiV1:
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
+                    "user": "ddtrace-test",
                     "reasoning_tokens": 0,
                 },
                 token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
