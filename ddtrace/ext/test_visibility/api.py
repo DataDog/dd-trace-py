@@ -20,10 +20,10 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.context import Context
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityAPIBase
 from ddtrace.ext.test_visibility.status import TestExcInfo
@@ -86,13 +86,13 @@ def enable_test_visibility(config: Optional[Any] = None):
 def is_test_visibility_enabled():
     try:
         return require_ci_visibility_service().enabled
-    finally:
+    except RuntimeError:
         return False
+    return False
 
 
 def disable_test_visibility():
     log.debug("Disabling Test Visibility")
-
     ci_visibility_instance = require_ci_visibility_service()
     ci_visibility_instance.disable()
     if ci_visibility_instance.enabled:
@@ -169,8 +169,8 @@ class TestSession(_TestVisibilityAPIBase):
     @staticmethod
     def finish(
         item_id: TestVisibilityItemId,
-        force_finish_children: bool = False,
         override_status: Optional[TestStatus] = None,
+        force_finish_children: bool = False,
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
@@ -200,7 +200,7 @@ class TestSession(_TestVisibilityAPIBase):
 
 class TestModule(TestBase):
     @staticmethod
-    def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
+    def discover(item_id: TestModuleId, *args, **kwargs):
         from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 
         log.debug("Registered module %s", item_id)
@@ -212,12 +212,12 @@ class TestModule(TestBase):
             TestVisibilityModule(
                 item_id.name,
                 ci_visibility_instance.get_session_settings(),
-                module_path,
+                kwargs.get("module_path"),
             ),
         )
 
     @staticmethod
-    def start(item_id: TestModuleId):
+    def start(item_id: TestModuleId, *args, **kwargs):
         log.debug("Starting module %s", item_id)
         require_ci_visibility_service().get_module_by_id(item_id).start()
 
@@ -360,13 +360,15 @@ class Test(TestBase):
             exc_info,
         )
 
-        require_ci_visibility_service().get_test_by_id(item_id).finish_test(status, skip_reason, exc_info)
+        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
+            status=status, skip_reason=skip_reason, exc_info=exc_info
+        )
 
     @staticmethod
     def set_parameters(item_id: TestId, params: str):
         log.debug("Setting test %s parameters to %s", item_id, params)
 
-        require_ci_visibility_service().get_test_by_id(item_id).set_parameters(params)
+        require_ci_visibility_service().get_test_by_id(item_id).set_parameters(parameters=params)
 
     @staticmethod
     def mark_pass(item_id: TestId):

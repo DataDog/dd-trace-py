@@ -18,9 +18,9 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
@@ -156,7 +156,7 @@ class TestVisibilityItemBase(abc.ABC):
 
         # General purpose attributes not used by all item types
         self._codeowners: Optional[List[str]] = []
-        self._source_file_info: Optional["TestSourceFileInfo"] = None
+        self._source_file_info: Optional[TestSourceFileInfo] = None
         self._coverage_data: Optional[TestVisibilityCoverageData] = None
 
     def __repr__(self) -> str:
@@ -312,11 +312,11 @@ class TestVisibilityItemBase(abc.ABC):
         pass
 
     @property
-    def _source_file_info(self) -> Optional["TestSourceFileInfo"]:
+    def _source_file_info(self) -> Optional[TestSourceFileInfo]:
         return self.__source_file_info
 
     @_source_file_info.setter
-    def _source_file_info(self, source_file_info_value: Optional["TestSourceFileInfo"] = None):
+    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None):
         """This checks that filepaths are absolute when setting source file info"""
         self.__source_file_info = None  # Default value until source_file_info is validated
 

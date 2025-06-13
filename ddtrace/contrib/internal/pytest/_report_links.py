@@ -3,7 +3,7 @@ import re
 from urllib.parse import quote
 
 from ddtrace.ext import ci
-from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
 
 DEFAULT_DATADOG_SITE = "datadoghq.com"
@@ -16,10 +16,11 @@ def print_test_report_links(terminalreporter):
     base_url = _get_base_url(
         dd_site=os.getenv("DD_SITE", DEFAULT_DATADOG_SITE), dd_subdomain=os.getenv("DD_SUBDOMAIN", "")
     )
-    ci_tags = CIVisibility.get_ci_tags()
-    settings = CIVisibility.get_session_settings()
+    ci_visibility_instance = require_ci_visibility_service()
+    ci_tags = ci_visibility_instance.get_ci_tags()
+    settings = ci_visibility_instance.get_session_settings()
     service = settings.test_service
-    env = CIVisibility.get_dd_env()
+    env = ci_visibility_instance.get_dd_env()
 
     redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
     test_runs_url = _build_test_runs_url(base_url, ci_tags)

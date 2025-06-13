@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
@@ -472,7 +472,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
     def atr_start_retry(self, retry_number: int):
         self._atr_get_retry_test(retry_number).start()
 
-    def atr_finish_retry(self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None):
+    def atr_finish_retry(
+        self,
+        retry_number: int,
+        status: TestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
+    ):
+        # TODO: Do something with skip reason
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
@@ -545,7 +552,11 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         self._attempt_to_fix_get_retry_test(retry_number).start()
 
     def attempt_to_fix_finish_retry(
-        self, retry_number: int, status: TestStatus, exc_info: Optional[TestExcInfo] = None
+        self,
+        retry_number: int,
+        status: TestStatus,
+        skip_reason: Optional[str] = None,
+        exc_info: Optional[TestExcInfo] = None,
     ):
         retry_test = self._attempt_to_fix_get_retry_test(retry_number)
 

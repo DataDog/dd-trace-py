@@ -32,20 +32,20 @@ class ATRSessionMixin:
 
 class ATRTestMixin:
     @staticmethod
-    def atr_should_retry(test_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s should be retried by ATR", test_id)
-        return require_ci_visibility_service().get_test_by_id(test_id).atr_should_retry()
+    def atr_should_retry(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s should be retried by ATR", item_id)
+        return require_ci_visibility_service().get_test_by_id(item_id).atr_should_retry()
 
     @staticmethod
-    def atr_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
-        retry_number = require_ci_visibility_service().get_test_by_id(test_id).atr_add_retry(start_immediately)
-        log.debug("Adding ATR retry %s for test %s", retry_number, test_id)
+    def atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> int:
+        retry_number = require_ci_visibility_service().get_test_by_id(item_id).atr_add_retry(start_immediately)
+        log.debug("Adding ATR retry %s for test %s", retry_number, item_id)
         return retry_number
 
     @staticmethod
-    def atr_start_retry(test_id: InternalTestId, retry_number: int) -> None:
-        log.debug("Starting ATR retry %s for test %s", retry_number, test_id)
-        require_ci_visibility_service().get_test_by_id(test_id).atr_start_retry(retry_number)
+    def atr_start_retry(item_id: InternalTestId, retry_number: int) -> None:
+        log.debug("Starting ATR retry %s for test %s", retry_number, item_id)
+        require_ci_visibility_service().get_test_by_id(item_id).atr_start_retry(retry_number)
 
     @staticmethod
     def atr_finish_retry(

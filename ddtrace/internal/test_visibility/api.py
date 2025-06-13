@@ -1,6 +1,5 @@
 from pathlib import Path
 import typing as t
-from typing import NamedTuple
 
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
@@ -159,7 +158,7 @@ class InternalTest(
         log.debug("Finishing test with status: %s, skip_reason: %s", status, skip_reason)
         final_status = status if status is not None else ext_api.TestStatus.PASS
         require_ci_visibility_service().get_test_by_id(item_id).finish_test(
-            status=final_status, skip_reason=skip_reason, exc_info=exc_info
+            status=final_status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
         )
 
     @staticmethod

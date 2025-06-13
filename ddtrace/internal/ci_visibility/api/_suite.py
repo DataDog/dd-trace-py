@@ -4,8 +4,8 @@ from typing import List
 from typing import Optional
 
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem

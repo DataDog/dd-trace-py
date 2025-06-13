@@ -40,22 +40,22 @@ class EFDSessionMixin:
 
 class EFDTestMixin:
     @staticmethod
-    def efd_should_retry(test_id: InternalTestId) -> bool:
-        log.debug("Checking if test %s should be retried by EFD", test_id)
+    def efd_should_retry(item_id: InternalTestId) -> bool:
+        log.debug("Checking if test %s should be retried by EFD", item_id)
 
-        return require_ci_visibility_service().get_test_by_id(test_id).efd_should_retry()
+        return require_ci_visibility_service().get_test_by_id(item_id).efd_should_retry()
 
     @staticmethod
-    def efd_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
-        retry_number = require_ci_visibility_service().get_test_by_id(test_id).efd_add_retry(start_immediately)
-        log.debug("Adding EFD retry %s for test %s", retry_number, test_id)
+    def efd_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
+        retry_number = require_ci_visibility_service().get_test_by_id(item_id).efd_add_retry(start_immediately)
+        log.debug("Adding EFD retry %s for test %s", retry_number, item_id)
         return retry_number
 
     @staticmethod
-    def efd_start_retry(test_id: InternalTestId, retry_number: int) -> None:
-        log.debug("Starting EFD retry %s for test %s", retry_number, test_id)
+    def efd_start_retry(item_id: InternalTestId, retry_number: int) -> None:
+        log.debug("Starting EFD retry %s for test %s", retry_number, item_id)
 
-        require_ci_visibility_service().get_test_by_id(test_id).efd_start_retry(retry_number)
+        require_ci_visibility_service().get_test_by_id(item_id).efd_start_retry(retry_number)
 
     @staticmethod
     def efd_finish_retry(
@@ -78,7 +78,7 @@ class EFDTestMixin:
         )
 
     @staticmethod
-    def efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
-        log.debug("Getting EFD final status for test %s", test_id)
+    def efd_get_final_status(item_id: InternalTestId) -> EFDTestStatus:
+        log.debug("Getting EFD final status for test %s", item_id)
 
-        return require_ci_visibility_service().get_test_by_id(test_id).efd_get_final_status()
+        return require_ci_visibility_service().get_test_by_id(item_id).efd_get_final_status()

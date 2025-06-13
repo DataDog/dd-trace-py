@@ -61,8 +61,40 @@ class _TestVisibilityChildItemIdBase(_TestVisibilityIdBase, Generic[PT]):
         return self.parent_id
 
 
+@dataclasses.dataclass(frozen=True)
+class TestModuleId(_TestVisibilityRootItemIdBase):
+    name: str
+
+    def __repr__(self):
+        return "TestModuleId(module={})".format(
+            self.name,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class TestSuiteId(_TestVisibilityChildItemIdBase[TestModuleId]):
+    def __repr__(self):
+        return "TestSuiteId(module={}, suite={})".format(self.parent_id.name, self.name)
+
+
+@dataclasses.dataclass(frozen=True)
+class TestId(_TestVisibilityChildItemIdBase[TestSuiteId]):
+    parameters: Optional[str] = None  # For hashability, a JSON string of a dictionary of parameters
+
+    def __repr__(self):
+        return "TestId(module={}, suite={}, test={}, parameters={})".format(
+            self.parent_id.parent_id.name,
+            self.parent_id.name,
+            self.name,
+            self.parameters,
+        )
+
+
 TestVisibilityItemId = TypeVar(
-    "TestVisibilityItemId", bound=Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+    "TestVisibilityItemId",
+    bound=Union[
+        _TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId, TestModuleId, TestSuiteId, TestId
+    ],
 )
 
 

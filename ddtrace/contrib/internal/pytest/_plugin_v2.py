@@ -319,6 +319,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.discover(
+            item_id=None,  # unused arg
             test_command=command,
             test_framework=FRAMEWORK,
             test_framework_version=pytest.__version__,
@@ -440,7 +441,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     _handle_test_management(item, test_id)
     _handle_itr_should_skip(item, test_id)
 
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
 
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
@@ -469,7 +470,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # - we trust that the next item is in the same module if it is in the same suite
     next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
     if next_test_id is None or next_test_id.parent_id != suite_id:
-        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_forced_run(suite_id):
+        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_itr_forced_run(suite_id):
             InternalTestSuite.mark_itr_skipped(suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
@@ -610,7 +611,7 @@ def _process_result(item, result) -> _TestOutcome:
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
-        if InternalTest.was_skipped_by_itr(test_id):
+        if InternalTest.was_itr_skipped(test_id):
             # Items that were skipped by ITR already have their status and reason set
             return _TestOutcome()
 
@@ -796,6 +797,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             InternalTestSession.set_itr_tags(skipped_count)
 
     InternalTestSession.finish(
+        item_id=None,  # unused argument
         force_finish_children=True,
         override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
     )
