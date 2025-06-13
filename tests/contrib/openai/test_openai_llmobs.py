@@ -722,7 +722,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=input_messages,
                 output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={           
+                metadata={
                     "top_p": 0.9,
                     "max_output_tokens": 100,
                     "user": "ddtrace-test",
@@ -791,7 +791,7 @@ class TestLLMObsOpenaiV1:
             )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
-        response_function_output=response_tool_function_expected_output.copy()
+        response_function_output = response_tool_function_expected_output.copy()
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,

@@ -527,13 +527,15 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
     return processed
 
 
-def openai_get_metadata_from_response(response: Optional[Any], kwargs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def openai_get_metadata_from_response(
+    response: Optional[Any], kwargs: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     metadata = {}
-    
+
     # Add metadata from kwargs first, excluding certain fields
     if kwargs:
         metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
-    
+
     if not response:
         return {}
 
@@ -545,9 +547,8 @@ def openai_get_metadata_from_response(response: Optional[Any], kwargs: Optional[
 
     usage = getattr(response, "usage", None)
     output_tokens_details = getattr(usage, "output_tokens_details", None)
-    if output_tokens_details:
-        reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
-        metadata["reasoning_tokens"] = reasoning_tokens
+    reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
+    metadata["reasoning_tokens"] = reasoning_tokens
 
     return metadata
 
