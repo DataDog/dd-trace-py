@@ -74,11 +74,12 @@ def test_metric_executed_sink(
     with override_global_config(
         dict(
             _iast_enabled=True,
+            _iast_is_testing=True,
             _iast_deduplication_enabled=deduplication_enabled,
             _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME,
         )
     ):
-        weak_hash_patch(testing=True)
+        weak_hash_patch()
 
         tracer = DummyTracer(iast_enabled=True)
 
@@ -108,24 +109,30 @@ def test_metric_executed_sink(
 
 
 def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
-        cmdi_patch(testing=True)
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
+        cmdi_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
 
 
 def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
-        header_injection_patch(testing=True)
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
+        header_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
 
 
 def test_metric_instrumented_code_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
-        code_injection_patch(testing=True)
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
+        code_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CODE_INJECTION)
 

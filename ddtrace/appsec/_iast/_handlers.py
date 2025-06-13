@@ -57,9 +57,9 @@ def _on_flask_patch(flask_version):
         flask_version: The version tuple of Flask being patched
     """
     if asm_config._iast_enabled:
-        warp_modules = WrapModulesForIAST()
-
         try:
+            warp_modules = WrapModulesForIAST()
+
             warp_modules.add_module(
                 "werkzeug.datastructures",
                 "Headers.items",
@@ -115,6 +115,8 @@ def _on_flask_patch(flask_version):
                 )
                 _set_metric_iast_instrumented_source(OriginType.QUERY)
 
+            warp_modules.patch()
+
             # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
             _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
 
@@ -153,15 +155,18 @@ def _on_wsgi_environ(wrapped, _instance, args, kwargs):
 def _on_django_patch():
     """Handle Django framework patch event."""
     if asm_config._iast_enabled:
-        warp_modules = WrapModulesForIAST()
-
         try:
+            warp_modules = WrapModulesForIAST()
+
             warp_modules.add_module(
                 "django.http.request",
                 "QueryDict.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
             )
             warp_modules.add_module("django.utils.shlex", "quote", cmdi_sanitizer)
+
+            warp_modules.patch()
+
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -352,83 +357,88 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 
 def _on_iast_fastapi_patch():
-    warp_modules = WrapModulesForIAST()
-    # Cookies sources
-    warp_modules.add_module(
-        "starlette.requests",
-        "cookie_parser",
-        functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
-    )
-    _set_metric_iast_instrumented_source(OriginType.COOKIE)
-    _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+    try:
+        warp_modules = WrapModulesForIAST()
+        # Cookies sources
+        warp_modules.add_module(
+            "starlette.requests",
+            "cookie_parser",
+            functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
+        )
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
 
-    # Parameter sources
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "QueryParams.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-    )
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "QueryParams.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-    )
-    _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+        # Parameter sources
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "QueryParams.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "QueryParams.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "QueryParams.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
-    )
-    _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "QueryParams.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+        )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
-    # Header sources
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "Headers.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "Headers.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    _set_metric_iast_instrumented_source(OriginType.HEADER)
+        # Header sources
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "Headers.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "Headers.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "Headers.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
-    )
-    _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "Headers.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
 
-    # Path source
-    warp_modules.add_module("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
-    _set_metric_iast_instrumented_source(OriginType.PATH)
+        # Path source
+        warp_modules.add_module("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+        _set_metric_iast_instrumented_source(OriginType.PATH)
 
-    # Body source
-    warp_modules.add_module("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
-    warp_modules.add_module("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "FormData.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-    )
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "FormData.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-    )
-    warp_modules.add_module(
-        "starlette.datastructures",
-        "FormData.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
-    )
+        # Body source
+        warp_modules.add_module("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+        warp_modules.add_module("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "FormData.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+        )
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "FormData.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+        )
+        warp_modules.add_module(
+            "starlette.datastructures",
+            "FormData.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+        )
 
-    _set_metric_iast_instrumented_source(OriginType.BODY)
+        warp_modules.patch()
 
-    # Instrumented on _iast_starlette_scope_taint
-    _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.BODY)
+
+        # Instrumented on _iast_starlette_scope_taint
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 def _on_pre_tracedrequest_iast(ctx):

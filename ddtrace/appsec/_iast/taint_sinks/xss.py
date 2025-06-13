@@ -9,6 +9,7 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -25,18 +26,9 @@ def get_version() -> Text:
     return ""
 
 
-_is_patched = False
-
-
-def patch(testing=False):
-    global _is_patched
-    if _is_patched and not testing:
-        return
-
-    if not asm_config._iast_enabled:
-        return
-
-    warp_modules = WrapModulesForIAST(testing=testing)
+@patch_once
+def patch():
+    warp_modules = WrapModulesForIAST()
 
     warp_modules.add_module(
         "django.utils.safestring",
@@ -60,6 +52,8 @@ def patch(testing=False):
         "render_template_string",
         _iast_jinja2_xss,
     )
+
+    warp_modules.patch()
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
     # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch

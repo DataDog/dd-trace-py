@@ -9,6 +9,7 @@ from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.settings.asm import config as asm_config
 
 
 MODULES_TO_UNPATCH: Set["IASTModule"] = set()
@@ -55,11 +56,9 @@ class IASTModule:
 
 
 class WrapModulesForIAST:
-    testing: bool = False
-
-    def __init__(self, testing=False):
+    def __init__(self):
         self.modules: Set[IASTModule] = set()
-        self.testing = testing
+        self.testing: bool = asm_config._iast_is_testing
 
     def add_module(self, name, function, hook):
         self.modules.add(IASTModule(name, function, hook))
@@ -80,5 +79,5 @@ class WrapModulesForIAST:
 
 
 def _testing_unpatch_iast():
-    warp_modules = WrapModulesForIAST(testing=True)
+    warp_modules = WrapModulesForIAST()
     warp_modules.testing_unpatch()

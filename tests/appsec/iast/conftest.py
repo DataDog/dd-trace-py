@@ -68,6 +68,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         dict(
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
+            _iast_is_testing=True,
             _iast_deduplication_enabled=deduplication,
             _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
             _iast_request_sampling=request_sampling,
@@ -75,12 +76,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
     ), override_env(env):
         span = MockSpan()
         _start_iast_context_and_oce(span)
-        weak_hash_patch(testing=True)
-        weak_cipher_patch(testing=True)
-        json_patch(testing=True)
-        cmdi_patch(testing=True)
-        header_injection_patch(testing=True)
-        code_injection_patch(testing=True)
+        weak_hash_patch()
+        weak_cipher_patch()
+        json_patch()
+        cmdi_patch()
+        header_injection_patch()
+        code_injection_patch()
         patch_common_modules()
         yield
         unpatch_common_modules()

@@ -15,6 +15,7 @@ from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
+from .utils import patch_once
 
 
 def get_weak_hash_algorithms() -> Set:
@@ -34,22 +35,13 @@ def get_version() -> str:
     return ""
 
 
-_is_patched = False
-
-
-def patch(testing=False):
+@patch_once
+def patch():
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
-    global _is_patched
-    if _is_patched and not testing:
-        return
-
-    if not asm_config._iast_enabled:
-        return
-
-    warp_modules = WrapModulesForIAST(testing=testing)
+    warp_modules = WrapModulesForIAST()
 
     weak_hash_algorithms = get_weak_hash_algorithms()
     num_instrumented_sinks = 0
