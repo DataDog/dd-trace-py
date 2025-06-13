@@ -818,9 +818,7 @@ class Tracer(object):
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                agen = f(*args, **kwargs)
-                async for value in agen:
-                    yield value
+                yield from f(*args, **kwargs)
 
         return func_wrapper
 
