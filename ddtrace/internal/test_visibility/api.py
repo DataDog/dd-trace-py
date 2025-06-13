@@ -5,7 +5,6 @@ from typing import NamedTuple
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
-from ddtrace.ext.test_visibility._utils import _is_item_finished
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
@@ -19,7 +18,6 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
-from ddtrace.internal.test_visibility._utils import _get_item_span
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -31,7 +29,7 @@ class InternalTestBase(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
-        return _get_item_span(item_id)
+        return ext_api._get_item_span(item_id)
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -74,7 +72,7 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin,
 
     @staticmethod
     def is_finished() -> bool:
-        return _is_item_finished(TestSessionId())
+        return ext_api._is_item_finished(TestSessionId())
 
     @staticmethod
     @_catch_and_log_exceptions
