@@ -9,20 +9,6 @@ Datadog::SampleManager::add_type(unsigned int type)
 }
 
 void
-Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
-{
-    if (_max_nframes > 0) {
-        max_nframes = _max_nframes;
-    }
-
-    // If the user has requested more than we're allowed to give, reduce the limit and warn the user.
-    if (max_nframes > g_backend_max_nframes) {
-        // We don't emit an error here for now.
-        max_nframes = g_backend_max_nframes;
-    }
-}
-
-void
 Datadog::SampleManager::set_timeline(bool enable)
 {
     Datadog::Sample::set_timeline(enable);

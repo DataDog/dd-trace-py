@@ -45,7 +45,6 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_runtime_version(string_view runtime_version)
     void ddup_config_profiler_version(string_view profiler_version)
     void ddup_config_url(string_view url)
-    void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
     void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
@@ -327,7 +326,6 @@ def config(
         env: StringType = None,
         version: StringType = None,
         tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
-        max_nframes: Optional[int] = None,
         timeline_enabled: Optional[bool] = None,
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None) -> None:
@@ -349,8 +347,6 @@ def config(
     call_func_with_str(ddup_config_runtime_version, platform.python_version())
     call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
 
-    if max_nframes is not None:
-        ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
     if tags is not None:
         for key, val in tags.items():
             if key and val:
