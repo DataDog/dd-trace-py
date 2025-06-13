@@ -6,7 +6,6 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-
 from collections.abc import Iterable
 import functools
 from inspect import getmro
@@ -48,6 +47,7 @@ from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.settings._config import _get_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Pin
@@ -69,6 +69,8 @@ config._add(
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
+        analytics_enabled=None,  # None allows the value to be overridden by the global config
+        analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
@@ -80,6 +82,8 @@ config._add(
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
+        _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),
     ),
 )
 
