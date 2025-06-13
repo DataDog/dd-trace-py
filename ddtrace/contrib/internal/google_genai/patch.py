@@ -45,7 +45,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     )
     try:
         generation_response = func(*args, **kwargs)
-    except:
+    except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
