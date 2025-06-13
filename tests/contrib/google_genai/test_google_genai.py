@@ -21,8 +21,8 @@ def test_global_tags(google_genai_vcr, genai, mock_tracer):
         with google_genai_vcr.use_cassette("generate_content.yaml"):
             client = genai.Client()
             client.models.generate_content(
-                model='gemini-2.0-flash-001',
-                contents='Why is the sky blue? Explain in 2-3 sentences.',
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
                 config=types.GenerateContentConfig(
                     temperature=0,
                     top_p=0.95,
@@ -30,7 +30,7 @@ def test_global_tags(google_genai_vcr, genai, mock_tracer):
                     candidate_count=1,
                     seed=5,
                     max_output_tokens=100,
-                    stop_sequences=['STOP!'],
+                    stop_sequences=["STOP!"],
                     presence_penalty=0.0,
                     frequency_penalty=0.0,
                 ),
@@ -50,8 +50,8 @@ def test_google_genai_completion(google_genai_vcr, genai):
     with google_genai_vcr.use_cassette("generate_content.yaml"):
         client = genai.Client()
         client.models.generate_content(
-            model='gemini-2.0-flash-001',
-            contents='Why is the sky blue? Explain in 2-3 sentences.',
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=types.GenerateContentConfig(
                 temperature=0,
                 top_p=0.95,
@@ -59,30 +59,35 @@ def test_google_genai_completion(google_genai_vcr, genai):
                 candidate_count=1,
                 seed=5,
                 max_output_tokens=100,
-                stop_sequences=['STOP!'],
+                stop_sequences=["STOP!"],
                 presence_penalty=0.0,
                 frequency_penalty=0.0,
             ),
         )
 
 
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_completion_error",
-                      ignores=["meta.error.stack"])
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_completion_error",
+    ignores=["meta.error.stack"],
+)
 def test_google_genai_completion_error(google_genai_vcr, genai):
     with pytest.raises(TypeError):
         client = genai.Client()
         client.models.generate_content(
-            model='gemini-2.0-flash-001',
-            contents='Why is the sky blue? Explain in 2-3 sentences.',
-            not_an_argument='why am i here?', #invalid argument
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            not_an_argument="why am i here?",  # invalid argument
         )
 
 
 @pytest.mark.parametrize(
     "model_name,expected_provider,expected_model",
     [
-        ("projects/my-project-id/locations/us-central1/publishers/google/models/gemini-2.0-flash",
-         "google", "gemini-2.0-flash"),
+        (
+            "projects/my-project-id/locations/us-central1/publishers/google/models/gemini-2.0-flash",
+            "google",
+            "gemini-2.0-flash",
+        ),
         ("imagen-1.0", "google", "imagen-1.0"),
         ("models/veo-1.0", "google", "veo-1.0"),
         ("jamba-1.0", "ai21labs", "jamba-1.0"),
