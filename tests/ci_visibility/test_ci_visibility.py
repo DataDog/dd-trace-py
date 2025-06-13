@@ -1408,15 +1408,15 @@ class TestIsITRSkippable:
 
             # Check skippable tests are correct
             for test_id in expected_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is True
+                assert CIVisibility._instance.is_item_itr_skippable(test_id) is True
 
             # Check non-skippable tests are correct
             for test_id in expected_non_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
+                assert CIVisibility._instance.is_item_itr_skippable(test_id) is False
 
             # Check all suites are not skippable
             for suite_id in self._get_all_suite_ids():
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+                assert CIVisibility._instance.is_item_itr_skippable(suite_id) is False
 
     def test_is_item_itr_skippable_suite_level(self):
         with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
@@ -1432,15 +1432,15 @@ class TestIsITRSkippable:
 
             # Check skippable suites are correct
             for suite_id in expected_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is True
+                assert CIVisibility._instance.is_item_itr_skippable(suite_id) is True
 
             # Check non-skippable suites are correct
             for suite_id in expected_non_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+                assert CIVisibility._instance.is_item_itr_skippable(suite_id) is False
 
             # Check all tests are not skippable
             for test_id in self._get_all_test_ids():
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
+                assert CIVisibility._instance.is_item_itr_skippable(test_id) is False
 
 
 class TestCIVisibilitySetTestSessionName(TracerTestCase):
@@ -1468,7 +1468,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
         """
         with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var(self):
@@ -1479,7 +1479,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
     def test_set_test_session_name_from_job_name_and_command(self):
@@ -1493,7 +1493,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_job-some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
@@ -1506,7 +1506,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
 
@@ -1522,7 +1522,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
     def test_set_library_capabilities(self):
         with _ci_override_env(), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_library_capabilities(
+            CIVisibility._instance.set_library_capabilities(
                 LibraryCapabilities(
                     early_flake_detection="1",
                     auto_test_retries=None,

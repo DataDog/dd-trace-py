@@ -556,6 +556,10 @@ class CIVisibility(Service):
         from ddtrace.internal.ci_visibility.service_registry import CIVisibilityServiceRegistry
 
         log.debug("Enabling %s", cls.__name__)
+        if cls._instance is not None:
+            log.debug("%s already enabled", cls.__name__)
+            return
+
         if ddconfig._ci_visibility_agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
                 log.critical(
@@ -566,12 +570,11 @@ class CIVisibility(Service):
                 cls.enabled = False
                 return
 
-        if cls._instance is not None:
-            log.debug("%s already enabled", cls.__name__)
-            return
-
         try:
             cls._instance = cls(tracer=tracer, config=config, service=service)
+            # Register with service registry for other modules to access
+            CIVisibilityServiceRegistry.register(cls._instance)
+
         except CIVisibilityAuthenticationException:
             log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
             cls.enabled = False
@@ -582,9 +585,6 @@ class CIVisibility(Service):
         cls._instance.start()
         atexit.register(cls.disable)
 
-        # Register with service registry for other modules to access
-        CIVisibilityServiceRegistry.register(cls._instance)
-
         log.debug("%s enabled", cls.__name__)
         log.info(
             "Final settings: coverage collection: %s, "
@@ -594,11 +594,11 @@ class CIVisibility(Service):
             "Flaky Test Management: %s, "
             "Known Tests: %s",
             cls._instance._collect_coverage_enabled,
-            CIVisibility.test_skipping_enabled(),
-            CIVisibility.is_efd_enabled(),
-            CIVisibility.is_atr_enabled(),
-            CIVisibility.is_test_management_enabled(),
-            CIVisibility.is_known_tests_enabled(),
+            cls._instance.test_skipping_enabled(),
+            cls._instance.is_efd_enabled(),
+            cls._instance.is_atr_enabled(),
+            cls._instance.is_test_management_enabled(),
+            cls._instance.is_known_tests_enabled(),
         )
 
     @classmethod

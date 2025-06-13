@@ -1,7 +1,6 @@
 from enum import Enum
 import typing as t
 
-from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
@@ -21,21 +20,18 @@ class EFDTestStatus(Enum):
 
 class EFDSessionMixin:
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_enabled() -> bool:
         log.debug("Checking if EFD is enabled")
 
         return require_ci_visibility_service().get_session().efd_is_enabled()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_is_faulty_session() -> bool:
         log.debug("Checking if EFD session is faulty")
 
         return require_ci_visibility_service().get_session().efd_is_faulty_session()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_has_failed_tests() -> bool:
         log.debug("Checking if EFD session has failed tests")
 
@@ -44,28 +40,24 @@ class EFDSessionMixin:
 
 class EFDTestMixin:
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_should_retry(test_id: InternalTestId) -> bool:
         log.debug("Checking if test %s should be retried by EFD", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).efd_should_retry()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         retry_number = require_ci_visibility_service().get_test_by_id(test_id).efd_add_retry(start_immediately)
         log.debug("Adding EFD retry %s for test %s", retry_number, test_id)
         return retry_number
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_start_retry(test_id: InternalTestId, retry_number: int) -> None:
         log.debug("Starting EFD retry %s for test %s", retry_number, test_id)
 
         require_ci_visibility_service().get_test_by_id(test_id).efd_start_retry(retry_number)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_finish_retry(
         item_id: InternalTestId,
         retry_number: int,
@@ -86,7 +78,6 @@ class EFDTestMixin:
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
     def efd_get_final_status(test_id: InternalTestId) -> EFDTestStatus:
         log.debug("Getting EFD final status for test %s", test_id)
 

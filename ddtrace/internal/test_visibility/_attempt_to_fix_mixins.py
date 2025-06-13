@@ -1,6 +1,5 @@
 import typing as t
 
-from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
@@ -13,7 +12,6 @@ log = get_logger(__name__)
 
 class AttemptToFixSessionMixin:
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_has_failed_tests() -> bool:
         log.debug("Checking if attempt to fix session has failed tests")
 
@@ -22,13 +20,11 @@ class AttemptToFixSessionMixin:
 
 class AttemptToFixTestMixin:
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_should_retry(test_id: InternalTestId) -> bool:
         log.debug("Checking if test %s should be retried by attempt to fix", test_id)
         return require_ci_visibility_service().get_test_by_id(test_id).attempt_to_fix_should_retry()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_add_retry(test_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         retry_number = (
             require_ci_visibility_service().get_test_by_id(test_id).attempt_to_fix_add_retry(start_immediately)
@@ -37,13 +33,11 @@ class AttemptToFixTestMixin:
         return retry_number
 
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_start_retry(test_id: InternalTestId, retry_number: int) -> None:
         log.debug("Starting attempt to fix retry %s for test %s", retry_number, test_id)
         require_ci_visibility_service().get_test_by_id(test_id).attempt_to_fix_start_retry(retry_number)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_finish_retry(
         test_id: InternalTestId,
         retry_number: int,
@@ -56,7 +50,6 @@ class AttemptToFixTestMixin:
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
     def attempt_to_fix_get_final_status(test_id: InternalTestId) -> TestStatus:
         log.debug("Getting attempt to fix final status for test %s", test_id)
         return require_ci_visibility_service().get_test_by_id(test_id).attempt_to_fix_get_final_status()

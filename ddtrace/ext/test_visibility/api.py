@@ -20,7 +20,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.context import Context
-from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
 from ddtrace.ext.test_visibility._item_ids import TestSuiteId
@@ -74,7 +73,6 @@ class DEFAULT_OPERATION_NAMES(Enum):
     TEST = "test_visibility.test"
 
 
-@_catch_and_log_exceptions
 def enable_test_visibility(config: Optional[Any] = None):
     log.debug("Enabling Test Visibility with config: %s", config)
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -85,12 +83,13 @@ def enable_test_visibility(config: Optional[Any] = None):
         log.warning("Failed to enable Test Visibility")
 
 
-@_catch_and_log_exceptions
 def is_test_visibility_enabled():
-    return require_ci_visibility_service().enabled
+    try:
+        return require_ci_visibility_service().enabled
+    finally:
+        return False
 
 
-@_catch_and_log_exceptions
 def disable_test_visibility():
     log.debug("Disabling Test Visibility")
 
@@ -128,8 +127,8 @@ class TestBase(_TestVisibilityAPIBase):
 
 class TestSession(_TestVisibilityAPIBase):
     @staticmethod
-    @_catch_and_log_exceptions
     def discover(
+        item_id: TestVisibilityItemId,
         test_command: str,
         test_framework: str,
         test_framework_version: str,
@@ -160,8 +159,7 @@ class TestSession(_TestVisibilityAPIBase):
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
-    def start(distributed_children: bool = False, context: Optional[Context] = None):
+    def start(item_id: TestVisibilityItemId, distributed_children: bool = False, context: Optional[Context] = None):
         log.debug("Starting session")
         session = require_ci_visibility_service().get_session()
         session.start(context)
@@ -169,8 +167,8 @@ class TestSession(_TestVisibilityAPIBase):
             session.set_distributed_children()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def finish(
+        item_id: TestVisibilityItemId,
         force_finish_children: bool = False,
         override_status: Optional[TestStatus] = None,
     ):
@@ -202,7 +200,6 @@ class TestSession(_TestVisibilityAPIBase):
 
 class TestModule(TestBase):
     @staticmethod
-    @_catch_and_log_exceptions
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
         from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 
@@ -220,13 +217,11 @@ class TestModule(TestBase):
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
     def start(item_id: TestModuleId):
         log.debug("Starting module %s", item_id)
         require_ci_visibility_service().get_module_by_id(item_id).start()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def finish(
         item_id: TestModuleId,
         override_status: Optional[TestStatus] = None,
@@ -246,7 +241,6 @@ class TestModule(TestBase):
 
 class TestSuite(TestBase):
     @staticmethod
-    @_catch_and_log_exceptions
     def discover(
         item_id: TestSuiteId,
         codeowners: Optional[List[str]] = None,
@@ -270,13 +264,11 @@ class TestSuite(TestBase):
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
     def start(item_id: TestSuiteId):
         log.debug("Starting suite %s", item_id)
         require_ci_visibility_service().get_suite_by_id(item_id).start()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def finish(
         item_id: TestSuiteId,
         force_finish_children: bool = False,
@@ -294,7 +286,6 @@ class TestSuite(TestBase):
 
 class Test(TestBase):
     @staticmethod
-    @_catch_and_log_exceptions
     def discover(
         item_id: TestId,
         codeowners: Optional[List[str]] = None,
@@ -349,14 +340,12 @@ class Test(TestBase):
         )
 
     @staticmethod
-    @_catch_and_log_exceptions
     def start(item_id: TestId):
         log.debug("Starting test %s", item_id)
 
         require_ci_visibility_service().get_test_by_id(item_id).start()
 
     @staticmethod
-    @_catch_and_log_exceptions
     def finish(
         item_id: TestId,
         status: TestStatus,
@@ -374,26 +363,22 @@ class Test(TestBase):
         require_ci_visibility_service().get_test_by_id(item_id).finish_test(status, skip_reason, exc_info)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def set_parameters(item_id: TestId, params: str):
         log.debug("Setting test %s parameters to %s", item_id, params)
 
         require_ci_visibility_service().get_test_by_id(item_id).set_parameters(params)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def mark_pass(item_id: TestId):
         log.debug("Marking test %s as passed", item_id)
         Test.finish(item_id, TestStatus.PASS)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def mark_fail(item_id: TestId, exc_info: Optional[TestExcInfo] = None):
         log.debug("Marking test %s as failed, exc_info: %s", item_id, exc_info)
         Test.finish(item_id, TestStatus.FAIL, exc_info=exc_info)
 
     @staticmethod
-    @_catch_and_log_exceptions
     def mark_skip(item_id: TestId, skip_reason: Optional[str] = None):
         log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
         Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason)
