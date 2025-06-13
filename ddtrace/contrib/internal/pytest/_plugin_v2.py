@@ -319,7 +319,6 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.discover(
-            item_id=None,  # unused arg
             test_command=command,
             test_framework=FRAMEWORK,
             test_framework_version=pytest.__version__,
@@ -797,7 +796,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             InternalTestSession.set_itr_tags(skipped_count)
 
     InternalTestSession.finish(
-        item_id=None,  # unused argument
         force_finish_children=True,
         override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
     )

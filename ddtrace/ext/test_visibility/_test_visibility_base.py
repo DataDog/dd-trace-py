@@ -127,12 +127,12 @@ class _TestVisibilityAPIBase(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def discover(item_id: TestVisibilityItemId, *args, **kwargs):
+    def discover(*args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def start(item_id: TestVisibilityItemId, *args, **kwargs):
+    def start(*args, **kwargs):
         pass
 
     @staticmethod

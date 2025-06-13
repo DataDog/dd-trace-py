@@ -128,7 +128,6 @@ class TestBase(_TestVisibilityAPIBase):
 class TestSession(_TestVisibilityAPIBase):
     @staticmethod
     def discover(
-        item_id: TestVisibilityItemId,
         test_command: str,
         test_framework: str,
         test_framework_version: str,
@@ -159,7 +158,7 @@ class TestSession(_TestVisibilityAPIBase):
         )
 
     @staticmethod
-    def start(item_id: TestVisibilityItemId, distributed_children: bool = False, context: Optional[Context] = None):
+    def start(distributed_children: bool = False, context: Optional[Context] = None):
         log.debug("Starting session")
         session = require_ci_visibility_service().get_session()
         session.start(context)
@@ -168,7 +167,6 @@ class TestSession(_TestVisibilityAPIBase):
 
     @staticmethod
     def finish(  # type: ignore[override]
-        item_id: TestVisibilityItemId,
         override_status: Optional[TestStatus] = None,
         force_finish_children: bool = False,
     ):
