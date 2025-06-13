@@ -81,6 +81,18 @@ def ddtrace_injection_artifact():
 
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
+        # copy the package metadata (.egg-info)
+        # to simulate a proper installation, which allows entry points to be discovered.
+        host_egg_info_dir = os.path.join(PROJECT_ROOT, "ddtrace.egg-info")
+        if os.path.isdir(host_egg_info_dir):
+            target_egg_info_dir = os.path.join(target_site_packages_path, "ddtrace.egg-info")
+            shutil.copytree(host_egg_info_dir, target_egg_info_dir, symlinks=True)
+        else:
+            pytest.fail(
+                f"ddtrace.egg-info not found in {PROJECT_ROOT}. "
+                "Please run 'pip install -e .' in the project root to generate it."
+            )
+
         yield sources_dir_in_session_tmp
 
     finally:

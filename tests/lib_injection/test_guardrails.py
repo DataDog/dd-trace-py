@@ -18,13 +18,10 @@ pymongo_spec = _get_integration_supported_versions(internal_contrib_dir, "pymong
 def script_to_run(import_line):
     return """
 try:
-    # idk why ddtrace.auto is not working, but even so lib-injection should be calling patch, no idea whats going on.
-    # so we're just calling patch_all manually here.
-
-    from ddtrace import patch_all
-    patch_all()
-
+    # import the package(s) we are testing. ddtrace should already be loaded.
     %s
+
+    import ddtrace
 
     print('successfully loaded ddtrace')
 except ImportError:
