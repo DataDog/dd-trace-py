@@ -766,7 +766,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             sync_mode=self._sync_mode,
             api_version=self._api_version,
             report_metrics=self._report_metrics,
-            response_callback=self._response_cb,
             test_session_token=self._test_session_token,
         )
 
