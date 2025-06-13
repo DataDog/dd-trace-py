@@ -1,8 +1,9 @@
 from enum import Enum
 import typing as t
 
-from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
-import ddtrace.ext.test_visibility.api as ext_api
+from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
+from ddtrace.ext.test_visibility.status import TestStatus
+from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 
@@ -80,9 +81,9 @@ class EFDTestMixin:
     def efd_finish_retry(
         item_id: InternalTestId,
         retry_number: int,
-        status: ext_api.TestStatus,
+        status: TestStatus,
         skip_reason: t.Optional[str] = None,
-        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+        exc_info: t.Optional[TestExcInfo] = None,
     ):
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
 

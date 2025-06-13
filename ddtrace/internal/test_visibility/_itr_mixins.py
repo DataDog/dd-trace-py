@@ -2,7 +2,7 @@ from pathlib import Path
 import typing as t
 
 from ddtrace.ext.test_visibility import api as ext_api
-from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
+from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId

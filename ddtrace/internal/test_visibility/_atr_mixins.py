@@ -1,8 +1,10 @@
 import dataclasses
 import typing as t
 
-from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
+from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 import ddtrace.ext.test_visibility.api as ext_api
+from ddtrace.ext.test_visibility.status import TestStatus
+from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 
@@ -38,11 +40,11 @@ class ATRSessionMixin:
 
 
 class ATRTestMixin:
-    class ATRRetryFinishArgs(t.NamedTuple):
-        test_id: InternalTestId
-        retry_number: int
-        status: ext_api.TestStatus
-        exc_info: t.Optional[ext_api.TestExcInfo]
+    # class ATRRetryFinishArgs(t.NamedTuple):
+    #     test_id: InternalTestId
+    #     retry_number: int
+    #     status: ext_api.TestStatus
+    #     exc_info: t.Optional[ext_api.TestExcInfo]
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -77,8 +79,8 @@ class ATRTestMixin:
     def atr_finish_retry(
         test_id: InternalTestId,
         retry_number: int,
-        status: ext_api.TestStatus,
-        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+        status: TestStatus,
+        exc_info: t.Optional[TestExcInfo] = None,
     ) -> None:
         log.debug("Finishing ATR retry %s for test %s", retry_number, test_id)
         # Lazy import to avoid circular dependency
@@ -90,7 +92,7 @@ class ATRTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def atr_get_final_status(test_id: InternalTestId) -> ext_api.TestStatus:
+    def atr_get_final_status(test_id: InternalTestId) -> TestStatus:
         log.debug("Getting ATR final status for test %s", test_id)
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility

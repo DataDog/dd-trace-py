@@ -17,11 +17,11 @@ from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
-from ddtrace.ext.test_visibility.api import TestId
-from ddtrace.ext.test_visibility.api import TestModuleId
-from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import telemetry

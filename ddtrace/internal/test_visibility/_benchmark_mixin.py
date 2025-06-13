@@ -1,6 +1,6 @@
 import typing as t
 
-from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
+from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId

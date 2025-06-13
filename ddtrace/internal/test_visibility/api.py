@@ -3,11 +3,11 @@ import typing as t
 from typing import NamedTuple
 
 from ddtrace.ext.test_visibility import api as ext_api
+from ddtrace.ext.test_visibility._decorators import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
-from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility._utils import _is_item_finished
-from ddtrace.ext.test_visibility.api import TestExcInfo
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility.status import TestExcInfo
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import ATRSessionMixin
@@ -182,34 +182,36 @@ class InternalTestSuite(ext_api.TestSuite, InternalTestBase, ITRMixin):
 class InternalTest(
     ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, AttemptToFixTestMixin, BenchmarkTestMixin
 ):
-    class FinishArgs(NamedTuple):
-        """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
+    # class FinishArgs(NamedTuple):
+    #     """InternalTest allows finishing with an overridden finish time (for EFD and other retry purposes)"""
 
-        test_id: InternalTestId
-        status: t.Optional[TestStatus] = None
-        skip_reason: t.Optional[str] = None
-        exc_info: t.Optional[TestExcInfo] = None
-        override_finish_time: t.Optional[float] = None
+    #     test_id: InternalTestId
+    #     status: t.Optional[TestStatus] = None
+    #     skip_reason: t.Optional[str] = None
+    #     exc_info: t.Optional[TestExcInfo] = None
+    #     override_finish_time: t.Optional[float] = None
 
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
         item_id: InternalTestId,
         status: t.Optional[ext_api.TestStatus] = None,
-        reason: t.Optional[str] = None,
+        skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
         override_finish_time: t.Optional[float] = None,
     ):
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        log.debug("Finishing test with status: %s, reason: %s", status, reason)
+        log.debug("Finishing test with status: %s, skip_reason: %s", status, skip_reason)
         final_status = status if status is not None else ext_api.TestStatus.PASS
-        CIVisibility.get_test_by_id(item_id).finish_test(final_status, reason, exc_info)
+        CIVisibility.get_test_by_id(item_id).finish_test(
+            status=final_status, skip_reason=skip_reason, exc_info=exc_info
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_new(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+    def is_new_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is new", test_id)
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -218,7 +220,7 @@ class InternalTest(
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_quarantined(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+    def is_quarantined_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is quarantined", test_id)
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
@@ -227,7 +229,7 @@ class InternalTest(
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_disabled(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
+    def is_disabled_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is disabled", test_id)
         # Lazy import to avoid circular dependency
         from ddtrace.internal.ci_visibility.recorder import CIVisibility
