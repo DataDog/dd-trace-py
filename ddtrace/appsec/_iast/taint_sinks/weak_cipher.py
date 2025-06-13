@@ -87,6 +87,7 @@ def patch(testing=False):
     warp_modules.add_module("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor", wrapped_cryptography_function)
     num_instrumented_sinks += 1
 
+    warp_modules.patch()
     _set_metric_iast_instrumented_sink(VULN_WEAK_CIPHER_TYPE, num_instrumented_sinks)
 
 

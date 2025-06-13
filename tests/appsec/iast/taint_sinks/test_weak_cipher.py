@@ -1,7 +1,7 @@
 import pytest
 
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_WEAK_CIPHER_TYPE
-from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.conftest import iast_context
@@ -177,7 +177,7 @@ def test_weak_cipher_cryptography_blowfish_configured(iast_context_blowfish_conf
 
 
 def test_weak_cipher_rc4_unpatched(iast_context_defaults):
-    unpatch_iast()
+    _testing_unpatch_iast()
     cipher_arc4()
     span_report = _get_span_report()
 

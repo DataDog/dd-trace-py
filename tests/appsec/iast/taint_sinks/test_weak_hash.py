@@ -5,9 +5,9 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
@@ -148,9 +148,9 @@ def test_weak_hash_new(iast_context_defaults):
 
 
 def test_weak_hash_md5_builtin_py3_unpatched(iast_context_md5_and_sha1_configured):
+    _testing_unpatch_iast()
     import _md5
 
-    unpatch_iast()
     m = _md5.md5()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")

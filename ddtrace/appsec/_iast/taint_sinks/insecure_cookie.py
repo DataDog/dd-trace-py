@@ -108,6 +108,8 @@ def patch(testing=False):
     warp_modules.add_module("flask", "Response.set_cookie", _iast_response_cookies)
     warp_modules.add_module("starlette.responses", "Response.set_cookie", _iast_response_cookies)
 
+    warp_modules.patch()
+
     _set_metric_iast_instrumented_sink(VULN_INSECURE_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_HTTPONLY_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_SAMESITE_COOKIE)

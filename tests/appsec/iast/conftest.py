@@ -12,7 +12,7 @@ from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
@@ -83,10 +83,9 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         code_injection_patch(testing=True)
         patch_common_modules()
         yield
-        warp_modules = WrapModulesForIAST(testing=True)
         unpatch_common_modules()
         cmdi_unpatch()
-        warp_modules.testing_unpatch()
+        _testing_unpatch_iast()
         _end_iast_context_and_oce(span)
 
 

@@ -49,6 +49,7 @@ def patch(testing=False):
 
     _set_metric_iast_instrumented_sink(VULN_UNVALIDATED_REDIRECT)
 
+    warp_modules.patch()
     _is_patched = True
 
 

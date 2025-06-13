@@ -76,6 +76,8 @@ def patch(testing=False):
         warp_modules.add_module("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
         num_instrumented_sinks += 2
 
+    warp_modules.patch()
+
     if num_instrumented_sinks > 0:
         _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
 

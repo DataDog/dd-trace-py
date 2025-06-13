@@ -144,6 +144,8 @@ def patch(testing=False):
     # For headers["foo"] = "bar"
     warp_modules.add_module("starlette.datastructures", "MutableHeaders.__setitem__", _iast_set_headers)
 
+    warp_modules.patch()
+
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
     _is_patched = True

@@ -41,6 +41,8 @@ def patch(testing=False):
     #  function
     # warp_modules.add_module("builtins", "exec", _iast_coi)
 
+    warp_modules.patch()
+
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
     _is_patched = True
 
