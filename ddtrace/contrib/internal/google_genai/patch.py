@@ -39,7 +39,6 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     # span = integration.trace(
