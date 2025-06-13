@@ -59,7 +59,9 @@ class DEFAULT_OPERATION_NAMES(Enum):
 @_catch_and_log_exceptions
 def enable_test_visibility(config: Optional[Any] = None):
     log.debug("Enabling Test Visibility with config: %s", config)
-    require_ci_visibility_service().enable(config=config)
+    from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+    CIVisibility.enable(config=config)
 
     if not require_ci_visibility_service().enabled:
         log.warning("Failed to enable Test Visibility")
@@ -74,8 +76,9 @@ def is_test_visibility_enabled():
 def disable_test_visibility():
     log.debug("Disabling Test Visibility")
 
-    require_ci_visibility_service().disable()
-    if require_ci_visibility_service().enabled:
+    ci_visibility_instance = require_ci_visibility_service()
+    ci_visibility_instance.disable()
+    if ci_visibility_instance.enabled:
         log.warning("Failed to disable Test Visibility")
 
 
@@ -147,10 +150,6 @@ class TestSession(_TestVisibilityAPIBase):
         if distributed_children:
             session.set_distributed_children()
 
-    # class FinishArgs(NamedTuple):
-    #     force_finish_children: bool
-    #     override_status: Optional[TestStatus]
-
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
@@ -184,24 +183,20 @@ class TestSession(_TestVisibilityAPIBase):
 
 
 class TestModule(TestBase):
-    # class FinishArgs(NamedTuple):
-    #     module_id: TestModuleId
-    #     override_status: Optional[TestStatus] = None
-    #     force_finish_children: bool = False
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
         from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
 
         log.debug("Registered module %s", item_id)
-        session = require_ci_visibility_service().get_session()
+        ci_visibility_instance = require_ci_visibility_service()
+        session = ci_visibility_instance.get_session()
 
         session.add_child(
             item_id,
             TestVisibilityModule(
                 item_id.name,
-                require_ci_visibility_service().get_session_settings(),
+                ci_visibility_instance.get_session_settings(),
                 module_path,
             ),
         )
@@ -226,7 +221,9 @@ class TestModule(TestBase):
             force_finish_children,
         )
 
-        require_ci_visibility_service().get_module_by_id(item_id).finish()
+        require_ci_visibility_service().get_module_by_id(item_id).finish(
+            override_status=override_status  # , force_finish_children=force_finish_children
+        )
 
 
 class TestSuite(TestBase):
@@ -241,13 +238,14 @@ class TestSuite(TestBase):
         log.debug("Registering suite %s, source: %s", item_id, source_file_info)
         from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 
-        module = require_ci_visibility_service().get_module_by_id(item_id.parent_id)
+        ci_visibility_instance = require_ci_visibility_service()
+        module = ci_visibility_instance.get_module_by_id(item_id.parent_id)
 
         module.add_child(
             item_id,
             TestVisibilitySuite(
                 item_id.name,
-                require_ci_visibility_service().get_session_settings(),
+                ci_visibility_instance.get_session_settings(),
                 codeowners,
                 source_file_info,
             ),
@@ -258,11 +256,6 @@ class TestSuite(TestBase):
     def start(item_id: TestSuiteId):
         log.debug("Starting suite %s", item_id)
         require_ci_visibility_service().get_suite_by_id(item_id).start()
-
-    # class FinishArgs(NamedTuple):
-    #     suite_id: TestSuiteId
-    #     force_finish_children: bool = False
-    #     override_status: Optional[TestStatus] = None
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -278,7 +271,7 @@ class TestSuite(TestBase):
             override_status,
         )
 
-        require_ci_visibility_service().get_suite_by_id(item_id).finish(force_finish_children, override_status)
+        require_ci_visibility_service().get_suite_by_id(item_id).finish(override_status=override_status)
 
 
 class Test(TestBase):
@@ -303,19 +296,20 @@ class Test(TestBase):
         )
 
         log.debug("Handling discovery for test %s", item_id)
-        suite = require_ci_visibility_service().get_suite_by_id(item_id.parent_id)
+        ci_visibility_instance = require_ci_visibility_service()
+        suite = ci_visibility_instance.get_suite_by_id(item_id.parent_id)
 
         # New tests are currently only considered for EFD:
         # - if known tests were fetched properly (enforced by is_known_test)
         # - if they have no parameters
-        if require_ci_visibility_service().is_known_tests_enabled() and item_id.parameters is None:
-            is_new = not require_ci_visibility_service().is_known_test(item_id)
+        if ci_visibility_instance.is_known_tests_enabled() and item_id.parameters is None:
+            is_new = not ci_visibility_instance.is_known_test(item_id)
         else:
             is_new = False
 
         test_properties = None
-        if require_ci_visibility_service().is_test_management_enabled():
-            test_properties = require_ci_visibility_service().get_test_properties(item_id)
+        if ci_visibility_instance.is_test_management_enabled():
+            test_properties = ci_visibility_instance.get_test_properties(item_id)
 
         if not test_properties:
             test_properties = TestProperties()
@@ -324,7 +318,7 @@ class Test(TestBase):
             item_id,
             TestVisibilityTest(
                 item_id.name,
-                require_ci_visibility_service().get_session_settings(),
+                ci_visibility_instance.get_session_settings(),
                 parameters=item_id.parameters,
                 codeowners=codeowners,
                 source_file_info=source_file_info,
@@ -342,12 +336,6 @@ class Test(TestBase):
         log.debug("Starting test %s", item_id)
 
         require_ci_visibility_service().get_test_by_id(item_id).start()
-
-    # class FinishArgs(NamedTuple):
-    #     test_id: TestId
-    #     status: TestStatus
-    #     skip_reason: Optional[str] = None
-    #     exc_info: Optional[TestExcInfo] = None
 
     @staticmethod
     @_catch_and_log_exceptions

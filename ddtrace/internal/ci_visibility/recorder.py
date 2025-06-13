@@ -799,61 +799,25 @@ class CIVisibility(Service):
             raise CIVisibilityError(error_msg)
         return cls._instance
 
-    @classmethod
-    def get_tracer(cls) -> Optional[Tracer]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None:
-            return None
-        return instance.tracer
+    def get_tracer(self) -> Optional[Tracer]:
+        return self.tracer
 
-    @classmethod
-    def get_service(cls) -> Optional[str]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None:
-            return None
-        return instance._service
+    def get_service(self) -> Optional[str]:
+        return self._service
 
-    @classmethod
-    def get_codeowners(cls) -> Optional[Codeowners]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None:
-            return None
-        return instance._codeowners
+    def get_codeowners(self) -> Optional[Codeowners]:
+        return self._codeowners
 
-    @classmethod
-    def get_efd_api_settings(cls) -> Optional[EarlyFlakeDetectionSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
+    def get_efd_api_settings(self) -> Optional[EarlyFlakeDetectionSettings]:
+        if self._api_settings is None:
             return None
-        return instance._api_settings.early_flake_detection
+        return self._api_settings.early_flake_detection
 
-    @classmethod
-    def get_atr_api_settings(cls) -> Optional[AutoTestRetriesSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
+    def get_atr_api_settings(self) -> Optional[AutoTestRetriesSettings]:
+        if self._api_settings is None:
             return None
 
-        if instance._api_settings.flaky_test_retries_enabled:
+        if self._api_settings.flaky_test_retries_enabled:
             # NOTE: this is meant to come from integration settings but current plans to rewrite how integration
             # settings are defined make it better for this logic to be temporarily defined here.
 
@@ -886,68 +850,35 @@ class CIVisibility(Service):
 
         return None
 
-    @classmethod
-    def get_test_management_api_settings(cls) -> Optional[TestManagementSettings]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._api_settings is None:
+    def get_test_management_api_settings(self) -> Optional[TestManagementSettings]:
+        if self._api_settings is None:
             return None
-        return instance._api_settings.test_management
+        return self._api_settings.test_management
 
-    @classmethod
-    def get_workspace_path(cls) -> Optional[str]:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None:
-            return None
-        return instance._tags.get(ci.WORKSPACE_PATH)
+    def get_workspace_path(self) -> Optional[str]:
+        return self._tags.get(ci.WORKSPACE_PATH)
 
-    @classmethod
-    def is_item_itr_skippable(cls, item_id: TestVisibilityItemId) -> bool:
-        if not cls.enabled:
-            error_msg = "CI Visibility is not enabled"
-            log.warning(error_msg)
-            raise CIVisibilityError(error_msg)
-        instance = cls.get_instance()
-        if instance is None or instance._itr_data is None:
+    def is_item_itr_skippable(self, item_id: TestVisibilityItemId) -> bool:
+        if self._itr_data is None:
             return False
 
-        if isinstance(item_id, TestSuiteId) and not instance._suite_skipping_mode:
+        if isinstance(item_id, TestSuiteId) and not self._suite_skipping_mode:
             log.debug("Skipping mode is suite, but item is not a suite: %s", item_id)
             return False
 
-        if isinstance(item_id, TestId) and instance._suite_skipping_mode:
+        if isinstance(item_id, TestId) and self._suite_skipping_mode:
             log.debug("Skipping mode is test, but item is not a test: %s", item_id)
             return False
-        return item_id in instance._itr_data.skippable_items
+        return item_id in self._itr_data.skippable_items
 
-    @classmethod
-    def is_unknown_ci(cls) -> bool:
-        instance = cls.get_instance()
-        if instance is None:
-            return False
+    def is_unknown_ci(self) -> bool:
+        return self._tags.get(ci.PROVIDER_NAME) is None
 
-        return instance._tags.get(ci.PROVIDER_NAME) is None
+    def ci_provider_name_for_telemetry(self) -> str:
+        return TELEMETRY_BY_PROVIDER_NAME.get(self._tags.get(ci.PROVIDER_NAME, UNSUPPORTED), UNSUPPORTED_PROVIDER)
 
-    @classmethod
-    def ci_provider_name_for_telemetry(cls) -> str:
-        instance = cls.get_instance()
-        if instance is None:
-            return UNSUPPORTED_PROVIDER
-        return TELEMETRY_BY_PROVIDER_NAME.get(instance._tags.get(ci.PROVIDER_NAME, UNSUPPORTED), UNSUPPORTED_PROVIDER)
-
-    @classmethod
-    def is_auto_injected(cls) -> bool:
-        instance = cls.get_instance()
-        if instance is None:
-            return False
-        return instance._is_auto_injected
+    def is_auto_injected(self) -> bool:
+        return self._is_auto_injected
 
     def _get_ci_visibility_event_client(self) -> Optional[CIVisibilityEventClient]:
         writer = self.tracer._span_aggregator.writer
@@ -958,10 +889,8 @@ class CIVisibility(Service):
 
         return None
 
-    @classmethod
-    def set_test_session_name(cls, test_command: str) -> None:
-        instance = cls.get_instance()
-        client = instance._get_ci_visibility_event_client()
+    def set_test_session_name(self, test_command: str) -> None:
+        client = self._get_ci_visibility_event_client()
         if not client:
             log.debug("Not setting test session name because no CIVisibilityEventClient is active")
             return
@@ -969,52 +898,36 @@ class CIVisibility(Service):
         if ddconfig._test_session_name:
             test_session_name = ddconfig._test_session_name
         else:
-            job_name = instance._tags.get(ci.JOB_NAME)
+            job_name = self._tags.get(ci.JOB_NAME)
             test_session_name = f"{job_name}-{test_command}" if job_name else test_command
 
         log.debug("Setting test session name: %s", test_session_name)
         client.set_test_session_name(test_session_name)
 
-    @classmethod
-    def set_library_capabilities(cls, capabilities: LibraryCapabilities) -> None:
-        instance = cls.get_instance()
-        client = instance._get_ci_visibility_event_client()
+    def set_library_capabilities(self, capabilities: LibraryCapabilities) -> None:
+        client = self._get_ci_visibility_event_client()
         if not client:
             log.debug("Not setting library capabilities because no CIVisibilityEventClient is active")
             return
         client.set_metadata("test", capabilities.tags())
 
-    @classmethod
-    def get_ci_tags(cls):
-        instance = cls.get_instance()
-        return instance._tags
+    def get_ci_tags(self):
+        return self._tags
 
-    @classmethod
-    def get_dd_env(cls):
-        instance = cls.get_instance()
-        return instance._dd_env
+    def get_dd_env(self):
+        return self._dd_env
 
-    @classmethod
-    def is_known_test(cls, test_id: Union[TestId, InternalTestId]) -> bool:
-        instance = cls.get_instance()
-        if instance is None:
-            return False
-
+    def is_known_test(self, test_id: Union[TestId, InternalTestId]) -> bool:
         # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
         # because the current EFD usage would cause the session to be faulty even if the query was successful but
         # not unique tests exist. In this case, we assume all tests are unique.
-        if len(instance._known_test_ids) == 0:
+        if len(self._known_test_ids) == 0:
             return True
 
-        return test_id in instance._known_test_ids
+        return test_id in self._known_test_ids
 
-    @classmethod
-    def get_test_properties(cls, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
-        instance = cls.get_instance()
-        if instance is None:
-            return None
-
-        return instance._test_properties.get(test_id)
+    def get_test_properties(self, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
+        return self._test_properties.get(test_id)
 
 
 def _requires_civisibility_enabled(func: Callable) -> Callable:
@@ -1042,9 +955,9 @@ def on_discover_session(
     log.debug("Handling session discovery")
 
     # _requires_civisibility_enabled prevents us from getting here, but this makes type checkers happy
-    tracer = CIVisibility.get_tracer()
-    test_service = CIVisibility.get_service()
     instance = CIVisibility.get_instance()
+    test_service = instance.get_service()
+    tracer = instance.get_tracer()
 
     if tracer is None or test_service is None:
         error_msg = "Tracer or test service is None"
@@ -1052,21 +965,21 @@ def on_discover_session(
         raise CIVisibilityError(error_msg)
 
     # If we're not provided a root directory, try and extract it from workspace, defaulting to CWD
-    workspace_path = root_dir or Path(CIVisibility.get_workspace_path() or os.getcwd())
+    workspace_path = root_dir or Path(instance.get_workspace_path() or os.getcwd())
 
     # Prevent high cardinality of test framework telemetry tag by matching with known frameworks
     test_framework_telemetry_name = _get_test_framework_telemetry_name(test_framework)
 
-    efd_api_settings = CIVisibility.get_efd_api_settings()
-    if efd_api_settings is None or not CIVisibility.is_efd_enabled():
+    efd_api_settings = instance.get_efd_api_settings()
+    if efd_api_settings is None or not instance.is_efd_enabled():
         efd_api_settings = EarlyFlakeDetectionSettings()
 
-    atr_api_settings = CIVisibility.get_atr_api_settings()
+    atr_api_settings = instance.get_atr_api_settings()
     if atr_api_settings is None or not CIVisibility.is_atr_enabled():
         atr_api_settings = AutoTestRetriesSettings()
 
-    test_management_api_settings = CIVisibility.get_test_management_api_settings()
-    if test_management_api_settings is None or not CIVisibility.is_test_management_enabled():
+    test_management_api_settings = instance.get_test_management_api_settings()
+    if test_management_api_settings is None or not instance.is_test_management_enabled():
         test_management_api_settings = TestManagementSettings()
 
     session_settings = TestVisibilitySessionSettings(
@@ -1082,18 +995,18 @@ def on_discover_session(
         suite_operation_name=suite_operation_name,
         test_operation_name=test_operation_name,
         workspace_path=workspace_path,
-        is_unsupported_ci=CIVisibility.is_unknown_ci(),
-        itr_enabled=CIVisibility.is_itr_enabled(),
-        itr_test_skipping_enabled=CIVisibility.test_skipping_enabled(),
+        is_unsupported_ci=instance.is_unknown_ci(),
+        itr_enabled=instance.is_itr_enabled(),
+        itr_test_skipping_enabled=instance.test_skipping_enabled(),
         itr_test_skipping_level=instance._itr_skipping_level,
         itr_correlation_id=instance._itr_meta.get(ITR_CORRELATION_ID_TAG_NAME, ""),
-        coverage_enabled=CIVisibility.should_collect_coverage(),
-        known_tests_enabled=CIVisibility.is_known_tests_enabled(),
+        coverage_enabled=instance.should_collect_coverage(),
+        known_tests_enabled=instance.is_known_tests_enabled(),
         efd_settings=efd_api_settings,
         atr_settings=atr_api_settings,
         test_management_settings=test_management_api_settings,
-        ci_provider_name=CIVisibility.ci_provider_name_for_telemetry(),
-        is_auto_injected=CIVisibility.is_auto_injected(),
+        ci_provider_name=instance.ci_provider_name_for_telemetry(),
+        is_auto_injected=instance.is_auto_injected(),
     )
 
     session = TestVisibilitySession(
@@ -1101,4 +1014,4 @@ def on_discover_session(
     )
 
     CIVisibility.add_session(session)
-    CIVisibility.set_test_session_name(test_command=test_command)
+    instance.set_test_session_name(test_command=test_command)

@@ -55,16 +55,17 @@ class ITRMixin:
     @_catch_and_log_exceptions
     def is_itr_skippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         log.debug("Checking if item %s is skippable by ITR", item_id)
+        ci_visibility_instance = require_ci_visibility_service()
 
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):
             log.warning("Only suites or tests can be skippable, not %s", type(item_id))
             return False
 
-        if not require_ci_visibility_service().test_skipping_enabled():
+        if not ci_visibility_instance.test_skipping_enabled():
             log.debug("Test skipping is not enabled")
             return False
 
-        return require_ci_visibility_service().is_item_itr_skippable(item_id)
+        return ci_visibility_instance.is_item_itr_skippable(item_id)
 
     @staticmethod
     @_catch_and_log_exceptions
