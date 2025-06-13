@@ -309,6 +309,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-genai",
+        "integration": "google_genai",
+        "minimum_tracer_supported": "1.20.0",
+        "max_tracer_supported": "1.20.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
         "minimum_tracer_supported": "0.7.2",

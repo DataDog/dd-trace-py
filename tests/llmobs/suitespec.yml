@@ -6,6 +6,9 @@ components:
   google_generativeai:
     - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
+  google_genai:
+    - ddtrace/contrib/_google_genai.py
+    - ddtrace/contrib/internal/google_genai/*
   vertexai:
     - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
@@ -55,6 +58,19 @@ suites:
     - '@llmobs'
     - tests/contrib/google_generativeai/*
     - tests/snapshots/tests.contrib.google_generativeai.*
+    runner: riot
+    snapshot: true
+  google_genai:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_genai'
+      - '@llmobs'
+      - tests/contrib/google_genai/*
+      - tests/snapshots/tests.contrib.google_genai.*
     runner: riot
     snapshot: true
   vertexai:
