@@ -887,7 +887,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
                     self.start()
 
             except service.ServiceStatusError:
-                pass
+                log.warning("failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
