@@ -553,6 +553,8 @@ class CIVisibility(Service):
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None) -> None:
+        from ddtrace.internal.ci_visibility.service_registry import CIVisibilityServiceRegistry
+
         log.debug("Enabling %s", cls.__name__)
         if ddconfig._ci_visibility_agentless_enabled:
             if not os.getenv("_CI_DD_API_KEY", os.getenv("DD_API_KEY")):
@@ -580,6 +582,9 @@ class CIVisibility(Service):
         cls._instance.start()
         atexit.register(cls.disable)
 
+        # Register with service registry for other modules to access
+        CIVisibilityServiceRegistry.register(cls._instance)
+
         log.debug("%s enabled", cls.__name__)
         log.info(
             "Final settings: coverage collection: %s, "
@@ -598,11 +603,16 @@ class CIVisibility(Service):
 
     @classmethod
     def disable(cls) -> None:
+        from ddtrace.internal.ci_visibility.service_registry import CIVisibilityServiceRegistry
+
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
+
+        # Unregister from service registry first
+        CIVisibilityServiceRegistry.unregister()
 
         cls._instance.stop()
         cls._instance = None

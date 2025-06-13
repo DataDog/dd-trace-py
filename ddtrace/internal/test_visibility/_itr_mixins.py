@@ -7,6 +7,7 @@ from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 
 
 log = get_logger(__name__)
@@ -23,77 +24,63 @@ class ITRMixin:
     @_catch_and_log_exceptions
     def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as skipped by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):
             log.warning("Only suites or tests can be skipped, not %s", type(item_id))
             return
-        CIVisibility.get_item_by_id(item_id).finish_itr_skipped()
+        require_ci_visibility_service().get_item_by_id(item_id).finish_itr_skipped()
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as unskippable by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        CIVisibility.get_item_by_id(item_id).mark_itr_unskippable()
+        require_ci_visibility_service().get_item_by_id(item_id).mark_itr_unskippable()
 
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):
         log.debug("Marking item %s as forced run by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        CIVisibility.get_item_by_id(item_id).mark_itr_forced_run()
+        require_ci_visibility_service().get_item_by_id(item_id).mark_itr_forced_run()
 
     @staticmethod
     @_catch_and_log_exceptions
     def was_itr_forced_run(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         log.debug("Checking if item %s was forced run by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        return CIVisibility.get_item_by_id(item_id).was_itr_forced_run()
+        return require_ci_visibility_service().get_item_by_id(item_id).was_itr_forced_run()
 
     @staticmethod
     @_catch_and_log_exceptions
     def is_itr_skippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         log.debug("Checking if item %s is skippable by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):
             log.warning("Only suites or tests can be skippable, not %s", type(item_id))
             return False
 
-        if not CIVisibility.test_skipping_enabled():
+        if not require_ci_visibility_service().test_skipping_enabled():
             log.debug("Test skipping is not enabled")
             return False
 
-        return CIVisibility.is_item_itr_skippable(item_id)
+        return require_ci_visibility_service().is_item_itr_skippable(item_id)
 
     @staticmethod
     @_catch_and_log_exceptions
     def is_itr_unskippable(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         log.debug("Checking if item %s is unskippable by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
         if not isinstance(item_id, (ext_api.TestSuiteId, InternalTestId)):
             raise CIVisibilityError("Only suites or tests can be unskippable")
-        return CIVisibility.get_item_by_id(item_id).is_itr_unskippable()
+        return require_ci_visibility_service().get_item_by_id(item_id).is_itr_unskippable()
 
     @staticmethod
     @_catch_and_log_exceptions
     def was_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]) -> bool:
         log.debug("Checking if item %s was skipped by ITR", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        return CIVisibility.get_item_by_id(item_id).is_itr_skipped()
+        return require_ci_visibility_service().get_item_by_id(item_id).is_itr_skipped()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -105,10 +92,8 @@ class ITRMixin:
             log.warning("Coverage data can only be added to suites and tests, not %s", type(item_id))
             return
 
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        CIVisibility.get_item_by_id(item_id).add_coverage_data(coverage_data)
+        require_ci_visibility_service().get_item_by_id(item_id).add_coverage_data(coverage_data)
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -116,7 +101,5 @@ class ITRMixin:
         item_id: t.Union[ext_api.TestSuiteId, InternalTestId]
     ) -> t.Optional[t.Dict[Path, CoverageLines]]:
         log.debug("Getting coverage data for item %s", item_id)
-        # Lazy import to avoid circular dependency
-        from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-        return CIVisibility.get_item_by_id(item_id).get_coverage_data()
+        return require_ci_visibility_service().get_item_by_id(item_id).get_coverage_data()
