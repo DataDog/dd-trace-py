@@ -89,7 +89,10 @@ class TerminalReporterMock:
 def test_print_report_links_full(mocker):
     terminalreporter = TerminalReporterMock()
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
@@ -101,12 +104,8 @@ def test_print_report_links_full(mocker):
             ci.PIPELINE_ID: "123456",
         },
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: None)
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -128,7 +127,10 @@ def test_print_report_links_only_commit_report(mocker):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
@@ -138,12 +140,8 @@ def test_print_report_links_only_commit_report(mocker):
             ci.git.COMMIT_SHA: "abcd0123",
         },
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: None)
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -161,7 +159,10 @@ def test_print_report_links_only_test_runs_report(mocker):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
@@ -170,12 +171,8 @@ def test_print_report_links_only_test_runs_report(mocker):
             ci.PIPELINE_ID: "123456",
         },
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: None)
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -194,18 +191,17 @@ def test_print_report_links_no_report(mocker):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
         lambda: {},
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: None)
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -217,7 +213,10 @@ def test_print_report_links_escape_names(mocker):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
@@ -229,12 +228,8 @@ def test_print_report_links_escape_names(mocker):
             ci.PIPELINE_ID: 'a "strange" id',
         },
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: None)
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: None)
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
@@ -255,7 +250,10 @@ def test_print_report_links_commit_report_with_env(mocker):
     terminalreporter = TerminalReporterMock()
 
     ci_visibility_instance = mocker.Mock(spec=CIVisibility)
-    mocker.patch("ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service", return_value=ci_visibility_instance)
+    mocker.patch(
+        "ddtrace.contrib.internal.pytest._report_links.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    )
     mocker.patch.object(
         ci_visibility_instance,
         "get_ci_tags",
@@ -265,12 +263,8 @@ def test_print_report_links_commit_report_with_env(mocker):
             ci.git.COMMIT_SHA: "abcd0123",
         },
     )
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_session_settings", lambda: _get_session_settings())
-    mocker.patch.object(
-        ci_visibility_instance,
-        "get_dd_env", lambda: "the_env")
+    mocker.patch.object(ci_visibility_instance, "get_session_settings", lambda: _get_session_settings())
+    mocker.patch.object(ci_visibility_instance, "get_dd_env", lambda: "the_env")
 
     with override_env({}):
         _report_links.print_test_report_links(terminalreporter)
