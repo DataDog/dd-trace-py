@@ -24,7 +24,6 @@ import pytest
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.utils_botocore import span_tags
-from tests.utils import flaky
 from tests.utils import get_128_bit_trace_id_from_headers
 
 
@@ -1227,7 +1226,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "aws.sqs.receive"
 
     @mock_stepfunctions
-    @flaky(1759346444)
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
@@ -1251,7 +1250,7 @@ class BotocoreTest(TracerTestCase):
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
 
     @mock_stepfunctions
-    @flaky(1759346444)
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection_with_array_input(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
@@ -1273,7 +1272,7 @@ class BotocoreTest(TracerTestCase):
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller")
 
     @mock_stepfunctions
-    @flaky(1759346444)
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection_with_true_input(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
