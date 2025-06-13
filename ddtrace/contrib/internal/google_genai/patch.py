@@ -16,7 +16,7 @@ config._add(
 
 
 def _supported_versions():
-    return {"google-genai": ">=1.19.0"}
+    return {"google.genai": ">=1.19.0"}
 
 
 def get_version():
