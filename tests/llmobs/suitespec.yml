@@ -6,6 +6,9 @@ components:
   google_generativeai:
     - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
+  google_genai:
+    - ddtrace/contrib/_google_generativeai.py
+    - ddtrace/contrib/internal/google_generativeai/*
   vertexai:
     - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
