@@ -4,13 +4,14 @@ import sys
 from google import genai
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
-from ddtrace.llmobs._integrations import GoogleGenAIIntegration
+
 # from ddtrace.contrib.internal.google_genai._utils import tag_request
 # from ddtrace.contrib.internal.google_genai._utils import tag_response
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.trace import Pin
 
 
@@ -39,8 +40,8 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
-        model = model_name,
-        submit_to_llmobs=False, #TODO: change to True when we eventually submit to llmobs
+        model=model_name,
+        submit_to_llmobs=False,  # TODO: change to True when we eventually submit to llmobs
     )
     try:
         generation_response = func(*args, **kwargs)
@@ -51,6 +52,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         span.finish()
     return generation_response
 
+
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     pass
@@ -59,7 +61,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
 def patch():
     if getattr(genai, "_datadog_patch", False):
         return
-    
+
     genai._datadog_patch = True
     Pin().onto(genai)
     integration = GoogleGenAIIntegration(integration_config=config.google_genai)
@@ -68,13 +70,12 @@ def patch():
     wrap("google.genai", "models.Models.generate_content", traced_generate(genai))
 
 
-
 def unpatch():
     if not getattr(genai, "_datadog_patch", False):
         return
-    
+
     genai._datadog_patch = False
 
-    unwrap(genai.models.Models, "generate_content") 
+    unwrap(genai.models.Models, "generate_content")
 
     delattr(genai, "_datadog_integration")

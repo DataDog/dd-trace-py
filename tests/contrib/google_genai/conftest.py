@@ -1,6 +1,6 @@
 import os
-import pytest
 
+import pytest
 
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
@@ -10,12 +10,15 @@ from tests.utils import DummyWriter
 from tests.utils import override_config
 from tests.utils import override_global_config
 
+
 def default_global_config():
     return {"_dd_api_key": "<not-a-real-api_key>"}
+
 
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
 
 @pytest.fixture
 def ddtrace_config_google_genai():
@@ -43,7 +46,7 @@ def genai(ddtrace_global_config, ddtrace_config_google_genai):
             patch()
             from google import genai
 
-            # When testing locally to generate new cassette files, comment the line below to use the real Google API key.
+            # When testing locally to generate new cassette files, comment the line below to use the real Google API key
             os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
             yield genai
