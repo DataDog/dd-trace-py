@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "http.server.request",
+    "service": "tests.opentelemetry",
+    "resource": "otel-http",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67f826be00000000",
+      "http.request.method": "GET",
+      "language": "python",
+      "runtime-id": "411a48f68b964c0e9141fd84301ed7e3",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 0.8,
+      "_sampling_priority_v1": 1,
+      "process_id": 9190
+    },
+    "duration": 100982,
+    "start": 1744316094467469248
+  }]]
