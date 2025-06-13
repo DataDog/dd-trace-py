@@ -1226,6 +1226,7 @@ class BotocoreTest(TracerTestCase):
         assert spans[2].name == "aws.sqs.receive"
 
     @mock_stepfunctions
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
@@ -1249,6 +1250,7 @@ class BotocoreTest(TracerTestCase):
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:lincoln")
 
     @mock_stepfunctions
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection_with_array_input(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(
@@ -1270,6 +1272,7 @@ class BotocoreTest(TracerTestCase):
         sf.delete_state_machine(stateMachineArn="arn:aws:states:us-west-2:000000000000:stateMachine:miller")
 
     @mock_stepfunctions
+    @pytest.mark.xfail(reason="Failed to start or connect to state machine")
     def test_stepfunctions_send_start_execution_trace_injection_with_true_input(self):
         sf = self.session.create_client("stepfunctions", region_name="us-west-2", endpoint_url="http://localhost:4566")
         sf.create_state_machine(

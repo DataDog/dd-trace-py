@@ -89,7 +89,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_pygoat:
     parallelism: 3
