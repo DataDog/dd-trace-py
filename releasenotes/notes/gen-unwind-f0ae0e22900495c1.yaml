@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    This fix resolves an issue in which traced nested generator functions had their execution order subtly changed
+    in a way that affected the stack unwinding sequence during exception handling. The issue manifested when the following
+    conditions were met:
+
+      - an exception is raised from a ``with`` block
+      - the context manager implementing the ``with`` block is generator-based
+      - the context manager's ``yield`` statement is wrapped inside a ``try`` block
+      - the corresponding ``except``block includes a ``raise`` statement
+      - the context manager is decorated by a function that decorates its operand with  ``@tracer.wrap``
+      - this decorator calls ``next`` on the context manager, catches exceptions, and re-throws them
