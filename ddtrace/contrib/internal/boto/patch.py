@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Dict
 
 from boto import __version__
 import boto.connection
@@ -49,6 +50,10 @@ config._add(
 def get_version():
     # type: () -> str
     return __version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"boto": "*"}
 
 
 def patch():

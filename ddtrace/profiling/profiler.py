@@ -18,16 +18,12 @@ from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter  # noqa:F401
-from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
-from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.settings.profiling import config as profiling_config
 from ddtrace.settings.profiling import config_str
@@ -143,12 +139,10 @@ class _ProfilerInstance(service.Service):
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
         # Non-user-supplied values
-        self._recorder: Any = None
         self._collectors: List[Union[stack.StackCollector, memalloc.MemoryCollector]] = []
         self._collectors_on_import: Any = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
-        self._export_libdd_enabled: bool = profiling_config.export.libdd_enabled
 
         self.__post_init__()
 
@@ -161,19 +155,6 @@ class _ProfilerInstance(service.Service):
         return True
 
     def _build_default_exporters(self):
-        # type: (...) -> List[exporter.Exporter]
-        if not self._export_libdd_enabled:
-            # If libdatadog support is enabled, we can skip this part
-            _OUTPUT_PPROF = profiling_config.output_pprof
-            if _OUTPUT_PPROF:
-                # DEV: Import this only if needed to avoid importing protobuf
-                # unnecessarily
-                from ddtrace.profiling.exporter import file
-
-                return [
-                    file.PprofFileExporter(prefix=_OUTPUT_PPROF),
-                ]
-
         if self._lambda_function_name is not None:
             self.tags.update({"functionname": self._lambda_function_name})
 
@@ -185,108 +166,26 @@ class _ProfilerInstance(service.Service):
         if self.endpoint_collection_enabled:
             endpoint_call_counter_span_processor.enable()
 
-        # If libdd is enabled, then
-        # * If initialization fails, disable the libdd collector and fall back to the legacy exporter
-        if self._export_libdd_enabled:
-            try:
-                ddup.config(
-                    env=self.env,
-                    service=self.service,
-                    version=self.version,
-                    tags=self.tags,  # type: ignore
-                    max_nframes=profiling_config.max_frames,
-                    timeline_enabled=profiling_config.timeline_enabled,
-                    output_filename=profiling_config.output_pprof,
-                    sample_pool_capacity=profiling_config.sample_pool_capacity,
-                )
-                ddup.start()
-
-                return []
-            except Exception as e:
-                try:
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ddup.failure_msg),
-                    )
-                except Exception as ee:
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Failed to load libdd (%s) (%s), falling back to legacy mode" % (e, ee),
-                    )
-                self._export_libdd_enabled = False
-                profiling_config.export.libdd_enabled = False
-
-                # also disable other features that might be enabled
-                if self._stack_v2_enabled:
-                    LOG.error("Disabling stack_v2 as libdd collector failed to initialize")
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Disabling stack_v2 as libdd collector failed to initialize",
-                    )
-                    self._stack_v2_enabled = False
-                    profiling_config.stack.v2_enabled = False
-
-                # If this instance of ddtrace was injected, then do not enable profiling, since that will load
-                # protobuf, breaking some environments.
-                if profiling_config._injected:
-                    LOG.error("Profiling failures occurred in an injected instance of ddtrace, disabling profiling")
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Profiling failures occurred in an injected instance of ddtrace, disabling profiling",
-                    )
-                    return []
-
-                # pytorch collector relies on libdd exporter
-                if self._pytorch_collector_enabled:
-                    LOG.error("Disabling pytorch profiler as libdd collector failed to initialize")
-                    telemetry_writer.add_log(
-                        TELEMETRY_LOG_LEVEL.ERROR,
-                        "Disabling pytorch profiler as libdd collector failed to initialize",
-                    )
-                    config.pytorch.enabled = False
-                    self._pytorch_collector_enabled = False
-
-        # DEV: Import this only if needed to avoid importing protobuf
-        # unnecessarily
-        from ddtrace.profiling.exporter import http
-
-        return [
-            http.PprofHTTPExporter(
-                tracer=self.tracer,
-                service=self.service,
-                env=self.env,
-                tags=self.tags,
-                version=self.version,
-                api_key=self.api_key,
-                enable_code_provenance=self.enable_code_provenance,
-                endpoint_call_counter_span_processor=endpoint_call_counter_span_processor,
-            )
-        ]
+        ddup.config(
+            env=self.env,
+            service=self.service,
+            version=self.version,
+            tags=self.tags,
+            max_nframes=profiling_config.max_frames,
+            timeline_enabled=profiling_config.timeline_enabled,
+            output_filename=profiling_config.output_pprof,
+            sample_pool_capacity=profiling_config.sample_pool_capacity,
+        )
+        ddup.start()
 
     def __post_init__(self):
         # type: (...) -> None
-        # Allow to store up to 10 threads for 60 seconds at 50 Hz
-        max_stack_events = 10 * 60 * 50
-        r = self._recorder = recorder.Recorder(
-            max_events={
-                stack_event.StackSampleEvent: max_stack_events,
-                stack_event.StackExceptionSampleEvent: int(max_stack_events / 2),
-                # (default buffer size / interval) * export interval
-                memalloc.MemoryAllocSampleEvent: int(
-                    (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
-                ),
-                # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
-                memalloc.MemoryHeapSampleEvent: None,
-            },
-            default_max_events=profiling_config.max_events,
-        )
 
         if self._stack_collector_enabled:
             LOG.debug("Profiling collector (stack) enabled")
             try:
                 self._collectors.append(
                     stack.StackCollector(
-                        r,
                         tracer=self.tracer,
                         endpoint_collection_enabled=self.endpoint_collection_enabled,
                     )
@@ -300,7 +199,7 @@ class _ProfilerInstance(service.Service):
             # if their import is detected at runtime.
             def start_collector(collector_class: Type) -> None:
                 with self._service_lock:
-                    col = collector_class(r, tracer=self.tracer)
+                    col = collector_class(tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
@@ -328,7 +227,7 @@ class _ProfilerInstance(service.Service):
 
             def start_collector(collector_class: Type) -> None:
                 with self._service_lock:
-                    col = collector_class(r)
+                    col = collector_class()
 
                     if self.status == service.ServiceStatus.RUNNING:
                         # The profiler is already running so we need to start the collector
@@ -352,29 +251,23 @@ class _ProfilerInstance(service.Service):
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._memory_collector_enabled:
-            self._collectors.append(memalloc.MemoryCollector(r))
+            self._collectors.append(memalloc.MemoryCollector())
 
-        exporters = self._build_default_exporters()
+        self._build_default_exporters()
 
-        if exporters or self._export_libdd_enabled:
-            scheduler_class = (
-                scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
-            )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
+        scheduler_class = (
+            scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
+        )  # type: (Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]])
 
-            self._scheduler = scheduler_class(
-                recorder=r,
-                exporters=exporters,
-                before_flush=self._collectors_snapshot,
-                tracer=self.tracer,
-            )
+        self._scheduler = scheduler_class(
+            before_flush=self._collectors_snapshot,
+            tracer=self.tracer,
+        )
 
     def _collectors_snapshot(self):
         for c in self._collectors:
             try:
-                snapshot = c.snapshot()
-                if snapshot:
-                    for events in snapshot:
-                        self._recorder.push_events(events)
+                c.snapshot()
             except Exception:
                 LOG.error("Error while snapshotting collector %r", c, exc_info=True)
 
@@ -441,6 +334,3 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
-
-    def visible_events(self):
-        return not self._export_libdd_enabled

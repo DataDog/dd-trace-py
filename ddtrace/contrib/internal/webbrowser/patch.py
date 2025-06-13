@@ -1,3 +1,4 @@
+from typing import Dict
 import webbrowser
 
 from wrapt import wrap_function_wrapper as _w
@@ -9,6 +10,10 @@ from ddtrace.settings.asm import config as asm_config
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"webbrowser": "*"}
 
 
 def patch():

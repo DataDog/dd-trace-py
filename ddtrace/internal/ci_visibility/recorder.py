@@ -14,6 +14,7 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace._trace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -1102,10 +1103,10 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_session() -> None:
+def _on_start_session(context: Optional[Context] = None) -> None:
     log.debug("Handling start session")
     session = CIVisibility.get_session()
-    session.start()
+    session.start(context)
 
 
 @_requires_civisibility_enabled

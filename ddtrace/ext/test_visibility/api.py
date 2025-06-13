@@ -23,6 +23,7 @@ from typing import NamedTuple
 from typing import Optional
 from typing import Type
 
+from ddtrace._trace.context import Context
 from ddtrace.ext.test import Status as _TestStatus
 from ddtrace.ext.test_visibility._item_ids import TestId
 from ddtrace.ext.test_visibility._item_ids import TestModuleId
@@ -179,9 +180,9 @@ class TestSession(_TestVisibilityAPIBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start():
+    def start(context: Optional[Context] = None):
         log.debug("Starting session")
-        core.dispatch("test_visibility.session.start")
+        core.dispatch("test_visibility.session.start", (context,))
 
     class FinishArgs(NamedTuple):
         force_finish_children: bool

@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import vertexai
 
@@ -28,6 +29,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(vertexai, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"vertexai": ">=1.71.1"}
 
 
 @with_traced_module

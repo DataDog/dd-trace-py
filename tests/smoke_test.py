@@ -84,7 +84,6 @@ if __name__ == "__main__":
             # Memory profiler crashes on Windows
             copied_env["DD_PROFILING_MEMORY_ENABLED"] = "False"
             # Enable libdd exporter
-            copied_env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "True"
         result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
         assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
             result.stdout,

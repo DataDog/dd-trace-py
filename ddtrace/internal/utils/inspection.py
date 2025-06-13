@@ -8,6 +8,7 @@ from types import CodeType
 from types import FunctionType
 from typing import Iterator
 from typing import List
+from typing import MutableMapping
 from typing import Set
 from typing import cast
 
@@ -126,8 +127,45 @@ def collect_code_objects(code: CodeType) -> Iterator[CodeType]:
             q.append(new_code)
 
 
+_CODE_TO_ORIGINAL_FUNCTION_MAPPING: MutableMapping[CodeType, FunctionType] = dict()
+
+
+def link_function_to_code(code: CodeType, function: FunctionType) -> None:
+    """
+    Link a function to a code object. This is used to speed up the search for
+    the original function from a code object.
+    """
+    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
+
+    _CODE_TO_ORIGINAL_FUNCTION_MAPPING[code] = function
+
+
 @lru_cache(maxsize=(1 << 14))  # 16k entries
-def functions_for_code(code: CodeType) -> List[FunctionType]:
+def _functions_for_code_gc(code: CodeType) -> List[FunctionType]:
     import gc
 
     return [_ for _ in gc.get_referrers(code) if isinstance(_, FunctionType) and _.__code__ is code]
+
+
+def functions_for_code(code: CodeType) -> List[FunctionType]:
+    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
+
+    try:
+        # Try to get the function from the original code-to-function mapping
+        return [_CODE_TO_ORIGINAL_FUNCTION_MAPPING[code]]
+    except KeyError:
+        # If the code is not in the mapping, we fall back to the garbage
+        # collector
+        return _functions_for_code_gc(code)
+
+
+def clear():
+    """Clear the inspection state.
+
+    This should be called when modules are reloaded to ensure that the mappings
+    stay relevant.
+    """
+    global _CODE_TO_ORIGINAL_FUNCTION_MAPPING
+
+    _functions_for_code_gc.cache_clear()
+    _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()

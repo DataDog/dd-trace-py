@@ -97,7 +97,7 @@ suites:
       - '@selenium'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
-    runner: hatch
+    runner: riot
     snapshot: true
   unittest:
     parallelism: 2

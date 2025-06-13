@@ -2,7 +2,8 @@ from pathlib import Path
 import typing as t
 
 import ddtrace
-from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+from ddtrace.debugging._origin.span import SpanCodeOriginProcessorExit
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -10,7 +11,15 @@ from tests.debugging.mocking import MockLogsIntakeUploaderV1
 from tests.utils import TracerTestCase
 
 
-class MockSpanCodeOriginProcessor(SpanCodeOriginProcessor):
+class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
+    __uploader__ = MockLogsIntakeUploaderV1
+
+    @classmethod
+    def get_uploader(cls) -> MockLogsIntakeUploaderV1:
+        return t.cast(MockLogsIntakeUploaderV1, cls.__uploader__._instance)
+
+
+class MockSpanCodeOriginProcessor(SpanCodeOriginProcessorExit):
     __uploader__ = MockLogsIntakeUploaderV1
 
     @classmethod
@@ -24,12 +33,14 @@ class SpanProbeTestCase(TracerTestCase):
         self.backup_tracer = ddtrace.tracer
         ddtrace.tracer = self.tracer
 
+        MockSpanCodeOriginProcessorEntry.enable()
         MockSpanCodeOriginProcessor.enable()
 
     def tearDown(self):
         ddtrace.tracer = self.backup_tracer
         super(SpanProbeTestCase, self).tearDown()
 
+        MockSpanCodeOriginProcessorEntry.disable()
         MockSpanCodeOriginProcessor.disable()
         core.reset_listeners(event_id="service_entrypoint.patch")
 
@@ -103,3 +114,40 @@ class SpanProbeTestCase(TracerTestCase):
         # Check that we have complete data
         snapshot_ids_from_span_tags.add(entry_snapshot_id)
         assert snapshot_ids_from_span_tags == snapshot_ids
+
+    def test_span_origin_entry(self):
+        # Disable the processor to avoid interference with the test
+        MockSpanCodeOriginProcessor.disable()
+
+        def entry_call():
+            pass
+
+        core.dispatch("service_entrypoint.patch", (entry_call,))
+
+        with self.tracer.trace("entry"):
+            entry_call()
+            with self.tracer.trace("middle"):
+                with self.tracer.trace("exit", span_type=SpanTypes.HTTP):
+                    pass
+
+        self.assert_span_count(3)
+        entry, middle, _exit = self.get_spans()
+
+        # Check for the expected tags on the entry span
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
+        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert (
+            entry.get_tag("_dd.code_origin.frames.0.method")
+            == "SpanProbeTestCase.test_span_origin_entry.<locals>.entry_call"
+        )
+
+        # Check that we don't have span location tags on the middle span
+        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
+        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
+
+        # Check that we also don't have the span location tags on the exit span
+        assert _exit.get_tag("_dd.code_origin.type") is None
+        assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
+        assert _exit.get_tag("_dd.code_origin.frames.0.line") is None

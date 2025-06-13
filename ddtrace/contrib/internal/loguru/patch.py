@@ -1,3 +1,5 @@
+from typing import Dict
+
 import loguru
 from wrapt import wrap_function_wrapper as _w
 
@@ -22,6 +24,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(loguru, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"loguru": ">=0.4.0"}
 
 
 def _tracer_injection(event_dict):

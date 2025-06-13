@@ -102,6 +102,18 @@ OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
 
+class XdistHooks:
+    @pytest.hookimpl
+    def pytest_configure_node(self, node):
+        main_session_span = InternalTestSession.get_span()
+        if main_session_span:
+            root_span = main_session_span.span_id
+        else:
+            root_span = 0
+
+        node.workerinput["root_span"] = root_span
+
+
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
 
@@ -252,6 +264,9 @@ def pytest_configure(config: pytest_Config) -> None:
                 from ddtrace.contrib.internal.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
 
                 config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
+
+            if config.pluginmanager.hasplugin("xdist"):
+                config.pluginmanager.register(XdistHooks())
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -299,7 +314,27 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         InternalTestSession.set_library_capabilities(library_capabilities)
 
-        InternalTestSession.start()
+        extracted_context = None
+        if hasattr(session.config, "workerinput"):
+            from ddtrace._trace.context import Context
+            from ddtrace.constants import USER_KEEP
+
+            received_root_span = session.config.workerinput.get("root_span", "MISSING_SPAN")
+            try:
+                root_span = int(received_root_span)
+                extracted_context = Context(
+                    trace_id=1,
+                    span_id=root_span,  # This span_id here becomes context.span_id for the parent context
+                    sampling_priority=USER_KEEP,
+                )
+            except ValueError:
+                log.debug(
+                    "pytest_sessionstart: Could not convert root_span %s to int",
+                    received_root_span,
+                )
+
+        InternalTestSession.start(extracted_context)
+
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
@@ -732,7 +767,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
-    InternalTestSession.finish(force_finish_children=True)
+    InternalTestSession.finish(
+        force_finish_children=True,
+        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
+    )
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
