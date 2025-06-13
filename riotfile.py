@@ -154,6 +154,27 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_tdd_propagation",
+            pys=select_pys(min_version="3.9"),
+            command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "requests": latest,
+                "flask": latest,
+                "pycryptodome": latest,
+                "sqlalchemy": "~=2.0.23",
+                "pony": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
+                "peewee": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -616,6 +637,7 @@ venv = Venv(
                     pys=select_pys(max_version="3.10"),
                     pkgs={
                         "cherrypy": [
+                            "~=17.0.0",
                             ">=17,<18",
                         ],
                         "more_itertools": "<8.11.0",
@@ -795,7 +817,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
                         "sqlalchemy": "~=1.2.18",
-                        "django": "==2.2.1",
+                        "django": "~=2.2.0",
                     },
                 ),
                 Venv(
@@ -811,6 +833,10 @@ venv = Venv(
             name="dramatiq",
             command="pytest {cmdargs} tests/contrib/dramatiq",
             venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
+                ),
                 Venv(
                     pys=select_pys(),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
@@ -1029,7 +1055,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={
-                "mako": ["~=1.1.0", latest],
+                "mako": ["~=1.0.0", latest],
                 "pytest-randomly": latest,
             },
         ),
@@ -1087,17 +1113,25 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pkgs={"psycopg": [latest]},
                     venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.8", max_version="3.9"),
+                            pkgs={
+                                "psycopg": "~=3.0.0",
+                                "pytest-asyncio": "==0.21.1",
+                            },
+                        ),
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                             pkgs={
+                                "psycopg": latest,
                                 "pytest-asyncio": "==0.21.1",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.12", max_version="3.12"),
                             pkgs={
+                                "psycopg": latest,
                                 "pytest-asyncio": "==0.23.7",
                             },
                         ),
@@ -1146,9 +1180,21 @@ venv = Venv(
             # TODO: Py312 requires changes to test code
             venvs=[
                 Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.8"),
+                    pkgs={
+                        "pynamodb": ["~=5.0.0"],
+                        "botocore": ["<=1.25.0"],
+                        "moto": ">=1.0,<2.0",
+                        "cfn-lint": "~=0.53.1",
+                        "Jinja2": "~=2.10.0",
+                        "pytest-randomly": latest,
+                        "pytest-xdist": latest,
+                    },
+                ),
+                Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
                     pkgs={
-                        "pynamodb": ["~=5.0", "~=5.3", "<6.0"],
+                        "pynamodb": ["~=5.3", "<6.0"],
                         "moto": ">=1.0,<2.0",
                         "cfn-lint": "~=0.53.1",
                         "Jinja2": "~=2.10.0",
@@ -1245,7 +1291,7 @@ venv = Venv(
                     pys="3.8",
                     pkgs={
                         "requests": [
-                            "~=2.22.0",
+                            "~=2.20.0",
                             latest,
                         ],
                     },
@@ -1333,12 +1379,12 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys="3.8",
-                    pkgs={"mongoengine": ["~=0.23", latest]},
+                    pkgs={"mongoengine": ["~=0.23.0", latest]},
                 ),
                 Venv(
                     # mongoengine added support for Python 3.9/3.10 in 0.24
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"mongoengine": ["~=0.24", latest]},
+                    pkgs={"mongoengine": ["~=0.24.0", "~=0.24", latest]},
                 ),
             ],
         ),
@@ -2214,7 +2260,7 @@ venv = Venv(
                 # our test_asyncpg.py uses `yield` in an async function and is not compatible with Python 3.5
                 Venv(
                     pys="3.8",
-                    pkgs={"asyncpg": ["~=0.23", latest]},
+                    pkgs={"asyncpg": ["~=0.22.0", latest]},
                 ),
                 Venv(
                     # asyncpg added support for Python 3.9 in 0.22
@@ -2511,7 +2557,8 @@ venv = Venv(
                 Venv(
                     # tornado added support for Python 3.8/3.9 in 6.1
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"tornado": ["~=6.1", "~=6.2"]},
+                    # tornado 6.0.x and pytest 8.x have a compatibility bug
+                    pkgs={"tornado": ["~=6.0.0", "~=6.2"], "pytest": "<=8"},
                 ),
                 Venv(
                     # tornado added support for Python 3.10 in 6.2
@@ -2677,7 +2724,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
                 "pytest-asyncio": latest,
-                "google-generativeai": [latest],
+                "google-generativeai": ["~=0.7.0", latest],
                 "pillow": latest,
                 "google-ai-generativelanguage": [latest],
                 "vertexai": [latest],
@@ -2700,7 +2747,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": [">=0.102.0", "~=0.121.0"],
+                "crewai": ["~=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -3062,6 +3109,36 @@ venv = Venv(
                                 "DD_PROFILE_TEST_GEVENT": "1",
                             },
                             pkgs={"gunicorn[gevent]": latest, "gevent": latest},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="selenium",
+            pys=["3.10", "3.12"],
+            pkgs={
+                "selenium": "~=4.0",
+                "webdriver-manager": latest,
+            },
+            command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
+            env={
+                "DD_AGENT_TRACER_URL": "9126",
+            },
+            venvs=[
+                Venv(
+                    venvs=[
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-true",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "true",
+                            },
+                        ),
+                        Venv(
+                            name="selenium-pytest-legacy-plugin-false",
+                            env={
+                                "_TESTED_PYTEST_LEGACY_PLUGIN": "false",
+                            },
                         ),
                     ],
                 ),

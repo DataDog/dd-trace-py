@@ -617,6 +617,7 @@ suites:
     runner: riot
     services:
       - redis
+      - rabbitmq
     snapshot: true
   elasticsearch:
     env:
@@ -694,7 +695,7 @@ suites:
         - '@tracing'
         - '@freezegun'
         - tests/contrib/freezegun/*
-    runner: hatch
+    runner: riot
     snapshot: true
   gevent:
     paths:

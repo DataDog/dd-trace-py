@@ -173,6 +173,7 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_apm_tracing_enabled",
+        "_bypass_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
