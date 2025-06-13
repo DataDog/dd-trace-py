@@ -68,7 +68,7 @@ def test_google_genai_completion(google_genai_vcr, genai):
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_completion_error",
-    ignores=["meta.error.stack"],
+    ignores=["meta.error.stack, meta.error.message"],
 )
 def test_google_genai_completion_error(google_genai_vcr, genai):
     with pytest.raises(TypeError):
