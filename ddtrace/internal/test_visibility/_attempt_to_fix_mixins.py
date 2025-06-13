@@ -47,7 +47,7 @@ class AttemptToFixTestMixin:
     ) -> None:
         log.debug("Finishing attempt to fix retry %s for test %s", retry_number, item_id)
         require_ci_visibility_service().get_test_by_id(item_id).attempt_to_fix_finish_retry(
-            retry_number, status, exc_info
+            retry_number=retry_number, status=status, skip_reason=skip_reason, exc_info=exc_info
         )
 
     @staticmethod

@@ -148,7 +148,7 @@ class InternalTest(
     ext_api.Test, InternalTestBase, ITRMixin, EFDTestMixin, ATRTestMixin, AttemptToFixTestMixin, BenchmarkTestMixin
 ):
     @staticmethod
-    def finish(
+    def finish(  # type: ignore[override]
         item_id: InternalTestId,
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,

@@ -37,7 +37,7 @@ class ATRTestMixin:
         return require_ci_visibility_service().get_test_by_id(item_id).atr_should_retry()
 
     @staticmethod
-    def atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> int:
+    def atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         retry_number = require_ci_visibility_service().get_test_by_id(item_id).atr_add_retry(start_immediately)
         log.debug("Adding ATR retry %s for test %s", retry_number, item_id)
         return retry_number
@@ -49,13 +49,14 @@ class ATRTestMixin:
 
     @staticmethod
     def atr_finish_retry(
-        test_id: InternalTestId,
+        item_id: InternalTestId,
         retry_number: int,
         status: TestStatus,
+        skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[TestExcInfo] = None,
     ) -> None:
-        log.debug("Finishing ATR retry %s for test %s", retry_number, test_id)
-        require_ci_visibility_service().get_test_by_id(test_id).atr_finish_retry(
+        log.debug("Finishing ATR retry %s for test %s", retry_number, item_id)
+        require_ci_visibility_service().get_test_by_id(item_id).atr_finish_retry(
             retry_number=retry_number, status=status, exc_info=exc_info
         )
 
