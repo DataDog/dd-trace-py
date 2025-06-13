@@ -26,12 +26,21 @@ def get_version() -> str:
 _IAST_CMDI = "iast_cmdi"
 
 
-def patch():
+_is_patched = False
+
+
+def patch(testing=False):
+    global _is_patched
+    if _is_patched and not testing:
+        return
+
     if asm_config._iast_enabled:
         subprocess_patch.patch()
         subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
         subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
         _set_metric_iast_instrumented_sink(VULN_CMDI)
+
+    _is_patched = True
 
 
 def unpatch() -> None:

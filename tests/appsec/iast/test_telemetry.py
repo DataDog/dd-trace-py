@@ -9,13 +9,13 @@ from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch

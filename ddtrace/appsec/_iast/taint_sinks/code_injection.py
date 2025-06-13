@@ -1,15 +1,12 @@
 import inspect
 from typing import Text
 
-from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
@@ -25,26 +22,27 @@ def get_version() -> Text:
     return ""
 
 
-def patch():
+_is_patched = False
+
+
+def patch(testing=False):
+    global _is_patched
+    if _is_patched and not testing:
+        return
+
     if not asm_config._iast_enabled:
         return
 
-    if not set_and_check_module_is_patched("builtins", default_attr="_datadog_code_injection_patch"):
-        return
+    warp_modules = WrapModulesForIAST(testing=testing)
 
-    try_wrap_function_wrapper("builtins", "eval", _iast_coi)
+    warp_modules.add_module("builtins", "eval", _iast_coi)
+
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
-    # try_wrap_function_wrapper("builtins", "exec", _iast_coi_exec)
+    # warp_modules.add_module("builtins", "exec", _iast_coi)
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
-
-
-def unpatch():
-    try_unwrap("builtins", "eval")
-    # try_unwrap("builtins", "exec")
-
-    set_module_unpatched("builtins", default_attr="_datadog_code_injection_patch")
+    _is_patched = True
 
 
 class CodeInjection(VulnerabilityBase):

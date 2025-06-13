@@ -33,7 +33,7 @@ _RASP_SYSTEM = "rasp_os.system"
 _RASP_POPEN = "rasp_Popen"
 
 
-def patch_common_modules():
+def patch_common_modules(testing=False):
     global _is_patched
 
     @ModuleWatchdog.after_module_imported("subprocess")
@@ -43,7 +43,7 @@ def patch_common_modules():
         subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
         subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
 
-    if _is_patched:
+    if _is_patched and not testing:
         return
 
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
@@ -332,7 +332,7 @@ def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) ->
         try:
             wrap_object(module, name, FunctionWrapper, (wrapper,))
         except (ImportError, AttributeError):
-            log.debug("ASM patching. Module %s.%s does not exist", module_name, name)
+            log.debug("Module %s.%s does not exist", module_name, name)
 
 
 def wrap_object(module, name, factory, args=(), kwargs=None):
