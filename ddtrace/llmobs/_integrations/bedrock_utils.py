@@ -11,7 +11,7 @@ _MODEL_TYPE_IDENTIFIERS = (
 
 
 def parse_model_id(model_id: str):
-    """Best effort to extract the model provider and model name from the bedrock model ID.
+    """Best effort to extract and return the model provider and model name from the bedrock model ID.
     model_id can be a 1/2 period-separated string or a full AWS ARN, based on the following formats:
     1. Base model: "{model_provider}.{model_name}"
     2. Cross-region model: "{region}.{model_provider}.{model_name}"

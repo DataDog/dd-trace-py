@@ -104,7 +104,7 @@ def _extract_trace_step_id(bedrock_trace_obj):
     trace_type, trace_part = next(iter(trace_part.items()))
     if not trace_part or not isinstance(trace_part, dict):
         return None
-    if "traceId" in trace_part or trace_type in ("customOrchestrationTrace", "failureTrace", "guardrailTrace"):
+    if "traceId" in trace_part and trace_type in ("customOrchestrationTrace", "failureTrace", "guardrailTrace"):
         return trace_part.get("traceId")
     if len(trace_part) != 1:
         return None
@@ -185,7 +185,7 @@ def _translate_custom_orchestration_trace(
         span_name="customOrchestration",
         root_span=root_span,
         parent_id=trace_step_id,
-        span_kind="tool",
+        span_kind="task",
         start_ns=start_ns,
         output_val=custom_orchestration_event.get("text", ""),
     )
@@ -345,8 +345,12 @@ def _model_invocation_input_span(
 ) -> Optional[Dict[str, Any]]:
     """Translates a Bedrock model invocation input trace into a LLMObs span event."""
     model_id = model_input.get("foundationModel", "")
-    model_name, model_provider = parse_model_id(model_id)
-    text = json.loads(model_input.get("text", "{}"))
+    model_provider, model_name = parse_model_id(model_id)
+    try:
+        text = json.loads(model_input.get("text", "{}"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        log.warning("Failed to decode model input text.")
+        text = {}
     input_messages = [{"content": text.get("system", ""), "role": "system"}]
     for message in text.get("messages", []):
         input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
@@ -371,10 +375,14 @@ def _model_invocation_output_span(
         return None
     bedrock_metadata = model_output.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
-    output_messages = [model_output.get("rawResponse", {"content": ""})]
+    output_messages = []
     parsed_response = model_output.get("parsedResponse", {})
     if parsed_response:
         output_messages.append({"content": safe_json(parsed_response), "role": "assistant"})
+    else:
+        raw_response = model_output.get("rawResponse", {}).get("content", "")
+        output_messages.append({"content": raw_response, "role": "assistant"})
+
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
     if reasoning_text:
         current_active_span["metadata"]["reasoningText"] = str(reasoning_text.get("text", ""))
