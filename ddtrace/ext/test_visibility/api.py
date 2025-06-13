@@ -34,7 +34,6 @@ from ddtrace.internal.ci_visibility.service_registry import require_ci_visibilit
 from ddtrace.internal.logger import get_logger as _get_logger
 
 
-
 def _get_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> Any:
     return require_ci_visibility_service().get_item_by_id(item_id).get_tag(tag_name)
 
@@ -117,6 +116,7 @@ class TestBase(_TestVisibilityAPIBase):
     @staticmethod
     def delete_tag(item_id: TestVisibilityItemId, tag_name: str):
         from ddtrace.ext.test_visibility._utils import _delete_item_tag
+
         _delete_item_tag(item_id, tag_name)
 
     @staticmethod
@@ -196,6 +196,7 @@ class TestSession(_TestVisibilityAPIBase):
     @staticmethod
     def delete_tag(tag_name: str):
         from ddtrace.ext.test_visibility._utils import _delete_item_tag
+
         _delete_item_tag(TestSessionId(), tag_name)
 
     @staticmethod

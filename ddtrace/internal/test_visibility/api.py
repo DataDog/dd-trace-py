@@ -25,11 +25,15 @@ from ddtrace.trace import Tracer
 log = get_logger(__name__)
 
 
+def _get_item_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
+    return require_ci_visibility_service().get_item_by_id(item_id).get_span()
+
+
 class InternalTestBase(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
-        return ext_api._get_item_span(item_id)
+        return _get_item_span(item_id)
 
     @staticmethod
     @_catch_and_log_exceptions
