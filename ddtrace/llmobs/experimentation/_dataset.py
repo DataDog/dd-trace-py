@@ -2,7 +2,7 @@ import csv
 import json
 import time
 import sys
-from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING, TypedDict
 from urllib.parse import quote
 
 from .utils._http import exp_http_request
@@ -17,6 +17,15 @@ from .utils._exceptions import DatasetFileError
 
 if TYPE_CHECKING:
     import pandas as pd
+
+
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+
+
+class DatasetRecord(TypedDict):
+    input: JSONType
+    expected_output: JSONType
+    # TODO support extra keys
 
 
 class Dataset:
@@ -34,7 +43,11 @@ class Dataset:
     """
 
     def __init__(
-        self, name: str, data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None, description: str = "", version: Optional[int] = None
+        self,
+        name: str,
+        data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None,
+        description: str = "",
+        version: Optional[int] = None,
     ) -> None:
         """
         Initialize a Dataset instance, optionally loading data from Datadog if none is provided.
@@ -49,13 +62,13 @@ class Dataset:
                 Only used when data is None. If None, uses the latest version. Defaults to None.
 
         Raises:
-            ValueError: If the data is invalid (violates structure or size constraints), or if version is 
+            ValueError: If the data is invalid (violates structure or size constraints), or if version is
                 specified when data is provided, or if the specified version doesn't exist in Datadog.
         """
         # Validate that version is only used when fetching from Datadog
         if data is not None and version is not None:
             raise ValueError("Version parameter can only be used when fetching from Datadog (data=None)")
-            
+
         self.name = name
         self.description = description
 
@@ -73,11 +86,7 @@ class Dataset:
             self._datadog_dataset_id = None
             self._datadog_dataset_version = 0
 
-        self._changes = {
-            'added': [],
-            'deleted': [],
-            'updated': []
-        }
+        self._changes = {"added": [], "deleted": [], "updated": []}
         self._synced = True
 
     def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
@@ -86,7 +95,9 @@ class Dataset:
     def __len__(self) -> int:
         return len(self._data)
 
-    def __getitem__(self, index: Union[int, slice]) -> Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
+    def __getitem__(
+        self, index: Union[int, slice]
+    ) -> Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
         """
         Retrieve one or more dataset records by index or slice.
         Returns a copy of the record(s) without the 'record_id' field.
@@ -114,7 +125,7 @@ class Dataset:
             index (int): Index of the record to delete.
         """
         deleted_record = self._data[index]
-        self._changes['deleted'].append((index, deleted_record))
+        self._changes["deleted"].append((index, deleted_record))
         del self._data[index]
         self._synced = False
 
@@ -131,7 +142,7 @@ class Dataset:
         """
         self._validate_data([value])
         old_record = self._data[index]
-        self._changes['updated'].append((index, old_record, value))
+        self._changes["updated"].append((index, old_record, value))
         self._data[index] = value
         self._synced = False
 
@@ -162,7 +173,7 @@ class Dataset:
             ValueError: If the record doesn't match the expected structure.
         """
         self._validate_data([record])
-        self._changes['added'].append(record)
+        self._changes["added"].append(record)
         self._data.append(record)
         self._synced = False
 
@@ -182,25 +193,18 @@ class Dataset:
             Dict[str, List]: Dictionary containing lists of added, deleted, and updated records.
         """
         return {
-            'added': self._changes['added'].copy(),
-            'deleted': self._changes['deleted'].copy(),
-            'updated': self._changes['updated'].copy()
+            "added": self._changes["added"].copy(),
+            "deleted": self._changes["deleted"].copy(),
+            "updated": self._changes["updated"].copy(),
         }
 
     def _clear_changes(self) -> None:
         """Clear all tracked changes."""
-        self._changes = {
-            'added': [],
-            'deleted': [],
-            'updated': []
-        }
+        self._changes = {"added": [], "deleted": [], "updated": []}
 
-    def _validate_data(self, data: List[Dict[str, Union[str, Dict[str, Any]]]]) -> None:
+    def _validate_data(self, data: List[DatasetRecord]) -> None:
         """
         Validate the structure and size of dataset records. Allows empty data list.
-
-        Args:
-            data (List[Dict[str, Union[str, Dict[str, Any]]]]): List of dataset records to validate.
 
         Raises:
             ValueError: If the data exceeds size limit or has inconsistent structure (when not empty).
@@ -232,9 +236,7 @@ class Dataset:
             # Check for mandatory fields.
             if not required_keys.issubset(row_keys):
                 missing = required_keys - row_keys
-                raise ValueError(
-                    f"Record at index {idx} is missing required field(s): {sorted(missing)}"
-                )
+                raise ValueError(f"Record at index {idx} is missing required field(s): {sorted(missing)}")
 
             # When a dataset already contains data, ensure new rows at least share the same mandatory
             # keys.  Extra metadata keys are perfectly acceptable and do *not* need to match.
@@ -369,9 +371,9 @@ class Dataset:
         """
         payload_data = {"type": "datasets", "attributes": {}}
 
-        if self._changes['added']:
+        if self._changes["added"]:
             insert_records = []
-            for record in self._changes['added']:
+            for record in self._changes["added"]:
                 new_record = {"input": record["input"], "expected_output": record["expected_output"]}
                 metadata = {k: v for k, v in record.items() if k not in ["input", "expected_output", "record_id"]}
                 if metadata:
@@ -379,9 +381,9 @@ class Dataset:
                 insert_records.append(new_record)
             payload_data["attributes"]["insert_records"] = insert_records
 
-        if self._changes['updated']:
+        if self._changes["updated"]:
             update_records = []
-            for _, old_record, new_record in self._changes['updated']:
+            for _, old_record, new_record in self._changes["updated"]:
                 if "record_id" not in old_record:
                     raise ValueError("Cannot update record: missing record_id")
                 upd = {"id": old_record["record_id"]}
@@ -391,8 +393,12 @@ class Dataset:
                 if new_record.get("expected_output") != old_record.get("expected_output"):
                     upd["expected_output"] = new_record["expected_output"]
 
-                old_metadata = {k: v for k, v in old_record.items() if k not in ["input", "expected_output", "record_id"]}
-                new_metadata = {k: v for k, v in new_record.items() if k not in ["input", "expected_output", "record_id"]}
+                old_metadata = {
+                    k: v for k, v in old_record.items() if k not in ["input", "expected_output", "record_id"]
+                }
+                new_metadata = {
+                    k: v for k, v in new_record.items() if k not in ["input", "expected_output", "record_id"]
+                }
                 if old_metadata != new_metadata:
                     upd["metadata"] = new_metadata
 
@@ -402,9 +408,9 @@ class Dataset:
             if update_records:
                 payload_data["attributes"]["update_records"] = update_records
 
-        if self._changes['deleted']:
+        if self._changes["deleted"]:
             delete_ids = []
-            for _, record in self._changes['deleted']:
+            for _, record in self._changes["deleted"]:
                 if "record_id" not in record:
                     raise ValueError("Cannot delete record: missing record_id")
                 delete_ids.append(record["record_id"])
@@ -614,7 +620,7 @@ class Dataset:
                     attrs["update_records"] = update_records
                 if delete_records:
                     attrs["delete_records"] = delete_records
-            
+
             # Use create_new_version for first chunk, then overwrite=True for subsequent chunks
             # to append to the version established by the first chunk
             if idx == 0:
@@ -675,7 +681,7 @@ class Dataset:
 
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
-        
+
         try:
             # Increase CSV field size limit to handle large text blobs (e.g., research papers)
             # Use maxsize to effectively remove the limit, but with a reasonable fallback
@@ -732,8 +738,16 @@ class Dataset:
                             raise DatasetFileError(f"Error parsing CSV file (whitespace handling): {e}")
 
                         try:
-                            input_data = row[input_columns[0]] if len(input_columns) == 1 else {col: row[col] for col in input_columns}
-                            expected_output_data = row[expected_output_columns[0]] if len(expected_output_columns) == 1 else {col: row[col] for col in expected_output_columns}
+                            input_data = (
+                                row[input_columns[0]]
+                                if len(input_columns) == 1
+                                else {col: row[col] for col in input_columns}
+                            )
+                            expected_output_data = (
+                                row[expected_output_columns[0]]
+                                if len(expected_output_columns) == 1
+                                else {col: row[col] for col in expected_output_columns}
+                            )
 
                             metadata = {}
                             for col in metadata_columns:
@@ -810,7 +824,7 @@ class Dataset:
                         flat_record[("input", k)] = v
                         column_tuples.add(("input", k))
                 else:
-                    flat_record[("input", "")] = input_data # Use empty string for single input
+                    flat_record[("input", "")] = input_data  # Use empty string for single input
                     column_tuples.add(("input", ""))
 
                 expected_output = record.get("expected_output", {})
@@ -819,7 +833,7 @@ class Dataset:
                         flat_record[("expected_output", k)] = v
                         column_tuples.add(("expected_output", k))
                 else:
-                    flat_record[("expected_output", "")] = expected_output # Use empty string for single output
+                    flat_record[("expected_output", "")] = expected_output  # Use empty string for single output
                     column_tuples.add(("expected_output", ""))
 
                 # Add remaining top-level fields under 'metadata'
@@ -892,10 +906,12 @@ class Dataset:
         # Construct Datadog URL if synced
         dd_url = ""
         if getattr(self, "_datadog_dataset_id", None):
-             panel_config = json.dumps([{"t": "datasetDetailPanel", "datasetId": self._datadog_dataset_id}])
-             dd_url = (f"\n  URL: {Color.BLUE}https://app.datadoghq.com/llm/testing/datasets"
-                      f"?llmPanels={quote(panel_config)}"
-                      f"&openApplicationConfig=false{Color.RESET}")
+            panel_config = json.dumps([{"t": "datasetDetailPanel", "datasetId": self._datadog_dataset_id}])
+            dd_url = (
+                f"\n  URL: {Color.BLUE}https://app.datadoghq.com/llm/testing/datasets"
+                f"?llmPanels={quote(panel_config)}"
+                f"&openApplicationConfig=false{Color.RESET}"
+            )
 
         info = [
             f"Dataset(name={name})",
@@ -904,23 +920,27 @@ class Dataset:
             desc_preview = (self.description[:47] + "...") if len(self.description) > 50 else self.description
             info.append(f"  Description: {desc_preview}")
 
-        info.extend([
-            f"  Records: {record_count:,}",
-        ])
+        info.extend(
+            [
+                f"  Records: {record_count:,}",
+            ]
+        )
         # Only add structure if it was determined
         if structure:
-             info.append(f"  Structure: {', '.join(structure)}")
-        info.extend([
-            f"  Datadog: {dd_status}",
-        ])
+            info.append(f"  Structure: {', '.join(structure)}")
+        info.extend(
+            [
+                f"  Datadog: {dd_status}",
+            ]
+        )
 
         if has_changes:
             changes_summary = []
-            if self._changes['added']:
+            if self._changes["added"]:
                 changes_summary.append(f"+{len(self._changes['added'])} added")
-            if self._changes['deleted']:
+            if self._changes["deleted"]:
                 changes_summary.append(f"-{len(self._changes['deleted'])} deleted")
-            if self._changes['updated']:
+            if self._changes["updated"]:
                 changes_summary.append(f"~{len(self._changes['updated'])} updated")
             info.append(f"  Changes: {', '.join(changes_summary)}")
 
@@ -929,5 +949,3 @@ class Dataset:
             info.append(dd_url)
 
         return "\n".join(info)
-
-
