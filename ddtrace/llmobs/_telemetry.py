@@ -2,6 +2,7 @@ import time
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Set
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -61,13 +62,14 @@ def _base_tags(error: Optional[str]):
     return tags
 
 
-def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool):
+def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool, instrumented_proxy_urls: Optional[Set[str]]):
     tags = _base_tags(error)
     tags.extend(
         [
             ("agentless", str(int(agentless_enabled) if agentless_enabled is not None else "N/A")),
             ("site", site),
             ("auto", str(int(auto))),
+            ("instrumented_proxy_urls", ",".join(instrumented_proxy_urls) if instrumented_proxy_urls else "N/A"),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6

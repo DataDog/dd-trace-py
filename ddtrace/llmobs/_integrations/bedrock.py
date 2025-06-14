@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -11,10 +12,12 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.trace import Span
 
 
@@ -45,11 +48,14 @@ class BedrockIntegration(BaseLLMIntegration):
                                 "top_p": Optional[int]}
             "llmobs.usage": Optional[dict],
             "llmobs.stop_reason": Optional[str],
+            "llmobs.proxy_request": Optional[bool],
         }
         """
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
+
+        span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
 
         request_params = ctx.get_item("llmobs.request_params") or {}
 
@@ -92,15 +98,17 @@ class BedrockIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: ctx.get_item("model_name") or "",
                 MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
                 METADATA: metadata,
-                METRICS: usage_metrics,
+                METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]):
@@ -267,3 +275,13 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
+
+    def _get_base_url(self, instance: Any, **kwargs: Dict[str, Any]) -> Optional[str]:
+        endpoint = getattr(instance, "_endpoint", None)
+        endpoint_host = getattr(endpoint, "host", None) if endpoint else None
+        return str(endpoint_host) if endpoint_host else None
+
+    def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
+        base_url = self._get_base_url(ctx.get_item("instance"))
+        if self._is_instrumented_proxy_url(base_url):
+            ctx.set_item(PROXY_REQUEST, True)

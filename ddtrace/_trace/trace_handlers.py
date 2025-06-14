@@ -655,6 +655,8 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
     integration = ctx["bedrock_integration"]
+    integration._tag_proxy_request(ctx)
+
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
     for k, v in request_params.items():
