@@ -15,7 +15,7 @@ from hypothesis.strategies import text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast.main import patch_iast
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains

@@ -1,139 +1,83 @@
+from typing import Callable
+from typing import Set
+from typing import Text
+
+from wrapt import FunctionWrapper
 from wrapt.importer import when_imported
 
+from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
-from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import path_traversal_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import sqli_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
-from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
-from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
-from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
+from ddtrace.appsec._common_module_patches import wrap_object
+from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.settings.asm import config as asm_config
 
 
-IAST_PATCH = {
-    "code_injection": True,
-    "command_injection": True,
-    "header_injection": True,
-    "insecure_cookie": True,
-    "unvalidated_redirect": True,
-    "weak_cipher": True,
-    "weak_hash": True,
-    "xss": True,
-}
+MODULES_TO_UNPATCH: Set["IASTModule"] = set()
 
 
-def patch_iast(patch_modules=IAST_PATCH):
-    """Load IAST vulnerabilities sink points.
+class IASTModule:
+    name = ""
+    function = ""
+    hook = ""
+    force = False
 
-    IAST_PATCH: list of implemented vulnerabilities
-    """
-    # TODO: Devise the correct patching strategy for IAST
-    from ddtrace._monkey import _on_import_factory
+    def __init__(self, name, function, hook, force=False):
+        self.name = name
+        self.function = function
+        self.hook = hook
+        self.force = force
 
-    for module in (m for m, e in patch_modules.items() if e):
-        when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
+    @staticmethod
+    def force_wrapper(module: Text, name: Text, wrapper: Callable):
+        try:
+            wrap_object(module, name, FunctionWrapper, (wrapper,))
+        except (ImportError, AttributeError):
+            iast_instrumentation_wrapt_debug_log(f"Module {module}.{name} not exists")
 
-    # CMDI sanitizers
-    when_imported("shlex")(
-        lambda _: try_wrap_function_wrapper(
-            "shlex",
-            "quote",
-            cmdi_sanitizer,
+    def wrapt_wrapper(self):
+        @when_imported(self.name)
+        def _(m):
+            self.force_wrapper(m, self.function, self.hook)
+
+    def patch(self):
+        if self.force is True:
+            self.force_wrapper(self.name, self.function, self.hook)
+        else:
+            try_wrap_function_wrapper(self.name, self.function, self.hook)
+        return True
+
+    def unpatch(self):
+        try_unwrap(self.name, self.function)
+
+    def __repr__(self):
+        return (
+            f"IASTModule(name={self.name}, " f"function={self.function}, " f"hook={self.hook}, " f"force={self.force})"
         )
-    )
 
-    # SSRF
-    when_imported("django.utils.http")(
-        lambda _: try_wrap_function_wrapper("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
-    )
 
-    # SQL sanitizers
-    when_imported("mysql.connector.conversion")(
-        lambda _: try_wrap_function_wrapper(
-            "mysql.connector.conversion",
-            "MySQLConverter.escape",
-            sqli_sanitizer,
-        )
-    )
-    when_imported("pymysql")(
-        lambda _: try_wrap_function_wrapper("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
-    )
+class WrapModulesForIAST:
+    def __init__(self):
+        self.modules: Set[IASTModule] = set()
+        self.testing: bool = asm_config._iast_is_testing
 
-    when_imported("pymysql.converters")(
-        lambda _: try_wrap_function_wrapper("pymysql.converters", "escape_string", sqli_sanitizer)
-    )
+    def add_module(self, name, function, hook):
+        self.modules.add(IASTModule(name, function, hook))
 
-    # Header Injection sanitizers
-    when_imported("werkzeug.utils")(
-        lambda _: try_wrap_function_wrapper(
-            "werkzeug.datastructures.headers", "_str_header_value", header_injection_sanitizer
-        )
-    )
+    def add_module_forced(self, name, function, hook):
+        self.modules.add(IASTModule(name, function, hook, True))
 
-    # Header Injection validators
-    # Header injection for > Django 3.2
-    when_imported("django.http.response")(
-        lambda _: try_wrap_function_wrapper(
-            "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
-        )
-    )
-    # Header injection for <= Django 2.2
-    when_imported("django.http.response")(
-        lambda _: try_wrap_function_wrapper(
-            "django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator
-        )
-    )
+    def patch(self):
+        for module in self.modules:
+            if module.patch() and self.testing:
+                MODULES_TO_UNPATCH.add(module)
 
-    # Unvalidated Redirect validators
-    when_imported("django.utils.http")(
-        lambda _: try_wrap_function_wrapper(
-            "django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator
-        )
-    )
+    def testing_unpatch(self):
+        if self.testing:
+            for module in MODULES_TO_UNPATCH.copy():
+                module.unpatch()
+                MODULES_TO_UNPATCH.remove(module)
 
-    # Path Traversal sanitizers
-    when_imported("werkzeug.utils")(
-        lambda _: try_wrap_function_wrapper("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
-    )
-    # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
-    # when_imported("werkzeug.utils")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "werkzeug.utils",
-    #         "safe_join",
-    #         path_traversal_sanitizer,
-    #     )
-    # )
-    # TODO: os.path.normpath propagation is not yet supported by IAST
-    # when_imported("os.path")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "os.path",
-    #         "normpath",
-    #         path_traversal_sanitizer,
-    #     )
-    # )
 
-    # XSS sanitizers
-    when_imported("html")(
-        lambda _: try_wrap_function_wrapper(
-            "html",
-            "escape",
-            xss_sanitizer,
-        )
-    )
-    # TODO:  markupsafe._speedups._escape_inner is not yet supported by IAST
-    # when_imported("markupsafe")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "html",
-    #         "escape",
-    #         xss_sanitizer,
-    #     )
-    # )
-    # when_imported("bleach")(
-    #     lambda _: try_wrap_function_wrapper(
-    #         "bleach",
-    #         "clean",
-    #         xss_sanitizer,
-    #     )
-    # )
-    when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
+def _testing_unpatch_iast():
+    warp_modules = WrapModulesForIAST()
+    warp_modules.testing_unpatch()

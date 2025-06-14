@@ -188,7 +188,7 @@ def test_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
     )
     agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
     prompt = taint_string("I need to use the terminal tool to print a Hello World")
-    # label test_cmdi_with_openai_functions_agent_invoke
+    # label test_openai_functions_agent_invoke
     res = agent.invoke({"input": prompt, "intermediate_steps": []})
     assert isinstance(res, AgentActionMessageLog)
     assert res.tool == "my-tool"
