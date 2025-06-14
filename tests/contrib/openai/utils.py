@@ -58,6 +58,49 @@ tool_call_expected_output = function_call_expected_output.copy()
 tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQRRkm6vY"
 tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
+response_tool_function = [
+    {
+        "type": "function",
+        "name": "get_current_weather",
+        "description": "Get the current weather in a given location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+            },
+            "required": ["location", "unit"],
+        },
+    }
+]
+response_tool_function_expected_output = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "type": "function_call",
+                "tool_id": "call_tjEzTywkXuBUO42ugPFnQYqi",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+    }
+]
+
+response_tool_function_expected_output_streamed = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "type": "function_call",
+                "tool_id": "call_lGe2JKQEBSP15opZ3KfxtEUC",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+    }
+]
 
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce

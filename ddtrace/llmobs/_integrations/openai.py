@@ -20,6 +20,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -52,7 +53,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
+        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        if operation_id in traced_operations:
             submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -107,7 +109,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding"
+        operation: str = "",  # oneof "completion", "chat", "embedding", "response"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         span_kind = "embedding" if operation == "embedding" else "llm"
@@ -118,13 +120,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
-
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
             openai_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
+        elif operation == "response":
+            openai_set_meta_tags_from_response(span, kwargs, response)
         metrics = self._extract_llmobs_metrics_tags(span, response)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
@@ -162,9 +165,15 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None:
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
+
+            input_tokens = prompt_tokens or input_tokens
+            output_tokens = completion_tokens or output_tokens
+
             return {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
