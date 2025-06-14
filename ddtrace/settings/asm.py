@@ -139,6 +139,7 @@ class ASMConfig(DDConfig):
     )
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -179,6 +180,7 @@ class ASMConfig(DDConfig):
         "_iast_debug",
         "_iast_propagation_debug",
         "_iast_telemetry_report_lvl",
+        "_iast_security_controls",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_auto_user_instrumentation_local_mode",
