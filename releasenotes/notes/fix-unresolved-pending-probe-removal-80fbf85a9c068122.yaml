@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: prevent an exception when trying to remove a probe
+    that did not resolve to a valid source code location.
