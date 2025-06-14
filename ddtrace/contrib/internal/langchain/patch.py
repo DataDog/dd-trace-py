@@ -42,7 +42,6 @@ from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
-from ddtrace.contrib.internal.langchain.utils import tag_general_message_input
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -112,46 +111,6 @@ def _extract_api_key(instance: Any) -> str:
     return ""
 
 
-def _tag_openai_token_usage(span: Span, llm_output: Dict[str, Any]) -> None:
-    """
-    Extract token usage from llm_output, tag on span.
-    Calculate the total cost for each LLM/chat_model, then propagate those values up the trace so that
-    the root span will store the total token_usage/cost of all of its descendants.
-    """
-    for token_type in ("prompt", "completion", "total"):
-        current_metric_value = span.get_metric("langchain.tokens.%s_tokens" % token_type) or 0
-        metric_value = llm_output["token_usage"].get("%s_tokens" % token_type, 0)
-        span.set_metric("langchain.tokens.%s_tokens" % token_type, current_metric_value + metric_value)
-
-
-def _is_openai_llm_instance(instance):
-    """Safely check if a traced instance is an OpenAI LLM.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_openai:
-            return isinstance(instance, langchain_openai.OpenAI)
-        if langchain_community:
-            return isinstance(instance, langchain_community.llms.OpenAI)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
-
-
-def _is_openai_chat_instance(instance):
-    """Safely check if a traced instance is an OpenAI Chat Model.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_openai:
-            return isinstance(instance, langchain_openai.ChatOpenAI)
-        if langchain_community:
-            return isinstance(instance, langchain_community.chat_models.ChatOpenAI)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
-
-
 def _is_pinecone_vectorstore_instance(instance):
     """Safely check if a traced instance is a Pinecone VectorStore.
     langchain_community does not automatically import submodules which may result in AttributeErrors.
@@ -169,7 +128,6 @@ def _is_pinecone_vectorstore_instance(instance):
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
-    prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
     span = integration.trace(
@@ -186,35 +144,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.record_instance(instance, span)
 
     try:
-        if integration.is_pc_sampled_span(span):
-            for idx, prompt in enumerate(prompts):
-                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
         completions = func(*args, **kwargs)
-
-        core.dispatch("langchain.llm.generate.after", (prompts, completions))
-
-        if _is_openai_llm_instance(instance):
-            _tag_openai_token_usage(span, completions.llm_output)
-
-        for idx, completion in enumerate(completions.generations):
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("langchain.response.completions.%d.text" % idx, integration.trunc(completion[0].text))
-            if completion and completion[0].generation_info is not None:
-                span.set_tag_str(
-                    "langchain.response.completions.%d.finish_reason" % idx,
-                    str(completion[0].generation_info.get("finish_reason")),
-                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.logprobs" % idx,
-                    str(completion[0].generation_info.get("logprobs")),
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -227,7 +157,6 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
-    prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
     span = integration.trace(
@@ -244,35 +173,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
-        if integration.is_pc_sampled_span(span):
-            for idx, prompt in enumerate(prompts):
-                span.set_tag_str("langchain.request.prompts.%d" % idx, integration.trunc(str(prompt)))
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
         completions = await func(*args, **kwargs)
-
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
-
-        if _is_openai_llm_instance(instance):
-            _tag_openai_token_usage(span, completions.llm_output)
-
-        for idx, completion in enumerate(completions.generations):
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("langchain.response.completions.%d.text" % idx, integration.trunc(completion[0].text))
-            if completion and completion[0].generation_info is not None:
-                span.set_tag_str(
-                    "langchain.response.completions.%d.finish_reason" % idx,
-                    str(completion[0].generation_info.get("finish_reason")),
-                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.logprobs" % idx,
-                    str(completion[0].generation_info.get("logprobs")),
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -285,7 +186,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -301,74 +201,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        for message_set_idx, message_set in enumerate(chat_messages):
-            for message_idx, message in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    if isinstance(message, dict):
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(message.get("content", ""))),
-                        )
-                    else:
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(getattr(message, "content", ""))),
-                        )
-                span.set_tag_str(
-                    "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
-                    message.__class__.__name__,
-                )
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
         chat_completions = func(*args, **kwargs)
-
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
-
-        if _is_openai_chat_instance(instance):
-            _tag_openai_token_usage(span, chat_completions.llm_output)
-
-        for message_set_idx, message_set in enumerate(chat_completions.generations):
-            for idx, chat_completion in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    text = chat_completion.text
-                    message = chat_completion.message
-                    # tool calls aren't available on this property for legacy chains
-                    tool_calls = getattr(message, "tool_calls", None)
-
-                    if text:
-                        span.set_tag_str(
-                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                            integration.trunc(chat_completion.text),
-                        )
-                    if tool_calls:
-                        if not isinstance(tool_calls, list):
-                            tool_calls = [tool_calls]
-                        for tool_call_idx, tool_call in enumerate(tool_calls):
-                            span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.id"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("id", "")),
-                            )
-                            span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.name"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("name", "")),
-                            )
-                            for arg_name, arg_value in tool_call.get("args", {}).items():
-                                span.set_tag_str(
-                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
-                                    % (message_set_idx, idx, tool_call_idx, arg_name),
-                                    integration.trunc(str(arg_value)),
-                                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -397,73 +230,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
-        for message_set_idx, message_set in enumerate(chat_messages):
-            for message_idx, message in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    if isinstance(message, dict):
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(message.get("content", ""))),
-                        )
-                    else:
-                        span.set_tag_str(
-                            "langchain.request.messages.%d.%d.content" % (message_set_idx, message_idx),
-                            integration.trunc(str(getattr(message, "content", ""))),
-                        )
-                span.set_tag_str(
-                    "langchain.request.messages.%d.%d.message_type" % (message_set_idx, message_idx),
-                    message.__class__.__name__,
-                )
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
         chat_completions = await func(*args, **kwargs)
-
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
-
-        if _is_openai_chat_instance(instance):
-            _tag_openai_token_usage(span, chat_completions.llm_output)
-
-        for message_set_idx, message_set in enumerate(chat_completions.generations):
-            for idx, chat_completion in enumerate(message_set):
-                if integration.is_pc_sampled_span(span):
-                    text = chat_completion.text
-                    message = chat_completion.message
-                    tool_calls = getattr(message, "tool_calls", None)
-
-                    if text:
-                        span.set_tag_str(
-                            "langchain.response.completions.%d.%d.content" % (message_set_idx, idx),
-                            integration.trunc(chat_completion.text),
-                        )
-                    if tool_calls:
-                        if not isinstance(tool_calls, list):
-                            tool_calls = [tool_calls]
-                        for tool_call_idx, tool_call in enumerate(tool_calls):
-                            span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.id"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("id", "")),
-                            )
-                            span.set_tag_str(
-                                "langchain.response.completions.%d.%d.tool_calls.%d.name"
-                                % (message_set_idx, idx, tool_call_idx),
-                                str(tool_call.get("name", "")),
-                            )
-                            for arg_name, arg_value in tool_call.get("args", {}).items():
-                                span.set_tag_str(
-                                    "langchain.response.completions.%d.%d.tool_calls.%d.args.%s"
-                                    % (message_set_idx, idx, tool_call_idx, arg_name),
-                                    integration.trunc(str(arg_value)),
-                                )
-                span.set_tag_str(
-                    "langchain.response.completions.%d.%d.message_type" % (message_set_idx, idx),
-                    chat_completion.message.__class__.__name__,
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -500,23 +267,9 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 
     embeddings = None
     try:
-        if isinstance(input_texts, str):
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("langchain.request.inputs.0.text", integration.trunc(input_texts))
-            span.set_metric("langchain.request.input_count", 1)
-        else:
-            if integration.is_pc_sampled_span(span):
-                for idx, text in enumerate(input_texts):
-                    span.set_tag_str("langchain.request.inputs.%d.text" % idx, integration.trunc(text))
-            span.set_metric("langchain.request.input_count", len(input_texts))
         # langchain currently does not support token tracking for OpenAI embeddings:
         #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
-        if isinstance(embeddings, list) and embeddings and isinstance(embeddings[0], list):
-            for idx, embedding in enumerate(embeddings):
-                span.set_metric("langchain.response.outputs.%d.embedding_length" % idx, len(embedding))
-        else:
-            span.set_metric("langchain.response.outputs.embedding_length", len(embeddings))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -560,19 +313,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         if integration.is_pc_sampled_span(span):
             if not isinstance(inputs, list):
                 inputs = [inputs]
-            for idx, inp in enumerate(inputs):
-                if not isinstance(inp, dict):
-                    span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
-                else:
-                    for k, v in inp.items():
-                        span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
         final_output = func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            final_outputs = final_output  # separate variable as to return correct value later
-            if not isinstance(final_outputs, list):
-                final_outputs = [final_outputs]
-            for idx, output in enumerate(final_outputs):
-                span.set_tag_str("langchain.response.outputs.%d" % idx, integration.trunc(str(output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -607,19 +348,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         if integration.is_pc_sampled_span(span):
             if not isinstance(inputs, list):
                 inputs = [inputs]
-            for idx, inp in enumerate(inputs):
-                if not isinstance(inp, dict):
-                    span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
-                else:
-                    for k, v in inp.items():
-                        span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
         final_output = await func(*args, **kwargs)
-        if integration.is_pc_sampled_span(span):
-            final_outputs = final_output  # separate variable as to return correct value later
-            if not isinstance(final_outputs, list):
-                final_outputs = [final_outputs]
-            for idx, output in enumerate(final_outputs):
-                span.set_tag_str("langchain.response.outputs.%d" % idx, integration.trunc(str(output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -648,12 +377,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 
     documents = []
     try:
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.request.query", integration.trunc(query))
-        if k is not None:
-            span.set_tag_str("langchain.request.k", str(k))
-        for kwarg_key, v in kwargs.items():
-            span.set_tag_str("langchain.request.%s" % kwarg_key, str(v))
         if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
             span.set_tag_str(
                 "langchain.request.pinecone.environment",
@@ -670,15 +393,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
             api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
             span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
-        span.set_metric("langchain.response.document_count", len(documents))
-        for idx, document in enumerate(documents):
-            span.set_tag_str(
-                "langchain.response.document.%d.page_content" % idx, integration.trunc(str(document.page_content))
-            )
-            for kwarg_key, v in document.metadata.items():
-                span.set_tag_str(
-                    "langchain.response.document.%d.metadata.%s" % (idx, kwarg_key), integration.trunc(str(v))
-                )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -699,12 +413,6 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
             return
         if not isinstance(inputs, list):
             inputs = [inputs]
-        for idx, inp in enumerate(inputs):
-            if not isinstance(inp, dict):
-                span.set_tag_str("langchain.request.inputs.%d" % idx, integration.trunc(str(inp)))
-                continue
-            for k, v in inp.items():
-                span.set_tag_str("langchain.request.inputs.%d.%s" % (idx, k), integration.trunc(str(v)))
 
     def _on_span_finished(span: Span, streamed_chunks):
         maybe_parser = instance.steps[-1] if instance.steps else None
@@ -729,7 +437,6 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="chain")
         if span.error or not integration.is_pc_sampled_span(span):
             return
-        span.set_tag_str("langchain.response.outputs", integration.trunc(content))
 
     return shared_stream(
         integration=integration,
@@ -754,15 +461,6 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
-        chat_messages = get_argument_value(args, kwargs, 0, "input")
-        tag_general_message_input(span, chat_messages, integration, langchain_core)
-
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if not isinstance(val, dict):
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-                continue
-            for k, v in val.items():
-                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
     def _on_span_finished(span: Span, streamed_chunks):
         joined_chunks = streamed_chunks[0]
@@ -776,11 +474,6 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
             or len(streamed_chunks) == 0
         ):
             return
-        content = str(getattr(joined_chunks, "content", joined_chunks))
-        role = joined_chunks.__class__.__name__.replace("Chunk", "")  # AIMessageChunk --> AIMessage
-        span.set_tag_str("langchain.response.content", integration.trunc(content))
-        if role:
-            span.set_tag_str("langchain.response.message_type", role)
 
         usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
         if not usage or not isinstance(usage, dict):
@@ -814,21 +507,12 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
-        inp = get_argument_value(args, kwargs, 0, "input")
-        tag_general_message_input(span, inp, integration, langchain_core)
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if not isinstance(val, dict):
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-                continue
-            for k, v in val.items():
-                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
         if span.error or not integration.is_pc_sampled_span(span):
             return
-        span.set_tag_str("langchain.response.content", integration.trunc(content))
 
     return shared_stream(
         integration=integration,
@@ -867,28 +551,15 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
             tool_info[attribute] = value
-            if value is not None:
-                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
         metadata = getattr(instance, "metadata", {})
         if metadata:
             tool_info["metadata"] = metadata
-            for key, meta_value in metadata.items():
-                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
         tags = getattr(instance, "tags", [])
         if tags:
             tool_info["tags"] = tags
-            for idx, tag in tags:
-                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
-
-        if tool_input and integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
-        if config:
-            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = func(*args, **kwargs)
-        if tool_output and integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -920,28 +591,15 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         for attribute in ("name", "description"):
             value = getattr(instance, attribute, None)
             tool_info[attribute] = value
-            if value is not None:
-                span.set_tag_str("langchain.request.tool.%s" % attribute, str(value))
 
         metadata = getattr(instance, "metadata", {})
         if metadata:
             tool_info["metadata"] = metadata
-            for key, meta_value in metadata.items():
-                span.set_tag_str("langchain.request.tool.metadata.%s" % key, str(meta_value))
         tags = getattr(instance, "tags", [])
         if tags:
             tool_info["tags"] = tags
-            for idx, tag in tags:
-                span.set_tag_str("langchain.request.tool.tags.%d" % idx, str(value))
-
-        if tool_input and integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.request.input", integration.trunc(str(tool_input)))
-        if config:
-            span.set_tag_str("langchain.request.config", safe_json(config))
 
         tool_output = await func(*args, **kwargs)
-        if tool_output and integration.is_pc_sampled_span(span):
-            span.set_tag_str("langchain.response.output", integration.trunc(str(tool_output)))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
