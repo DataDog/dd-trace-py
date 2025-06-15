@@ -126,6 +126,7 @@ def override_global_config(values):
         "_client_ip_header",
         "_retrieve_client_ip",
         "_report_hostname",
+        "_logs_injection",
         "_health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
