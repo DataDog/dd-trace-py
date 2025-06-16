@@ -343,7 +343,7 @@ integrations:
   tested_versions_by_dependency:
     flask:
       min: 1.1.4
-      max: 3.1.0
+      max: 3.1.1
 
 - integration_name: flask_cache
   is_external_package: true
