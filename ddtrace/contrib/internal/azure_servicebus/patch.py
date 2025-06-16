@@ -32,7 +32,7 @@ def get_version():
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"azure.servicebus": ">=7.0.0"}
+    return {"azure.servicebus": ">=7.14.0"}
 
 
 def patch():
