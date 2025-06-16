@@ -154,6 +154,27 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_tdd_propagation",
+            pys=select_pys(min_version="3.9"),
+            command="pytest {cmdargs} tests/appsec/iast_tdd_propagation/",
+            pkgs={
+                "requests": latest,
+                "flask": latest,
+                "pycryptodome": latest,
+                "sqlalchemy": "~=2.0.23",
+                "pony": latest,
+                "aiosqlite": latest,
+                "tortoise-orm": latest,
+                "peewee": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATE_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -318,6 +339,19 @@ venv = Venv(
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
                         "setuptools": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="lib_injection",
+            command="pytest {cmdargs} tests/lib_injection/test_guardrails.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "PyYAML": latest,
+                        "pytest-randomly": latest,
                     },
                 ),
             ],
