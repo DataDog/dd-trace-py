@@ -183,3 +183,6 @@ tests/appsec/iast/fixtures/aspects/unpatched_callers.py
 
 # Setup download cache
 .download_cache/
+
+# .env file
+.env
