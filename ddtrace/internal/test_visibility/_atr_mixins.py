@@ -1,6 +1,7 @@
 import dataclasses
 import typing as t
 
+from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
@@ -20,11 +21,13 @@ class AutoTestRetriesSettings:
 
 class ATRSessionMixin:
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_is_enabled() -> bool:
         log.debug("Checking if ATR is enabled")
         return require_ci_visibility_service().is_atr_enabled()
 
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_has_failed_tests() -> bool:
         log.debug("Checking if ATR session has failed tests")
         return require_ci_visibility_service().get_session().atr_has_failed_tests()
@@ -32,22 +35,26 @@ class ATRSessionMixin:
 
 class ATRTestMixin:
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_should_retry(item_id: InternalTestId) -> bool:
         log.debug("Checking if test %s should be retried by ATR", item_id)
         return require_ci_visibility_service().get_test_by_id(item_id).atr_should_retry()
 
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
         retry_number = require_ci_visibility_service().get_test_by_id(item_id).atr_add_retry(start_immediately)
         log.debug("Adding ATR retry %s for test %s", retry_number, item_id)
         return retry_number
 
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_start_retry(item_id: InternalTestId, retry_number: int) -> None:
         log.debug("Starting ATR retry %s for test %s", retry_number, item_id)
         require_ci_visibility_service().get_test_by_id(item_id).atr_start_retry(retry_number)
 
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_finish_retry(
         item_id: InternalTestId,
         retry_number: int,
@@ -61,6 +68,7 @@ class ATRTestMixin:
         )
 
     @staticmethod
+    @_catch_and_log_exceptions
     def atr_get_final_status(test_id: InternalTestId) -> TestStatus:
         log.debug("Getting ATR final status for test %s", test_id)
 

@@ -1,5 +1,6 @@
 import typing as t
 
+from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
@@ -37,6 +38,7 @@ class BenchmarkTestMixin:
         is_benchmark: bool = True
 
     @classmethod
+    @_catch_and_log_exceptions
     def set_benchmark_data(
         cls,
         item_id: InternalTestId,
