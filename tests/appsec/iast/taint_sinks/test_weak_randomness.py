@@ -4,9 +4,9 @@ import pytest
 
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_WEAK_RANDOMNESS
+from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_RANDOM_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_random.py"

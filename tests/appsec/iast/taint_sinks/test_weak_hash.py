@@ -11,8 +11,8 @@ from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
+from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"

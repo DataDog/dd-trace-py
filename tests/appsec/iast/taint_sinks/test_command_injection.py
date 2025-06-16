@@ -16,9 +16,9 @@ from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_PATH = "tests/appsec/iast/taint_sinks/test_command_injection.py"

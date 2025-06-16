@@ -4,7 +4,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import _iast_response_cookies
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.appsec.iast.iast_utils import _get_span_report
 
 
 def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):

@@ -14,9 +14,9 @@ from ddtrace.contrib.internal.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.internal.webbrowser.patch import unpatch as webbrowser_unpatch
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_global_config
 
 

@@ -11,8 +11,8 @@ from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_blowfi
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_des
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cipher_secure
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import cryptography_algorithm
+from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"

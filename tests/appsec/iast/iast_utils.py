@@ -15,6 +15,7 @@ from hypothesis.strategies import text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast.main import patch_iast
 
 
@@ -105,3 +106,14 @@ string_valid_to_taint_strategies: List[Any] = [
     non_empty_binary,  # regular bytes
     builds(bytearray, non_empty_binary),  # regular bytearray
 ]
+
+
+def _get_span_report():
+    span_report = get_iast_reporter()
+    return span_report
+
+
+def _get_iast_data():
+    span_report = _get_span_report()
+    data = span_report.build_and_scrub_value_parts()
+    return data
