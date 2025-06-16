@@ -488,8 +488,8 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
         if message_type == "message":
             text = ""
             for content in getattr(item, "content", []):
-                text += getattr(content, "text", "") or ""
-                text += getattr(content, "refusal", "") or ""
+                text += str(getattr(content, "text", "") or "")
+                text += str(getattr(content, "refusal", "") or "")
             message.update({"role": getattr(item, "role", "assistant"), "content": text})
         elif message_type == "reasoning":
             message.update(
