@@ -5,7 +5,7 @@ from google import genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import TracedAsyncGoogleGenAIStreamResponse
-from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
+from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -31,7 +31,7 @@ def get_version():
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -46,7 +46,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     generation_response = None
-    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -56,7 +56,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     )
     try:
         generation_response = func(*args, **kwargs)
-        return TracedGoogleGenAIStreamResponse(generation_response, integration, span, args, kwargs)
+        return TracedGoogleGenAIStreamResponse(generation_response, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -67,7 +67,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -81,7 +81,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
 async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     generation_response = None
-    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -91,7 +91,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
     )
     try:
         generation_response = await func(*args, **kwargs)
-        return TracedAsyncGoogleGenAIStreamResponse(generation_response, integration, span, args, kwargs)
+        return TracedAsyncGoogleGenAIStreamResponse(generation_response, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

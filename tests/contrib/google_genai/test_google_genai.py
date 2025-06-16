@@ -111,6 +111,54 @@ def test_google_genai_generate_content_stream_error(genai):
         for _ in response:
             pass
 
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_async")
+async def test_google_genai_generate_content_async(google_genai_vcr, genai):
+    with google_genai_vcr.use_cassette("generate_content_async.yaml"):
+        client = genai.Client()
+        await client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=types.GenerateContentConfig(
+                temperature=0,
+                top_p=0.95,
+                top_k=20,
+                candidate_count=1,
+                seed=5,
+                max_output_tokens=100,
+                stop_sequences=["STOP!"],
+                presence_penalty=0.0,
+                frequency_penalty=0.0,
+            ),
+        )
+
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_async_stream")
+async def test_google_genai_generate_content_async_stream(google_genai_vcr, genai):
+    with google_genai_vcr.use_cassette("generate_content_stream_async.yaml"):
+        client = genai.Client()
+        response = await client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+        )
+        async for _ in response:
+            pass
+
+# @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
+# def test_google_genai_generate_content_vertex(google_genai_vcr, genai):
+#     import os
+#     try:
+#         del os.environ['GOOGLE_API_KEY']
+#     except KeyError:
+#         pass
+#     with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
+#         client = genai.Client(vertexai=True)
+#         client.models.generate_content(
+#             model='gemini-2.0-flash-001',
+#             contents='Why is the sky blue? Explain in 2-3 sentences.',
+#             config=types.GenerateContentConfig(
+#                 temperature=0,
+#                 max_output_tokens=100,
+#             ),
+#         )
 
 @pytest.mark.parametrize(
     "model_name,expected_provider,expected_model",
@@ -126,15 +174,15 @@ def test_google_genai_generate_content_stream_error(genai):
         ("claude-3-opus", "anthropic", "claude-3-opus"),
         ("publishers/meta/models/llama-3.1-405b-instruct-maas", "meta", "llama-3.1-405b-instruct-maas"),
         ("mistral-7b", "mistral", "mistral-7b"),
-        ("weird_directory/unknown-model", "other", "unknown-model"),
-        ("", "other", "unknown"),
+        ("weird_directory/unknown-model", "custom", "unknown-model"),
+        ("", "custom", "unknown"),
     ],
 )
-def test_extract_provider_and_model_name_genai(model_name, expected_provider, expected_model):
-    from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
+def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):
+    from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 
     kwargs = {"model": model_name}
-    provider, model = extract_provider_and_model_name_genai(kwargs)
+    provider, model = extract_provider_and_model_name(kwargs)
 
     assert provider == expected_provider
     assert model == expected_model
