@@ -1,5 +1,6 @@
 from datetime import datetime
 from datetime import timezone
+import os
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -25,12 +26,35 @@ TOPIC_NAME = "topic.1"
 SUBSCRIPTION_NAME = "subscription.3"
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 
+DISTRIBUTED_TRACING_DISABLED_PARAMS = {
+    "DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": "False",
+}
+
+PEER_SERVICE_ENABLED_PARAMS = {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": "True"}
+
 
 @pytest.fixture(autouse=True)
 def patch_azure_servicebus():
     patch()
     yield
     unpatch()
+
+
+@pytest.fixture(autouse=True)
+def clear_azure_servicebus(
+    azure_servicebus_queue_receiver: ServiceBusReceiver, azure_servicebus_subscription_receiver: ServiceBusReceiver
+):
+    yield
+
+    received_queue_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=20, max_wait_time=1)
+    for message in received_queue_messages:
+        azure_servicebus_queue_receiver.complete_message(message)
+
+    received_subscription_messages = azure_servicebus_subscription_receiver.receive_messages(
+        max_message_count=20, max_wait_time=1
+    )
+    for message in received_subscription_messages:
+        azure_servicebus_subscription_receiver.complete_message(message)
 
 
 @pytest.fixture()
@@ -41,7 +65,7 @@ def azure_servicebus_client():
 
 @pytest.fixture()
 def azure_servicebus_queue_sender(azure_servicebus_client: ServiceBusClient):
-    with azure_servicebus_client.get_queue_sender(QUEUE_NAME) as queue_sender:
+    with azure_servicebus_client.get_queue_sender(queue_name=QUEUE_NAME) as queue_sender:
         yield queue_sender
 
 
@@ -73,7 +97,7 @@ async def azure_servicebus_client_async():
 
 @pytest.fixture()
 async def azure_servicebus_queue_sender_async(azure_servicebus_client_async: ServiceBusClientAsync):
-    async with azure_servicebus_client_async.get_queue_sender(QUEUE_NAME) as queue_sender:
+    async with azure_servicebus_client_async.get_queue_sender(queue_name=QUEUE_NAME) as queue_sender:
         yield queue_sender
 
 
@@ -102,14 +126,14 @@ async def azure_servicebus_subscription_receiver_async(azure_servicebus_client_a
 @pytest.fixture()
 def message_with_properties():
     return ServiceBusMessage(
-        "test message 1",
+        "test message with properties",
         application_properties=DEFAULT_APPLICATION_PROPERTIES,
     )
 
 
 @pytest.fixture()
 def message_without_properties():
-    return ServiceBusMessage("test message 2")
+    return ServiceBusMessage("test message without properties")
 
 
 @pytest.fixture()
@@ -133,443 +157,244 @@ def normalize_application_properties(
     return {k.decode() if isinstance(k, bytes) else k: v for k, v in application_properties.items()}
 
 
+@pytest.mark.parametrize(
+    "env_vars",
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS, PEER_SERVICE_ENABLED_PARAMS],
+    ids=["default_config", "distributed_tracing_disabled", "peer_service_enabled"],
+)
 @pytest.mark.snapshot
-def test_queue_send_single_message_keyword_args(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
+def test_send_messages(env_vars, ddtrace_run_python_code_in_subprocess):
+    code = f"""
+import os
+from typing import Dict
+from typing import Optional
+from typing import Union
+import uuid
+
+from azure.servicebus import ServiceBusClient
+from azure.servicebus import ServiceBusMessage
+
+from ddtrace.internal.utils.formats import asbool
+
+TRACE_CONTEXT_KEYS = [
+    "x-datadog-trace-id",
+    "x-datadog-parent-id",
+    "x-datadog-sampling-priority",
+    "x-datadog-tags",
+    "traceparent",
+    "tracestate",
+]
+
+
+def normalize_application_properties(
+    application_properties: Optional[Dict[Union[str, bytes], Union[int, float, bytes, bool, str, uuid.UUID]]],
 ):
-    azure_servicebus_queue_sender.send_messages(message=message_without_properties)
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
+    if not application_properties:
+        return {{}}
 
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
+    return {{k.decode() if isinstance(k, bytes) else k: v for k, v in application_properties.items()}}
 
 
-@pytest.mark.snapshot
-def test_queue_send_single_message(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    azure_servicebus_queue_sender.send_messages(message_without_properties)
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
+message_with_properties = ServiceBusMessage(
+    "test message with properties",
+    application_properties={DEFAULT_APPLICATION_PROPERTIES},
+)
+message_without_properties = ServiceBusMessage("test message without properties")
 
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
+with ServiceBusClient.from_connection_string(conn_str="{CONNECTION_STRING}") as servicebus_client:
+    with servicebus_client.get_queue_sender(queue_name="{QUEUE_NAME}") as queue_sender:
+        queue_sender.send_messages(message_without_properties)
+        queue_sender.send_messages(message=message_without_properties)
+        queue_sender.send_messages([message_without_properties, message_with_properties])
+    with servicebus_client.get_topic_sender(topic_name="{TOPIC_NAME}") as topic_sender:
+        topic_sender.send_messages(message_without_properties)
+        topic_sender.send_messages(message=message_without_properties)
+        topic_sender.send_messages([message_without_properties, message_with_properties])
+    with servicebus_client.get_queue_receiver(queue_name="{QUEUE_NAME}", max_wait_time=5) as queue_receiver:
+        received_messages = queue_receiver.receive_messages(max_message_count=4)
+        for message in received_messages:
+            queue_receiver.complete_message(message)
+        assert len(received_messages) == 4
+        if asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)):
+            assert all(
+                key in normalize_application_properties(msg.application_properties)
+                for msg in received_messages
+                for key in TRACE_CONTEXT_KEYS
+            )
+        else:
+            assert not any(
+                key in normalize_application_properties(msg.application_properties)
+                for msg in received_messages
+                for key in TRACE_CONTEXT_KEYS
+            )
+    with servicebus_client.get_subscription_receiver(
+        topic_name="{TOPIC_NAME}", subscription_name="{SUBSCRIPTION_NAME}", max_wait_time=5
+    ) as subscription_receiver:
+        received_messages = subscription_receiver.receive_messages(max_message_count=4)
+        for message in received_messages:
+            subscription_receiver.complete_message(message)
+        assert len(received_messages) == 4
+        if asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)):
+            assert all(
+                key in normalize_application_properties(msg.application_properties)
+                for msg in received_messages
+                for key in TRACE_CONTEXT_KEYS
+            )
+        else:
+            assert not any(
+                key in normalize_application_properties(msg.application_properties)
+                for msg in received_messages
+                for key in TRACE_CONTEXT_KEYS
+            )
+"""
 
-
-@pytest.mark.snapshot
-def test_queue_send_message_list(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    azure_servicebus_queue_sender.send_messages([message_without_properties, message_with_properties])
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=2)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
-
-    assert len(received_messages) == 2
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.snapshot
-def test_topic_send_single_message(
-    azure_servicebus_topic_sender: ServiceBusSender,
-    azure_servicebus_subscription_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    azure_servicebus_topic_sender.send_messages(message_without_properties)
-    received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_subscription_receiver.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.snapshot
-def test_topic_send_message_list(
-    azure_servicebus_topic_sender: ServiceBusSender,
-    azure_servicebus_subscription_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    azure_servicebus_topic_sender.send_messages([message_without_properties, message_with_properties])
-    received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=2)
-    for message in received_messages:
-        azure_servicebus_subscription_receiver.complete_message(message)
-
-    assert len(received_messages) == 2
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
-        for key in trace_context_keys
-    )
+    env = os.environ.copy()
+    env.update(env_vars)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (err.decode(), out.decode())
+    assert err == b"", err.decode()
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_queue_send_single_message_keyword_args_async(
+async def test_send_messages_async(
     azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
+    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
+    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    await azure_servicebus_queue_sender_async.send_messages(message=message_without_properties)
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
-        await azure_servicebus_queue_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_queue_send_single_message_async(
-    azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
+    message_with_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
     await azure_servicebus_queue_sender_async.send_messages(message_without_properties)
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
-        await azure_servicebus_queue_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_queue_send_message_list_async(
-    azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
+    await azure_servicebus_queue_sender_async.send_messages(message=message_without_properties)
     await azure_servicebus_queue_sender_async.send_messages([message_without_properties, message_with_properties])
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=2)
-    for message in received_messages:
+
+    await azure_servicebus_topic_sender_async.send_messages(message_without_properties)
+    await azure_servicebus_topic_sender_async.send_messages(message=message_without_properties)
+    await azure_servicebus_topic_sender_async.send_messages([message_without_properties, message_with_properties])
+
+    received_queue_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=4)
+    for message in received_queue_messages:
         await azure_servicebus_queue_receiver_async.complete_message(message)
 
-    assert len(received_messages) == 2
+    assert len(received_queue_messages) == 4
     assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_queue_messages
         for key in trace_context_keys
     )
 
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_topic_send_single_message_async(
-    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    await azure_servicebus_topic_sender_async.send_messages(message_without_properties)
-    received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
+    received_subscription_messages = await azure_servicebus_subscription_receiver_async.receive_messages(
+        max_message_count=4
+    )
+    for message in received_subscription_messages:
         await azure_servicebus_subscription_receiver_async.complete_message(message)
 
-    assert len(received_messages) == 1
+    assert len(received_subscription_messages) == 4
     assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_subscription_messages
         for key in trace_context_keys
     )
 
 
-@pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_topic_send_message_list_async(
-    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
+def test_schedule_messages(
+    azure_servicebus_queue_sender: ServiceBusSender,
+    azure_servicebus_queue_receiver: ServiceBusReceiver,
+    azure_servicebus_topic_sender: ServiceBusSender,
+    azure_servicebus_subscription_receiver: ServiceBusReceiver,
     message_without_properties: ServiceBusMessage,
     message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    await azure_servicebus_topic_sender_async.send_messages([message_without_properties, message_with_properties])
-    received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=2)
-    for message in received_messages:
-        await azure_servicebus_subscription_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 2
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.snapshot
-def test_queue_schedule_single_message_keyword_args(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    azure_servicebus_queue_sender.schedule_messages(
-        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
-    )
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.snapshot
-def test_queue_schedule_single_message(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
     azure_servicebus_queue_sender.schedule_messages(message_without_properties, datetime.now(timezone.utc))
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
+    azure_servicebus_queue_sender.schedule_messages(
+        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
     )
-
-
-@pytest.mark.snapshot
-def test_queue_schedule_message_list(
-    azure_servicebus_queue_sender: ServiceBusSender,
-    azure_servicebus_queue_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     azure_servicebus_queue_sender.schedule_messages(
         [message_without_properties, message_with_properties], datetime.now(timezone.utc)
     )
-    received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=2)
-    for message in received_messages:
-        azure_servicebus_queue_receiver.complete_message(message)
 
-    assert len(received_messages) == 2
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.snapshot
-def test_topic_schedule_single_message(
-    azure_servicebus_topic_sender: ServiceBusSender,
-    azure_servicebus_subscription_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     azure_servicebus_topic_sender.schedule_messages(message_without_properties, datetime.now(timezone.utc))
-    received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=1)
-    for message in received_messages:
-        azure_servicebus_subscription_receiver.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
+    azure_servicebus_topic_sender.schedule_messages(
+        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
     )
-
-
-@pytest.mark.snapshot
-def test_topic_schedule_message_list(
-    azure_servicebus_topic_sender: ServiceBusSender,
-    azure_servicebus_subscription_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     azure_servicebus_topic_sender.schedule_messages(
         [message_without_properties, message_with_properties], datetime.now(timezone.utc)
     )
-    received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=2)
-    for message in received_messages:
+
+    received_queue_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=4)
+    for message in received_queue_messages:
+        azure_servicebus_queue_receiver.complete_message(message)
+
+    assert len(received_queue_messages) == 4
+    assert all(
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_queue_messages
+        for key in trace_context_keys
+    )
+
+    received_subscription_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=4)
+    for message in received_subscription_messages:
         azure_servicebus_subscription_receiver.complete_message(message)
 
-    assert len(received_messages) == 2
+    assert len(received_subscription_messages) == 4
     assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_subscription_messages
         for key in trace_context_keys
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_queue_schedule_single_message_keyword_args_async(
+async def test_schedule_messages_async(
     azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
+    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
+    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
-    await azure_servicebus_queue_sender_async.schedule_messages(
-        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
-    )
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
-        await azure_servicebus_queue_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_queue_schedule_single_message_async(
-    azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
+    message_with_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
     await azure_servicebus_queue_sender_async.schedule_messages(message_without_properties, datetime.now(timezone.utc))
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
-        await azure_servicebus_queue_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
+    await azure_servicebus_queue_sender_async.schedule_messages(
+        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
     )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_queue_schedule_message_list_async(
-    azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     await azure_servicebus_queue_sender_async.schedule_messages(
         [message_without_properties, message_with_properties], datetime.now(timezone.utc)
     )
-    received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=2)
-    for message in received_messages:
-        await azure_servicebus_queue_receiver_async.complete_message(message)
 
-    assert len(received_messages) == 2
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
-    )
-    assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
-        for key in trace_context_keys
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_topic_schedule_single_message_async(
-    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     await azure_servicebus_topic_sender_async.schedule_messages(message_without_properties, datetime.now(timezone.utc))
-    received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=1)
-    for message in received_messages:
-        await azure_servicebus_subscription_receiver_async.complete_message(message)
-
-    assert len(received_messages) == 1
-    assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
-        for key in trace_context_keys
+    await azure_servicebus_topic_sender_async.schedule_messages(
+        messages=message_without_properties, schedule_time_utc=datetime.now(timezone.utc)
     )
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_topic_schedule_message_list_async(
-    azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
-    azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
-    trace_context_keys: List[str],
-):
     await azure_servicebus_topic_sender_async.schedule_messages(
         [message_without_properties, message_with_properties], datetime.now(timezone.utc)
     )
-    received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=2)
-    for message in received_messages:
-        await azure_servicebus_subscription_receiver_async.complete_message(message)
 
-    assert len(received_messages) == 2
+    received_queue_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=4)
+    for message in received_queue_messages:
+        await azure_servicebus_queue_receiver_async.complete_message(message)
+
+    assert len(received_queue_messages) == 4
     assert all(
-        key in normalize_application_properties(received_messages[0].application_properties)
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_queue_messages
         for key in trace_context_keys
     )
+
+    received_subscription_messages = await azure_servicebus_subscription_receiver_async.receive_messages(
+        max_message_count=4
+    )
+    for message in received_subscription_messages:
+        await azure_servicebus_subscription_receiver_async.complete_message(message)
+
+    assert len(received_subscription_messages) == 4
     assert all(
-        key in normalize_application_properties(received_messages[1].application_properties)
+        key in normalize_application_properties(msg.application_properties)
+        for msg in received_subscription_messages
         for key in trace_context_keys
     )

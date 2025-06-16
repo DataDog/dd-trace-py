@@ -60,8 +60,6 @@ def _patch(azure_servicebus_module):
 
 
 def _patched_send_messages(wrapped, instance, args, kwargs):
-    # TODO: is this a queue or topic sender? Does it change the span attributes?
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
@@ -70,14 +68,15 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+        core.dispatch(
+            "azure.servicebus.send_message_modifier",
+            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+        )
 
         return wrapped(*args, **kwargs)
 
 
 async def _patched_send_messages_async(wrapped, instance, args, kwargs):
-    # TODO: is this a queue or topic sender? Does it change the span attributes?
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
@@ -86,14 +85,15 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+        core.dispatch(
+            "azure.servicebus.send_message_modifier",
+            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+        )
 
         return await wrapped(*args, **kwargs)
 
 
 def _patched_schedule_messages(wrapped, instance, args, kwargs):
-    # TODO: is this a queue or topic sender? Does it change the span attributes?
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
@@ -102,14 +102,15 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+        core.dispatch(
+            "azure.servicebus.send_message_modifier",
+            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+        )
 
         return wrapped(*args, **kwargs)
 
 
 async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
-    # TODO: is this a queue or topic sender? Does it change the span attributes?
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
@@ -118,7 +119,10 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
-        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+        core.dispatch(
+            "azure.servicebus.send_message_modifier",
+            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+        )
 
         return await wrapped(*args, **kwargs)
 

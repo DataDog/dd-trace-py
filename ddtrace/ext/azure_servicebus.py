@@ -1,7 +1,3 @@
 SERVICE = "azure_servicebus"
-
-TOPIC = "azure.servicebus.topic"
-
+NAMESPACE = "azure.servicebus.fully_qualified_namespace"
 PRODUCE = "azure.servicebus.produce"
-
-# TODO: other span attributes?
