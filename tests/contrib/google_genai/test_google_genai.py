@@ -10,6 +10,8 @@ def google_genai_vcr():
     yield get_google_genai_vcr(subdirectory_name="v1")
 
 
+#TODO: add tests for vertex client, async methods also.
+
 def test_global_tags(google_genai_vcr, genai, mock_tracer):
     """
     When the global config UST tags are set

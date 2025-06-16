@@ -60,6 +60,9 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
+    finally:
+        if span.error:
+            span.finish()
 
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
@@ -92,6 +95,9 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
+    finally:
+        if span.error:
+            span.finish()
 
 def patch():
     if getattr(genai, "_datadog_patch", False):

@@ -24,12 +24,9 @@ def extract_provider_and_model_name(kwargs):
 
 
 class BaseTracedGoogleGenAIStreamResponse:
-    def __init__(self, generation_response, integration, span, args, kwargs):
+    def __init__(self, generation_response, span):
         self._generation_response = generation_response
-        self._integration = integration
         self._dd_span = span
-        self._args = args
-        self._kwargs = kwargs
         self._chunks = []
 
 

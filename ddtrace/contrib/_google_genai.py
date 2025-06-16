@@ -7,15 +7,6 @@ All traces submitted from the Google GenAI integration are tagged by:
 - model used in the request.
 - provider used in the request.
 
-(beta) Prompt and Completion Sampling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Prompt texts and completion content are collected in span tags with a default sampling rate of ``1.0``
-for the following methods:
-
-- ``generate_content/generate_content_stream`` of the ``google.genai.models.Models`` class
-
-These tags will have truncation applied if the text exceeds the configured character limit.
 
 Enabling
 ~~~~~~~~
