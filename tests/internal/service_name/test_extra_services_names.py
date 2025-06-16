@@ -6,7 +6,7 @@ import pytest
 
 @pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
 def test_config_extra_service_names_fork(run_python_code_in_subprocess):
-    code = f"""
+    code = """
 import ddtrace.auto
 import ddtrace
 
@@ -20,7 +20,7 @@ for i in range(10):
     pid = os.fork()
     if pid == 0:
         # Child process
-        ddtrace.config._add_extra_service(f"extra_service_{{i}}")
+        ddtrace.config._add_extra_service(f"extra_service_{i}")
         time.sleep(0.1)  # Ensure the child has time to save the service
         sys.exit(0)
     else:
