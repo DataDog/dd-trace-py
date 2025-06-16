@@ -44,7 +44,22 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._chunks.append(chunk)
             return chunk
         except StopIteration:
+            self._dd_span.finish()
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
+
+class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            chunk = await self._generation_response.__anext__()
+            self._chunks.append(chunk)
+            return chunk
+        except StopAsyncIteration:
+            self._dd_span.finish()
             raise
