@@ -26,9 +26,11 @@ from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
 from distutils.dep_util import newer_group
 
+
 # Import the new build cache system
 try:
     from scripts.build_cache import BuildCache
+
     BUILD_CACHE_AVAILABLE = True
 except ImportError:
     BUILD_CACHE_AVAILABLE = False
@@ -339,7 +341,9 @@ class CleanLibraries(CleanCommand):
 
 class CMakeBuild(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
-    USE_BUILD_CACHE = os.getenv("DD_USE_BUILD_CACHE", "1").lower() in ("1", "yes", "on", "true") and BUILD_CACHE_AVAILABLE
+    USE_BUILD_CACHE = (
+        os.getenv("DD_USE_BUILD_CACHE", "1").lower() in ("1", "yes", "on", "true") and BUILD_CACHE_AVAILABLE
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -367,55 +371,55 @@ class CMakeBuild(build_ext):
         """Determine if an extension should be skipped based on cache status."""
         if not self.USE_BUILD_CACHE or not isinstance(ext, CMakeExtension):
             return False
-        
+
         component = self.build_cache.get_extension_component(ext.name)
         if not component:
             return False
-        
+
         # Check if we can restore cached artifacts
         full_path = Path(self.get_ext_fullpath(ext.name))
-        
+
         if self.build_cache.restore_artifacts(component, full_path.parent):
             print(f"Using cached artifacts for '{ext.name}' (component: {component})")
             return True
-        
+
         return False
 
     def cache_extension_artifacts(self, ext):
         """Cache artifacts for an extension after successful build."""
         if not self.USE_BUILD_CACHE or not isinstance(ext, CMakeExtension):
             return
-        
+
         component = self.build_cache.get_extension_component(ext.name)
         if not component:
             return
-        
+
         # Determine what artifacts to cache
         full_path = Path(self.get_ext_fullpath(ext.name))
         artifacts_to_cache = [full_path]
-        
+
         # Add CMake build directory if it exists (for incremental builds)
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), ext.name).resolve()
         if cmake_build_dir.exists():
             artifacts_to_cache.append(cmake_build_dir)
-        
+
         # Add any additional artifacts based on extension type
-        if 'crashtracker' in ext.name:
+        if "crashtracker" in ext.name:
             # Cache crashtracker executable
             crashtracker_exe = full_path.parent / "crashtracker_exe"
             if crashtracker_exe.exists():
                 artifacts_to_cache.append(crashtracker_exe)
-        
+
         success = self.build_cache.cache_artifacts(
-            component, 
+            component,
             artifacts_to_cache,
             additional_info={
-                'extension_name': ext.name,
-                'build_type': ext.build_type,
-                'python_version': f"{sys.version_info.major}.{sys.version_info.minor}",
-            }
+                "extension_name": ext.name,
+                "build_type": ext.build_type,
+                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+            },
         )
-        
+
         if success:
             print(f"Cached artifacts for '{ext.name}' (component: {component})")
 
@@ -423,7 +427,7 @@ class CMakeBuild(build_ext):
         # Check if we can skip this extension due to valid cache
         if self.should_skip_extension(ext):
             return
-        
+
         if isinstance(ext, CMakeExtension):
             try:
                 self.build_extension_cmake(ext)
@@ -451,7 +455,7 @@ class CMakeBuild(build_ext):
     def build_extension_cmake(self, ext):
         # Enhanced incremental build logic with cache integration
         should_use_incremental = IS_EDITABLE and self.INCREMENTAL
-        
+
         if should_use_incremental:
             # DEV: Rudimentary incremental build support. We copy the logic from
             # setuptools' build_ext command, best effort.
@@ -470,7 +474,7 @@ class CMakeBuild(build_ext):
                 if ext.source_dir
                 else []
             )
-            
+
             # If using build cache, also check component hash
             skip_due_to_incremental = False
             if self.USE_BUILD_CACHE:
@@ -480,7 +484,9 @@ class CMakeBuild(build_ext):
                     print(f"skipping '{ext.name}' CMake extension (cache valid)")
             else:
                 # Legacy incremental check
-                if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+                if not (
+                    self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")
+                ):
                     skip_due_to_incremental = True
                     print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 

@@ -249,22 +249,167 @@ prechecks:
 
 
 def gen_build_base_venvs() -> None:
-    """Generate the list of base jobs for building virtual environments."""
+    """Generate component-specific build jobs for virtual environments and native extensions."""
 
     ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
     # Try to get component-specific hashes, fall back to legacy single hash
     try:
+        from component_config import ComponentConfig
         from get_component_hashes import generate_component_hashes
-        component_hashes = generate_component_hashes()
-        native_hash = component_hashes.get('combined', ci_commit_sha)
-        cmake_hash = component_hashes.get('cmake_iast', '')[:8] + component_hashes.get('cmake_ddup', '')[:8]
-        rust_hash = component_hashes.get('rust_native', '')[:8]
-    except (ImportError, Exception):
-        # Fall back to legacy behavior
-        native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-        cmake_hash = native_hash[:16]
-        rust_hash = native_hash[16:24]
 
+        component_hashes = generate_component_hashes()
+        all_components = ComponentConfig.get_all_components()
+    except (ImportError, Exception):
+        # Fall back to legacy behavior - single monolithic job
+        native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+        _gen_legacy_build_base_venvs(native_hash)
+        return
+
+    with TESTS_GEN.open("a") as f:
+        # Generate base venv job (Python dependencies, no native extensions)
+        f.write(
+            """
+build_base_venv:
+  extends: .testrunner
+  stage: setup
+  needs: []
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    DD_BUILD_EXT_EXCLUDES: '*'  # Exclude all native extensions
+  script: |
+    set -e -o pipefail
+    echo "Building base Python environment (no native extensions)"
+    pip install riot==0.20.1
+    riot -P -v generate --python=$PYTHON_VERSION
+    echo "Base venv created successfully"
+  cache:
+    key: v1-base_venv-${PYTHON_VERSION}-cache
+    paths:
+      - .cache
+  artifacts:
+    name: base_venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
+      - ddtrace/_version.py
+    expire_in: 2 hours
+"""
+        )
+
+        # Generate component-specific build jobs
+        for component in all_components:
+            component_hash = component_hashes.get(component, ci_commit_sha)[:16]
+
+            # Define component-specific patterns and artifacts
+            if ComponentConfig.is_cmake_component(component):
+                build_patterns = _get_cmake_build_patterns(component)
+                artifact_patterns = _get_cmake_artifact_patterns(component)
+                build_deps = ["apt update && apt install -y sccache cmake"]
+            elif ComponentConfig.is_rust_component(component):
+                build_patterns = _get_rust_build_patterns(component)
+                artifact_patterns = _get_rust_artifact_patterns(component)
+                build_deps = [
+                    "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+                    "source ~/.cargo/env",
+                ]
+            else:  # Python components (Cython, C extensions)
+                build_patterns = _get_python_build_patterns(component)
+                artifact_patterns = _get_python_artifact_patterns(component)
+                build_deps = ["apt update && apt install -y build-essential"]
+
+            f.write(
+                f"""
+build_{component}:
+  extends: .testrunner
+  stage: setup
+  needs:
+    - job: build_base_venv
+      artifacts: true
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    DD_USE_SCCACHE: '1'
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_BUILD_EXT_INCLUDES: '{build_patterns}'
+    DD_FAST_BUILD: '1'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+      variables:
+        DD_FAST_BUILD: '0'
+    - when: always
+  script: |
+    set -e -o pipefail
+    echo "Building component: {component}"
+    {chr(10).join(build_deps)}
+
+    # Check if we can use cached artifacts
+    if python3 scripts/build_cache.py check {component} 2>/dev/null; then
+      echo "Using cached artifacts for {component}"
+      python3 scripts/build_cache.py restore {component} || echo "Cache restore failed, will rebuild"
+    fi
+
+    # Build only this component's extensions
+    pip install riot==0.20.1
+    riot -P -v generate --python=$PYTHON_VERSION
+
+    echo "Component {component} built successfully"
+  cache:
+    # Component-specific cache
+    - key: v1-{component}-${{PYTHON_VERSION}}-{component_hash}
+      paths:
+        - .cache
+        - .build_cache/py${{PYTHON_VERSION}}/{ComponentConfig.get_component_cache_dir_name(component)}
+  artifacts:
+    name: {component}_$PYTHON_VERSION
+    paths:
+{chr(10).join(f"      - {pattern}" for pattern in artifact_patterns)}
+    expire_in: 2 hours
+"""
+            )
+
+        # Generate final assembly job that combines all components
+        f.write(
+            f"""
+build_complete_venv:
+  extends: .testrunner
+  stage: setup
+  needs:
+    - job: build_base_venv
+      artifacts: true
+{chr(10).join(f"    - job: build_{component}" + chr(10) + "      artifacts: true" for component in all_components)}
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  script: |
+    set -e -o pipefail
+    echo "Assembling complete virtual environment from components"
+
+    # All artifacts are already in place from dependencies
+    # Run smoke test to verify everything works
+    pip install riot==0.20.1
+    riot -v run -s --python=$PYTHON_VERSION smoke_test
+
+    echo "Complete environment assembled and tested successfully"
+  artifacts:
+    name: venv_$PYTHON_VERSION
+    paths:
+      - .riot/venv_*
+      - ddtrace/_version.py
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+      - ddtrace/internal/datadog/profiling/test/test_*
+    expire_in: 1 day
+"""
+        )
+
+
+def _gen_legacy_build_base_venvs(native_hash: str) -> None:
+    """Generate legacy monolithic build job as fallback."""
     with TESTS_GEN.open("a") as f:
         f.write(
             f"""
@@ -283,57 +428,19 @@ build_base_venvs:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     DD_FAST_BUILD: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
   script: |
     set -e -o pipefail
-    if [ ! -f cache_used.txt ];
-    then
-      echo "No cache found, building native extensions and base venv"
-      apt update && apt install -y sccache
-      pip install riot==0.20.1
-      riot -P -v generate --python=$PYTHON_VERSION
-      echo "Running smoke tests"
-      riot -v run -s --python=$PYTHON_VERSION smoke_test
-      touch cache_used.txt
-    else
-      echo "Skipping build, using compiled files/venv from cache"
-      echo "Fixing ddtrace versions"
-      pip install "setuptools_scm[toml]>=4"
-      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
-        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
-      echo "Using version: ${{ddtrace_version}}"
-    fi
+    echo "Building complete environment (legacy mode)"
+    apt update && apt install -y sccache
+    pip install riot==0.20.1
+    riot -P -v generate --python=$PYTHON_VERSION
+    riot -v run -s --python=$PYTHON_VERSION smoke_test
   cache:
-    # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
-      paths:
-        - .cache
-    # Component-specific caches for more granular rebuilds
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
-      paths:
-        - .riot/venv_*
-        - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-        - ddtrace/internal/datadog/profiling/test/test_*
-        - cache_used.txt
-    # Separate cache for CMake components
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cmake-{cmake_hash}
-      paths:
-        - .build_cache/cmake_*
-        - ddtrace/appsec/_iast/_taint_tracking/**/*.so*
-        - ddtrace/internal/datadog/profiling/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-    # Separate cache for Rust components  
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-rust-{rust_hash}
-      paths:
-        - .build_cache/rust_*
-        - target/
-        - ddtrace/internal/native/**/*.so*
+    key: v1-build_base_venvs-${{PYTHON_VERSION}}-{native_hash[:16]}
+    paths:
+      - .cache
+      - .riot/venv_*
+      - ddtrace/**/*.so*
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
@@ -342,8 +449,110 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
-        """
+"""
         )
+
+
+def _get_cmake_build_patterns(component: str) -> str:
+    """Get build patterns for CMake components."""
+    patterns = {
+        "cmake_iast": "ddtrace.appsec._iast._taint_tracking._native",
+        "cmake_ddup": "ddtrace.internal.datadog.profiling.ddup._ddup",
+        "cmake_crashtracker": "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
+        "cmake_stack_v2": "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+    }
+    return patterns.get(component, "*cmake*")
+
+
+def _get_cmake_artifact_patterns(component: str) -> list:
+    """Get artifact patterns for CMake components."""
+    try:
+        from component_config import ComponentConfig
+
+        cache_dir_name = ComponentConfig.get_component_cache_dir_name(component)
+    except ImportError:
+        cache_dir_name = component
+
+    base_patterns = [f".build_cache/py${{PYTHON_VERSION}}/{cache_dir_name}"]
+
+    if component == "cmake_iast":
+        return base_patterns + ["ddtrace/appsec/_iast/_taint_tracking/**/*.so*"]
+    elif component == "cmake_ddup":
+        return base_patterns + ["ddtrace/internal/datadog/profiling/ddup/**/*.so*"]
+    elif component == "cmake_crashtracker":
+        return base_patterns + [
+            "ddtrace/internal/datadog/profiling/crashtracker/**/*.so*",
+            "ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*",
+        ]
+    elif component == "cmake_stack_v2":
+        return base_patterns + ["ddtrace/internal/datadog/profiling/stack_v2/**/*.so*"]
+    else:
+        return base_patterns
+
+
+def _get_rust_build_patterns(component: str) -> str:
+    """Get build patterns for Rust components."""
+    return "ddtrace.internal.native._native"
+
+
+def _get_rust_artifact_patterns(component: str) -> list:
+    """Get artifact patterns for Rust components."""
+    try:
+        from component_config import ComponentConfig
+
+        cache_dir_name = ComponentConfig.get_component_cache_dir_name(component)
+    except ImportError:
+        cache_dir_name = component
+
+    return [f".build_cache/py${{PYTHON_VERSION}}/{cache_dir_name}", "target/", "ddtrace/internal/native/**/*.so*"]
+
+
+def _get_python_build_patterns(component: str) -> str:
+    """Get build patterns for Python components."""
+    if component == "cython_extensions":
+        return (
+            "ddtrace.internal._rand,ddtrace.internal._tagset,ddtrace.internal._encoding,ddtrace.profiling.collector.*"
+        )
+    elif component == "c_extensions":
+        return "ddtrace.profiling.collector._memalloc,ddtrace.internal._threads,ddtrace.appsec._iast._stacktrace"
+    elif component == "vendor_extensions":
+        return "ddtrace.vendor.*"
+    else:
+        return "*"
+
+
+def _get_python_artifact_patterns(component: str) -> list:
+    """Get artifact patterns for Python components."""
+    try:
+        from component_config import ComponentConfig
+
+        cache_dir_name = ComponentConfig.get_component_cache_dir_name(component)
+    except ImportError:
+        cache_dir_name = component
+
+    base_patterns = [f".build_cache/py${{PYTHON_VERSION}}/{cache_dir_name}"]
+
+    if component == "cython_extensions":
+        return base_patterns + [
+            "ddtrace/internal/_rand*.so*",
+            "ddtrace/internal/_tagset*.so*",
+            "ddtrace/internal/_encoding*.so*",
+            "ddtrace/profiling/collector/stack*.so*",
+            "ddtrace/profiling/collector/_traceback*.so*",
+            "ddtrace/profiling/_threading*.so*",
+            "ddtrace/profiling/collector/_task*.so*",
+        ]
+    elif component == "c_extensions":
+        return base_patterns + [
+            "ddtrace/profiling/collector/_memalloc*.so*",
+            "ddtrace/internal/_threads*.so*",
+            "ddtrace/appsec/_iast/_stacktrace*.so*",
+            "ddtrace/appsec/_iast/_ast/iastpatch*.so*",
+        ]
+    elif component == "vendor_extensions":
+        return base_patterns + ["ddtrace/vendor/**/*.so*"]
+    else:
+        return base_patterns
 
 
 # -----------------------------------------------------------------------------
