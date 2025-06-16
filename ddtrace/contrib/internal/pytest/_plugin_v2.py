@@ -113,6 +113,13 @@ class XdistHooks:
 
         node.workerinput["root_span"] = root_span
 
+    @pytest.hookimpl
+    def pytest_testnodedown(self, node, error):
+        if hasattr(node, "workeroutput") and "itr_skipped_count" in node.workeroutput:
+            if not hasattr(pytest, "global_worker_itr_results"):
+                pytest.global_worker_itr_results = 0
+            pytest.global_worker_itr_results += node.workeroutput["itr_skipped_count"]
+
 
 def _handle_itr_should_skip(item, test_id) -> bool:
     """Checks whether a test should be skipped
@@ -135,6 +142,13 @@ def _handle_itr_should_skip(item, test_id) -> bool:
         InternalTest.mark_itr_skipped(test_id)
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
+
+        # If we're in a worker process, count the skipped test
+        if hasattr(item.config, "workeroutput"):
+            if "itr_skipped_count" not in item.config.workeroutput:
+                item.config.workeroutput["itr_skipped_count"] = 0
+            item.config.workeroutput["itr_skipped_count"] += 1
+
         return True
 
     return False
@@ -267,6 +281,10 @@ def pytest_configure(config: pytest_Config) -> None:
 
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
+
+                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                    # Main process
+                    pytest.global_worker_itr_results = 0
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -315,6 +333,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         InternalTestSession.set_library_capabilities(library_capabilities)
 
         extracted_context = None
+        distributed_children = False
         if hasattr(session.config, "workerinput"):
             from ddtrace._trace.context import Context
             from ddtrace.constants import USER_KEEP
@@ -332,8 +351,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                     "pytest_sessionstart: Could not convert root_span %s to int",
                     received_root_span,
                 )
+        elif hasattr(pytest, "global_worker_itr_results"):
+            distributed_children = True
 
-        InternalTestSession.start(extracted_context)
+        InternalTestSession.start(distributed_children, extracted_context)
 
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
@@ -453,7 +474,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestSuite.mark_itr_skipped(suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
-            InternalTestSuite.finish(suite_id)
+        InternalTestSuite.finish(suite_id)
         if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
             InternalTestModule.finish(module_id)
 
@@ -766,6 +787,14 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
+
+    # Count ITR skipped tests from workers if we're in the main process
+    if hasattr(pytest, "global_worker_itr_results"):
+        skipped_count = pytest.global_worker_itr_results
+        if skipped_count > 0:
+            # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
+            # during session finishing, it will use the correct worker-aggregated count
+            InternalTestSession.set_itr_tags(skipped_count)
 
     InternalTestSession.finish(
         force_finish_children=True,
