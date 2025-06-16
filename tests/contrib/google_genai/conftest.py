@@ -7,8 +7,6 @@ from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
-from tests.utils import override_config
-from tests.utils import override_global_config
 
 
 @pytest.fixture
@@ -19,7 +17,7 @@ def mock_tracer(genai):
         pin._override(genai, tracer=mock_tracer)
         pin.tracer.configure()
         yield mock_tracer
-    except Exception as e:
+    except Exception:
         yield
 
 
@@ -28,7 +26,8 @@ def genai():
     patch()
     from google import genai
 
-    # When testing locally to generate new cassette files, comment the lines below to use the real Google API key and project/location
+    # When testing locally to generate new cassette files,
+    # comment the lines below to use the real Google API key and project/location
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
     os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
     os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"

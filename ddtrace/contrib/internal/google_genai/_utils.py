@@ -48,6 +48,7 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._dd_span.finish()
             raise
 
+
 class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
     def __aiter__(self):
         return self

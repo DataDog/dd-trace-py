@@ -3,8 +3,8 @@ import sys
 from google import genai
 
 from ddtrace import config
-from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import TracedAsyncGoogleGenAIStreamResponse
+from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -64,6 +64,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         if span.error:
             span.finish()
 
+
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
@@ -76,6 +77,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=False,
     ):
         return await func(*args, **kwargs)
+
 
 @with_traced_module
 async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
@@ -98,6 +100,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
     finally:
         if span.error:
             span.finish()
+
 
 def patch():
     if getattr(genai, "_datadog_patch", False):

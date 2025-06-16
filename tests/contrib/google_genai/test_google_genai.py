@@ -10,7 +10,8 @@ def google_genai_vcr():
     yield get_google_genai_vcr(subdirectory_name="v1")
 
 
-#TODO: add tests for vertex client, async methods also.
+# TODO: add tests for vertex client, async methods also.
+
 
 def test_global_tags(google_genai_vcr, genai, mock_tracer):
     """
@@ -111,6 +112,7 @@ def test_google_genai_generate_content_stream_error(genai):
         for _ in response:
             pass
 
+
 @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_async")
 async def test_google_genai_generate_content_async(google_genai_vcr, genai):
     with google_genai_vcr.use_cassette("generate_content_async.yaml"):
@@ -131,7 +133,10 @@ async def test_google_genai_generate_content_async(google_genai_vcr, genai):
             ),
         )
 
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_async_stream")
+
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_async_stream"
+)
 async def test_google_genai_generate_content_async_stream(google_genai_vcr, genai):
     with google_genai_vcr.use_cassette("generate_content_stream_async.yaml"):
         client = genai.Client()
@@ -141,6 +146,7 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
         )
         async for _ in response:
             pass
+
 
 # @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
 # def test_google_genai_generate_content_vertex(google_genai_vcr, genai):
@@ -159,6 +165,7 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
 #                 max_output_tokens=100,
 #             ),
 #         )
+
 
 @pytest.mark.parametrize(
     "model_name,expected_provider,expected_model",
