@@ -144,6 +144,12 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.record_instance(instance, span)
 
     try:
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -173,6 +179,12 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -201,6 +213,12 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         chat_completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -230,6 +248,14 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+            else:
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+
+
         chat_completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -462,6 +488,14 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         if not integration.is_pc_sampled_span(span):
             return
 
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if not isinstance(val, dict):
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                continue
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+
+
     def _on_span_finished(span: Span, streamed_chunks):
         joined_chunks = streamed_chunks[0]
         for chunk in streamed_chunks[1:]:
@@ -507,6 +541,14 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
+
+        for param, val in getattr(instance, "_identifying_params", {}).items():
+            if not isinstance(val, dict):
+                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
+                continue
+            for k, v in val.items():
+                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
+
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])
