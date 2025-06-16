@@ -14,7 +14,7 @@ MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name_genai(kwargs):
+def extract_provider_and_model_name(kwargs):
     model_name = kwargs.get("model", "").split("/")[-1]
     provider_name = "custom"
     for prefix in MODEL_PREFIX_TO_PROVIDER.keys():
