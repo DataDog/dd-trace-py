@@ -108,12 +108,7 @@ string_valid_to_taint_strategies: List[Any] = [
 ]
 
 
-def _get_span_report():
-    span_report = get_iast_reporter()
-    return span_report
-
-
 def _get_iast_data():
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     data = span_report.build_and_scrub_value_parts()
     return data

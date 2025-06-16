@@ -17,7 +17,6 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import patch
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _get_iast_data
-from tests.appsec.iast.iast_utils import _get_span_report
 from tests.appsec.iast.iast_utils import get_line_and_hash
 
 
@@ -235,7 +234,7 @@ def test_string_cmdi_secure_mark(iast_context_defaults):
     subprocess.run(result, shell=True, check=True)
 
     # Verify the result is marked as secure
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
