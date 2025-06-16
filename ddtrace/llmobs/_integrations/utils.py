@@ -434,7 +434,7 @@ def openai_get_input_messages_from_response_input(
             try:
                 arguments = json.loads(item["arguments"])
             except json.JSONDecodeError:
-                arguments = str(item["arguments"])
+                arguments = {"value": str(item["arguments"])}
             processed_item["tool_calls"] = [
                 {
                     "tool_id": item["call_id"],
