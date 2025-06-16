@@ -118,7 +118,7 @@ def trace_context_keys():
 
 
 def normalize_application_properties(
-    application_properties: dict[str | bytes, Union[int, float, bytes, bool, str, uuid.UUID]] | None,
+    application_properties: Union[dict[Union[str, bytes], Union[int, float, bytes, bool, str, uuid.UUID]], None],
 ):
     if not application_properties:
         return {}

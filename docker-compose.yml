@@ -160,6 +160,8 @@ services:
             SQL_SERVER: dd-trace-py-azuresqledge-1
     azuresqledge:
         image: mcr.microsoft.com/azure-sql-edge:1.0.7
+        ports:
+            - "127.0.0.1:1433:1433"
         environment:
             ACCEPT_EULA: "Y"
             MSSQL_SA_PASSWORD: "Localtestpass1!"
