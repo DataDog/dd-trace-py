@@ -20,7 +20,8 @@ from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import TracerSpanContainer, flaky
+from tests.utils import TracerSpanContainer
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
