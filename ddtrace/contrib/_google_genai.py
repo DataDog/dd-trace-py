@@ -7,5 +7,50 @@ All traces submitted from the Google GenAI integration are tagged by:
 - model used in the request.
 - provider used in the request.
 
-This instrumentation is still in development, and is not yet submitted to the LLMobs integration.
+(beta) Prompt and Completion Sampling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prompt texts and completion content are collected in span tags with a default sampling rate of ``1.0``
+for the following methods:
+
+- ``generate_content/generate_content_stream`` of the ``google.genai.models.Models`` class
+
+These tags will have truncation applied if the text exceeds the configured character limit.
+
+Enabling
+~~~~~~~~
+
+The Google GenAI integration is enabled automatically when you use
+:ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
+
+Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Google GenAI integration::
+
+    from ddtrace import config, patch
+
+    patch(google_genai=True)
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.google_genai["service"]
+
+   The service name reported by default for Google GenAI requests.
+
+   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_VERTEXAI_SERVICE`` environment
+   variables.
+
+   Default: ``DD_SERVICE``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+To configure the Google GenAI integration on a per-instance basis use the
+``Pin`` API::
+
+    from google import genai
+    from ddtrace import config
+    from ddtrace.trace import Pin
+
+    Pin.override(genai, service="my-google-genai-service")
 """
