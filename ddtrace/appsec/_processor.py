@@ -323,9 +323,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.set_blocked(blocked)
 
         allowed = True
-        if waf_results.data or blocked:
-            # We run the rate limiter only if there is an attack,
-            # its goal is to limit the number of collected asm events
+        if waf_results.keep:
             allowed = self._rate_limiter.is_allowed()
 
         _asm_request_context.set_waf_telemetry_results(
@@ -335,9 +333,6 @@ class AppSecSpanProcessor(SpanProcessor):
             rule_type,
             not allowed,
         )
-
-        if not allowed:
-            return waf_results
 
         if waf_results.data:
             _asm_request_context.store_waf_results_data(waf_results.data)
@@ -355,10 +350,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            if waf_results.keep:
-                _asm_manual_keep(span)
             if span.get_tag(_ORIGIN_KEY) is None:
                 span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+
+        if waf_results.keep and allowed:
+            _asm_manual_keep(span)
+
         return waf_results
 
     def _is_needed(self, address: str) -> bool:
