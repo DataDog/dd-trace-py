@@ -492,7 +492,7 @@ def pytest_sessionstart(session):
         test_session_span.set_tag_str(test.COMMAND, test_command)
         test_session_span.set_tag_str(_SESSION_ID, str(test_session_span.span_id))
 
-        _CIVisibility.set_test_session_name(test_command=test_command)
+        _CIVisibility._instance.set_test_session_name(test_command=test_command)
 
         if _CIVisibility.test_skipping_enabled():
             test_session_span.set_tag_str(test.ITR_TEST_SKIPPING_ENABLED, "true")
