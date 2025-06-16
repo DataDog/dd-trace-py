@@ -1,3 +1,6 @@
+from typing import Dict
+from typing import List
+from typing import Optional
 from typing import Union
 import uuid
 
@@ -118,7 +121,7 @@ def trace_context_keys():
 
 
 def normalize_application_properties(
-    application_properties: Union[dict[Union[str, bytes], Union[int, float, bytes, bool, str, uuid.UUID]], None],
+    application_properties: Optional[Dict[Union[str, bytes], Union[int, float, bytes, bool, str, uuid.UUID]]],
 ):
     if not application_properties:
         return {}
@@ -131,7 +134,7 @@ def test_queue_single_message(
     azure_servicebus_queue_sender: ServiceBusSender,
     azure_servicebus_queue_receiver: ServiceBusReceiver,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     azure_servicebus_queue_sender.send_messages(message_without_properties)
     received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=1)
@@ -149,7 +152,7 @@ def test_queue_message_list(
     azure_servicebus_queue_receiver: ServiceBusReceiver,
     message_without_properties: ServiceBusMessage,
     message_with_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     azure_servicebus_queue_sender.send_messages([message_without_properties, message_with_properties])
     received_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=2)
@@ -170,7 +173,7 @@ def test_topic_single_message(
     azure_servicebus_topic_sender: ServiceBusSender,
     azure_servicebus_subscription_receiver: ServiceBusReceiver,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     azure_servicebus_topic_sender.send_messages(message_without_properties)
     received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=1)
@@ -188,7 +191,7 @@ def test_topic_message_list(
     azure_servicebus_subscription_receiver: ServiceBusReceiver,
     message_without_properties: ServiceBusMessage,
     message_with_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     azure_servicebus_topic_sender.send_messages([message_without_properties, message_with_properties])
     received_messages = azure_servicebus_subscription_receiver.receive_messages(max_message_count=2)
@@ -210,7 +213,7 @@ async def test_queue_single_message_async(
     azure_servicebus_queue_sender_async: ServiceBusSenderAsync,
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     await azure_servicebus_queue_sender_async.send_messages(message_without_properties)
     received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=1)
@@ -229,7 +232,7 @@ async def test_queue_message_list_async(
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
     message_with_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     await azure_servicebus_queue_sender_async.send_messages([message_without_properties, message_with_properties])
     received_messages = await azure_servicebus_queue_receiver_async.receive_messages(max_message_count=2)
@@ -251,7 +254,7 @@ async def test_topic_single_message_async(
     azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
     azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     await azure_servicebus_topic_sender_async.send_messages(message_without_properties)
     received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=1)
@@ -270,7 +273,7 @@ async def test_topic_message_list_async(
     azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
     message_without_properties: ServiceBusMessage,
     message_with_properties: ServiceBusMessage,
-    trace_context_keys: list[str],
+    trace_context_keys: List[str],
 ):
     await azure_servicebus_topic_sender_async.send_messages([message_without_properties, message_with_properties])
     received_messages = await azure_servicebus_subscription_receiver_async.receive_messages(max_message_count=2)

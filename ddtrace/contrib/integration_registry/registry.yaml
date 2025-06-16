@@ -139,7 +139,17 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.20.0
-      max: 1.21.3
+      max: 1.23.0
+
+- integration_name: azure_servicebus
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-servicebus
+  tested_versions_by_dependency:
+    azure-servicebus:
+      min: 7.14.2
+      max: 7.14.2
 
 - integration_name: boto
   is_external_package: true
