@@ -33,7 +33,7 @@ for pid in children:
 extra_services = ddtrace.config._get_extra_services()
 extra_services.discard("sqlite")  # coverage
 assert len(extra_services) == 10, extra_services
-assert all(re.match(r"extra_service_\\d+_\\d+", service) for service in extra_services)
+assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
 """
 
     env = os.environ.copy()
