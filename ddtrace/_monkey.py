@@ -91,11 +91,10 @@ PATCH_MODULES = {
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": True,
     "pyramid": True,
-    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
-    "logbook": config._logs_injection,
-    "logging": config._logs_injection,
-    "loguru": config._logs_injection,
-    "structlog": config._logs_injection,
+    "logbook": True,
+    "logging": True,
+    "loguru": True,
+    "structlog": True,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -192,6 +191,9 @@ def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
 
     if not supported_versions_spec:
         return False
+
+    if supported_versions_spec == "*":
+        return True
 
     try:
         specifier_set = SpecifierSet(supported_versions_spec)

@@ -24,6 +24,7 @@ from setuptools.command.build_py import build_py as BuildPyCommand  # isort: ski
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
+from distutils.dep_util import newer_group
 
 
 try:
@@ -121,7 +122,7 @@ def verify_checksum_from_file(sha256_filename, filename):
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
     try:
-        assert expected_filename.endswith(filename)
+        assert expected_filename.endswith(Path(filename).name)
         assert expected_checksum == actual_checksum
     except AssertionError:
         print("Checksum verification error: Checksum and/or filename don't match:")
@@ -167,6 +168,9 @@ def is_64_bit_python():
 
 
 class LibraryDownload:
+    CACHE_DIR = HERE / ".download_cache"
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
+
     name = None
     download_dir = None
     version = None
@@ -215,20 +219,34 @@ class LibraryDownload:
                 archive_name,
             )
 
-            try:
-                filename, http_response = urlretrieve(download_address, archive_name)
-            except HTTPError as e:
-                print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
-                raise e
+            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else archive_name
+            if cls.USE_CACHE and not cls.CACHE_DIR.exists():
+                cls.CACHE_DIR.mkdir(parents=True)
 
-            # Verify checksum of downloaded file
-            if cls.expected_checksums is None:
-                sha256_address = download_address + ".sha256"
-                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
-                verify_checksum_from_file(sha256_filename, filename)
+            if not (cls.USE_CACHE and download_dest.exists()):
+                print(f"Downloading {archive_name} to {download_dest}")
+                start_ns = time.time_ns()
+                try:
+                    filename, _ = urlretrieve(download_address, str(download_dest))
+                except HTTPError as e:
+                    print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
+                    raise e
+
+                # Verify checksum of downloaded file
+                if cls.expected_checksums is None:
+                    sha256_address = download_address + ".sha256"
+                    sha256_filename, _ = urlretrieve(sha256_address, str(download_dest) + ".sha256")
+                    verify_checksum_from_file(sha256_filename, str(download_dest))
+                else:
+                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
+                    verify_checksum_from_hash(expected_checksum, str(download_dest))
+
+                DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
+
             else:
-                expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                verify_checksum_from_hash(expected_checksum, filename)
+                # If the file exists in the cache, we will use it
+                filename = str(download_dest)
+                print(f"Using cached {filename}")
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
@@ -248,7 +266,8 @@ class LibraryDownload:
                     renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
                     original_file.rename(renamed_file)
 
-            Path(filename).unlink()
+            if not cls.USE_CACHE:
+                Path(filename).unlink()
 
     @classmethod
     def run(cls):
@@ -312,6 +331,8 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
+
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
@@ -350,6 +371,35 @@ class CMakeBuild(build_ext):
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext):
+        if IS_EDITABLE and self.INCREMENTAL:
+            # DEV: Rudimentary incremental build support. We copy the logic from
+            # setuptools' build_ext command, best effort.
+            full_path = Path(self.get_ext_fullpath(ext.name))
+            ext_path = Path(ext.source_dir, full_path.name)
+
+            # Collect all the source files within the source directory. We exclude
+            # Python sources and anything that does not have a suffix (most likely
+            # a binary file), or that has the same name as the extension binary.
+            sources = (
+                [
+                    _
+                    for _ in Path(ext.source_dir).rglob("**")
+                    if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in (".py", ".pyc", ".pyi")
+                ]
+                if ext.source_dir
+                else []
+            )
+            if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+                print(f"skipping '{ext.name}' CMake extension (up-to-date)")
+
+                # We need to copy the binary where setuptools expects it
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ext_path, full_path)
+
+                return
+            else:
+                print(f"building '{ext.name}' CMake extension")
+
         # Define the build and output directories
         output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
         extension_basename = Path(self.get_ext_fullpath(ext.name)).name
@@ -443,6 +493,7 @@ class DebugMetadata:
     enabled = "_DD_DEBUG_EXT" in os.environ
     metadata_file = os.getenv("_DD_DEBUG_EXT_FILE", "debug_ext_metadata.txt")
     build_times = {}
+    download_times = {}
 
     @classmethod
     def dump_metadata(cls):
@@ -459,17 +510,33 @@ class DebugMetadata:
         with open(cls.metadata_file, "w") as f:
             f.write(f"Total time: {total_s:0.2f}s\n")
             f.write("Environment:\n")
-            f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
-            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
-            f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
-            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
+            for n, v in [
+                ("CARGO_BUILD_JOBS", os.getenv("CARGO_BUILD_JOBS", "unset")),
+                ("CMAKE_BUILD_PARALLEL_LEVEL", os.getenv("CMAKE_BUILD_PARALLEL_LEVEL", "unset")),
+                ("DD_COMPILE_MODE", COMPILE_MODE),
+                ("DD_USE_SCCACHE", SCCACHE_COMPILE),
+                ("DD_FAST_BUILD", FAST_BUILD),
+                ("DD_CMAKE_INCREMENTAL_BUILD", CMakeBuild.INCREMENTAL),
+            ]:
+                print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
                 elapsed_s = elapsed_ns / 1e9
                 ext_percent = (elapsed_ns / total_ns) * 100.0
                 f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+
+            if cls.download_times:
+                download_total_ns = sum(cls.download_times.values())
+                download_total_s = download_total_ns / 1e9
+                download_percent = (download_total_ns / total_ns) * 100.0
+
+                f.write("Artifact download times:\n")
+                f.write(f"\tTotal: {download_total_s:0.2f}s ({download_percent:0.2f}%)\n")
+                for n, elapsed_ns in sorted(cls.download_times.items(), key=lambda x: x[1], reverse=True):
+                    elapsed_s = elapsed_ns / 1e9
+                    ext_percent = (elapsed_ns / total_ns) * 100.0
+                    f.write(f"\t{n}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
 
 
 def debug_build_extension(fn):
@@ -767,11 +834,6 @@ setup(
                     sources=["ddtrace/profiling/collector/_task.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.exporter.pprof",
-                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                    language="c",
-                ),
             ]
         ),
         compile_time_env={
@@ -780,7 +842,7 @@ setup(
             "PY_MICRO_VERSION": sys.version_info.micro,
             "PY_VERSION_HEX": sys.hexversion,
         },
-        force=True,
+        force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )

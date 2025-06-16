@@ -20,22 +20,11 @@ import sys
 import warnings  # noqa:F401
 
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import DD_LOG_FORMAT
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
-
-
-# Debug mode from the tracer will do the same here, so only need to do this otherwise.
-if config._logs_injection:
-    from ddtrace import patch
-
-    patch(logging=True)
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
 
 
 log = get_logger(__name__)
@@ -166,8 +155,9 @@ try:
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
 
-    if os.getenv("_DD_SSI_INJECT_SUCCESSFUL"):
-        # _DD_SSI_INJECT_SUCCESSFUL is set in lib-injection/sources/sitecustomize.py after ssi is completed
+    if os.getenv("_DD_PY_SSI_INJECT") == "1":
+        # _DD_PY_SSI_INJECT is set to `1` in lib-injection/sources/sitecustomize.py when ssi is started
+        # and doesn't abort.
         source = "ssi"
     elif os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap") in sys.path:
         # Checks the python path to see if the bootstrap directory is present, this operation

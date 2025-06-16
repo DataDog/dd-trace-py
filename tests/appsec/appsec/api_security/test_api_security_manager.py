@@ -43,7 +43,7 @@ class TestApiSecurityManager:
         env.span.context.sampling_priority = None
         root_span.context.sampling_priority = None
         env.waf_addresses = {}
-
+        env.blocked = None
         return env
 
     def test_schema_callback_no_span(self, api_manager, tracer):

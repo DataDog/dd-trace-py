@@ -14,6 +14,7 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config as ddconfig
+from ddtrace._trace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -1102,10 +1103,12 @@ def _on_discover_session(discover_args: TestSession.DiscoverArgs) -> None:
 
 
 @_requires_civisibility_enabled
-def _on_start_session() -> None:
+def _on_start_session(distributed_children: bool = False, context: Optional[Context] = None) -> None:
     log.debug("Handling start session")
     session = CIVisibility.get_session()
-    session.start()
+    session.start(context)
+    if distributed_children:
+        session.set_distributed_children()
 
 
 @_requires_civisibility_enabled
@@ -1171,6 +1174,12 @@ def _on_session_set_library_capabilities(capabilities: LibraryCapabilities) -> N
 
 
 @_requires_civisibility_enabled
+def _on_session_set_itr_skipped_count(skipped_count: int) -> None:
+    log.debug("Setting skipped count: %d", skipped_count)
+    CIVisibility.get_session().set_skipped_count(skipped_count)
+
+
+@_requires_civisibility_enabled
 def _on_session_get_path_codeowners(path: Path) -> Optional[List[str]]:
     log.debug("Getting codeowners for path %s", path)
     codeowners = CIVisibility.get_codeowners()
@@ -1202,6 +1211,7 @@ def _register_session_handlers() -> None:
     )
     core.on("test_visibility.session.set_covered_lines_pct", _on_session_set_covered_lines_pct)
     core.on("test_visibility.session.set_library_capabilities", _on_session_set_library_capabilities)
+    core.on("test_visibility.session.set_itr_skipped_count", _on_session_set_itr_skipped_count)
 
 
 @_requires_civisibility_enabled

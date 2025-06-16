@@ -1,6 +1,8 @@
+from http import client as httplib
 import json
+from urllib import parse
 
-from tests.appsec.integrations.flask_tests.test_flask_remoteconfig import _get_agent_client
+from ddtrace import tracer
 
 
 def start_trace(token):
@@ -28,3 +30,9 @@ def _get_span(token):
     )
     resp = client.getresponse()
     return json.loads(resp.read())
+
+
+def _get_agent_client():
+    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+    return conn
