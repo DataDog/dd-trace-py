@@ -3,14 +3,13 @@ import os
 import vcr
 
 
-# TODO: copied code below from openAI tests, change for google genai
 # VCR is used to capture and store network requests.
 # This is done to avoid making real calls to the API which could introduce
 # flakiness and cost.
 
 
 # To (re)-generate the cassettes: pass a real API key with
-# OPENAI_API_KEY, delete the old cassettes and re-run the tests.
+# GOOGLE_API_KEY, delete the old cassettes and re-run the tests.
 # NOTE: be sure to check that the generated cassettes don't contain your
 #       API key. Keys should be redacted by the filter_headers option below.
 # NOTE: that different cassettes have to be used between sync and async

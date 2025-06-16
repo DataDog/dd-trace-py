@@ -45,8 +45,8 @@ def test_global_tags(google_genai_vcr, genai, mock_tracer):
         assert span.get_tag("google_genai.request.provider") == "google"
 
 
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_completion")
-def test_google_genai_completion(google_genai_vcr, genai):
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content")
+def test_google_genai_generate_content(google_genai_vcr, genai):
     with google_genai_vcr.use_cassette("generate_content.yaml"):
         client = genai.Client()
         client.models.generate_content(
@@ -67,10 +67,10 @@ def test_google_genai_completion(google_genai_vcr, genai):
 
 
 @pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_completion_error",
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_completion_error(google_genai_vcr, genai):
+def test_google_genai_generate_content_error(genai):
     with pytest.raises(TypeError):
         client = genai.Client()
         client.models.generate_content(
@@ -78,6 +78,34 @@ def test_google_genai_completion_error(google_genai_vcr, genai):
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             not_an_argument="why am i here?",  # invalid argument
         )
+
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
+)
+def test_google_genai_generate_content_stream(google_genai_vcr, genai):
+    with google_genai_vcr.use_cassette("generate_content_stream.yaml"):
+        client = genai.Client()
+        response = client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+        )
+        for _ in response:
+            pass
+
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
+    ignores=["meta.error.stack", "meta.error.message"],
+)
+def test_google_genai_generate_content_stream_error(genai):
+    with pytest.raises(TypeError):
+        client = genai.Client()
+        response = client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            not_an_argument="why am i here?",  # invalid argument
+        )
+        for _ in response:
+            pass
 
 
 @pytest.mark.parametrize(
