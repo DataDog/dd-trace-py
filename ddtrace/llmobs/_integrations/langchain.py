@@ -747,7 +747,8 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
 
-    def _get_base_url(self, instance: Any, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
         base_url = None
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url

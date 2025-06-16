@@ -205,5 +205,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
 
-    def _get_base_url(self, base_url: Optional[str], **kwargs: Dict[str, Any]) -> Optional[str]:
-        return base_url
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        base_url = kwargs.get("base_url")
+        return str(base_url) if base_url else None
