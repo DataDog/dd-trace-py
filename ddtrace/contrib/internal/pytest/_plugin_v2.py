@@ -282,7 +282,8 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput"):  # Main process
+                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                    # Main process
                     pytest.global_worker_itr_results = 0
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
@@ -793,7 +794,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if skipped_count > 0:
             # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
             # during session finishing, it will use the correct worker-aggregated count
-            InternalTestSession.set_itr_tags(skipped_count)
+            InternalTestSession.set_itr_skipped_count(skipped_count)
 
     InternalTestSession.finish(
         force_finish_children=True,
