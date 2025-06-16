@@ -52,11 +52,11 @@ def _patch(azure_servicebus_module):
     if azure_servicebus_module.__name__ == "azure.servicebus.aio":
         Pin().onto(azure_servicebus_aio.ServiceBusSender)
         _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
-        # TODO: patch schedule_messages
+        _w("azure.servicebus.aio", "ServiceBusSender.schedule_messages", _patched_schedule_messages_async)
     else:
         Pin().onto(azure_servicebus_module.ServiceBusSender)
         _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
-        # TODO: patch schedule_messages
+        _w("azure.servicebus", "ServiceBusSender.schedule_messages", _patched_schedule_messages)
 
 
 def _patched_send_messages(wrapped, instance, args, kwargs):
@@ -91,6 +91,38 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
 
+def _patched_schedule_messages(wrapped, instance, args, kwargs):
+    # TODO: is this a queue or topic sender? Does it change the span attributes?
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+        if config.azure_servicebus.distributed_tracing:
+            message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
+            handle_service_bus_message_arg(ctx.span, message_arg_value)
+        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+
+        return wrapped(*args, **kwargs)
+
+
+async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
+    # TODO: is this a queue or topic sender? Does it change the span attributes?
+
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await wrapped(*args, **kwargs)
+
+    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+        if config.azure_servicebus.distributed_tracing:
+            message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
+            handle_service_bus_message_arg(ctx.span, message_arg_value)
+        core.dispatch("azure.servicebus.send_message_modifier", (ctx, config.azure_servicebus))
+
+        return await wrapped(*args, **kwargs)
+
+
 def unpatch():
     for azure_servicebus_module in (azure_servicebus, azure_servicebus_aio):
         _unpatch(azure_servicebus_module)
@@ -101,10 +133,9 @@ def _unpatch(azure_servicebus_module):
         return
     azure_servicebus_module._datadog_patch = False
 
-    # TODO: consolidate if/else statement?
     if azure_servicebus_module.__name__ == "azure.servicebus.aio":
         _u(azure_servicebus_module.ServiceBusSender, "send_messages")
-        # TODO: add remaining methods to unpatch
+        _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")
     else:
         _u(azure_servicebus_module.ServiceBusSender, "send_messages")
-        # TODO: add remaining methods to unpatch
+        _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")
