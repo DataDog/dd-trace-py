@@ -266,9 +266,12 @@ def gen_build_base_venvs() -> None:
         return
 
     with TESTS_GEN.open("a") as f:
+        # Generate dependency hash for Python environment
+        dependency_hash = _get_dependency_hash()
+
         # Generate base venv job (Python dependencies, no native extensions)
         f.write(
-            """
+            f"""
 build_base_venv:
   extends: .testrunner
   stage: setup
@@ -277,24 +280,27 @@ build_base_venv:
     matrix:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
-    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     DD_BUILD_EXT_EXCLUDES: '*'  # Exclude all native extensions
   script: |
     set -e -o pipefail
     echo "Building base Python environment (no native extensions)"
+    echo "Dependency hash: {dependency_hash[:16]}"
     pip install riot==0.20.1
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Base venv created successfully"
   cache:
-    key: v1-base_venv-${PYTHON_VERSION}-cache
-    paths:
-      - .cache
+    # Cache based on dependency files, not source code
+    - key: v1-base_venv-${{PYTHON_VERSION}}-deps-{dependency_hash[:16]}
+      paths:
+        - .cache
+        - .riot/venv_*
   artifacts:
     name: base_venv_$PYTHON_VERSION
     paths:
       - .riot/venv_*
       - ddtrace/_version.py
-    expire_in: 2 hours
+    expire_in: 4 hours  # Longer expiry for base venv
 """
         )
 
@@ -344,7 +350,7 @@ build_{component}:
     - when: always
   script: |
     set -e -o pipefail
-    echo "Building component: {component}"
+    echo "Building component: {component} (hash: {component_hash})"
     {chr(10).join(build_deps)}
 
     # Check if we can use cached artifacts
@@ -359,8 +365,8 @@ build_{component}:
 
     echo "Component {component} built successfully"
   cache:
-    # Component-specific cache
-    - key: v1-{component}-${{PYTHON_VERSION}}-{component_hash}
+    # Component-specific cache based on source code hash
+    - key: v1-{component}-${{PYTHON_VERSION}}-src-{component_hash}
       paths:
         - .cache
         - .build_cache/py${{PYTHON_VERSION}}/{ComponentConfig.get_component_cache_dir_name(component)}
@@ -553,6 +559,49 @@ def _get_python_artifact_patterns(component: str) -> list:
         return base_patterns + ["ddtrace/vendor/**/*.so*"]
     else:
         return base_patterns
+
+
+def _get_dependency_hash() -> str:
+    """Generate hash based on dependency files (riotfile.py, riot requirements, etc.)."""
+    import hashlib
+
+    dependency_files = [
+        "riotfile.py",
+        "pyproject.toml",
+        "hatch.toml",
+    ]
+
+    hasher = hashlib.sha256()
+
+    # Add Python version to the hash since dependencies can be Python-version specific
+    import sys
+
+    hasher.update(f"python-{sys.version_info.major}.{sys.version_info.minor}".encode())
+
+    # Hash main dependency files
+    for dep_file in dependency_files:
+        file_path = Path(dep_file)
+        if file_path.exists():
+            hasher.update(dep_file.encode())
+            try:
+                with open(file_path, "rb") as f:
+                    hasher.update(f.read())
+            except (OSError, IOError):
+                pass  # Skip files that can't be read
+
+    # Hash all riot requirements files
+    riot_requirements_dir = Path(".riot/requirements")
+    if riot_requirements_dir.exists():
+        # Get all requirement files in the riot directory
+        for req_file in sorted(riot_requirements_dir.glob("**/*.txt")):
+            hasher.update(str(req_file.relative_to(Path("."))).encode())
+            try:
+                with open(req_file, "rb") as f:
+                    hasher.update(f.read())
+            except (OSError, IOError):
+                pass  # Skip files that can't be read
+
+    return hasher.hexdigest()
 
 
 # -----------------------------------------------------------------------------
