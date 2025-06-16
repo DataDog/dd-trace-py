@@ -505,7 +505,7 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
                 }
             )
         elif message_type == "function_call":
-            arguments = getattr(item, "arguments", None)
+            arguments = getattr(item, "arguments", "{}")
             try:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
