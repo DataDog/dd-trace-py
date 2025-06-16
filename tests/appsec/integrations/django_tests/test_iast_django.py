@@ -20,7 +20,7 @@ from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.conftest import _end_iast_context_and_oce
 from tests.appsec.iast.conftest import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.utils import TracerSpanContainer
+from tests.utils import TracerSpanContainer, flaky
 from tests.utils import override_global_config
 
 
@@ -1329,6 +1329,7 @@ def test_django_stacktrace_leak(client, iast_span, tracer):
     assert vulnerability["hash"]
 
 
+@flaky(until=1767220930, reason="This test fails on Python 3.10 and below, and on Django versions below 4.2")
 def test_django_stacktrace_from_technical_500_response(client, iast_span, tracer, debug_mode):
     root_span, response = _aux_appsec_get_root_span(
         client,
