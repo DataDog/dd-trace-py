@@ -122,6 +122,9 @@ venv = Venv(
             pkgs={
                 "ruamel.yaml": latest,
                 "lxml": latest,
+                "cmake": latest,
+                "setuptools_rust": latest,
+                "Cython": latest,
             },
         ),
         Venv(

@@ -191,10 +191,10 @@ class ExtensionHashes(build_ext):
             )
 
             sources_hash = hashlib.sha256()
-            for source in sources:
+            for source in sorted(sources):
                 sources_hash.update(source.read_bytes())
 
-            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), full_path))
+            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), str(full_path)))
 
 
 class LibraryDownload:
@@ -873,7 +873,6 @@ setup(
             "PY_MICRO_VERSION": sys.version_info.micro,
             "PY_VERSION_HEX": sys.hexversion,
         },
-        force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )

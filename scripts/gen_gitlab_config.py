@@ -6,6 +6,7 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import datetime
 import os
 import subprocess
 import typing as t
@@ -251,19 +252,29 @@ prechecks:
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
     output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
-    ext_cache = ""
-    touch_list = []
+    cached_files = []
     for line in output.decode().splitlines():
         if not line.startswith("#EXTHASH:"):
             continue
         ext_name, ext_hash, ext_target = eval(line.split(":", 1)[-1].strip())
-        touch_list.append(f"    test -f {ext_target} && touch {ext_target} || true")
-        ext_cache += f"""
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{ext_name}-{ext_hash}
-      paths:
-        - {Path(ext_target).relative_to(ROOT)}"""
+        cached_files.append((f".ext_cache/{ext_name}/{ext_hash}/{Path(ext_target).name}", ext_target))
 
-    touch = "\n".join(touch_list).strip() if touch_list else ""
+    restore_ext_cache = "\n".join(
+        [
+            f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest}) || true"
+            for cached_file, dest in cached_files
+        ]
+    )
+
+    save_ext_cache = "\n".join(
+        [
+            f"    test -f {cached_file} || mkdir -p {Path(cached_file).parent} && (cp {dest} {cached_file} || true)"
+            for cached_file, dest in cached_files
+        ]
+    )
+
+    current_month = datetime.datetime.now().month
+
     with TESTS_GEN.open("a") as f:
         f.write(
             f"""
@@ -292,17 +303,19 @@ build_base_venvs:
     set -e -o pipefail
     apt update && apt install -y sccache
     pip install riot==0.20.1
-    pip install cmake setuptools_rust Cython # :(
-    {touch}
+{restore_ext_cache}
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+{save_ext_cache}
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-{ext_cache}
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+      paths:
+        - .ext_cache
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
