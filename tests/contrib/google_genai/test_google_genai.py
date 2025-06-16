@@ -79,6 +79,7 @@ def test_google_genai_generate_content_error(genai):
             not_an_argument="why am i here?",  # invalid argument
         )
 
+
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
 )
@@ -91,6 +92,7 @@ def test_google_genai_generate_content_stream(google_genai_vcr, genai):
         )
         for _ in response:
             pass
+
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",

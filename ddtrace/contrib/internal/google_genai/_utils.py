@@ -22,6 +22,7 @@ def extract_provider_and_model_name_genai(kwargs):
             provider_name = MODEL_PREFIX_TO_PROVIDER[prefix]
     return provider_name, model_name if len(model_name) > 0 else "unknown"
 
+
 class BaseTracedGoogleGenAIStreamResponse:
     def __init__(self, generation_response, integration, span, args, kwargs):
         self._generation_response = generation_response
@@ -36,7 +37,6 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
     # generate_content_stream returns Iterator[GenerateContentResponse]
     def __iter__(self):
         return self
-    
 
     def __next__(self):
         try:
@@ -48,6 +48,3 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-
-
-

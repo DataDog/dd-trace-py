@@ -3,11 +3,11 @@ import sys
 from google import genai
 
 from ddtrace import config
+from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name_genai
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.trace import Pin
 
