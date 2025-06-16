@@ -3,8 +3,10 @@ from typing import Any
 from typing import Callable
 from typing import Set
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+from ..._common_module_patches import try_unwrap
 from ..._constants import IAST_SPAN_TAGS
 from .._metrics import _set_metric_iast_executed_sink
 from .._metrics import _set_metric_iast_instrumented_sink
@@ -18,11 +20,20 @@ from ._base import VulnerabilityBase
 from .utils import patch_once
 
 
+log = get_logger(__name__)
+
+
 def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
     DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
         CONFIGURED_WEAK_HASH_ALGORITHMS = set(algo.strip() for algo in DD_IAST_WEAK_HASH_ALGORITHMS.lower().split(","))
+
+    log.debug(
+        "Configuring DD_IAST_WEAK_HASH_ALGORITHMS env var:%s. Result: %s",
+        DD_IAST_WEAK_HASH_ALGORITHMS,
+        CONFIGURED_WEAK_HASH_ALGORITHMS,
+    )
 
     return CONFIGURED_WEAK_HASH_ALGORITHMS or DEFAULT_WEAK_HASH_ALGORITHMS
 
@@ -44,6 +55,7 @@ def patch():
     warp_modules = WrapModulesForIAST()
 
     weak_hash_algorithms = get_weak_hash_algorithms()
+
     num_instrumented_sinks = 0
     warp_modules.add_module("_hashlib", "HASH.digest", wrapped_digest_function)
     warp_modules.add_module("_hashlib", "HASH.hexdigest", wrapped_digest_function)
@@ -72,6 +84,21 @@ def patch():
 
     if num_instrumented_sinks > 0:
         _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
+
+
+def unpatch_iast():
+    try_unwrap("_hashlib", "HASH.digest")
+    try_unwrap("_hashlib", "HASH.hexdigest")
+    try_unwrap(("_%s" % MD5_DEF), "MD5Type.digest")
+    try_unwrap(("_%s" % MD5_DEF), "MD5Type.hexdigest")
+    try_unwrap(("_%s" % SHA1_DEF), "SHA1Type.digest")
+    try_unwrap(("_%s" % SHA1_DEF), "SHA1Type.hexdigest")
+
+    # pycryptodome methods
+    try_unwrap("Crypto.Hash.MD5", "MD5Hash.digest")
+    try_unwrap("Crypto.Hash.MD5", "MD5Hash.hexdigest")
+    try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.digest")
+    try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
 def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:

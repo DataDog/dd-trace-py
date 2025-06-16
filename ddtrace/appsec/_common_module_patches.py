@@ -42,13 +42,15 @@ def patch_common_modules():
         subprocess_patch.patch()
         subprocess_patch.add_str_callback(_RASP_SYSTEM, wrapped_system_5542593D237084A7)
         subprocess_patch.add_lst_callback(_RASP_POPEN, popen_FD233052260D8B4D)
+        log.debug("Patching common modules: subprocess_patch")
 
-    if _is_patched and not asm_config._iast_is_testing:
+    if _is_patched:
         return
 
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
+    log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
 
 
@@ -56,12 +58,16 @@ def unpatch_common_modules():
     global _is_patched
     if not _is_patched:
         return
+
     try_unwrap("builtins", "open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("_io", "BytesIO.read")
     try_unwrap("_io", "StringIO.read")
+    subprocess_patch.unpatch()
     subprocess_patch.del_str_callback(_RASP_SYSTEM)
     subprocess_patch.del_lst_callback(_RASP_POPEN)
+
+    log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False
 
 
@@ -323,7 +329,7 @@ def try_unwrap(module, name):
             apply_patch(parent, attribute, original)
             del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
     except ModuleNotFoundError:
-        pass
+        log.debug("ERROR unwrapping %s.%s ", module, name)
 
 
 def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) -> None:

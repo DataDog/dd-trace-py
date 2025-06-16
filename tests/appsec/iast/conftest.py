@@ -21,6 +21,7 @@ from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_u
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
+from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -83,11 +84,14 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         header_injection_patch()
         code_injection_patch()
         patch_common_modules()
-        yield
-        unpatch_common_modules()
-        cmdi_unpatch()
-        _testing_unpatch_iast()
-        _end_iast_context_and_oce(span)
+        try:
+            yield
+        finally:
+            unpatch_common_modules()
+            cmdi_unpatch()
+            weak_hash_unpatch()
+            _testing_unpatch_iast()
+            _end_iast_context_and_oce(span)
 
 
 @pytest.fixture

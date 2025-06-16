@@ -68,12 +68,16 @@ class WrapModulesForIAST:
 
     def patch(self):
         for module in self.modules:
-            if module.patch() and self.testing:
-                MODULES_TO_UNPATCH.add(module)
+            if module.patch():
+                log.debug("Wrapping %s", module)
+                if self.testing:
+                    MODULES_TO_UNPATCH.add(module)
 
     def testing_unpatch(self):
+        log.debug("Testing: %s. Unwrapping %s", self.testing, len(MODULES_TO_UNPATCH))
         if self.testing:
             for module in MODULES_TO_UNPATCH.copy():
+                log.debug("Unwrapping %s", module)
                 module.unpatch()
                 MODULES_TO_UNPATCH.remove(module)
 

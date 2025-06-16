@@ -74,7 +74,3 @@ def patch_iast(patch_modules=IAST_PATCH):
 
     warp_modules.patch()
     when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
-
-
-def _unpatch_iast():
-    WrapModulesForIAST().testing_unpatch()

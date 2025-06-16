@@ -11,9 +11,6 @@ from ..taint_sinks.utils import patch_once
 log = get_logger(__name__)
 
 
-_DEFAULT_ATTR = "_datadog_json_tainting_patch"
-
-
 def get_version() -> Text:
     return ""
 
