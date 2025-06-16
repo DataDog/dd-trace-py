@@ -455,7 +455,7 @@ def openai_get_input_messages_from_response_input(
             processed_item.update(
                 {
                     "role": "tool",
-                    "content": item["output"],
+                    "content": output,
                     "tool_id": item["call_id"],
                 }
             )
@@ -487,9 +487,9 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
 
         if message_type == "message":
             text = ""
-            for content in item.content:
-                text += getattr(content, "text", "")
-                text += getattr(content, "refusal", "")
+            for content in getattr(item, "content", []):
+                text += getattr(content, "text", "") or ""
+                text += getattr(content, "refusal", "") or ""
             message.update({"role": getattr(item, "role", "assistant"), "content": text})
         elif message_type == "reasoning":
             message.update(
@@ -506,17 +506,16 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
             )
         elif message_type == "function_call":
             arguments = getattr(item, "arguments", None)
-            if not isinstance(arguments, str):
-                try:
-                    arguments = json.loads(arguments)
-                except json.JSONDecodeError:
-                    arguments = str(arguments)
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = {"value": str(arguments)}
             message.update(
                 {
                     "tool_calls": [
                         {
                             "tool_id": getattr(item, "call_id", ""),
-                            "arguments": json.loads(getattr(item, "arguments", "")),
+                            "arguments": arguments,
                             "name": getattr(item, "name", ""),
                             "type": getattr(item, "type", "function"),
                         }
@@ -536,7 +535,6 @@ def openai_get_metadata_from_response(
 ) -> Dict[str, Any]:
     metadata = {}
 
-    # Add metadata from kwargs first, excluding certain fields
     if kwargs:
         metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
 
@@ -563,7 +561,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     input_messages = openai_get_input_messages_from_response_input(input_data)
 
     if "instructions" in kwargs:
-        input_messages.insert(0, {"content": kwargs["instructions"], "role": "system"})
+        input_messages.insert(0, {"content": str(kwargs["instructions"]), "role": "system"})
 
     span._set_ctx_items(
         {
@@ -576,11 +574,10 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
 
-    """
-    The response object contains enriched metadata such as tool calls which
-    may have not been present in the original request.
-    """
-    # span._set_ctx_item(METADATA, openai_get_metadata_from_response(response))
+    # The response potentially contains enriched metadata (ex. tool calls) not in the original request
+    metadata = span._get_ctx_item(METADATA) or {}
+    metadata.update(openai_get_metadata_from_response(response))
+    span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
@@ -606,8 +603,6 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         return
     if not tool_call_chunk:
         return
-
-    # Handle chat completion tool calls (original implementation)
     tool_call_idx = getattr(tool_call_chunk, "index", None)
     tool_id = getattr(tool_call_chunk, "id", None)
     tool_type = getattr(tool_call_chunk, "type", None)
