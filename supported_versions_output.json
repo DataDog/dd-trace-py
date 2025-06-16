@@ -340,7 +340,7 @@
         "dependency": "jinja2",
         "integration": "jinja2",
         "minimum_tracer_supported": "2.10.3",
-        "max_tracer_supported": "3.1.4",
+        "max_tracer_supported": "3.1.6",
         "auto-instrumented": true
     },
     {

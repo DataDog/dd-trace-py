@@ -435,7 +435,7 @@ integrations:
   tested_versions_by_dependency:
     jinja2:
       min: 2.10.3
-      max: 3.1.4
+      max: 3.1.6
 
 - integration_name: kafka
   is_external_package: true
