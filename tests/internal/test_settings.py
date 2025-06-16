@@ -74,7 +74,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         {
             "expected": {
                 "_trace_sampling_rules": "",
-                "_logs_injection": False,
+                "_logs_injection": "structured",
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
@@ -117,13 +117,13 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"_logs_injection": True},
+            "expected": {"_logs_injection": "true"},
             "expected_source": {"_logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "code": {"_logs_injection": False},
-            "expected": {"_logs_injection": False},
+            "code": {"_logs_injection": "false"},
+            "expected": {"_logs_injection": "false"},
             "expected_source": {"_logs_injection": "code"},
         },
         {
@@ -537,6 +537,38 @@ with tracer.trace("test") as span:
     log_enabled, log_disabled = map(json.loads, err.decode("utf-8").strip().split("\n")[0:2])
     assert log_enabled["dd.trace_id"] == trace_id
     assert "dd.trace_id" not in log_disabled
+
+
+def test_remoteconfig_logs_injection_std_logger(ddtrace_run_python_code_in_subprocess):
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+from ddtrace import config, tracer
+from ddtrace._logger import DD_LOG_FORMAT
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
+
+logging.basicConfig(format=DD_LOG_FORMAT, level=logging.CRITICAL)
+log = logging.getLogger()
+# Enable logs injection
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": True}), config)
+# Generate a new log
+log.critical("Hello, World!")
+# Disable logs injection
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": False}), config)
+# Unset the DD_LOG_FORMAT formatter
+for handler in logging.root.handlers:
+    handler.setFormatter(logging.Formatter())
+# Generate a new log
+log.critical("Hi Friend!")
+"""
+    )
+
+    assert status == 0, err
+    err_str = err.decode("utf-8").splitlines()
+    assert len(err_str) == 2, err_str
+    for val in ("dd.service=", "dd.env=", "dd.version=", "dd.trace_id=", "dd.span_id="):
+        assert val in err_str[0], f"log injection should be enabled here: {val} is in {err_str[0]}"
+        assert val not in err_str[1], f"log injection should NOT be enabled: {val} is not in {err_str[1]}"
 
 
 def test_remoteconfig_header_tags(ddtrace_run_python_code_in_subprocess):
