@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import gc
 import inspect
 import sys
 from types import CoroutineType
@@ -805,3 +806,21 @@ async def test_wrapping_context_async_concurrent() -> None:
     await asyncio.gather(*[fibonacci(n) for n in range(1, N)])
 
     assert set(values) == {(n, n) for n in range(0, N)}
+
+
+def test_wrapping_context_method_leaks():
+    def foo():
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+
+    for _ in range(10000):
+        foo()
+
+    gc.collect()
+
+    new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+    assert new_method_count <= method_count + 1

@@ -162,6 +162,7 @@ microbenchmarks:
         - "rate_limiter"
         - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
+        - "recursive_computation"
         - "telemetry_add_metric"
         - "startup"
 
