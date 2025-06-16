@@ -252,7 +252,18 @@ def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
     ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+    # Try to get component-specific hashes, fall back to legacy single hash
+    try:
+        from get_component_hashes import generate_component_hashes
+        component_hashes = generate_component_hashes()
+        native_hash = component_hashes.get('combined', ci_commit_sha)
+        cmake_hash = component_hashes.get('cmake_iast', '')[:8] + component_hashes.get('cmake_ddup', '')[:8]
+        rust_hash = component_hashes.get('rust_native', '')[:8]
+    except (ImportError, Exception):
+        # Fall back to legacy behavior
+        native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
+        cmake_hash = native_hash[:16]
+        rust_hash = native_hash[16:24]
 
     with TESTS_GEN.open("a") as f:
         f.write(
@@ -302,7 +313,7 @@ build_base_venvs:
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    # Reuse job artifacts between runs if no native source files have been changed
+    # Component-specific caches for more granular rebuilds
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
       paths:
         - .riot/venv_*
@@ -310,6 +321,19 @@ build_base_venvs:
         - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
         - ddtrace/internal/datadog/profiling/test/test_*
         - cache_used.txt
+    # Separate cache for CMake components
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cmake-{cmake_hash}
+      paths:
+        - .build_cache/cmake_*
+        - ddtrace/appsec/_iast/_taint_tracking/**/*.so*
+        - ddtrace/internal/datadog/profiling/**/*.so*
+        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+    # Separate cache for Rust components  
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-rust-{rust_hash}
+      paths:
+        - .build_cache/rust_*
+        - target/
+        - ddtrace/internal/native/**/*.so*
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
