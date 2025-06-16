@@ -13,9 +13,7 @@ log = get_logger(__name__)
 
 
 class TracedBotocoreEventStream(wrapt.ObjectProxy):
-    """
-    This class wraps the stream response returned by converse_stream.
-    """
+    """This class wraps the stream response returned by invoke_agent."""
 
     def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
@@ -96,6 +94,7 @@ def patched_bedrock_agents_api_call(original_func, instance, args, kwargs, funct
         result = handle_bedrock_agent_response(result, integration, span, args, kwargs)
         return result
     except Exception:
+        # We only finish the span if an exception happens, otherwise we'll finish it in the TracedBotocoreEventStream.
         integration.llmobs_set_tags(span, args, kwargs, result, operation="agent")
         span.set_exc_info(*sys.exc_info())
         span.finish()
