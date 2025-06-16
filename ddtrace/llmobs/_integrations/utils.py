@@ -427,7 +427,7 @@ def openai_get_input_messages_from_response_input(
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
-                processed_item["content"] = processed_item_content
+                processed_item["content"] = str(processed_item_content)
                 processed_item["role"] = item["role"]
         elif "call_id" in item and "arguments" in item:
             # Process `ResponseFunctionToolCallParam` type from input messages
