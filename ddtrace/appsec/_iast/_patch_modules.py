@@ -9,8 +9,11 @@ from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
+from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+
+log = get_logger(__name__)
 
 MODULES_TO_UNPATCH: Set["IASTModule"] = set()
 
