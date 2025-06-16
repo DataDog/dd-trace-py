@@ -554,8 +554,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
             if all_failed:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
-            elif all_passed:
-                retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, True)
+
+            retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
         retry_test.finish_test(status, exc_info=exc_info)
 

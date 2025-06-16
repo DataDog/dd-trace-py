@@ -6,7 +6,6 @@ from wrapt import FunctionWrapper
 
 from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
-from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -51,14 +50,3 @@ def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
 
     instance.__class__.path = property(path)
     wrapped(*args, **kwargs)
-
-
-def _iast_instrument_starlette_scope(scope):
-    if scope.get("path_params"):
-        try:
-            for k, v in scope["path_params"].items():
-                scope["path_params"][k] = taint_pyobject(
-                    v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                )
-        except Exception:
-            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)

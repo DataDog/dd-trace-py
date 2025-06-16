@@ -11,6 +11,7 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+from typing_extensions import NotRequired
 
 import ddtrace
 from ddtrace import config
@@ -45,17 +46,18 @@ class LLMObsSpanEvent(TypedDict):
     span_id: str
     trace_id: str
     parent_id: str
-    session_id: str
+    session_id: NotRequired[str]
     tags: List[str]
-    service: str
+    service: NotRequired[str]
     name: str
     start_ns: int
-    duration: float
+    duration: int
     status: str
-    status_message: str
+    status_message: NotRequired[str]
     meta: Dict[str, Any]
     metrics: Dict[str, Any]
-    collection_errors: List[str]
+    collection_errors: NotRequired[List[str]]
+    span_links: NotRequired[List[Dict[str, str]]]
     _dd: Dict[str, str]
 
 

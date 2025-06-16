@@ -62,8 +62,23 @@ def test_metric_verbosity(lvl, env_lvl, expected_result):
         assert metric_verbosity(lvl)(lambda: 1)() == expected_result
 
 
-def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+@pytest.mark.parametrize(
+    "deduplication_enabled, expected_num_metrics",
+    [
+        (True, 10),
+        (False, 10),
+    ],
+)
+def test_metric_executed_sink(
+    deduplication_enabled, expected_num_metrics, no_request_sampling, telemetry_writer, caplog
+):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _iast_deduplication_enabled=deduplication_enabled,
+            _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME,
+        )
+    ):
         patch_iast()
 
         tracer = DummyTracer(iast_enabled=True)
@@ -87,7 +102,7 @@ def test_metric_executed_sink(no_request_sampling, telemetry_writer, caplog):
     # the agent)
     filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
     assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == 2
+    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
@@ -160,7 +175,6 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer):
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter") > 0
 
 
-@pytest.mark.skip_iast_check_logs
 def test_log_metric(telemetry_writer):
     with override_global_config(dict(_iast_debug=True)):
         _set_iast_error_metric("test_format_key_error_and_no_log_metric raises")
@@ -171,39 +185,54 @@ def test_log_metric(telemetry_writer):
     assert str(list_metrics_logs[0]["stack_trace"]).startswith('  File "/')
 
 
-@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled(telemetry_writer):
     with override_global_config(dict(_iast_debug=False)):
         _set_iast_error_metric("test_log_metric_debug_disabled raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
+
+
+def test_log_metric_debug_deduplication(telemetry_writer):
+    with override_global_config(dict(_iast_debug=True)):
+        for i in range(10):
+            _set_iast_error_metric("test_log_metric_debug_deduplication raises 2")
+
+        list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled raises"
-        assert "stack_trace" not in list_metrics_logs[0].keys()
+        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_deduplication raises 2"
+        assert "stack_trace" in list_metrics_logs[0].keys()
 
 
-@pytest.mark.skip_iast_check_logs
 def test_log_metric_debug_disabled_deduplication(telemetry_writer):
     with override_global_config(dict(_iast_debug=False)):
         for i in range(10):
             _set_iast_error_metric("test_log_metric_debug_disabled_deduplication raises")
 
         list_metrics_logs = list(telemetry_writer._logs)
-        assert len(list_metrics_logs) == 1
-        assert list_metrics_logs[0]["message"] == "test_log_metric_debug_disabled_deduplication raises"
-        assert "stack_trace" not in list_metrics_logs[0].keys()
+        assert len(list_metrics_logs) == 0
 
 
-@pytest.mark.skip_iast_check_logs
-def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
-    with override_global_config(dict(_iast_debug=False)):
+def test_log_metric_debug_deduplication_different_messages(telemetry_writer):
+    with override_global_config(dict(_iast_debug=True)):
         for i in range(10):
-            _set_iast_error_metric(f"test_format_key_error_and_no_log_metric raises {i}")
+            _set_iast_error_metric(f"test_log_metric_debug_deduplication_different_messages raises {i}")
 
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 10
-        assert list_metrics_logs[0]["message"].startswith("test_format_key_error_and_no_log_metric raises")
-        assert "stack_trace" not in list_metrics_logs[0].keys()
+        assert list_metrics_logs[0]["message"].startswith(
+            "test_log_metric_debug_deduplication_different_messages raises"
+        )
+        assert "stack_trace" in list_metrics_logs[0].keys()
+
+
+def test_log_metric_debug_disabled_deduplication_different_messages(telemetry_writer):
+    with override_global_config(dict(_iast_debug=False)):
+        for i in range(10):
+            _set_iast_error_metric(f"test_log_metric_debug_disabled_deduplication_different_messages raises {i}")
+
+        list_metrics_logs = list(telemetry_writer._logs)
+        assert len(list_metrics_logs) == 0
 
 
 def test_django_instrumented_metrics(telemetry_writer):

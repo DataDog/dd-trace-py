@@ -2,8 +2,8 @@ import pytest
 
 from ddtrace import patch
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from tests.appsec.iast.iast_utils import _iast_patched_module

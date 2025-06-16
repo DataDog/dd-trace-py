@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
+from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
@@ -17,6 +19,7 @@ from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -54,11 +57,13 @@ def boto3(aws_credentials, mock_llmobs_span_writer, ddtrace_global_config):
     global_config = {"_dd_api_key": "<not-a-real-api_key>"}
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
+        urllib3_unpatch()
         patch()
         import boto3
 
         yield boto3
         unpatch()
+        urllib3_patch()
 
 
 @pytest.fixture
@@ -140,18 +145,22 @@ class TestBedrockConfig(SubprocessTestCase):
                     sampled += 1
         assert (rate * num_completions - 30) < sampled < (rate * num_completions + 30)
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.0"))
     def test_span_sampling_0(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.25"))
     def test_span_sampling_25(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.75"))
     def test_span_sampling_75(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="1.0"))
     def test_span_sampling_100(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))

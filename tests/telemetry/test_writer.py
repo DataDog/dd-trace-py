@@ -107,7 +107,6 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "unknown", "value": True},
                     {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "unknown", "value": True},
-                    {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "unknown", "value": False},
                     {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "unknown", "value": 1.0},
                     {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "unknown", "value": 60.0},
                     {"name": "DD_PROFILING_MAX_FRAMES", "origin": "unknown", "value": 64},
@@ -187,7 +186,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
-                    {"name": "logs_injection_enabled", "origin": "default", "value": "false"},
+                    {"name": "logs_injection_enabled", "origin": "default", "value": "structured"},
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "trace_enabled", "origin": "default", "value": "true"},
                     {"name": "instrumentation_config_id", "origin": "default", "value": ""},
@@ -254,9 +253,6 @@ import ddtrace.settings.exception_replay
     env["DD_PROFILING_MEMORY_ENABLED"] = "False"
     env["DD_PROFILING_HEAP_ENABLED"] = "False"
     env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    # FIXME: Profiling native exporter can be enabled even if DD_PROFILING_EXPORT_LIBDD_ENABLED=False. The native
-    # exporter will be always be enabled stack v2 is enabled and the ddup module is available (platform dependent).
-    # env["DD_PROFILING_EXPORT_LIBDD_ENABLED"] = "False"
     env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
     env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
     env["DD_PROFILING_MAX_FRAMES"] = "512"
@@ -323,12 +319,13 @@ import ddtrace.settings.exception_replay
         {
             "name": "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP",
             "origin": "default",
-            "value": "(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private"
-            "|public|access)[_-]?)key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?"
-            "(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?|jsessionid|phpsessid|asp\\"
-            '.net(?:[_-]|-)sessionid|sid|jwt)(?:\\s*=[^;]|"\\s*:\\s*"[^"]+")|bearer\\s+[a-z0-9\\._\\-]+|token:'
-            "[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(?:\\.[\\w.+\\/=-]+)?|[\\-]"
-            "{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
+            "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
+            r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
+            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+            r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
+            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+            r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
+            r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
@@ -368,7 +365,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": "set()"},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_FLUSH_INTERVAL", "origin": "default", "value": 1.0},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": "set()"},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
         {"name": "DD_ERROR_TRACKING_HANDLED_ERRORS", "origin": "default", "value": ""},
@@ -413,7 +411,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
-        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
+        {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": "true"},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
         {"name": "DD_PROFILING_CAPTURE_PCT", "origin": "env_var", "value": 5.0},
@@ -421,7 +419,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_ENABLE_ASSERTS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_ENABLE_CODE_PROVENANCE", "origin": "default", "value": True},
         {"name": "DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_EXPORT_LIBDD_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_HEAP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
@@ -507,6 +504,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_PROPAGATION_STYLE_INJECT", "origin": "env_var", "value": "tracecontext"},
         {"name": "DD_TRACE_RATE_LIMIT", "origin": "env_var", "value": 50},
         {"name": "DD_TRACE_REPORT_HOSTNAME", "origin": "default", "value": False},
+        {"name": "DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", "origin": "default", "value": False},
         {
             "name": "DD_TRACE_SAMPLING_RULES",
             "origin": "env_var",

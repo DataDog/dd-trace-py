@@ -39,7 +39,7 @@ with override_env({"DD_IAST_ENABLED": "True"}):
     import functions
 
 
-class IAST_Aspects(bm.Scenario):
+class IASTAspectsOsPath(bm.Scenario):
     iast_enabled: bool
     function_name: str
 

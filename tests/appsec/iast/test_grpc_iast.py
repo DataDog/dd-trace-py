@@ -25,7 +25,7 @@ def iast_c_context():
 
 
 def _check_test_range(value):
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
     ranges = get_tainted_ranges(value)
     assert len(ranges) == 1, f"found {len(ranges)} ranges"

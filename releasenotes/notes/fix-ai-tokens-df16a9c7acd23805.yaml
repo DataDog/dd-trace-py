@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where parsing token usage from langchain AI message types causes an attribute error.

@@ -13,8 +13,8 @@ from pydantic_core import SchemaValidator
 import requests
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
 
 v = SchemaValidator(

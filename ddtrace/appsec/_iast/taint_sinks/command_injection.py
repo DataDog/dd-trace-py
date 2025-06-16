@@ -13,7 +13,6 @@ from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
 from .._logs import iast_propagation_sink_point_debug_log
-from .._overhead_control_engine import oce
 from ._base import VulnerabilityBase
 
 
@@ -40,7 +39,6 @@ def unpatch() -> None:
     subprocess_patch.del_lst_callback(_IAST_CMDI)
 
 
-@oce.register
 class CommandInjection(VulnerabilityBase):
     vulnerability_type = VULN_CMDI
     secure_mark = VulnerabilityType.COMMAND_INJECTION
@@ -69,7 +67,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
 
             # Reports Span Metrics
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, CommandInjection.vulnerability_type)
-            # Report Telemetry Metrics
-            _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
+        # Report Telemetry Metrics
+        _set_metric_iast_executed_sink(CommandInjection.vulnerability_type)
     except Exception as e:
         iast_error(f"propagation::sink_point::Error in _iast_report_cmdi. {e}")

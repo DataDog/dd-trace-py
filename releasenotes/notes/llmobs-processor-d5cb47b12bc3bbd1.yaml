@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: add processor capability to process span inputs and outputs. See usage documentation [here](https://docs.datadoghq.com/llm_observability/setup/sdk/python/#span-processing).

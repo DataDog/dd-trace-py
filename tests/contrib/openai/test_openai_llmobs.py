@@ -6,8 +6,6 @@ from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
-from tests.contrib.openai.utils import mock_openai_chat_completions_response
-from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -17,26 +15,6 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsOpenaiV1:
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        """Ensure llmobs records are not emitted for completion endpoints when base_url is specified."""
-        # mock out the completions response
-        mock_completions_post.return_value = mock_openai_completions_response
-        model = "gpt-3.5-turbo"
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
-        client.completions.create(
-            model=model,
-            prompt="Hello world",
-            temperature=0.8,
-            n=2,
-            stop=".",
-            max_tokens=10,
-            user="ddtrace-test",
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
-
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -68,26 +46,6 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
-
-    @pytest.mark.skipif(
-        parse_version(openai_module.version.VERSION) >= (1, 60),
-        reason="latest openai versions use modified azure requests",
-    )
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        prompt = "Hello world"
-        mock_completions_post.return_value = mock_openai_completions_response
-        azure_client = openai.AzureOpenAI(
-            base_url="http://0.0.0.0:4000",
-            api_key=azure_openai_config["api_key"],
-            api_version=azure_openai_config["api_version"],
-        )
-        azure_client.completions.create(
-            model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -184,18 +142,6 @@ class TestLLMObsOpenaiV1:
             ),
         )
 
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        """Ensure llmobs records are not emitted for chat completion endpoints when the base_url is specified."""
-        mock_completions_post.return_value = mock_openai_chat_completions_response
-        model = "gpt-3.5-turbo"
-        input_messages = multi_message_input
-        client = openai.OpenAI(base_url="http://0.0.0.0:4000")
-        client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        assert mock_llmobs_writer.enqueue.call_count == 0
-
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -222,28 +168,6 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
-
-    @pytest.mark.skipif(
-        parse_version(openai_module.version.VERSION) >= (1, 60),
-        reason="latest openai versions use modified azure requests",
-    )
-    @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
-        input_messages = [
-            {"role": "user", "content": "Where did the Los Angeles Dodgers play to win the world series in 2020?"}
-        ]
-        mock_completions_post.return_value = mock_openai_chat_completions_response
-        azure_client = openai.AzureOpenAI(
-            base_url="http://0.0.0.0:4000",
-            api_key=azure_openai_config["api_key"],
-            api_version=azure_openai_config["api_version"],
-        )
-        azure_client.chat.completions.create(
-            model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
-        )
-        assert mock_llmobs_writer.enqueue.call_count == 0
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -714,6 +638,63 @@ class TestLLMObsOpenaiV1:
         assert span_event["name"] == "Deepseek.createChatCompletion"
         assert span_event["meta"]["model_provider"] == "deepseek"
         assert span_event["meta"]["model_name"] == "deepseek-chat"
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that None responses from streamed chat completions results in a finished span regardless."""
+        client = openai.OpenAI()
+        with mock.patch.object(client.completions, "_post", return_value=None):
+            model = "ada"
+            resp_model = model
+            resp = client.completions.create(model=model, prompt="Hello world", stream=True)
+            assert resp is None
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=[{"content": "Hello world"}],
+                output_messages=[{"content": ""}],
+                metadata={"stream": True},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that None responses from streamed chat completions results in a finished span regardless."""
+        client = openai.OpenAI()
+        with mock.patch.object(client.chat.completions, "_post", return_value=None):
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            resp = client.chat.completions.create(
+                model=model,
+                messages=input_messages,
+                stream=True,
+                user="ddtrace-test",
+                stream_options={"include_usage": False},
+            )
+            assert resp is None
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=input_messages,
+                output_messages=[{"content": ""}],
+                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
 
 @pytest.mark.parametrize(

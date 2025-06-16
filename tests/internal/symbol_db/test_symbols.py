@@ -270,7 +270,8 @@ def test_symbols_force_upload():
 
     SymbolDatabaseUploader._upload_context = staticmethod(_upload_context)
 
-    SymbolDatabaseUploader.install()
+    SymbolDatabaseUploader.install(shallow=False)
+    assert SymbolDatabaseUploader.shallow is False
 
     def get_scope(contexts, name):
         for context in (_.to_json() for _ in contexts):

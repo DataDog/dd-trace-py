@@ -6,8 +6,8 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import str_to_origin
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
 from ddtrace.appsec._iast.reporter import Evidence
 from ddtrace.appsec._iast.reporter import IastSpanReporter

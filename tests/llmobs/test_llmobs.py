@@ -1,6 +1,12 @@
+import asyncio
+import os
+from textwrap import dedent
+
 import pytest
 
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
@@ -96,6 +102,166 @@ class TestSessionId:
         assert llm_event["session_id"] == "session-123"
         assert grandchild_event["session_id"] == "session-123"
         assert great_grandchild_event["session_id"] == "session-123"
+
+
+class TestLLMIOProcessing:
+    """Test the input and output processing features of LLMObs."""
+
+    def _remove_input_output(span: LLMObsSpan):
+        for message in span.input + span.output:
+            message["content"] = ""
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output)])
+    def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts, llmobs_events):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, input_data="value", output_data="value")
+
+        assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "", "role": ""}]}
+        assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "", "role": ""}]}
+
+        # Also test input output values are removed
+        with llmobs.llm() as llm_span:
+            llm_span._set_ctx_item("_ml_obs.meta.input.value", "value")
+            llm_span._set_ctx_item("_ml_obs.meta.output.value", "value")
+
+        assert llmobs_events[1]["meta"]["input"] == {"value": ""}
+        assert llmobs_events[1]["meta"]["output"] == {"value": ""}
+
+    def _mutate_input_output_messages(span: LLMObsSpan):
+        for message in span.input + span.output:
+            message["content"] += " processed"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_input_output_messages)])
+    def test_input_output_processor_mutate(self, llmobs, llmobs_enable_opts, llmobs_events):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, input_data="value", output_data=[{"content": "value"}, {"content": "value2"}])
+        assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "value processed", "role": ""}]}
+        assert llmobs_events[0]["meta"]["output"] == {
+            "messages": [{"content": "value processed", "role": ""}, {"content": "value2 processed", "role": ""}]
+        }
+
+    def _conditional_input_output_processor(span: LLMObsSpan):
+        if span.get_tag("scrub_values") == "1":
+            for message in span.input + span.output:
+                message["content"] = "redacted"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_input_output_processor)])
+    def test_annotated_span(self, llmobs, llmobs_enable_opts, llmobs_events):
+        with llmobs.annotation_context(tags={"scrub_values": "1"}):
+            with llmobs.llm() as llm_span:
+                llmobs.annotate(llm_span, input_data="value", output_data="value")
+        assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "redacted", "role": ""}]}
+        assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "redacted", "role": ""}]}
+
+    def _bad_return_type_processor(span: LLMObsSpan) -> str:
+        return "not a span"
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_bad_return_type_processor)])
+    def test_processor_bad_return_type(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Test that a processor that returns a non-LLMObsSpan type is ignored."""
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, input_data="value", output_data="value")
+        assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "value", "role": ""}]}
+        assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "value", "role": ""}]}
+
+    def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
+        """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
+        env = os.environ.copy()
+        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        env["DD_API_KEY"] = "test-api-key"
+        env["DD_LLMOBS_ENABLED"] = "1"
+        env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+        env["DD_TRACE_ENABLED"] = "0"
+        env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+        out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+            dedent(
+                """
+            from ddtrace.llmobs import LLMObs
+
+            def span_processor(s):
+                if s.get_tag("scrub_values") == "1":
+                    s.input = [{"content": "scrubbed"}]
+                    s.output = [{"content": "scrubbed"}]
+                return s
+
+            LLMObs.register_processor(span_processor)
+
+            with LLMObs.llm("openai.request") as llm_span:
+                LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
+            with LLMObs.llm("openai.request") as llm_span:
+                LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "0"})
+            """
+            ),
+            env=env,
+        )
+        assert out == b""
+        assert status == 0, err
+        assert err.decode() == ""
+        events = llmobs_backend.wait_for_num_events(num=1)
+        traces = events[0]
+        assert len(traces) == 2
+        assert "scrub_values:1" in traces[0]["spans"][0]["tags"]
+        assert traces[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
+        assert traces[0]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "scrubbed"
+        assert "scrub_values:0" in traces[1]["spans"][0]["tags"]
+        assert traces[1]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "value"
+        assert traces[1]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "value"
+
+    def test_register_unregister_processor(self, llmobs, llmobs_events):
+        def _sp(s):
+            s.input = [{"content": "scrubbed"}]
+            return s
+
+        # register
+        llmobs.register_processor(_sp)
+        with llmobs.llm("openai.request") as llm_span:
+            llmobs.annotate(llm_span, input_data="value")
+        assert llmobs_events[0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
+
+        # unregister
+        llmobs.register_processor(None)
+        with llmobs.llm("openai.request") as llm_span:
+            llmobs.annotate(llm_span, input_data="value")
+        assert llmobs_events[1]["meta"]["input"]["messages"][0]["content"] == "value"
+
+    def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
+        """Ensure that when an exception is raised an exception is logged."""
+        env = os.environ.copy()
+        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        env["DD_API_KEY"] = "test-api-key"
+        env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+        env["DD_TRACE_ENABLED"] = "0"
+        env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+        env["DD_TRACE_LOGGING_RATE"] = "0"
+        out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+            dedent(
+                """
+            from ddtrace.llmobs import LLMObs
+
+            def raising_span_processor(s):
+                raise Exception("something bad happened")
+
+            LLMObs.enable(span_processor=raising_span_processor)
+            with LLMObs.llm("openai.request") as llm_span:
+                LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
+
+            def bad_return_value_processor(s):
+                return "not a span"
+
+            LLMObs.register_processor(bad_return_value_processor)
+            with LLMObs.llm("openai.request") as llm_span:
+                LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
+            """
+            ),
+            env=env,
+        )
+        assert status == 0, err
+        assert b"something bad happened" in err
+        assert b"User span processor must return an LLMObsSpan" in err
+        assert out == b""
 
 
 def test_input_value_is_set(tracer, llmobs_events):
@@ -297,3 +463,59 @@ def test_structured_io_data_unserializable(llmobs, llmobs_backend):
         assert len(events) == 1
         assert expected_repr in events[0][0]["spans"][0]["meta"]["input"]["value"]
         assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]
+
+
+@pytest.mark.asyncio
+async def test_asyncio_trace_id_propagation(llmobs, llmobs_events):
+    """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
+
+    async def async_task():
+        with llmobs.workflow("inner_workflow"):
+            return 42
+
+    async def another_async_task():
+        with llmobs.workflow("another_workflow"):
+            return 43
+
+    with llmobs.workflow("outer_workflow"):
+        results = await asyncio.gather(async_task(), another_async_task())
+        assert results == [42, 43]
+
+    assert len(llmobs_events) == 3
+    outer_workflow, inner_workflow, another_workflow = llmobs_events
+
+    # All spans should share the same trace ID
+    assert outer_workflow["trace_id"] == inner_workflow["trace_id"] == another_workflow["trace_id"]
+    assert (
+        outer_workflow["_dd"]["apm_trace_id"]
+        == inner_workflow["_dd"]["apm_trace_id"]
+        == another_workflow["_dd"]["apm_trace_id"]
+    )
+    assert outer_workflow["trace_id"] != outer_workflow["_dd"]["apm_trace_id"]
+
+
+def test_trace_id_propagation_with_non_llm_parent(llmobs, llmobs_events):
+    """Test that LLMObs trace ID and APM trace ID propagate correctly with non-LLM parent spans."""
+    with llmobs._instance.tracer.trace("parent_non_llm") as parent:
+        with llmobs.workflow("first_child"):
+            pass
+        with llmobs.workflow("second_child"):
+            with llmobs.workflow("grandchild"):
+                pass
+
+    assert len(llmobs_events) == 3
+    first_child_event, second_child_event, grandchild_event = llmobs_events
+
+    # First child should have different trace ID from second child + grandchild
+    assert first_child_event["trace_id"] != second_child_event["trace_id"]
+    assert second_child_event["trace_id"] == grandchild_event["trace_id"]
+
+    # APM trace ID should match parent span for all
+    parent_trace_id = format_trace_id(parent.trace_id)
+    assert first_child_event["_dd"]["apm_trace_id"] == parent_trace_id
+    assert second_child_event["_dd"]["apm_trace_id"] == parent_trace_id
+    assert grandchild_event["_dd"]["apm_trace_id"] == parent_trace_id
+
+    # LLMObs trace IDs should be different from APM trace ID
+    assert first_child_event["trace_id"] != first_child_event["_dd"]["apm_trace_id"]
+    assert second_child_event["trace_id"] != second_child_event["_dd"]["apm_trace_id"]

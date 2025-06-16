@@ -1,8 +1,11 @@
+from typing import Dict
+
 import logbook
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_ENV
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SERVICE
 from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
@@ -24,6 +27,10 @@ def get_version():
     return getattr(logbook, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"logbook": ">=1.0.0"}
+
+
 def _tracer_injection(event_dict):
     trace_details = ddtrace.tracer.get_log_correlation_context()
 
@@ -40,8 +47,9 @@ def _tracer_injection(event_dict):
 
 def _w_process_record(func, instance, args, kwargs):
     # patch logger to include datadog info before logging
-    record = get_argument_value(args, kwargs, 0, "record")
-    _tracer_injection(record.extra)
+    if config._logs_injection != LogInjectionState.DISABLED:
+        record = get_argument_value(args, kwargs, 0, "record")
+        _tracer_injection(record.extra)
     return func(*args, **kwargs)
 
 

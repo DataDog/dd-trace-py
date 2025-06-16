@@ -13,9 +13,9 @@ from utils import is_included
 from ddtrace.debugging._config import di_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
-from ddtrace.debugging._debugger import DebuggerModuleWatchdog
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._signal.collector import SignalCollector

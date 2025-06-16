@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    openai: This introduces tracing support for the OpenAI Responses endpoint.

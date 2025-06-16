@@ -11,8 +11,8 @@ from ddtrace.appsec._iast._taint_tracking import initializer_size
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
