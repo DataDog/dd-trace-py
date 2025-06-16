@@ -617,8 +617,8 @@
     {
         "dependency": "tornado",
         "integration": "tornado",
-        "minimum_tracer_supported": "6.2",
-        "max_tracer_supported": "6.4.1",
+        "minimum_tracer_supported": "6.0.4",
+        "max_tracer_supported": "6.5.1",
         "pinned": "true",
         "auto-instrumented": false
     },

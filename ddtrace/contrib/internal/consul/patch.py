@@ -1,3 +1,5 @@
+from typing import Dict
+
 import consul
 from wrapt import wrap_function_wrapper as _w
 
@@ -23,6 +25,10 @@ _KV_FUNCS = ["put", "get", "delete"]
 def get_version():
     # type: () -> str
     return getattr(consul, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"consul": ">=1.1"}
 
 
 def patch():

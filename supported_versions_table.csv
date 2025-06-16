@@ -85,7 +85,7 @@ sqlalchemy,sqlalchemy,1.3.24,2.0.40,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.39.2,True
 structlog,structlog,20.2.0,24.4.0,False
-tornado,tornado *,6.2,6.4.1,False
+tornado,tornado *,6.0.4,6.5.1,False
 urllib3,urllib3,1.25,2.2.3,False
 valkey,valkey,6.0.2,6.0.2,True
 google-cloud-aiplatform,vertexai,1.71.1,1.71.1,True
