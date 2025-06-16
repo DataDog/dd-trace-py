@@ -1,3 +1,5 @@
+import sys
+
 from google import genai
 
 from ddtrace import config
@@ -5,6 +7,7 @@ from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_mo
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.trace import Pin
 
@@ -40,22 +43,24 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
-    # span = integration.trace(
-    #     pin,
-    #     "%s.%s" % (instance.__class__.__name__, func.__name__),
-    #     provider=provider_name,
-    #     model=model_name,
-    #     submit_to_llmobs=False,
-    # )
-    # try:
-    #     generation_response = func(*args, **kwargs)
-    # except Exception:
-    #     span.set_exc_info(*sys.exc_info())
-    #     raise
-    # finally:
-    #     span.finish()
-    # return generation_response
-    pass
+    integration = genai._datadog_integration
+    generation_response = None
+    provider_name, model_name = extract_provider_and_model_name_genai(kwargs)
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=False,
+    )
+    try:
+        generation_response = func(*args, **kwargs)
+        return TracedGoogleGenAIStreamResponse(generation_response, integration, span, args, kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        span.finish()
 
 
 def patch():
@@ -68,6 +73,7 @@ def patch():
     genai._datadog_integration = integration
 
     wrap("google.genai", "models.Models.generate_content", traced_generate(genai))
+    wrap("google.genai", "models.Models.generate_content_stream", traced_generate_stream(genai))
 
 
 def unpatch():
@@ -77,5 +83,6 @@ def unpatch():
     genai._datadog_patch = False
 
     unwrap(genai.models.Models, "generate_content")
+    unwrap(genai.models.Models, "generate_content_stream")
 
     delattr(genai, "_datadog_integration")
