@@ -250,10 +250,20 @@ prechecks:
 
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
+    output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
+    ext_cache = ""
+    touch_list = []
+    for line in output.decode().splitlines():
+        if not line.startswith("#EXTHASH:"):
+            continue
+        ext_name, ext_hash, ext_target = eval(line.split(":", 1)[-1].strip())
+        touch_list.append(f"    test -f {ext_target} && touch {ext_target} || true")
+        ext_cache += f"""
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{ext_name}-{ext_hash}
+      paths:
+        - {Path(ext_target).relative_to(ROOT)}"""
 
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-
+    touch = "\n".join(touch_list).strip() if touch_list else ""
     with TESTS_GEN.open("a") as f:
         f.write(
             f"""
@@ -272,6 +282,7 @@ build_base_venvs:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     DD_FAST_BUILD: '1'
+    DD_CMAKE_INCREMENTAL_BUILD: '1'
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
@@ -279,37 +290,19 @@ build_base_venvs:
     - when: always
   script: |
     set -e -o pipefail
-    if [ ! -f cache_used.txt ];
-    then
-      echo "No cache found, building native extensions and base venv"
-      apt update && apt install -y sccache
-      pip install riot==0.20.1
-      riot -P -v generate --python=$PYTHON_VERSION
-      echo "Running smoke tests"
-      riot -v run -s --python=$PYTHON_VERSION smoke_test
-      touch cache_used.txt
-    else
-      echo "Skipping build, using compiled files/venv from cache"
-      echo "Fixing ddtrace versions"
-      pip install "setuptools_scm[toml]>=4"
-      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
-        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
-      echo "Using version: ${{ddtrace_version}}"
-    fi
+    apt update && apt install -y sccache
+    pip install riot==0.20.1
+    pip install cmake setuptools_rust Cython # :(
+    {touch}
+    riot -P -v generate --python=$PYTHON_VERSION
+    echo "Running smoke tests"
+    riot -v run -s --python=$PYTHON_VERSION smoke_test
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    # Reuse job artifacts between runs if no native source files have been changed
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
-      paths:
-        - .riot/venv_*
-        - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-        - ddtrace/internal/datadog/profiling/test/test_*
-        - cache_used.txt
+{ext_cache}
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:

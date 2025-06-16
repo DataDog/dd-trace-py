@@ -167,6 +167,36 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+class ExtensionHashes(build_ext):
+    def run(self):
+        for ext in self.distribution.ext_modules:
+            full_path = Path(self.get_ext_fullpath(ext.name))
+
+            # TODO: DRY!
+            sources = (
+                (
+                    [
+                        _
+                        for _ in Path(ext.source_dir).rglob("**/*")
+                        if _.is_file()
+                        and _.name != full_path.name
+                        and _.suffix
+                        and _.suffix not in (".py", ".pyc", ".pyi")
+                    ]
+                    if ext.source_dir
+                    else []
+                )
+                if isinstance(ext, CMakeExtension)
+                else [Path(_) for _ in ext.sources]
+            )
+
+            sources_hash = hashlib.sha256()
+            for source in sources:
+                sources_hash.update(source.read_bytes())
+
+            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), full_path))
+
+
 class LibraryDownload:
     CACHE_DIR = HERE / ".download_cache"
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
@@ -780,6 +810,7 @@ setup(
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=filter_extensions(ext_modules)
