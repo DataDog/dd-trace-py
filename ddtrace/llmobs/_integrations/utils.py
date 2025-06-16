@@ -422,8 +422,8 @@ def openai_get_input_messages_from_response_input(
             processed_item_content = ""
             if isinstance(item["content"], list):
                 for content in item["content"]:
-                    processed_item_content += content.get("text", "")
-                    processed_item_content += content.get("refusal", "")
+                    processed_item_content += str(content.get("text", "") or "")
+                    processed_item_content += str(content.get("refusal", "") or "")
             else:
                 processed_item_content = item["content"]
             if processed_item_content:
