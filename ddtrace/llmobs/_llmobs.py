@@ -538,7 +538,14 @@ class LLMObs(Service):
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto, config._llmobs_instrumented_proxy_urls)
+            telemetry.record_llmobs_enabled(
+                error,
+                config._llmobs_agentless_enabled,
+                config._dd_site,
+                start_ns,
+                _auto,
+                config._llmobs_instrumented_proxy_urls,
+            )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:

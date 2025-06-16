@@ -591,7 +591,10 @@ class TestLLMObsBedrockProxy:
             for _ in response.get("body"):
                 pass
 
-        if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]:
+        if (
+            "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
+            and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
+        ):
             span = mock_tracer.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
@@ -847,7 +850,10 @@ class TestLLMObsBedrockProxy:
                 response = bedrock_client_proxy.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
 
-        if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]:
+        if (
+            "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
+            and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
+        ):
             span = mock_tracer_proxy.pop_traces()[0][0]
             assert len(llmobs_events) == 1
             assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(

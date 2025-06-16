@@ -62,7 +62,14 @@ def _base_tags(error: Optional[str]):
     return tags
 
 
-def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool, instrumented_proxy_urls: Optional[Set[str]]):
+def record_llmobs_enabled(
+    error: Optional[str],
+    agentless_enabled: bool,
+    site: str,
+    start_ns: int,
+    auto: bool,
+    instrumented_proxy_urls: Optional[Set[str]],
+):
     tags = _base_tags(error)
     tags.extend(
         [
