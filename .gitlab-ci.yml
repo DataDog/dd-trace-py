@@ -115,6 +115,12 @@ requirements_json_test:
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
 
 package-oci:
+  parallel:
+    matrix:
+      - OS: [ linux, windows ]
+        ARCH: [ amd64, arm64 ]
+      - OS: [ darwin ]
+        ARCH: [ arm64 ]
   needs: [ download_dependency_wheels, download_ddtrace_artifacts ]
 
 promote-oci-to-prod:
