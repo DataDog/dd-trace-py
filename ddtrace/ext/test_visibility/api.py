@@ -81,7 +81,7 @@ def enable_test_visibility(config: Optional[Any] = None):
 
     CIVisibility.enable(config=config)
 
-    if not require_ci_visibility_service().enabled:
+    if not is_test_visibility_enabled():
         log.warning("Failed to enable Test Visibility")
 
 
@@ -91,7 +91,7 @@ def is_test_visibility_enabled():
     try:
         enabled = require_ci_visibility_service().enabled
     except RuntimeError:
-        log.warning("Failed to retrieve Test Visibility service", exc_info=True)
+        pass
     return enabled
 
 
