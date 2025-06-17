@@ -71,47 +71,47 @@ def patch_iast(patch_modules=IAST_PATCH):
     for module in (m for m, e in patch_modules.items() if e):
         when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
 
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
     # CMDI sanitizers
-    warp_modules.wrap_function("shlex", "quote", cmdi_sanitizer)
+    iast_funcs.wrap_function("shlex", "quote", cmdi_sanitizer)
 
     # SSRF validators
-    warp_modules.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
+    iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
 
     # SQL sanitizers
-    warp_modules.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
-    warp_modules.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
-    warp_modules.wrap_function("pymysql.converters", "escape_string", sqli_sanitizer)
+    iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
+    iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
+    iast_funcs.wrap_function("pymysql.converters", "escape_string", sqli_sanitizer)
 
     # Header Injection sanitizers
-    warp_modules.wrap_function("werkzeug.utils", "_str_header_value", header_injection_sanitizer)
+    iast_funcs.wrap_function("werkzeug.utils", "_str_header_value", header_injection_sanitizer)
 
     # Header Injection validators
     # Header injection for > Django 3.2
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
     )
 
     # Header injection for <= Django 2.2
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator
     )
 
     # Unvalidated Redirect validators
-    warp_modules.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
+    iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
 
     # Path Traversal sanitizers
-    warp_modules.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
+    iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
 
     # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
-    #  warp_modules.wrap_function("werkzeug.utils", "safe_join", path_traversal_sanitizer)
+    #  iast_funcs.wrap_function("werkzeug.utils", "safe_join", path_traversal_sanitizer)
     # TODO: os.path.normpath propagation is not yet supported by IAST
-    #  warp_modules.wrap_function("os.pat", "normpath", path_traversal_sanitizer)
+    #  iast_funcs.wrap_function("os.pat", "normpath", path_traversal_sanitizer)
 
     # XSS sanitizers
-    warp_modules.wrap_function("html", "escape", xss_sanitizer)
+    iast_funcs.wrap_function("html", "escape", xss_sanitizer)
     # TODO:  markupsafe._speedups._escape_inner is not yet supported by IAST
-    #  warp_modules.wrap_function("markupsafe", "escape", xss_sanitizer)
+    #  iast_funcs.wrap_function("markupsafe", "escape", xss_sanitizer)
 
-    warp_modules.patch()
+    iast_funcs.patch()
     when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))

@@ -28,32 +28,32 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "django.utils.safestring",
         "mark_safe",
         _iast_django_xss,
     )
 
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "django.template.defaultfilters",
         "mark_safe",
         _iast_django_xss,
     )
 
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "jinja2.filters",
         "do_mark_safe",
         _iast_jinja2_xss,
     )
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "flask",
         "render_template_string",
         _iast_jinja2_xss,
     )
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
     # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch

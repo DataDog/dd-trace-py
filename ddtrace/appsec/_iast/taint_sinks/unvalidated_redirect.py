@@ -33,15 +33,15 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
-    warp_modules.wrap_function("flask", "redirect", _unvalidated_redirect_for_flask)
-    warp_modules.wrap_function("fastapi.responses", "RedirectResponse", _unvalidated_redirect_forfastapi)
+    iast_funcs.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
+    iast_funcs.wrap_function("flask", "redirect", _unvalidated_redirect_for_flask)
+    iast_funcs.wrap_function("fastapi.responses", "RedirectResponse", _unvalidated_redirect_forfastapi)
 
     _set_metric_iast_instrumented_sink(VULN_UNVALIDATED_REDIRECT)
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
 
 def _unvalidated_redirect_for_django(wrapped, instance, args, kwargs):

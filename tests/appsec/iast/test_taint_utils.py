@@ -11,13 +11,13 @@ from ddtrace.appsec._iast._taint_utils import LazyTaintList
 
 @pytest.fixture
 def lazy_taint_json_patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    warp_modules.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    warp_modules.patch()
+    iast_funcs.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    iast_funcs.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    iast_funcs.patch()
     yield
-    warp_modules.testing_unpatch()
+    iast_funcs.testing_unpatch()
 
 
 def test_tainted_types(iast_context_defaults):

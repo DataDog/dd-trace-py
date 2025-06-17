@@ -97,13 +97,13 @@ _is_patched = False
 
 @patch_once
 def patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
-    warp_modules.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
-    warp_modules.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_INSECURE_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_HTTPONLY_COOKIE)

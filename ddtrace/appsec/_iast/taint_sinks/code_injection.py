@@ -25,15 +25,15 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function("builtins", "eval", _iast_coi)
+    iast_funcs.wrap_function("builtins", "eval", _iast_coi)
 
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
-    # warp_modules.wrap_function("builtins", "exec", _iast_coi)
+    # iast_funcs.wrap_function("builtins", "exec", _iast_coi)
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
 

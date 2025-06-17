@@ -52,39 +52,39 @@ def patch():
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
     weak_cipher_algorithms = get_weak_cipher_algorithms()
     num_instrumented_sinks = 0
     # pycryptodome methods
     if DES_DEF in weak_cipher_algorithms:
-        warp_modules.wrap_function("Crypto.Cipher.DES", "new", wrapped_aux_des_function)
+        iast_funcs.wrap_function("Crypto.Cipher.DES", "new", wrapped_aux_des_function)
         num_instrumented_sinks += 1
     if BLOWFISH_DEF in weak_cipher_algorithms:
-        warp_modules.wrap_function("Crypto.Cipher.Blowfish", "new", wrapped_aux_blowfish_function)
+        iast_funcs.wrap_function("Crypto.Cipher.Blowfish", "new", wrapped_aux_blowfish_function)
         num_instrumented_sinks += 1
     if RC2_DEF in weak_cipher_algorithms:
-        warp_modules.wrap_function("Crypto.Cipher.ARC2", "new", wrapped_aux_rc2_function)
+        iast_funcs.wrap_function("Crypto.Cipher.ARC2", "new", wrapped_aux_rc2_function)
         num_instrumented_sinks += 1
     if RC4_DEF in weak_cipher_algorithms:
-        warp_modules.wrap_function("Crypto.Cipher.ARC4", "ARC4Cipher.encrypt", wrapped_rc4_function)
+        iast_funcs.wrap_function("Crypto.Cipher.ARC4", "ARC4Cipher.encrypt", wrapped_rc4_function)
         num_instrumented_sinks += 1
 
     if weak_cipher_algorithms:
-        warp_modules.wrap_function("Crypto.Cipher._mode_cbc", "CbcMode.encrypt", wrapped_function)
-        warp_modules.wrap_function("Crypto.Cipher._mode_cfb", "CfbMode.encrypt", wrapped_function)
-        warp_modules.wrap_function("Crypto.Cipher._mode_ecb", "EcbMode.encrypt", wrapped_function)
-        warp_modules.wrap_function("Crypto.Cipher._mode_ofb", "OfbMode.encrypt", wrapped_function)
+        iast_funcs.wrap_function("Crypto.Cipher._mode_cbc", "CbcMode.encrypt", wrapped_function)
+        iast_funcs.wrap_function("Crypto.Cipher._mode_cfb", "CfbMode.encrypt", wrapped_function)
+        iast_funcs.wrap_function("Crypto.Cipher._mode_ecb", "EcbMode.encrypt", wrapped_function)
+        iast_funcs.wrap_function("Crypto.Cipher._mode_ofb", "OfbMode.encrypt", wrapped_function)
 
         num_instrumented_sinks += 4
 
     # cryptography methods
-    warp_modules.wrap_function(
+    iast_funcs.wrap_function(
         "cryptography.hazmat.primitives.ciphers", "Cipher.encryptor", wrapped_cryptography_function
     )
     num_instrumented_sinks += 1
 
-    warp_modules.patch()
+    iast_funcs.patch()
     _set_metric_iast_instrumented_sink(VULN_WEAK_CIPHER_TYPE, num_instrumented_sinks)
 
 

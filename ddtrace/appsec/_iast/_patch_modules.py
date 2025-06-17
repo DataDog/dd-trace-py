@@ -179,5 +179,5 @@ def _testing_unpatch_iast():
     This function creates a WrapFunctonsForIAST instance and uses it to remove
     all patches that were applied during testing.
     """
-    warp_modules = WrapFunctonsForIAST()
-    warp_modules.testing_unpatch()
+    iast_funcs = WrapFunctonsForIAST()
+    iast_funcs.testing_unpatch()

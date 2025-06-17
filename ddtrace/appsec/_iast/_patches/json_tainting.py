@@ -17,14 +17,14 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
-    warp_modules.wrap_function("json", "loads", wrapped_loads)
+    iast_funcs.wrap_function("json", "loads", wrapped_loads)
     if asm_config._iast_lazy_taint:
-        warp_modules.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-        warp_modules.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+        iast_funcs.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+        iast_funcs.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
 
 def wrapped_loads(wrapped, instance, args, kwargs):

@@ -120,26 +120,26 @@ def patch():
     have robust built-in protections. Django patching is maintained to ensure
     comprehensive vulnerability detection and reporting.
     """
-    warp_modules = WrapFunctonsForIAST()
+    iast_funcs = WrapFunctonsForIAST()
 
     # For headers["foo"] = "bar"
-    warp_modules.wrap_function("wsgiref.headers", "Headers.add_header", _iast_set_headers)
-    warp_modules.wrap_function("wsgiref.headers", "Headers.__setitem__", _iast_set_headers)
+    iast_funcs.wrap_function("wsgiref.headers", "Headers.add_header", _iast_set_headers)
+    iast_funcs.wrap_function("wsgiref.headers", "Headers.__setitem__", _iast_set_headers)
 
     # For headers["foo"] = "bar"
-    warp_modules.wrap_function("werkzeug.datastructures", "Headers.add", _iast_set_headers)
-    warp_modules.wrap_function("werkzeug.datastructures", "Headers.set", _iast_set_headers)
+    iast_funcs.wrap_function("werkzeug.datastructures", "Headers.add", _iast_set_headers)
+    iast_funcs.wrap_function("werkzeug.datastructures", "Headers.set", _iast_set_headers)
 
     # Header injection for > Django 3.2
-    warp_modules.wrap_function("django.http.response", "ResponseHeaders.__init__", _iast_django_response)
+    iast_funcs.wrap_function("django.http.response", "ResponseHeaders.__init__", _iast_django_response)
 
     # Header injection for <= Django 2.2
-    warp_modules.wrap_function("django.http.response", "HttpResponseBase.__init__", _iast_django_response)
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase.__init__", _iast_django_response)
 
     # For headers["foo"] = "bar"
-    warp_modules.wrap_function("starlette.datastructures", "MutableHeaders.__setitem__", _iast_set_headers)
+    iast_funcs.wrap_function("starlette.datastructures", "MutableHeaders.__setitem__", _iast_set_headers)
 
-    warp_modules.patch()
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
