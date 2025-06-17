@@ -876,15 +876,13 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-from ddtrace.contrib.internal.httpx.patch import unpatch as httpx_unpatch
-httpx_unpatch()
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
@@ -918,7 +916,7 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -926,8 +924,6 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-from ddtrace.contrib.internal.httpx.patch import unpatch as httpx_unpatch
-httpx_unpatch()
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 async def task():
@@ -1282,7 +1278,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
@@ -1299,8 +1295,6 @@ import openai
 import ddtrace
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-from ddtrace.contrib.internal.httpx.patch import unpatch as httpx_unpatch
-httpx_unpatch()
 pin = ddtrace.trace.Pin.get_from(openai)
 pin.tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
