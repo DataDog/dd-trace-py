@@ -7,16 +7,6 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
-if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1")
-    # Optional: ccache integration
-    find_program(CCACHE_PROGRAM sccache)
-    if(CCACHE_PROGRAM)
-        message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
-        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    endif()
-endif()
-
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -91,7 +81,7 @@ if(LIB_INSTALL_DIR)
 endif()
 
 # Crashtracker receiver binary
-add_executable(crashtracker_exe ${CMAKE_CURRENT_SOURCE_DIR}/src/crashtracker.cpp)
+add_executable(crashtracker_exe src/crashtracker.cpp)
 target_include_directories(crashtracker_exe PRIVATE .. ${Datadog_INCLUDE_DIRS})
 
 # The CRASHTRACKER_EXE_TARGET_NAME should have been set by dd_wrapper

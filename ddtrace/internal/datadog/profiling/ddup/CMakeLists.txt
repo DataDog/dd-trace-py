@@ -10,16 +10,6 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
-if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1")
-    # Optional: ccache integration
-    find_program(CCACHE_PROGRAM sccache)
-    if(CCACHE_PROGRAM)
-        message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
-        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    endif()
-endif()
-
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 

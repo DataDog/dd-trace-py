@@ -1,13 +1,7 @@
-# FetchContent dependencies
-set(FETCHCONTENT_BASE_DIR
-    ${CMAKE_BINARY_DIR}/_deps
-    CACHE PATH "Dependency cache dir")
-
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.15.2
-    DOWNLOAD_EXTRACT_TIMESTAMP true)
+    GIT_TAG v1.15.2)
 set(gtest_force_shared_crt
     ON
     CACHE BOOL "" FORCE)
