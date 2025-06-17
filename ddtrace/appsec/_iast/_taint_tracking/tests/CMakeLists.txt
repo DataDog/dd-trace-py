@@ -8,7 +8,7 @@ enable_testing()
 
 include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories(${PYBIND11_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)  # Parent directory for header includes
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..) # Parent directory for header includes
 
 file(GLOB TEST_SOURCES "*.cpp" "*.hpp")
 add_executable(native_tests ${TEST_SOURCES} ${SOURCE_FILES} ${HEADER_FILES})
