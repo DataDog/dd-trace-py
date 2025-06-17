@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import langgraph
 
@@ -21,6 +22,11 @@ def get_version():
 
 
 LANGGRAPH_VERSION = parse_version(get_version())
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"langgraph": "*"}
+
 
 config._add("langgraph", {})
 

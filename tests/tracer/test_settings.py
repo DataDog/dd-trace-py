@@ -2,6 +2,7 @@ import warnings
 
 import pytest
 
+from ddtrace._logger import LogInjectionState
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._config import Config
@@ -13,11 +14,20 @@ class TestConfig(BaseTestCase):
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
             config = Config()
-            self.assertTrue(config._logs_injection)
+            self.assertEqual(config._logs_injection, LogInjectionState.ENABLED)
 
-        with self.override_env(dict(DD_LOGS_INJECTION="false")):
+        with self.override_env(dict(DD_LOGS_INJECTION="FALSE")):
             config = Config()
-            self.assertFalse(config._logs_injection)
+            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
+
+        with self.override_env(dict(), replace_os_env=True):
+            config = Config()
+            self.assertEqual(config._logs_injection, LogInjectionState.STRUCTURED)
+
+        with self.override_env(dict(DD_LOGS_INJECTION="nonesense")):
+            # If the value is not recognized, it should default to DISABLED
+            config = Config()
+            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
 
     def test_service(self):
         # If none is provided the default should be ``None``

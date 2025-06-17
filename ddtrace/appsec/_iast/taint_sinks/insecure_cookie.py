@@ -1,15 +1,10 @@
 from typing import Text
 
-from wrapt.importer import when_imported
-
-from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -17,6 +12,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -96,42 +92,22 @@ def get_version() -> Text:
     return ""
 
 
+_is_patched = False
+
+
+@patch_once
 def patch():
-    if not asm_config._iast_enabled:
-        return
+    iast_funcs = WrapFunctonsForIAST()
 
-    if not set_and_check_module_is_patched("flask", default_attr="_datadog_insecure_cookies_patch"):
-        return
-    if not set_and_check_module_is_patched("django", default_attr="_datadog_insecure_cookies_patch"):
-        return
-    if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_insecure_cookies_patch"):
-        return
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
 
-    @when_imported("django.http.response")
-    def _(m):
-        try_wrap_function_wrapper(m, "HttpResponseBase.set_cookie", _iast_response_cookies)
-
-    @when_imported("flask")
-    def _(m):
-        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
-
-    @when_imported("starlette.responses")
-    def _(m):
-        try_wrap_function_wrapper(m, "Response.set_cookie", _iast_response_cookies)
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_INSECURE_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_HTTPONLY_COOKIE)
     _set_metric_iast_instrumented_sink(VULN_NO_SAMESITE_COOKIE)
-
-
-def unpatch():
-    try_unwrap("flask", "Response.set_cookie")
-    try_unwrap("starlette.responses", "Response.set_cookie")
-    try_unwrap("django.http.response", "HttpResponseBase.set_cookie")
-
-    set_module_unpatched("flask", default_attr="_datadog_insecure_cookies_patch")
-    set_module_unpatched("django", default_attr="_datadog_insecure_cookies_patch")
-    set_module_unpatched("fastapi", default_attr="_datadog_insecure_cookies_patch")
 
 
 def _iast_response_cookies(wrapped, instance, args, kwargs):

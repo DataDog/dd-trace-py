@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import httpx
 from wrapt import BoundFunctionWrapper
@@ -41,6 +42,10 @@ config._add(
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"httpx": ">=0.17"}
 
 
 def _url_to_str(url):
