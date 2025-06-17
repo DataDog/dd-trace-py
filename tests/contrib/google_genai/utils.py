@@ -24,7 +24,11 @@ def get_google_genai_vcr(subdirectory_name=""):
         filter_headers=["x-goog-api-key", "authorization", "x-goog-api-client", "user-agent"],
         # Ignore requests to the agent
         ignore_localhost=True,
-        ignore_hosts=["oauth2.googleapis.com"],
+        ignore_hosts=[
+            "169.254.169.254", #GCP metadata server
+            "metadata.google.internal", #GCP metadata server
+            "oauth2.googleapis.com",
+        ],
     )
     vcr_instance.register_matcher("custom_path_matcher", custom_path_matcher)
     vcr_instance.match_on = ["custom_path_matcher"]
