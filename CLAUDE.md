@@ -1,0 +1,1 @@
+If a user asks you to create a new integration, read scripts/integration/system_prompt.md and follow the steps.

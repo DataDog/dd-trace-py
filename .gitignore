@@ -137,8 +137,7 @@ ENV/
 # Curosr
 .cursor/**
 !.cursor/rules/
-!.cursor/rules/integration/
-!.cursor/rules/integration/**
+!.cursor/rules/integration.mdc
 
 # Riot
 .riot/venv*

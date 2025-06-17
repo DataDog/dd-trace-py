@@ -1,0 +1,9 @@
+---
+description: Create a new integration
+globs: 
+alwaysApply: false
+---
+This rule will be used to generate new integration from scratch.
+Read [system_prompt.md](mdc:scripts/integration/system_prompt.md) and execute the steps
+
+
