@@ -98,6 +98,7 @@ endif()
 
 # Define pybind11 module
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
+get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 
 if(NOT SOURCE_FILES)
     message(FATAL_ERROR "SOURCE_FILES is empty")
