@@ -1,5 +1,5 @@
 """
-The Google GenAI integration instruments the Google GenAI Python SDK to trace LLM requests made to Google models.
+The Google GenAI integration instruments the Google GenAI Python SDK to trace LLM requests made to Gemini and VertexAI models.
 
 All traces submitted from the Google GenAI integration are tagged by:
 
