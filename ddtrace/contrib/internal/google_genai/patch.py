@@ -20,8 +20,7 @@ def _supported_versions():
     return {"google.genai": ">=1.19.0"}
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(genai, "__version__", "")
 
 
