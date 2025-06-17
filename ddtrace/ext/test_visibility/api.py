@@ -87,11 +87,12 @@ def enable_test_visibility(config: Optional[Any] = None):
 
 @_catch_and_log_exceptions
 def is_test_visibility_enabled():
+    enabled = False
     try:
-        return require_ci_visibility_service().enabled
+        enabled = require_ci_visibility_service().enabled
     except RuntimeError:
-        return False
-    return False
+        pass
+    return enabled
 
 
 @_catch_and_log_exceptions
