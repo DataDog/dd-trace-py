@@ -32,11 +32,6 @@ class BenchmarkDurationData(t.NamedTuple):
 
 
 class BenchmarkTestMixin:
-    class SetBenchmarkDataArgs(t.NamedTuple):
-        test_id: InternalTestId
-        benchmark_data: t.Optional[BenchmarkDurationData]
-        is_benchmark: bool = True
-
     @classmethod
     @_catch_and_log_exceptions
     def set_benchmark_data(

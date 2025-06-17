@@ -16,10 +16,6 @@ log = get_logger(__name__)
 class ITRMixin:
     """Mixin class for ITR-related functionality."""
 
-    class AddCoverageArgs(t.NamedTuple):
-        item_id: t.Union[ext_api.TestSuiteId, InternalTestId]
-        coverage_data: t.Dict[Path, CoverageLines]
-
     @staticmethod
     @_catch_and_log_exceptions
     def mark_itr_skipped(item_id: t.Union[ext_api.TestSuiteId, InternalTestId]):

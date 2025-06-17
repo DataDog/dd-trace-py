@@ -101,27 +101,6 @@ TestVisibilityItemId = TypeVar(
 class _TestVisibilityAPIBase(abc.ABC):
     __test__ = False
 
-    class GetTagArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
-        name: str
-
-    class SetTagArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
-        name: str
-        value: Any
-
-    class DeleteTagArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
-        name: str
-
-    class SetTagsArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
-        tags: Dict[str, Any]
-
-    class DeleteTagsArgs(NamedTuple):
-        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
-        names: List[str]
-
     def __init__(self):
         raise NotImplementedError("This class is not meant to be instantiated")
 
