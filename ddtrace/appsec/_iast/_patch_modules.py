@@ -104,7 +104,10 @@ class IASTFunction:
     def __repr__(self):
         """Return a string representation of the IASTFunction instance."""
         return (
-            f"IASTFunction(name={self.name}, " f"function={self.function}, " f"hook={self.hook}, " f"force={self.force})"
+            f"IASTFunction(name={self.name}, "
+            f"function={self.function}, "
+            f"hook={self.hook}, "
+            f"force={self.force})"
         )
 
 

@@ -79,7 +79,9 @@ def patch():
         num_instrumented_sinks += 4
 
     # cryptography methods
-    warp_modules.wrap_function("cryptography.hazmat.primitives.ciphers", "Cipher.encryptor", wrapped_cryptography_function)
+    warp_modules.wrap_function(
+        "cryptography.hazmat.primitives.ciphers", "Cipher.encryptor", wrapped_cryptography_function
+    )
     num_instrumented_sinks += 1
 
     warp_modules.patch()
