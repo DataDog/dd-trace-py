@@ -17,7 +17,6 @@ add_compile_options(
     -Wno-unknown-pragmas
     -U_FORTIFY_SOURCE  # workaround for Alpine + pybind11
 )
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE CACHE BOOL "Disable IPO/LTO globally")
 
 if(BUILD_MACOS)
     message(STATUS "Compile options for MacOS")
@@ -57,6 +56,12 @@ else()
         DOWNLOAD_EXTRACT_TIMESTAMP true
     )
     FetchContent_MakeAvailable(absl)
+
+    # Turn off LTO on all Abseil targets after they're declared
+    get_property(absl_targets DIRECTORY "${absl_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(tgt ${absl_targets})
+        set_target_properties(${tgt} PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+    endforeach()
 endif()
 
 # pybind11 via FetchContent
@@ -93,6 +98,13 @@ endif()
 
 # Define pybind11 module
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
+
+if(NOT SOURCE_FILES)
+    message(FATAL_ERROR "SOURCE_FILES is empty")
+endif()
+
+# Explicitly state this is C++
+set_target_properties(_native PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
