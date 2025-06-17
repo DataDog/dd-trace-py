@@ -4,7 +4,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -97,11 +97,11 @@ _is_patched = False
 
 @patch_once
 def patch():
-    warp_modules = WrapModulesForIAST()
+    warp_modules = WrapFunctonsForIAST()
 
-    warp_modules.add_module("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
-    warp_modules.add_module("flask", "Response.set_cookie", _iast_response_cookies)
-    warp_modules.add_module("starlette.responses", "Response.set_cookie", _iast_response_cookies)
+    warp_modules.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)
+    warp_modules.wrap_function("flask", "Response.set_cookie", _iast_response_cookies)
+    warp_modules.wrap_function("starlette.responses", "Response.set_cookie", _iast_response_cookies)
 
     warp_modules.patch()
 

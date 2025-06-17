@@ -4,7 +4,7 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
@@ -33,11 +33,11 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapModulesForIAST()
+    warp_modules = WrapFunctonsForIAST()
 
-    warp_modules.add_module("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
-    warp_modules.add_module("flask", "redirect", _unvalidated_redirect_for_flask)
-    warp_modules.add_module("fastapi.responses", "RedirectResponse", _unvalidated_redirect_forfastapi)
+    warp_modules.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
+    warp_modules.wrap_function("flask", "redirect", _unvalidated_redirect_for_flask)
+    warp_modules.wrap_function("fastapi.responses", "RedirectResponse", _unvalidated_redirect_forfastapi)
 
     _set_metric_iast_instrumented_sink(VULN_UNVALIDATED_REDIRECT)
 

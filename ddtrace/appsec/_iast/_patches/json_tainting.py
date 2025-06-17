@@ -4,7 +4,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
-from .._patch_modules import WrapModulesForIAST
+from .._patch_modules import WrapFunctonsForIAST
 from ..taint_sinks.utils import patch_once
 
 
@@ -17,12 +17,12 @@ def get_version() -> Text:
 
 @patch_once
 def patch():
-    warp_modules = WrapModulesForIAST()
+    warp_modules = WrapFunctonsForIAST()
 
-    warp_modules.add_module("json", "loads", wrapped_loads)
+    warp_modules.wrap_function("json", "loads", wrapped_loads)
     if asm_config._iast_lazy_taint:
-        warp_modules.add_module("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-        warp_modules.add_module("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+        warp_modules.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+        warp_modules.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
 
     warp_modules.patch()
 

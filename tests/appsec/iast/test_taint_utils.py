@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -11,10 +11,10 @@ from ddtrace.appsec._iast._taint_utils import LazyTaintList
 
 @pytest.fixture
 def lazy_taint_json_patch():
-    warp_modules = WrapModulesForIAST()
+    warp_modules = WrapFunctonsForIAST()
 
-    warp_modules.add_module("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    warp_modules.add_module("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    warp_modules.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    warp_modules.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
     warp_modules.patch()
     yield
     warp_modules.testing_unpatch()

@@ -8,7 +8,7 @@ from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec._iast._patch_modules import WrapModulesForIAST
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -58,21 +58,21 @@ def _on_flask_patch(flask_version):
     """
     if asm_config._iast_enabled:
         try:
-            warp_modules = WrapModulesForIAST()
+            warp_modules = WrapFunctonsForIAST()
 
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.datastructures",
                 "Headers.items",
                 functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
             )
 
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
             )
             # Since werkzeug 3.1.0 get doesn't call to __getitem__
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.get",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
@@ -80,7 +80,7 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.datastructures",
                 "ImmutableMultiDict.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
@@ -89,17 +89,17 @@ def _on_flask_patch(flask_version):
 
             if flask_version >= (2, 0, 0):
                 # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
-                warp_modules.add_module("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+                warp_modules.wrap_function("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
 
             _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
                 functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "werkzeug.wrappers.request",
                 "Request.get_json",
                 functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
@@ -108,7 +108,7 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.BODY)
 
             if flask_version < (2, 0, 0):
-                warp_modules.add_module(
+                warp_modules.wrap_function(
                     "werkzeug._internal",
                     "_DictAccessorProperty.__get__",
                     functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
@@ -156,14 +156,14 @@ def _on_django_patch():
     """Handle Django framework patch event."""
     if asm_config._iast_enabled:
         try:
-            warp_modules = WrapModulesForIAST()
+            warp_modules = WrapFunctonsForIAST()
 
-            warp_modules.add_module(
+            warp_modules.wrap_function(
                 "django.http.request",
                 "QueryDict.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
             )
-            warp_modules.add_module("django.utils.shlex", "quote", cmdi_sanitizer)
+            warp_modules.wrap_function("django.utils.shlex", "quote", cmdi_sanitizer)
 
             warp_modules.patch()
 
@@ -358,9 +358,9 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 def _on_iast_fastapi_patch():
     try:
-        warp_modules = WrapModulesForIAST()
+        warp_modules = WrapFunctonsForIAST()
         # Cookies sources
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.requests",
             "cookie_parser",
             functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
@@ -369,19 +369,19 @@ def _on_iast_fastapi_patch():
         _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
 
         # Parameter sources
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "QueryParams.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "QueryParams.get",
             functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
         )
         _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "QueryParams.keys",
             functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
@@ -389,19 +389,19 @@ def _on_iast_fastapi_patch():
         _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
         # Header sources
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "Headers.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
         )
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "Headers.get",
             functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
         )
         _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "Headers.keys",
             functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
@@ -409,23 +409,23 @@ def _on_iast_fastapi_patch():
         _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
 
         # Path source
-        warp_modules.add_module("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+        warp_modules.wrap_function("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
         _set_metric_iast_instrumented_source(OriginType.PATH)
 
         # Body source
-        warp_modules.add_module("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
-        warp_modules.add_module("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
-        warp_modules.add_module(
+        warp_modules.wrap_function("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+        warp_modules.wrap_function("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "FormData.__getitem__",
             functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
         )
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "FormData.get",
             functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
         )
-        warp_modules.add_module(
+        warp_modules.wrap_function(
             "starlette.datastructures",
             "FormData.keys",
             functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),

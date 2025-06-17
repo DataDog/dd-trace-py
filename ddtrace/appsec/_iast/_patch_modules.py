@@ -1,6 +1,6 @@
 """IAST module patching implementation.
 
-This module provides the core functionality for patching Python modules to enable IAST analysis.
+This module provides the core functionality for patching Python functions to enable IAST analysis.
 It implements the wrapper classes and utilities needed to:
 1. Wrap security-sensitive functions using wrapt
 2. Manage module patching state
@@ -27,11 +27,11 @@ from ddtrace.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
-MODULES_TO_UNPATCH: Set["IASTModule"] = set()
+MODULES_TO_UNPATCH: Set["IASTFunction"] = set()
 
 
-class IASTModule:
-    """Represents a module to be patched for IAST analysis.
+class IASTFunction:
+    """Represents a function to be patched for IAST analysis.
 
     This class encapsulates the information needed to patch a specific function in a module
     for IAST analysis. It handles both forced and lazy patching scenarios.
@@ -49,7 +49,7 @@ class IASTModule:
     force = False
 
     def __init__(self, name, function, hook, force=False):
-        """Initialize an IASTModule instance.
+        """Initialize an IASTFunction instance.
 
         Args:
             name (str): The name of the module to patch
@@ -102,37 +102,37 @@ class IASTModule:
         try_unwrap(self.name, self.function)
 
     def __repr__(self):
-        """Return a string representation of the IASTModule instance."""
+        """Return a string representation of the IASTFunction instance."""
         return (
-            f"IASTModule(name={self.name}, " f"function={self.function}, " f"hook={self.hook}, " f"force={self.force})"
+            f"IASTFunction(name={self.name}, " f"function={self.function}, " f"hook={self.hook}, " f"force={self.force})"
         )
 
 
-class WrapModulesForIAST:
+class WrapFunctonsForIAST:
     """Manages the collection and patching of IAST modules.
 
-    This class maintains a set of IASTModule instances and handles their patching
+    This class maintains a set of IASTFunction instances and handles their patching
     and unpatching. It supports both normal operation and testing scenarios.
 
     Attributes:
-        modules (Set[IASTModule]): Set of modules to be patched
+        functions (Set[IASTFunction]): Set of modules to be patched
         testing (bool): Whether the instance is being used in a testing context
     """
 
     def __init__(self):
-        """Initialize a WrapModulesForIAST instance."""
-        self.modules: Set[IASTModule] = set()
+        """Initialize a WrapFunctonsForIAST instance."""
+        self.functions: Set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
-    def add_module(self, name, function, hook):
-        """Add a module for lazy patching.
+    def wrap_function(self, name, function, hook):
+        """Add a function for lazy patching.
 
         Args:
             name (str): The module name
             function (str): The function name to wrap
             hook (callable): The wrapper function to apply
         """
-        self.modules.add(IASTModule(name, function, hook))
+        self.functions.add(IASTFunction(name, function, hook))
 
     def add_module_forced(self, name, function, hook):
         """Add a module for forced immediate patching.
@@ -142,22 +142,22 @@ class WrapModulesForIAST:
             function (str): The function name to wrap
             hook (callable): The wrapper function to apply
         """
-        self.modules.add(IASTModule(name, function, hook, True))
+        self.functions.add(IASTFunction(name, function, hook, True))
 
     def patch(self):
-        """Apply patches to all registered modules.
+        """Apply patches to all registered functions.
 
-        This method attempts to patch all modules in the modules set. If in testing
-        mode, it also tracks the modules for later unpatching.
+        This method attempts to patch all functions in the functions set. If in testing
+        mode, it also tracks the functions for later unpatching.
         """
-        for module in self.modules:
+        for module in self.functions:
             if module.patch():
                 log.debug("Wrapping %s", module)
                 if self.testing:
                     MODULES_TO_UNPATCH.add(module)
 
     def testing_unpatch(self):
-        """Remove patches from all modules in testing mode.
+        """Remove patches from all functions in testing mode.
 
         This method is used in testing scenarios to clean up all applied patches.
         It only operates if the instance is in testing mode.
@@ -171,10 +171,10 @@ class WrapModulesForIAST:
 
 
 def _testing_unpatch_iast():
-    """Utility function to unpatch all IAST modules in testing mode.
+    """Utility function to unpatch all IAST functions in testing mode.
 
-    This function creates a WrapModulesForIAST instance and uses it to remove
+    This function creates a WrapFunctonsForIAST instance and uses it to remove
     all patches that were applied during testing.
     """
-    warp_modules = WrapModulesForIAST()
+    warp_modules = WrapFunctonsForIAST()
     warp_modules.testing_unpatch()
