@@ -1,3 +1,5 @@
+import os
+
 from google.genai import types
 import pytest
 
@@ -8,9 +10,6 @@ from tests.utils import override_global_config
 @pytest.fixture(scope="session")
 def google_genai_vcr():
     yield get_google_genai_vcr(subdirectory_name="v1")
-
-
-# TODO: add tests for vertex client, async methods also.
 
 
 def test_global_tags(google_genai_vcr, genai, mock_tracer):
@@ -148,23 +147,20 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
             pass
 
 
-# @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
-# def test_google_genai_generate_content_vertex(google_genai_vcr, genai):
-#     import os
-#     try:
-#         del os.environ['GOOGLE_API_KEY']
-#     except KeyError:
-#         pass
-#     with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
-#         client = genai.Client(vertexai=True)
-#         client.models.generate_content(
-#             model='gemini-2.0-flash-001',
-#             contents='Why is the sky blue? Explain in 2-3 sentences.',
-#             config=types.GenerateContentConfig(
-#                 temperature=0,
-#                 max_output_tokens=100,
-#             ),
-#         )
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
+def test_google_genai_generate_content_vertex(google_genai_vcr, genai):
+    with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
+        client = genai.Client(
+            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+        )
+        client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=types.GenerateContentConfig(
+                temperature=0,
+                max_output_tokens=100,
+            ),
+        )
 
 
 @pytest.mark.parametrize(

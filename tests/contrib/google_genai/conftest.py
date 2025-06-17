@@ -29,8 +29,8 @@ def genai():
     # When testing locally to generate new cassette files,
     # comment the lines below to use the real Google API key and project/location
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
-    os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
-    os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
+    # os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
+    # os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
 
     yield genai
     unpatch()
