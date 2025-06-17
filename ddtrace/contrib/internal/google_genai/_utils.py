@@ -1,8 +1,9 @@
 import sys
 
 
-# https://cloud.google.com/vertex-ai/generative-ai/docs/model-garden/quickstart
-# VertexAI: the best way to associate provider name with each call is checking the model name prefix
+# https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
+# GeminiAPI: only exports google provided models
+# VertexAI: can map provided models to provider based on prefix, but not a complete list
 MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
@@ -11,6 +12,8 @@ MODEL_PREFIX_TO_PROVIDER = {
     "claude": "anthropic",
     "llama": "meta",
     "mistral": "mistral",
+    "codestral": "mistral",
+    "deepseek": "deepseek",
 }
 
 
@@ -27,9 +30,9 @@ import wrapt
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
     def __init__(self, generation_response, span):
-        self._generation_response = generation_response
-        self._dd_span = span
-        self._chunks = []
+        super().__init__(generation_response)
+        self._self_dd_span = span
+        self._self_chunks = []
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
@@ -38,15 +41,15 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
 
     def __next__(self):
         try:
-            chunk = self._generation_response.__next__()
-            self._chunks.append(chunk)
+            chunk = self.__wrapped__.__next__()
+            self._self_chunks.append(chunk)
             return chunk
         except StopIteration:
-            self._dd_span.finish()
+            self._self_dd_span.finish()
             raise
         except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
+            self._self_dd_span.set_exc_info(*sys.exc_info())
+            self._self_dd_span.finish()
             raise
 
 
@@ -56,9 +59,13 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
 
     async def __anext__(self):
         try:
-            chunk = await self._generation_response.__anext__()
-            self._chunks.append(chunk)
+            chunk = await self.__wrapped__.__anext__()
+            self._self_chunks.append(chunk)
             return chunk
         except StopAsyncIteration:
-            self._dd_span.finish()
+            self._self_dd_span.finish()
+            raise
+        except Exception:
+            self._self_dd_span.set_exc_info(*sys.exc_info())
+            self._self_dd_span.finish()
             raise

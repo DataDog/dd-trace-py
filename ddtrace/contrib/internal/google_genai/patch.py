@@ -37,30 +37,6 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     ):
         return func(*args, **kwargs)
 
-
-@with_traced_module
-def traced_generate_stream(genai, pin, func, instance, args, kwargs):
-    integration = genai._datadog_integration
-    generation_response = None
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider_name,
-        model=model_name,
-        submit_to_llmobs=False,
-    )
-    try:
-        generation_response = func(*args, **kwargs)
-        return TracedGoogleGenAIStreamResponse(generation_response, span)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if span.error:
-            span.finish()
-
-
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
@@ -74,11 +50,10 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     ):
         return await func(*args, **kwargs)
 
-
 @with_traced_module
-async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
+def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    generation_response = None
+    resp = None
     provider_name, model_name = extract_provider_and_model_name(kwargs)
     span = integration.trace(
         pin,
@@ -88,8 +63,31 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         submit_to_llmobs=False,
     )
     try:
-        generation_response = await func(*args, **kwargs)
-        return TracedAsyncGoogleGenAIStreamResponse(generation_response, span)
+        resp = func(*args, **kwargs)
+        return TracedGoogleGenAIStreamResponse(resp, span)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if span.error:
+            span.finish()
+
+
+@with_traced_module
+async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
+    integration = genai._datadog_integration
+    resp = None
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    span = integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=False,
+    )
+    try:
+        resp = await func(*args, **kwargs)
+        return TracedAsyncGoogleGenAIStreamResponse(resp, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

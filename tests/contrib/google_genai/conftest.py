@@ -15,6 +15,8 @@ def mock_tracer(genai):
         pin = Pin.get_from(genai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin._override(genai, tracer=mock_tracer)
+        yield mock_tracer
+    except Exception:
         yield
 
 
