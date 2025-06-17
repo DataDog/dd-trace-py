@@ -114,6 +114,7 @@ flamegraph
 fnmatch
 formatter
 freezegun
+genai
 generativeai
 gevent
 Gitlab
