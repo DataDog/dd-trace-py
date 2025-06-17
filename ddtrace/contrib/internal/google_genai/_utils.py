@@ -31,7 +31,6 @@ class BaseTracedGoogleGenAIStreamResponse:
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
-    # generate_content_stream returns Iterator[GenerateContentResponse]
     def __iter__(self):
         return self
 
