@@ -13,10 +13,7 @@ from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.trace import Pin
 
 
-config._add(
-    "google_genai",
-    {},
-)
+config._add("google_genai", {})
 
 
 def _supported_versions():
