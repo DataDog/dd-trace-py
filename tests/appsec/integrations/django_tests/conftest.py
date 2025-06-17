@@ -5,7 +5,7 @@ from django.conf import settings
 import pytest
 
 from ddtrace.appsec._iast import enable_iast_propagation
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.internal import core

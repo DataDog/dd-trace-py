@@ -8,7 +8,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
-from ddtrace.appsec._iast._patch_modules import _unapply_security_control
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -1009,11 +1009,12 @@ def test_django_command_injection_security_control(client, tracer, security_cont
             _iast_enabled=True,
             _appsec_enabled=False,
             _iast_deduplication_enabled=False,
+            _iast_is_testing=True,
             _iast_request_sampling=100.0,
             _iast_security_controls=security_control,
         )
     ):
-        _apply_custom_security_controls()
+        _apply_custom_security_controls().patch()
         span = TracerSpanContainer(tracer)
         _start_iast_context_and_oce()
         root_span, _ = _aux_appsec_get_root_span(
@@ -1032,7 +1033,7 @@ def test_django_command_injection_security_control(client, tracer, security_cont
             assert loaded is not None
         _end_iast_context_and_oce()
         span.reset()
-        _unapply_security_control()
+        _testing_unpatch_iast()
 
 
 def test_django_header_injection_secure(client, iast_span, tracer):
