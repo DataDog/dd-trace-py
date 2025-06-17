@@ -3,14 +3,14 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/path_traversal.py"
@@ -63,7 +63,7 @@ def test_path_traversal_open_and_mock(mock_open, iast_context_defaults):
 
     mock_open.assert_called_once_with(file_path)
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -80,7 +80,7 @@ def test_path_traversal_open_and_mock_after_patch_module(iast_context_defaults):
 
         mock_open.assert_called_once_with(file_path)
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
         assert span_report is None
 
 
@@ -101,7 +101,7 @@ def test_path_traversal_open_secure(file_path, iast_context_defaults):
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
     )
     mod.pt_open_secure(tainted_string)
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -149,7 +149,7 @@ def test_path_traversal_deduplication(num_vuln_expected, iast_context_deduplicat
     for _ in range(0, 5):
         mod.pt_open(tainted_string)
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     if num_vuln_expected == 0:
         assert span_report is None

@@ -1,7 +1,7 @@
 import typing as t
 
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
-from ddtrace.internal import core
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 
@@ -32,11 +32,6 @@ class BenchmarkDurationData(t.NamedTuple):
 
 
 class BenchmarkTestMixin:
-    class SetBenchmarkDataArgs(t.NamedTuple):
-        test_id: InternalTestId
-        benchmark_data: t.Optional[BenchmarkDurationData]
-        is_benchmark: bool = True
-
     @classmethod
     @_catch_and_log_exceptions
     def set_benchmark_data(
@@ -46,10 +41,7 @@ class BenchmarkTestMixin:
         is_benchmark: bool = True,
     ):
         log.debug("Setting benchmark data for test %s: %s", item_id, benchmark_data)
-        core.dispatch(
-            "test_visibility.test.set_benchmark_data",
-            (BenchmarkTestMixin.SetBenchmarkDataArgs(item_id, benchmark_data, is_benchmark),),
-        )
+        require_ci_visibility_service().get_test_by_id(item_id).set_benchmark_data(benchmark_data, is_benchmark)
 
 
 BENCHMARK_TAG_MAP = {

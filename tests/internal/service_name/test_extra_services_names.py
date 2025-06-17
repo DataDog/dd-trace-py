@@ -1,42 +1,87 @@
-import random
-import re
-import threading
-import time
+import os
+import sys
 
 import pytest
 
+
+@pytest.mark.skipif(sys.platform in ("win32", "cygwin"), reason="Fork not supported on Windows")
+def test_config_extra_service_names_fork(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
 import ddtrace
 
+import re
+import os
+import sys
+import time
 
-MAX_NAMES = 64
+children = []
+for i in range(10):
+    pid = os.fork()
+    if pid == 0:
+        # Child process
+        ddtrace.config._add_extra_service(f"extra_service_{i}")
+        time.sleep(0.1)  # Ensure the child has time to save the service
+        sys.exit(0)
+    else:
+        # Parent process
+        children.append(pid)
+
+for pid in children:
+    os.waitpid(pid, 0)
+
+extra_services = ddtrace.config._get_extra_services()
+extra_services.discard("sqlite")  # coverage
+assert len(extra_services) == 10, extra_services
+assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
+"""
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
 
 
-@pytest.mark.parametrize("nb_service", [2, 16, 64, 256])
-def test_service_name(nb_service):
-    ddtrace.config._extra_services = set()
+def test_config_extra_service_names_duplicates(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
+import re
+import os
+import sys
+import time
 
-    def write_in_subprocess(id_nb):
-        time.sleep(random.random())
-        ddtrace.config._add_extra_service(f"extra_service_{id_nb}")
+for _ in range(10):
+    ddtrace.config._add_extra_service("extra_service_1")
 
-    default_remote_config_enabled = ddtrace.config._remote_config_enabled
-    ddtrace.config._remote_config_enabled = True
-    if ddtrace.config._extra_services_queue is None:
-        import ddtrace.internal._file_queue as file_queue
+extra_services = ddtrace.config._get_extra_services()
+extra_services.discard("sqlite")  # coverage
+assert extra_services == {"extra_service_1"}
+    """
 
-        ddtrace.config._extra_services_queue = file_queue.File_Queue()
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
 
-    threads = [threading.Thread(target=write_in_subprocess, args=(i,)) for i in range(nb_service)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
 
-    extra_services = ddtrace.config._get_extra_services()
-    assert len(extra_services) == min(nb_service, MAX_NAMES)
-    assert all(re.match(r"extra_service_\d+", service) for service in extra_services)
+def test_config_extra_service_names_rc_disabled(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
+import re
+import os
+import sys
+import time
 
-    ddtrace.config._remote_config_enabled = default_remote_config_enabled
-    if not default_remote_config_enabled:
-        ddtrace.config._extra_services_queue = None
-    ddtrace.config._extra_services = set()
+for _ in range(10):
+    ddtrace.config._add_extra_service("extra_service_1")
+
+extra_services = ddtrace.config._get_extra_services()
+assert len(extra_services) == 0
+    """
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)

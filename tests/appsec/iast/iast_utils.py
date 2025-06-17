@@ -15,7 +15,8 @@ from hypothesis.strategies import text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast.main import patch_iast
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -105,3 +106,9 @@ string_valid_to_taint_strategies: List[Any] = [
     non_empty_binary,  # regular bytes
     builds(bytearray, non_empty_binary),  # regular bytearray
 ]
+
+
+def _get_iast_data():
+    span_report = get_iast_reporter()
+    data = span_report.build_and_scrub_value_parts()
+    return data

@@ -18,7 +18,6 @@ from starlette.responses import PlainTextResponse
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._handlers import _on_iast_fastapi_patch
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -28,6 +27,7 @@ from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.constants import VULN_XSS
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as patch_header_injection
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as patch_insecure_cookie
 from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
