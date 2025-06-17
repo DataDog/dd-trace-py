@@ -8,6 +8,16 @@ set(EXTENSION_NAME
 project(${EXTENSION_NAME})
 message(STATUS "Building extension: ${EXTENSION_NAME}")
 
+if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1")
+    # Optional: ccache integration
+    find_program(CCACHE_PROGRAM sccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    endif()
+endif()
+
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -24,6 +34,11 @@ add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
 include(FetchContent)
 include(AnalysisFunc)
 include(FindCppcheck)
+
+# FetchContent dependencies
+set(FETCHCONTENT_BASE_DIR
+    ${CMAKE_BINARY_DIR}/_deps
+    CACHE PATH "Dependency cache dir")
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
@@ -46,7 +61,8 @@ set(ECHION_COMMIT
 FetchContent_Declare(
     echion
     GIT_REPOSITORY "https://github.com/P403n1x87/echion.git"
-    GIT_TAG ${ECHION_COMMIT})
+    GIT_TAG ${ECHION_COMMIT}
+    DOWNLOAD_EXTRACT_TIMESTAMP true)
 FetchContent_GetProperties(echion)
 
 if(NOT echion_POPULATED)
@@ -54,8 +70,11 @@ if(NOT echion_POPULATED)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
-                                     src/sampler.cpp src/stack_renderer.cpp src/stack_v2.cpp src/thread_span_links.cpp)
+add_library(
+    ${EXTENSION_NAME} SHARED
+    ${echion_SOURCE_DIR}/echion/frame.cc ${echion_SOURCE_DIR}/echion/render.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sampler.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/stack_renderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/stack_v2.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})

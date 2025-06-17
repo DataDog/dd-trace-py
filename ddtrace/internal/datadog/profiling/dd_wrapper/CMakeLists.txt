@@ -26,6 +26,16 @@ include(CheckSymbolExists)
 # Load libdatadog
 include(FindLibdatadog)
 
+if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1")
+    # Optional: ccache integration
+    find_program(CCACHE_PROGRAM sccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    endif()
+endif()
+
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -42,15 +52,15 @@ if(WIN32)
     # Library sources
     add_library(
         dd_wrapper SHARED
-        src/code_provenance.cpp
-        src/code_provenance_interface.cpp
-        src/ddup_interface.cpp
-        src/profile.cpp
-        src/sample.cpp
-        src/sample_manager.cpp
-        src/static_sample_pool.cpp
-        src/uploader.cpp
-        src/uploader_builder.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/code_provenance.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/code_provenance_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ddup_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/profile.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sample.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sample_manager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/static_sample_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/uploader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/uploader_builder.cpp)
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -62,18 +72,18 @@ else()
     # Library sources
     add_library(
         dd_wrapper SHARED
-        src/code_provenance.cpp
-        src/code_provenance_interface.cpp
-        src/crashtracker.cpp
-        src/crashtracker_interface.cpp
-        src/ddup_interface.cpp
-        src/profile.cpp
-        src/receiver_interface.cpp
-        src/sample.cpp
-        src/sample_manager.cpp
-        src/static_sample_pool.cpp
-        src/uploader.cpp
-        src/uploader_builder.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/code_provenance.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/code_provenance_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crashtracker.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/crashtracker_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/ddup_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/profile.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/receiver_interface.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sample.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sample_manager.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/static_sample_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/uploader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/uploader_builder.cpp)
 endif()
 
 # Add common configuration flags
