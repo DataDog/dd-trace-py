@@ -134,8 +134,11 @@ ENV/
 # VS Code
 .vscode/
 
-# Cursor
-.cursor/
+# Curosr
+.cursor/**
+!.cursor/rules/
+!.cursor/rules/integration/
+!.cursor/rules/integration/**
 
 # Riot
 .riot/venv*
