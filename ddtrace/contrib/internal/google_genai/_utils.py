@@ -2,7 +2,7 @@ import sys
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/model-garden/quickstart
-# for vertex, it seems like the best way to associate provider name with each call is based on the model name prefix
+# VertexAI: the best way to associate provider name with each call is checking the model name prefix
 MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
