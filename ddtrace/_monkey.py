@@ -354,7 +354,7 @@ def _patch_all(**patch_modules: bool) -> None:
     if asm_config._iast_enabled:
         from ddtrace.appsec.iast import enable_iast_propagation
 
-        from .appsec._iast.main import patch_iast
+        from ddtrace.appsec._iast.main import patch_iast
 
         patch_iast()
         enable_iast_propagation()
