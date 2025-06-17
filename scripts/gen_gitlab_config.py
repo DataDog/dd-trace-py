@@ -294,6 +294,7 @@ build_base_venvs:
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     DD_FAST_BUILD: '1'
     DD_CMAKE_INCREMENTAL_BUILD: '1'
+    DD_SETUP_CACHE_DOWNLOADS: '1'
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
@@ -310,17 +311,18 @@ build_base_venvs:
 {save_ext_cache}
   cache:
     # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
       paths:
         - .ext_cache
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+      paths:
+        - .download_cache
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
