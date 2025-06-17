@@ -2756,7 +2756,7 @@ venv = Venv(
         Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "google-genai": [latest],
