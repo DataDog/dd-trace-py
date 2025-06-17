@@ -10,6 +10,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import typing as t
 import warnings
 
 import cmake
@@ -172,23 +173,7 @@ class ExtensionHashes(build_ext):
         for ext in self.distribution.ext_modules:
             full_path = Path(self.get_ext_fullpath(ext.name))
 
-            # TODO: DRY!
-            sources = (
-                (
-                    [
-                        _
-                        for _ in Path(ext.source_dir).rglob("**/*")
-                        if _.is_file()
-                        and _.name != full_path.name
-                        and _.suffix
-                        and _.suffix not in (".py", ".pyc", ".pyi")
-                    ]
-                    if ext.source_dir
-                    else []
-                )
-                if isinstance(ext, CMakeExtension)
-                else [Path(_) for _ in ext.sources]
-            )
+            sources = ext.get_sources(self) if isinstance(ext, CMakeExtension) else [Path(_) for _ in ext.sources]
 
             sources_hash = hashlib.sha256()
             for source in sorted(sources):
@@ -415,19 +400,6 @@ class CMakeBuild(build_ext):
             full_path = Path(self.get_ext_fullpath(ext.name))
             ext_path = Path(ext.source_dir, full_path.name)
 
-            # Collect all the source files within the source directory. We exclude
-            # Python sources and anything that does not have a suffix (most likely
-            # a binary file), or that has the same name as the extension binary.
-            sources = (
-                [
-                    _
-                    for _ in Path(ext.source_dir).rglob("**")
-                    if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in (".py", ".pyc", ".pyi")
-                ]
-                if ext.source_dir
-                else []
-            )
-
             force = self.force
 
             if ext.dependencies:
@@ -447,7 +419,9 @@ class CMakeBuild(build_ext):
 
             if not (
                 force
-                or newer_group([str(_.resolve()) for _ in sources] + dependencies, str(ext_path.resolve()), "newer")
+                or newer_group(
+                    [str(_.resolve()) for _ in ext.get_sources(self)] + dependencies, str(ext_path.resolve()), "newer"
+                )
             ):
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
@@ -636,6 +610,26 @@ class CMakeExtension(Extension):
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
         self.dependencies = dependencies
+
+    def get_sources(self, cmd: build_ext) -> t.List[Path]:
+        """
+        Returns the list of source files for this extension.
+        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        """
+        full_path = Path(cmd.get_ext_fullpath(self.name))
+
+        # Collect all the source files within the source directory. We exclude
+        # Python sources and anything that does not have a suffix (most likely
+        # a binary file), or that has the same name as the extension binary.
+        return (
+            [
+                _
+                for _ in Path(self.source_dir).rglob("**")
+                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
+            ]
+            if self.source_dir
+            else []
+        )
 
 
 def check_rust_toolchain():
