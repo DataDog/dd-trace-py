@@ -14,7 +14,7 @@ except ImportError:
 from tests.contrib.patch import PatchTestCase
 
 
-class TestAzure_ServiceBusPatch(PatchTestCase.Base):
+class TestAzureServiceBusPatch(PatchTestCase.Base):
     __integration_name__ = "azure_servicebus"
     __module_name__ = "azure.servicebus"
     __patch_func__ = patch

@@ -137,9 +137,5 @@ def _unpatch(azure_servicebus_module):
         return
     azure_servicebus_module._datadog_patch = False
 
-    if azure_servicebus_module.__name__ == "azure.servicebus.aio":
-        _u(azure_servicebus_module.ServiceBusSender, "send_messages")
-        _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")
-    else:
-        _u(azure_servicebus_module.ServiceBusSender, "send_messages")
-        _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")
+    _u(azure_servicebus_module.ServiceBusSender, "send_messages")
+    _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")

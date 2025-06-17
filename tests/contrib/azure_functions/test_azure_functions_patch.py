@@ -14,7 +14,7 @@ except ImportError:
 from tests.contrib.patch import PatchTestCase
 
 
-class TestAzure_FunctionsPatch(PatchTestCase.Base):
+class TestAzureFunctionsPatch(PatchTestCase.Base):
     __integration_name__ = "azure_functions"
     __module_name__ = "azure.functions"
     __patch_func__ = patch
