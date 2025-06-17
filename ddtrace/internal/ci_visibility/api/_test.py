@@ -379,7 +379,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ) -> None:
-        # TODO: use skip_reason for something
         retry_test = self._efd_get_retry_test(retry_number)
 
         if status is not None:
