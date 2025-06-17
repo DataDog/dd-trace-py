@@ -57,22 +57,18 @@ is passed to header-setting APIs without proper sanitization.
 import typing
 from typing import Text
 
-from wrapt.importer import when_imported
-
-from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
+from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -98,6 +94,7 @@ def get_version() -> Text:
     return ""
 
 
+@patch_once
 def patch():
     """
     Patch header injection detection for supported web frameworks.
@@ -123,58 +120,28 @@ def patch():
     have robust built-in protections. Django patching is maintained to ensure
     comprehensive vulnerability detection and reporting.
     """
-    if not asm_config._iast_enabled:
-        return
-
-    if not set_and_check_module_is_patched("flask", default_attr="_datadog_header_injection_patch"):
-        return
-    if not set_and_check_module_is_patched("django", default_attr="_datadog_header_injection_patch"):
-        return
-    if not set_and_check_module_is_patched("fastapi", default_attr="_datadog_header_injection_patch"):
-        return
+    iast_funcs = WrapFunctonsForIAST()
 
     # For headers["foo"] = "bar"
-    @when_imported("wsgiref.headers")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add_header", _iast_set_headers)
-        try_wrap_function_wrapper(m, "Headers.__setitem__", _iast_set_headers)
+    iast_funcs.wrap_function("wsgiref.headers", "Headers.add_header", _iast_set_headers)
+    iast_funcs.wrap_function("wsgiref.headers", "Headers.__setitem__", _iast_set_headers)
 
     # For headers["foo"] = "bar"
-    @when_imported("werkzeug.datastructures")
-    def _(m):
-        try_wrap_function_wrapper(m, "Headers.add", _iast_set_headers)
-        try_wrap_function_wrapper(m, "Headers.set", _iast_set_headers)
+    iast_funcs.wrap_function("werkzeug.datastructures", "Headers.add", _iast_set_headers)
+    iast_funcs.wrap_function("werkzeug.datastructures", "Headers.set", _iast_set_headers)
 
     # Header injection for > Django 3.2
-    @when_imported("django.http.response")
-    def _(m):
-        try_wrap_function_wrapper(m, "ResponseHeaders.__init__", _iast_django_response)
+    iast_funcs.wrap_function("django.http.response", "ResponseHeaders.__init__", _iast_django_response)
 
     # Header injection for <= Django 2.2
-    @when_imported("django.http.response")
-    def _(m):
-        try_wrap_function_wrapper(m, "HttpResponseBase.__init__", _iast_django_response)
-
-    _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase.__init__", _iast_django_response)
 
     # For headers["foo"] = "bar"
-    @when_imported("starlette.datastructures")
-    def _(m):
-        try_wrap_function_wrapper(m, "MutableHeaders.__setitem__", _iast_set_headers)
+    iast_funcs.wrap_function("starlette.datastructures", "MutableHeaders.__setitem__", _iast_set_headers)
 
+    iast_funcs.patch()
 
-def unpatch():
-    try_unwrap("wsgiref.headers", "Headers.add_header")
-    try_unwrap("wsgiref.headers", "Headers.__setitem__")
-    try_unwrap("werkzeug.datastructures", "Headers.set")
-    try_unwrap("werkzeug.datastructures", "Headers.add")
-    try_unwrap("django.http.response", "ResponseHeaders.__init__")
-    try_unwrap("django.http.response", "HttpResponseBase.__init__")
-    try_unwrap("starlette.datastructures", "MutableHeaders.__setitem__")
-
-    set_module_unpatched("flask", default_attr="_datadog_header_injection_patch")
-    set_module_unpatched("django", default_attr="_datadog_header_injection_patch")
-    set_module_unpatched("fastapi", default_attr="_datadog_header_injection_patch")
+    _set_metric_iast_instrumented_sink(VULN_HEADER_INJECTION)
 
 
 class HeaderInjection(VulnerabilityBase):
