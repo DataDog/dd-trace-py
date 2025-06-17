@@ -76,7 +76,7 @@ def record_llmobs_enabled(
             ("agentless", str(int(agentless_enabled) if agentless_enabled is not None else "N/A")),
             ("site", site),
             ("auto", str(int(auto))),
-            ("instrumented_proxy_urls", ",".join(instrumented_proxy_urls) if instrumented_proxy_urls else "N/A"),
+            ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
