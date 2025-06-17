@@ -75,16 +75,66 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP true)
 FetchContent_MakeAvailable(pybind11)
 
-# Source and header files
+# Source files (explicit list for better incremental builds and caching)
 set(SOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/" "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/" "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/")
+    # Main module
+    ${CMAKE_CURRENT_SOURCE_DIR}/native.cpp
+    # Aspects
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_extend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_format.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_index.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_join.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_modulo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_operator_add.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_slice.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_split.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_str.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspects_os_path.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/helpers.cpp
+    # Initializer
+    ${CMAKE_CURRENT_SOURCE_DIR}/initializer/initializer.cpp
+    # Taint tracking
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/source.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/taint_range.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/tainted_object.cpp
+    # Tainted operations
+    ${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/tainted_ops.cpp
+    # Utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/generic_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/python_error_guard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/string_utils.cpp)
 
+# Header files (explicit list for better dependency tracking)
 set(HEADER_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/" "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/" "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/")
+    # Main headers
+    ${CMAKE_CURRENT_SOURCE_DIR}/constants.h
+    # Aspects
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_extend.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_format.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_index.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_join.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_modulo.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_operator_add.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_slice.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_split.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspect_str.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspects_exports.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/aspects_os_path.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/aspects/helpers.h
+    # Initializer
+    ${CMAKE_CURRENT_SOURCE_DIR}/initializer/_initializer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/initializer/initializer.h
+    # Taint tracking
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/source.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/taint_range.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/taint_tracking.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/tainted_object.h
+    # Tainted operations
+    ${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/tainted_ops.h
+    # Utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/generic_utils.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/python_error_guard.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils/string_utils.h)
 
 # Subdirectory for native testing (optional)
 if(NATIVE_TESTING)
