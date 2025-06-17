@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: grant_type=refresh_token&client_id=764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com&client_secret=<not-real-secret>&refresh_token=<not-real-secret>
+    body: grant_type=refresh_token&client_id=<not-a-real-secret>&client_secret=<not-a-real-secret>&refresh_token=<not-a-real-secret>
     headers:
       Accept:
       - '*/*'
@@ -16,10 +16,10 @@ interactions:
     uri: https://oauth2.googleapis.com/token
   response:
     body:
-      string: "{\n  \"access_token\": \"<not-real-secret>\",\n
+      string: "{\n  \"access_token\": \"<not-a-real-secret>\",\n
         \ \"expires_in\": 3599,\n  \"scope\": \"https://www.googleapis.com/auth/cloud-platform
-        https://www.googleapis.com/auth/sqlservice.login https://www.googleapis.com/auth/userinfo.email
-        openid\",\n  \"token_type\": \"Bearer\",\n  \"id_token\": \"<not-real-secret>\"\n}"
+        openid https://www.googleapis.com/auth/sqlservice.login https://www.googleapis.com/auth/userinfo.email\",\n
+        \ \"token_type\": \"Bearer\",\n  \"id_token\": \"<not-a-real-secret>\"\n}"
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
@@ -30,7 +30,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Tue, 17 Jun 2025 16:52:40 GMT
+      - Tue, 17 Jun 2025 18:19:59 GMT
       Expires:
       - Mon, 01 Jan 1990 00:00:00 GMT
       Pragma:
@@ -70,20 +70,20 @@ interactions:
       host:
       - us-central1-aiplatform.googleapis.com
     method: POST
-    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/datadog-sandbox/locations/us-central1/publishers/google/models/gemini-2.0-flash-001:generateContent
+    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/<not-a-real-secret>/locations/us-central1/publishers/google/models/gemini-2.0-flash-001:generateContent
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAC/61TTY+bMBC951eMOIcI2IR83FbNHrrajyjLtlXbqHJgACvGRrZJi6L89w4QskTq
-        sUjGZt545s3M4zQCcGImE54wi8ZZwQ+yAJzad4MpaVFaAnoTGbUSSBanUAkKZ/wBlEzbjyDdcxqc
-        ycXinyaaE+UI5lADK0tk2sBeVAgJLauAQZmjVAUtCTETAhPYslogz3IwMbMWNZfZBOAtV5o+4Dc7
-        okCZ2dyASkGQox3TdsAuMFUIR060yco09kEobqHoE9MUY8spRg37Gixxs1wSOa7JQWBcCTTAZYsw
-        WyhDBOmezZkEoWR2S2FMpCtDDKEyTT0GLzRaXhCrosFSrQqg4iDhusmupJn8lM6gXefreXc5nftm
-        OymX3ORbZEbJpp9v0evmOgqHHbMnlZVa7ZtxuN7ED+6m4WJ55y092v1FOOoT7JpLTmVYhs9oGemA
-        XaftUISitJE6oPykqlYH/rTLMpDNDT4LLrhVlokbKAx7SLM05XFUl62OXl9+rR+e71/WlwKGac2a
-        SHExVNVAiaRAJritW0U9fIuGYrS3rPsOtvvu3zX8p2Sz4DbZ6DK47of5gtrwbmgZkhK4G0w8NxXM
-        5K7n+W1UJ9ZIrCJetA0KvGDmeqHrzyM/XM2C1dSbzMNw7i++d+4aTUn6wc9J4/710d+yzVw86bUb
-        Lheb2SOG6v7dGZ1HfwGtI9d88QMAAA==
+        H4sIAAAAAAAC/61TTY/aMBC98ytGOQNyvHyJ26pQiYrdRWxardquKpNMEgvHjmyHFiH+eyeBsEHq
+        sZEcO/PGM29mXk49gCAWOpGJ8OiCOfwgC8CpedeY0R61J6A1kdEahWQJCpOgCvofQCms/whyeU6d
+        M7l4/FNHC6Icwe2PIMoShXWwUxVCQssbEFDmqE1BS0MslMIEtuKoUGY5uFh4j1bqbAjwmhtLH/Bb
+        HFChznzuwKSgyNH3advjJTBVCAdJtMkqLLZBKG5h6BPTFGMvKcYRdkfwxM1LTeSkJQeFcaXQgdQN
+        InxhHBGkez4XGpTR2T2FPpGuHDGEytX1OLzSaHhBbIoaS60pgIqDRNo6u9Fu+FMHnXadb+f36+nc
+        NjtIpZYu36JwRtf9fI1eNrdRBOKQrU1WWrOrxzFgw5Dz8ZhPp2z2MJoyPuW9NsF7fSmonMjwCb0g
+        HYjbtAOKUJQ+MnvUn0zV6CAcXbJ0ZHOHj/kV98YLdQdNJi1kRZrKODqWjY5enn8tlk+Pz4trAd20
+        bkGkpOqqqqNEUqBQ0h8bRS3foq4Y/T3rtoPN/v7vGv5TsjG/T9a7Du7yw3xD6+RlaBmSEuSAD9kg
+        VcLlA8bCJmoQWyRWkSyaBnHGxwM2GYTTKJzNOZszNuTT8GEWfr+4W3Ql6QdXSe3O1p+34svbarmS
+        Vbb+uuGb3W70yILeufcXQTSNivEDAAA=
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
@@ -92,7 +92,7 @@ interactions:
       Content-Type:
       - application/json; charset=UTF-8
       Date:
-      - Tue, 17 Jun 2025 16:52:41 GMT
+      - Tue, 17 Jun 2025 18:20:00 GMT
       Server:
       - scaffolding on HTTPServer2
       Transfer-Encoding:

@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68519d5800000000",
+      "_dd.p.tid": "6851b1cf00000000",
       "google_genai.request.model": "gemini-2.0-flash-001",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "a82ac5404ab842afa51abaa5935c65a9"
+      "runtime-id": "372193965aa441a68487a102550d743d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 14650
+      "process_id": 38278
     },
-    "duration": 1170732000,
-    "start": 1750179160129874000
+    "duration": 1330034000,
+    "start": 1750184399482219000
   }]]
