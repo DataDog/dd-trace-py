@@ -11,7 +11,6 @@ trap clean EXIT
 exclude_patterns() {
     local patterns=(
         '^ddtrace/vendor/'
-        '^ddtrace/appsec/_iast/_taint_tracking/_vendor/'
         '.eggs/'
         'dd-trace-py/build/'
         '_taint_tracking/CMakeFiles'
