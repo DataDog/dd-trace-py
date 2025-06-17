@@ -478,7 +478,6 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
     ):
-        # TODO: Do something with skip reason
         retry_test = self._atr_get_retry_test(retry_number)
 
         if retry_number >= self._session_settings.atr_settings.max_retries:
@@ -488,7 +487,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
             if self.atr_get_final_status() == TestStatus.FAIL:
                 retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
 
-        retry_test.finish_test(status, exc_info=exc_info)
+        retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
     def atr_get_final_status(self) -> TestStatus:
         if self._status in [TestStatus.PASS, TestStatus.SKIP]:
@@ -574,7 +573,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
 
             retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
 
-        retry_test.finish_test(status, exc_info=exc_info)
+        retry_test.finish_test(status, skip_reason=skip_reason, exc_info=exc_info)
 
     def attempt_to_fix_get_final_status(self) -> TestStatus:
         if all(retry._status == TestStatus.PASS for retry in self._attempt_to_fix_retries):

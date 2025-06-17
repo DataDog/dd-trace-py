@@ -64,7 +64,7 @@ class ATRTestMixin:
     ) -> None:
         log.debug("Finishing ATR retry %s for test %s", retry_number, item_id)
         require_ci_visibility_service().get_test_by_id(item_id).atr_finish_retry(
-            retry_number=retry_number, status=status, exc_info=exc_info
+            retry_number=retry_number, status=status, skip_reason=skip_reason, exc_info=exc_info
         )
 
     @staticmethod

@@ -151,15 +151,15 @@ class TestSession(_TestVisibilityAPIBase):
         from ddtrace.internal.ci_visibility.recorder import on_discover_session
 
         on_discover_session(
-            test_command,
-            reject_duplicates,
-            test_framework,
-            test_framework_version,
-            session_operation_name,
-            module_operation_name,
-            suite_operation_name,
-            test_operation_name,
-            root_dir,
+            test_command=test_command,
+            reject_duplicates=reject_duplicates,
+            test_framework=test_framework,
+            test_framework_version=test_framework_version,
+            session_operation_name=session_operation_name,
+            module_operation_name=module_operation_name,
+            suite_operation_name=suite_operation_name,
+            test_operation_name=test_operation_name,
+            root_dir=root_dir,
         )
 
     @staticmethod
@@ -174,8 +174,8 @@ class TestSession(_TestVisibilityAPIBase):
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        override_status: Optional[TestStatus] = None,
         force_finish_children: bool = False,
+        override_status: Optional[TestStatus] = None,
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 

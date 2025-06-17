@@ -134,11 +134,11 @@ def _is_item_itr_skippable(item_id: TestVisibilityItemId, suite_skipping_mode: b
         return False
 
     if isinstance(item_id, TestSuiteId) and not suite_skipping_mode:
-        log.debug("Skipping mode is suite, but item is not a suite: %s", item_id)
+        log.debug("Skipping mode is at test level, but item is a suite: %s", item_id)
         return False
 
     if isinstance(item_id, TestId) and suite_skipping_mode:
-        log.debug("Skipping mode is test, but item is not a test: %s", item_id)
+        log.debug("Skipping mode is at suite level, but item is a test: %s", item_id)
         return False
     return item_id in itr_data.skippable_items
 
