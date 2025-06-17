@@ -27,14 +27,9 @@ else()
 endif()
 unset(BUILD_MACOS CACHE)
 
-if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1")
-    # Optional: ccache integration
-    find_program(CCACHE_PROGRAM sccache)
-    if(CCACHE_PROGRAM)
-        message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
-    endif()
-endif()
+# if(DEFINED ENV{DD_USE_SCCACHE} AND "$ENV{DD_USE_SCCACHE}" STREQUAL "1") # Optional: ccache integration
+# find_program(CCACHE_PROGRAM sccache) if(CCACHE_PROGRAM) message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+# set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}") endif() endif()
 
 # FetchContent dependencies
 include(FetchContent)
