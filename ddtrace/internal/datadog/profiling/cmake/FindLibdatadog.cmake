@@ -111,7 +111,8 @@ FetchContent_Declare(
     libdatadog
     URL ${LIBDATADOG_URL}
     URL_HASH ${DD_HASH_ALGO}=${DD_HASH}
-    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src")
+    DOWNLOAD_DIR "${FETCHCONTENT_DOWNLOADS_DIR}" SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/libdatadog-src"
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 
 # Make the content available
 FetchContent_MakeAvailable(libdatadog)

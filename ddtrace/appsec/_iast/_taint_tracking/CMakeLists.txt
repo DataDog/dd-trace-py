@@ -50,11 +50,10 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("=====================================")
     add_definitions(-DDONT_COMPILE_ABSEIL)
 else()
-    message("Release mode: using abseil")
+    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
     FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
-                                  DOWNLOAD_EXTRACT_TIMESTAMP true)
+                                  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(absl)
-
 endif()
 
 # pybind11 via FetchContent
