@@ -22,10 +22,33 @@ class TestAzureServiceBusPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, azure_servicebus):
-        pass
+        self.assert_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
 
     def assert_not_module_patched(self, azure_servicebus):
-        pass
+        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
 
     def assert_not_module_double_patched(self, azure_servicebus):
-        pass
+        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
+
+
+class TestAzureServiceBusAioPatch(PatchTestCase.Base):
+    __integration_name__ = "azure_servicebus"
+    __module_name__ = "azure.servicebus.aio"
+    __patch_func__ = patch
+    __unpatch_func__ = unpatch
+    __get_version__ = get_version
+
+    def assert_module_patched(self, azure_servicebus):
+        self.assert_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
+
+    def assert_not_module_patched(self, azure_servicebus):
+        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_not_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)
+
+    def assert_not_module_double_patched(self, azure_servicebus):
+        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.send_messages)
+        self.assert_not_double_wrapped(azure_servicebus.ServiceBusSender.schedule_messages)

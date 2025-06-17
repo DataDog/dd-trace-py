@@ -817,8 +817,8 @@ class PatchTestCase(object):
                     module_name = _MODULES_FOR_CONTRIB[module_name][0]
                 else:
                     # this may be a submodule we are importing, so get the top level module name
-                    # ie: snowflake.connector -> snowflake
-                    module_name = module_name.split(".")[0]
+                    # ie: snowflake.connector -> snowflake or azure.servicebus.aio -> azure.servicebus
+                    module_name = module_name.rpartition(".")[0]
 
                 assert module_name in versions
             else:
