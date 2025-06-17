@@ -17,6 +17,7 @@ add_compile_options(
     -Wno-unknown-pragmas
     -U_FORTIFY_SOURCE  # workaround for Alpine + pybind11
 )
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE CACHE BOOL "Disable IPO/LTO globally")
 
 if(BUILD_MACOS)
     message(STATUS "Compile options for MacOS")
@@ -27,7 +28,7 @@ endif()
 unset(BUILD_MACOS CACHE)
 
 # Optional: ccache integration
-find_program(CCACHE_PROGRAM ccache)
+find_program(CCACHE_PROGRAM sccache)
 if(CCACHE_PROGRAM)
     message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
@@ -68,26 +69,21 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(pybind11)
 
 # Source and header files
-file(GLOB CONFIGURE_DEPENDS
-    SOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp"
+set(SOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/"
 )
-file(GLOB CONFIGURE_DEPENDS
-    HEADER_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/*.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/*.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/*.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.h"
+
+set(HEADER_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/"
 )
-message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
-if(NOT SOURCE_FILES)
-    message(FATAL_ERROR "No source files found! Check your GLOB paths.")
-endif()
 
 
 # Subdirectory for native testing (optional)
