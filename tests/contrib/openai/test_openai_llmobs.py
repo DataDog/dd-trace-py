@@ -896,6 +896,10 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    @pytest.mark.snapshot(
+        token="tests.contrib.openai.test_openai_llmobs.test_response_error",
+        ignores=["meta.error.stack"],
+    )
     def test_response_error(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
         with pytest.raises(Exception):
