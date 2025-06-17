@@ -251,29 +251,6 @@ prechecks:
 
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
-    output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
-    cached_files = []
-    for line in output.decode().splitlines():
-        if not line.startswith("#EXTHASH:"):
-            continue
-        ext_name, ext_hash, ext_target = eval(line.split(":", 1)[-1].strip())
-        cached_files.append((f".ext_cache/{ext_name}/{ext_hash}/{Path(ext_target).name}", ext_target))
-
-    restore_ext_cache = "\n".join(
-        [
-            f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest} "
-            f"&& echo 'Restored {cached_file} -> {dest}') || true"
-            for cached_file, dest in cached_files
-        ]
-    )
-
-    save_ext_cache = "\n".join(
-        [
-            f"    test -f {cached_file} || mkdir -p {Path(cached_file).parent} && (cp {dest} {cached_file} "
-            f"&& echo 'Saved {dest} -> {cached_file}' || true)"
-            for cached_file, dest in cached_files
-        ]
-    )
 
     current_month = datetime.datetime.now().month
 
@@ -297,6 +274,7 @@ build_base_venvs:
     DD_FAST_BUILD: '1'
     DD_CMAKE_INCREMENTAL_BUILD: '1'
     DD_SETUP_CACHE_DOWNLOADS: '1'
+    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
@@ -306,11 +284,20 @@ build_base_venvs:
     set -e -o pipefail
     apt update && apt install -y sccache
     pip install riot==0.20.1
-{restore_ext_cache}
+    if [ ! -d $EXT_CACHE_VENV ]; then
+        python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
+        source $EXT_CACHE_VENV/bin/activate
+        pip install cmake setuptools_rust Cython
+    else
+        source $EXT_CACHE_VENV/bin/activate
+    fi
+    python scripts/gen_ext_cache_scripts.py
+    deactivate
+    $SHELL scripts/restore-ext-cache.sh
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
-{save_ext_cache}
+    $SHELL scripts/save-ext-cache.sh
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
@@ -325,6 +312,8 @@ build_base_venvs:
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
+      - scripts/restore-ext-cache.sh
+      - scripts/save-ext-cache.sh
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
