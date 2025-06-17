@@ -261,14 +261,16 @@ def gen_build_base_venvs() -> None:
 
     restore_ext_cache = "\n".join(
         [
-            f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest}) || true"
+            f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest} "
+            f"&& echo 'Restored {cached_file} -> {dest}') || true"
             for cached_file, dest in cached_files
         ]
     )
 
     save_ext_cache = "\n".join(
         [
-            f"    test -f {cached_file} || mkdir -p {Path(cached_file).parent} && (cp {dest} {cached_file} || true)"
+            f"    test -f {cached_file} || mkdir -p {Path(cached_file).parent} && (cp {dest} {cached_file} "
+            f"&& echo 'Saved {dest} -> {cached_file}' || true)"
             for cached_file, dest in cached_files
         ]
     )
