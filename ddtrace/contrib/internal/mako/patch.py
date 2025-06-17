@@ -1,3 +1,5 @@
+from typing import Dict
+
 import mako
 from mako.template import DefTemplate
 from mako.template import Template
@@ -19,6 +21,10 @@ from .constants import DEFAULT_TEMPLATE_NAME
 def get_version():
     # type: () -> str
     return getattr(mako, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"mako": ">=1.0.0"}
 
 
 def patch():

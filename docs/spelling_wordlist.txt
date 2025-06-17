@@ -27,6 +27,8 @@ asyncio
 asyncpg
 attrs
 autodetected
+autoinstrumentation
+Autoinstrumentation
 autopatching
 autoreload
 autoreloading
@@ -48,6 +50,7 @@ boto
 botocore
 cassandra
 cattrs
+cetera
 CGroup
 cgroups
 cherrypy
@@ -76,6 +79,7 @@ datastores
 dbapi
 ddtrace
 deallocating
+decompiling
 deprecations
 DES
 deserializing
@@ -106,6 +110,7 @@ exec
 Fargate
 fastapi
 Firehose
+flamegraph
 fnmatch
 formatter
 freezegun
@@ -213,6 +218,7 @@ posix
 postgres
 pre
 preconfigured
+preload
 prepend
 prepended
 profiler
@@ -259,6 +265,8 @@ serializable
 serverless
 Serverless
 sha
+sitecustomize
+sitecustomizes
 sns
 SpanContext
 sql
@@ -278,6 +286,7 @@ subdirectory
 subdomains
 submodule
 submodules
+subpackages
 Subprocess
 substring
 suitespec

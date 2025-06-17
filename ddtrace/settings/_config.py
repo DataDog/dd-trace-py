@@ -18,6 +18,8 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
+from .._logger import LogInjectionState
+from .._logger import get_log_injection_state
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -361,9 +363,9 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=False,
+            default=LogInjectionState.STRUCTURED,
             envs=["DD_LOGS_INJECTION"],
-            modifier=asbool,
+            modifier=get_log_injection_state,
         ),
         "_trace_http_header_tags": _ConfigItem(
             default=lambda: {},
@@ -504,6 +506,7 @@ class Config(object):
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
+        self._extra_services_sent = set()  # type: set[str]
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
@@ -535,7 +538,7 @@ class Config(object):
             "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
+            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -667,8 +670,12 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if service_name != self.service:
-            self._extra_services_queue.put(service_name)
+
+        if service_name == self.service or service_name in self._extra_services_sent:
+            return
+
+        self._extra_services_queue.put(service_name)
+        self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self):
         # type: () -> set[str]
