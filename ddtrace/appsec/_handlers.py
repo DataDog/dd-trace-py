@@ -2,7 +2,7 @@ import io
 import json
 from typing import Any
 from typing import Dict
-from typing import Union
+from typing import Optional
 
 import xmltodict
 
@@ -89,8 +89,8 @@ def _on_set_http_meta(
 def _on_lambda_start_request(
     span: Span,
     request_headers: Dict[str, str],
-    request_ip: Union[str, None],
-    body: Union[str, None],
+    request_ip: Optional[str],
+    body: Optional[str],
     is_body_base64: bool,
     raw_uri: str,
     route: str,

@@ -3,6 +3,7 @@ from http.cookies import SimpleCookie
 import json
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Union
 from urllib.parse import parse_qs
 
@@ -13,12 +14,12 @@ from ddtrace.internal.utils import http as http_utils
 
 def normalize_headers(
     request_headers: Dict[str, str],
-) -> Dict[str, Union[str, None]]:
+) -> Dict[str, Optional[str]]:
     """Normalize headers according to the WAF expectations.
 
     The WAF expects headers to be lowercased and empty values to be None.
     """
-    headers: Dict[str, Union[str, None]] = {}
+    headers: Dict[str, Optional[str]] = {}
     for key, value in request_headers.items():
         normalized_key = http_utils.normalize_header_name(key)
         if value:
@@ -29,8 +30,8 @@ def normalize_headers(
 
 
 def parse_http_body(
-    normalized_headers: Dict[str, Union[str, None]],
-    body: Union[str, None],
+    normalized_headers: Dict[str, Optional[str]],
+    body: Optional[str],
     is_body_base64: bool,
 ) -> Union[str, Dict[str, Any], None]:
     """Parse a request body based on the content-type header."""
@@ -65,8 +66,8 @@ def parse_http_body(
 
 
 def extract_cookies_from_headers(
-    normalized_headers: Dict[str, Union[str, None]],
-) -> Union[Dict[str, str], None]:
+    normalized_headers: Dict[str, Optional[str]],
+) -> Optional[Dict[str, str]]:
     """Extract cookies from the WAF headers."""
     cookie_names = {"cookie", "set-cookie"}
     for name in cookie_names:
