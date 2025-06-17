@@ -352,7 +352,7 @@ class TestLLMObsBedrock:
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-    
+
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_modified_stream(cls, bedrock_client, request_vcr, mock_tracer, llmobs_events):
         """
@@ -404,6 +404,7 @@ class TestLLMObsBedrock:
             },
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",

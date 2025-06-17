@@ -115,6 +115,7 @@ def mock_tracer_proxy(bedrock_client_proxy):
     pin._override(bedrock_client_proxy, tracer=mock_tracer)
     yield mock_tracer
 
+
 @pytest.fixture
 def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
     llmobs_service.disable()
