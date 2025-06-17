@@ -842,7 +842,7 @@ setup(
             "PY_MICRO_VERSION": sys.version_info.micro,
             "PY_VERSION_HEX": sys.hexversion,
         },
-        force=True,
+        force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
