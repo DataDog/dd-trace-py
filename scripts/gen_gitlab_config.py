@@ -297,6 +297,9 @@ build_base_venvs:
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    source $EXT_CACHE_VENV/bin/activate
+    python scripts/gen_ext_cache_scripts.py
+    deactivate
     $SHELL scripts/save-ext-cache.sh
   cache:
     # Share pip/sccache between jobs of the same Python version
@@ -314,6 +317,8 @@ build_base_venvs:
     paths:
       - scripts/restore-ext-cache.sh
       - scripts/save-ext-cache.sh
+      - .riot/venv_*
+      - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
       - ddtrace/internal/datadog/profiling/test/test_*
