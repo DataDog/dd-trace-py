@@ -815,10 +815,13 @@ class PatchTestCase(object):
 
                 if module_name in _MODULES_FOR_CONTRIB:
                     module_name = _MODULES_FOR_CONTRIB[module_name][0]
+                elif module_name in {"azure.servicebus.aio"}:
+                    # handle specific submodules where the top level module name includes a dot
+                    module_name = module_name.rpartition(".")[0]
                 else:
                     # this may be a submodule we are importing, so get the top level module name
-                    # ie: snowflake.connector -> snowflake or azure.servicebus.aio -> azure.servicebus
-                    module_name = module_name.rpartition(".")[0]
+                    # ie: snowflake.connector -> snowflake
+                    module_name = module_name.split(".")[0]
 
                 assert module_name in versions
             else:
