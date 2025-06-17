@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.24)
 
 project(_native)
 set(CMAKE_CXX_STANDARD 17)
@@ -53,6 +53,7 @@ else()
     FetchContent_Declare(
         absl
         URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
+        DOWNLOAD_EXTRACT_TIMESTAMP true
     )
     FetchContent_MakeAvailable(absl)
 endif()
@@ -62,28 +63,32 @@ FetchContent_Declare(
     pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
     GIT_TAG v2.12.0
+    DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 FetchContent_MakeAvailable(pybind11)
 
 # Source and header files
 file(GLOB CONFIGURE_DEPENDS
     SOURCE_FILES
-    "*.cpp"
-    "aspects/*.cpp"
-    "initializer/*.cpp"
-    "tainted_ops/*.cpp"
-    "taint_tracking/*.cpp"
-    "utils/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.cpp"
 )
 file(GLOB CONFIGURE_DEPENDS
     HEADER_FILES
-    "*.h"
-    "aspects/*.h"
-    "initializer/*.h"
-    "tainted_ops/*.h"
-    "taint_tracking/*.h"
-    "utils/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/*.h"
 )
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT SOURCE_FILES)
+    message(FATAL_ERROR "No source files found! Check your GLOB paths.")
+endif()
+
 
 # Subdirectory for native testing (optional)
 if(NATIVE_TESTING)
