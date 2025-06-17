@@ -183,6 +183,7 @@ def get_llmobs_metrics_tags(integration_name, span):
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
 
+
 def parse_llmobs_metric_args(metrics):
     usage = {}
     input_tokens = _get_attr(metrics, "prompt_tokens", None)
@@ -195,6 +196,7 @@ def parse_llmobs_metric_args(metrics):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
 
 def get_system_instructions_from_google_model(model_instance):
     """

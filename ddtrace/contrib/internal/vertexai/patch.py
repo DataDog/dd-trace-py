@@ -8,7 +8,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse, extract_metrics_from_response
+from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import tag_request
 from ddtrace.llmobs._integrations import VertexAIIntegration
@@ -74,7 +74,6 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
             return TracedVertexAIStreamResponse(
                 generations, model_instance, integration, span, args, kwargs, is_chat, history
             )
-        metrics = extract_metrics_from_response(generations)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -84,7 +83,6 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
                 kwargs["history"] = history
-                kwargs["metrics"] = metrics
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
@@ -110,7 +108,6 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
             return TracedAsyncVertexAIStreamResponse(
                 generations, model_instance, integration, span, args, kwargs, is_chat, history
             )
-        metrics = extract_metrics_from_response(generations)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -120,7 +117,6 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
             if integration.is_pc_sampled_llmobs(span):
                 kwargs["instance"] = model_instance
                 kwargs["history"] = history
-                kwargs["metrics"] = metrics
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
