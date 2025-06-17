@@ -46,17 +46,6 @@ def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
             if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                 tracer.enabled = True
 
-    if "_logs_injection" in items:
-        # TODO: Refactor the logs injection code to import from a core component
-        if config._logs_injection:
-            from ddtrace.contrib.internal.logging.patch import patch
-
-            patch()
-        else:
-            from ddtrace.contrib.internal.logging.patch import unpatch
-
-            unpatch()
-
 
 def post_preload():
     if _config.enabled:
@@ -139,7 +128,7 @@ def apm_tracing_rc(lib_config, dd_config):
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
     if "log_injection_enabled" in lib_config:
-        base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
+        base_rc_config["_logs_injection"] = str(lib_config["log_injection_enabled"]).lower()
 
     if "tracing_tags" in lib_config:
         tags = lib_config["tracing_tags"]
