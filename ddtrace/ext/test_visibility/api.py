@@ -91,7 +91,7 @@ def is_test_visibility_enabled():
     try:
         enabled = require_ci_visibility_service().enabled
     except RuntimeError:
-        pass
+        log.warning("Failed to retrieve Test Visibility service", exc_info=True)
     return enabled
 
 
