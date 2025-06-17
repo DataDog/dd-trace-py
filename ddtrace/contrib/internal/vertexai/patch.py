@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import tag_request
-from ddtrace.contrib.internal.vertexai._utils import tag_response
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
@@ -75,7 +74,6 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
             return TracedVertexAIStreamResponse(
                 generations, model_instance, integration, span, args, kwargs, is_chat, history
             )
-        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -110,7 +108,6 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
             return TracedAsyncVertexAIStreamResponse(
                 generations, model_instance, integration, span, args, kwargs, is_chat, history
             )
-        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
