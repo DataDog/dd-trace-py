@@ -13,6 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
 log = get_logger(__name__)
@@ -24,17 +25,6 @@ _ANTHROPIC = "anthropic"
 _COHERE = "cohere"
 _META = "meta"
 _STABILITY = "stability"
-
-_MODEL_TYPE_IDENTIFIERS = (
-    "foundation-model/",
-    "custom-model/",
-    "provisioned-model/",
-    "imported-model/",
-    "prompt/",
-    "endpoint/",
-    "inference-profile/",
-    "default-prompt-router/",
-)
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
@@ -453,45 +443,11 @@ def handle_bedrock_response(
     return result
 
 
-def _parse_model_id(model_id: str):
-    """Best effort to extract the model provider and model name from the bedrock model ID.
-    model_id can be a 1/2 period-separated string or a full AWS ARN, based on the following formats:
-    1. Base model: "{model_provider}.{model_name}"
-    2. Cross-region model: "{region}.{model_provider}.{model_name}"
-    3. Other: Prefixed by AWS ARN "arn:aws{+region?}:bedrock:{region}:{account-id}:"
-        a. Foundation model: ARN prefix + "foundation-model/{region?}.{model_provider}.{model_name}"
-        b. Custom model: ARN prefix + "custom-model/{model_provider}.{model_name}"
-        c. Provisioned model: ARN prefix + "provisioned-model/{model-id}"
-        d. Imported model: ARN prefix + "imported-module/{model-id}"
-        e. Prompt management: ARN prefix + "prompt/{prompt-id}"
-        f. Sagemaker: ARN prefix + "endpoint/{model-id}"
-        g. Inference profile: ARN prefix + "{application-?}inference-profile/{model-id}"
-        h. Default prompt router: ARN prefix + "default-prompt-router/{prompt-id}"
-    If model provider cannot be inferred from the model_id formatting, then default to "custom"
-    """
-    if not model_id.startswith("arn:aws"):
-        model_meta = model_id.split(".")
-        if len(model_meta) < 2:
-            return "custom", model_meta[0]
-        return model_meta[-2], model_meta[-1]
-    for identifier in _MODEL_TYPE_IDENTIFIERS:
-        if identifier not in model_id:
-            continue
-        model_id = model_id.rsplit(identifier, 1)[-1]
-        if identifier in ("foundation-model/", "custom-model/"):
-            model_meta = model_id.split(".")
-            if len(model_meta) < 2:
-                return "custom", model_id
-            return model_meta[-2], model_meta[-1]
-        return "custom", model_id
-    return "custom", "custom"
-
-
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_id = params.get("modelId")
-    model_provider, model_name = _parse_model_id(model_id)
+    model_provider, model_name = parse_model_id(model_id)
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
