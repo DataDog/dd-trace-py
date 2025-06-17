@@ -196,6 +196,14 @@ class ExtensionHashes(build_ext):
 
             print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), str(full_path)))
 
+            # Include any dependencies that might have been built alongside
+            # the extension.
+            if isinstance(ext, CMakeExtension):
+                for dependency in ext.dependencies:
+                    print(
+                        "#EXTHASH:", (f"{ext.name}-{dependency.name}", sources_hash.hexdigest(), str(dependency) + "*")
+                    )
+
 
 class LibraryDownload:
     CACHE_DIR = HERE / ".download_cache"
@@ -400,7 +408,7 @@ class CMakeBuild(build_ext):
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
-    def build_extension_cmake(self, ext):
+    def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
             # DEV: Rudimentary incremental build support. We copy the logic from
             # setuptools' build_ext command, best effort.
@@ -419,7 +427,28 @@ class CMakeBuild(build_ext):
                 if ext.source_dir
                 else []
             )
-            if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+
+            force = self.force
+
+            if ext.dependencies:
+                dependencies = [
+                    str(d.resolve())
+                    for dependency in ext.dependencies
+                    for d in dependency.parent.glob(dependency.name + "*")
+                    if d.is_file()
+                ]
+                if not dependencies:
+                    # We expected some dependencies but none were found so we
+                    # force the build to happen
+                    force = True
+
+            else:
+                dependencies = []
+
+            if not (
+                force
+                or newer_group([str(_.resolve()) for _ in sources] + dependencies, str(ext_path.resolve()), "newer")
+            ):
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
@@ -591,12 +620,13 @@ class CMakeExtension(Extension):
     def __init__(
         self,
         name,
-        source_dir=".",
+        source_dir=Path("."),
         cmake_args=[],
         build_args=[],
         install_args=[],
         build_type=None,
         optional=True,  # By default, extensions are optional
+        dependencies=[],
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -605,6 +635,7 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
+        self.dependencies = dependencies
 
 
 def check_rust_toolchain():
@@ -773,6 +804,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
+                dependencies=[CRASHTRACKER_DIR.parent / "libdd_wrapper"],
             )
         )
 
