@@ -79,7 +79,7 @@ def test_google_genai_generate_content_error(genai):
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
-            not_an_argument="why am i here?",  # invalid argument
+            not_an_argument="why am i here?",
         )
 
 
