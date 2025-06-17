@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import wrapt
 from typing import Any
 from typing import Dict
 from typing import List
@@ -943,3 +944,96 @@ def get_final_message_converse_stream_message(
         message_output["tool_calls"] = tool_calls
 
     return message_output
+
+
+class LLMObsTracedStream(wrapt.ObjectProxy):
+    def __init__(self, wrapped):
+        super().__init__(wrapped)
+        self._iterator = iter(wrapped) if not hasattr(wrapped, '__next__') else wrapped
+        self._stream_processor = self.stream_processor()
+        next(self._stream_processor)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            chunk = next(self._iterator)
+            self._stream_processor.send(chunk)
+            return chunk
+        except StopIteration:
+            self._stream_processor.send(None)
+            raise
+        except Exception as e:
+            self._stream_processor.throw(e)
+            raise
+
+    def stream_processor(self):
+        try:
+            chunk = yield
+            while chunk is not None:
+                self.chunk_callback(chunk)
+                chunk = yield
+        except Exception as e:
+            self.exception_callback(e)
+            raise
+        finally:
+            self.stream_finished_callback()
+    
+    def chunk_callback(self, chunk):
+        raise NotImplementedError("Subclasses must implement chunk_callback")
+    
+    def exception_callback(self, e):
+        raise NotImplementedError("Subclasses must implement exception_callback")
+    
+    def stream_finished_callback(self):
+        raise NotImplementedError("Subclasses must implement stream_finished_callback")
+
+
+class AsyncLLMObsTracedStream(wrapt.ObjectProxy):
+    def __init__(self, wrapped):
+        super().__init__(wrapped)
+        self._iterator = wrapped if hasattr(wrapped, '__anext__') else aiter(wrapped)
+        self._stream_processor = self.stream_processor()
+        self._generator_started = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._generator_started:
+            await self._stream_processor.asend(None)
+            self._generator_started = True
+            
+        try:
+            chunk = await anext(self._iterator)
+            await self._stream_processor.asend(chunk)
+            return chunk
+        except StopAsyncIteration:
+            await self._stream_processor.asend(None)
+            raise
+        except Exception as e:
+            await self._stream_processor.athrow(e)
+            raise
+
+    async def stream_processor(self):
+        try:
+            chunk = yield
+            while chunk is not None:
+                self.chunk_callback(chunk)
+                chunk = yield
+        except Exception as e:
+            self.exception_callback(e)
+            raise
+        finally:
+            self.stream_finished_callback()
+    
+    def chunk_callback(self, chunk):
+        raise NotImplementedError("Subclasses must implement chunk_callback")
+    
+    def exception_callback(self, e):
+        raise NotImplementedError("Subclasses must implement exception_callback")
+    
+    def stream_finished_callback(self):
+        raise NotImplementedError("Subclasses must implement stream_finished_callback")
+    
