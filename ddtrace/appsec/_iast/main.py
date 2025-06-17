@@ -88,14 +88,10 @@ def patch_iast(patch_modules=IAST_PATCH):
 
     # Header Injection validators
     # Header injection for > Django 3.2
-    iast_funcs.wrap_function(
-        "django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator
-    )
+    iast_funcs.wrap_function("django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator)
 
     # Header injection for <= Django 2.2
-    iast_funcs.wrap_function(
-        "django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator
-    )
+    iast_funcs.wrap_function("django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator)
 
     # Unvalidated Redirect validators
     iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
