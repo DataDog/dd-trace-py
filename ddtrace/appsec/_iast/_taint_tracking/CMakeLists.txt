@@ -15,7 +15,7 @@ add_compile_options(
     -pthread
     -Wall
     -Wno-unknown-pragmas
-    -U_FORTIFY_SOURCE  # workaround for Alpine + pybind11
+    -U_FORTIFY_SOURCE # workaround for Alpine + pybind11
 )
 
 if(BUILD_MACOS)
@@ -35,10 +35,13 @@ endif()
 
 # FetchContent dependencies
 include(FetchContent)
-set(FETCHCONTENT_BASE_DIR ${CMAKE_BINARY_DIR}/_deps CACHE PATH "Dependency cache dir")
+set(FETCHCONTENT_BASE_DIR
+    ${CMAKE_BINARY_DIR}/_deps
+    CACHE PATH "Dependency cache dir")
 
 # Conditionally include absl
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false"))
+if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
+                                                                                 "false"))
     message("==============================================================")
     message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
     message("==============================================================")
@@ -50,15 +53,15 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL)
 else()
     message("Release mode: using abseil")
-    FetchContent_Declare(
-        absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
-        DOWNLOAD_EXTRACT_TIMESTAMP true
-    )
+    FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
+                                  DOWNLOAD_EXTRACT_TIMESTAMP true)
     FetchContent_MakeAvailable(absl)
 
     # Turn off LTO on all Abseil targets after they're declared
-    get_property(absl_targets DIRECTORY "${absl_SOURCE_DIR}" PROPERTY BUILDSYSTEM_TARGETS)
+    get_property(
+        absl_targets
+        DIRECTORY "${absl_SOURCE_DIR}"
+        PROPERTY BUILDSYSTEM_TARGETS)
     foreach(tgt ${absl_targets})
         set_target_properties(${tgt} PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
     endforeach()
@@ -69,27 +72,19 @@ FetchContent_Declare(
     pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git
     GIT_TAG v2.12.0
-    DOWNLOAD_EXTRACT_TIMESTAMP true
-)
+    DOWNLOAD_EXTRACT_TIMESTAMP true)
 FetchContent_MakeAvailable(pybind11)
 
 # Source and header files
 set(SOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/"
-)
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/" "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/" "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/")
 
 set(HEADER_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/utils/"
-)
-
+    "${CMAKE_CURRENT_SOURCE_DIR}/aspects/" "${CMAKE_CURRENT_SOURCE_DIR}/initializer/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tainted_ops/" "${CMAKE_CURRENT_SOURCE_DIR}/taint_tracking/"
+    "${CMAKE_CURRENT_SOURCE_DIR}/utils/")
 
 # Subdirectory for native testing (optional)
 if(NATIVE_TESTING)
@@ -110,7 +105,9 @@ set_target_properties(_native PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Link absl if enabled
-if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false")))
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
+   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
+                                                                                          STREQUAL "false")))
     target_link_libraries(_native PRIVATE absl::node_hash_map)
 endif()
 
@@ -123,5 +120,4 @@ install(
     DESTINATION LIBRARY
     DESTINATION ${LIB_INSTALL_DIR}
     ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-    RUNTIME DESTINATION ${LIB_INSTALL_DIR}
-)
+    RUNTIME DESTINATION ${LIB_INSTALL_DIR})
