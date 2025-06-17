@@ -1,16 +1,12 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
 
-set(APP_NAME _native)
+project(_native)
+set(CMAKE_CXX_STANDARD 17)
+
 option(BUILD_MACOS "Build for MacOS" OFF)
 option(NATIVE_TESTING "Load test subdirectories and targets" ON)
 
-project(${APP_NAME})
-
-set(CMAKE_CXX_STANDARD 17)
-
-# -U_FORTIFY_SOURCE to fix a bug in alpine and pybind11 https://github.com/pybind/pybind11/issues/1650
-# https://gitlab.alpinelinux.org/alpine/aports/-/issues/8626
+# Compile options
 add_compile_options(
     -fPIC
     -fexceptions
@@ -19,90 +15,99 @@ add_compile_options(
     -pthread
     -Wall
     -Wno-unknown-pragmas
-    -U_FORTIFY_SOURCE)
+    -U_FORTIFY_SOURCE  # workaround for Alpine + pybind11
+)
 
 if(BUILD_MACOS)
-    # https://pybind11.readthedocs.io/en/stable/compiling.html#building-manually
     message(STATUS "Compile options for MacOS")
     add_link_options(-ldl -undefined dynamic_lookup)
 else()
     message(STATUS "Compile options for Linux/Win")
-endif(BUILD_MACOS)
+endif()
 unset(BUILD_MACOS CACHE)
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
+# Optional: ccache integration
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+endif()
+
+# FetchContent dependencies
+include(FetchContent)
+set(FETCHCONTENT_BASE_DIR ${CMAKE_BINARY_DIR}/_deps CACHE PATH "Dependency cache dir")
+
+# Conditionally include absl
+if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false"))
     message("==============================================================")
     message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
     message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
+    add_definitions(-DDONT_COMPILE_ABSEIL)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("=====================================")
     message("WARNING: Debug mode: not using abseil")
     message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
+    add_definitions(-DDONT_COMPILE_ABSEIL)
 else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip")
+    message("Release mode: using abseil")
+    FetchContent_Declare(
+        absl
+        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
+    )
     FetchContent_MakeAvailable(absl)
 endif()
 
-include_directories(".")
+# pybind11 via FetchContent
+FetchContent_Declare(
+    pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG v2.12.0
+)
+FetchContent_MakeAvailable(pybind11)
 
-file(
-    GLOB
+# Source and header files
+file(GLOB CONFIGURE_DEPENDS
     SOURCE_FILES
     "*.cpp"
     "aspects/*.cpp"
     "initializer/*.cpp"
     "tainted_ops/*.cpp"
     "taint_tracking/*.cpp"
-    "utils/*.cpp")
-file(
-    GLOB
+    "utils/*.cpp"
+)
+file(GLOB CONFIGURE_DEPENDS
     HEADER_FILES
     "*.h"
     "aspects/*.h"
     "initializer/*.h"
     "tainted_ops/*.h"
     "taint_tracking/*.h"
-    "utils/*.h")
+    "utils/*.h"
+)
 
-# Find ICU library (not needed for now) find_package(ICU REQUIRED COMPONENTS uc i18n)  # 'uc' for the common library,
-# 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
-# ${ICU_LIBRARIES})
-
-# Debug messages
-message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
-message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
-message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
-message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
-# message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
-
-add_subdirectory(_vendor/pybind11)
+# Subdirectory for native testing (optional)
 if(NATIVE_TESTING)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 
-# Set verbose mode so compiler and args are shown
-set(CMAKE_VERBOSE_MAKEFILE ON)
-
+# Define pybind11 module
 pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
-get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
-set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 
-# target_link_libraries(_native PRIVATE ${ICU_LIBS})
+target_include_directories(_native PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug")
-   AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}"
-                                                                                          STREQUAL "false")))
-    target_link_libraries(${APP_NAME} PRIVATE absl::node_hash_map)
+# Link absl if enabled
+if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT (DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL "false")))
+    target_link_libraries(_native PRIVATE absl::node_hash_map)
 endif()
 
+# Output directory
+set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
+
+# Optional install target
 install(
     TARGETS _native
     DESTINATION LIBRARY
     DESTINATION ${LIB_INSTALL_DIR}
     ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-    RUNTIME DESTINATION ${LIB_INSTALL_DIR})
+    RUNTIME DESTINATION ${LIB_INSTALL_DIR}
+)
