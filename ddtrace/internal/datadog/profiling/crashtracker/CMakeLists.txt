@@ -81,7 +81,7 @@ if(LIB_INSTALL_DIR)
 endif()
 
 # Crashtracker receiver binary
-add_executable(crashtracker_exe src/crashtracker.cpp)
+add_executable(crashtracker_exe src/crashtracker.cpp python_runtime_stub.c)
 target_include_directories(crashtracker_exe PRIVATE .. ${Datadog_INCLUDE_DIRS})
 
 # The CRASHTRACKER_EXE_TARGET_NAME should have been set by dd_wrapper
@@ -100,9 +100,6 @@ elseif(UNIX)
     set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
-target_link_options(crashtracker_exe PRIVATE -Wl,--no-as-needed)
-target_link_libraries(crashtracker_exe PRIVATE ${Python3_LIBRARIES})
-message(STATUS "Python3_LIBRARIES = ${Python3_LIBRARIES}")
 target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
 
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
