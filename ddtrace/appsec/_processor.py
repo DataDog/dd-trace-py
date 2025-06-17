@@ -35,7 +35,6 @@ from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
-from ddtrace.ext import SpanTypes
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -232,9 +231,6 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
-            return None
-
         if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
@@ -362,7 +358,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
             self._ddwaf._at_request_end()
             _asm_request_context.end_context(span)

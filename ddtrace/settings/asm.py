@@ -66,6 +66,7 @@ class ASMConfig(DDConfig):
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
     _asm_processed_span_types = {SpanTypes.WEB, SpanTypes.GRPC}
+    _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
@@ -230,6 +231,7 @@ class ASMConfig(DDConfig):
 
         if in_aws_lambda():
             self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
+            self._asm_http_span_types.add(SpanTypes.SERVERLESS)
 
             # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
             tracer_config._remote_config_enabled = False
