@@ -1,5 +1,58 @@
 interactions:
 - request:
+    body: grant_type=refresh_token&client_id=764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com&client_secret=<not-real-secret>&refresh_token=<not-real-secret>
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '268'
+      Content-Type:
+      - application/x-www-form-urlencoded
+    method: POST
+    uri: https://oauth2.googleapis.com/token
+  response:
+    body:
+      string: "{\n  \"access_token\": \"<not-real-secret>\",\n
+        \ \"expires_in\": 3599,\n  \"scope\": \"https://www.googleapis.com/auth/cloud-platform
+        https://www.googleapis.com/auth/sqlservice.login https://www.googleapis.com/auth/userinfo.email
+        openid\",\n  \"token_type\": \"Bearer\",\n  \"id_token\": \"<not-real-secret>\"\n}"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 17 Jun 2025 16:52:40 GMT
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - scaffolding on HTTPServer2
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 200
+      message: OK
+- request:
     body: '{"contents": [{"parts": [{"text": "Why is the sky blue? Explain in 2-3
       sentences."}], "role": "user"}], "generationConfig": {"temperature": 0.0, "maxOutputTokens":
       100}}'
@@ -21,16 +74,16 @@ interactions:
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAC/61TUY+bMAx+76+weC4V0Ja79u203rRp613XomnaVk0pGIgaEpSEbqjqf5+B0qPS
-        HocUEvw59mf74zwCcGImE54wi8ZZwg+yAJzbd4MpaVFaAnoTGbUSSBanUAkKZ/wGlEzbtyDdcx6c
-        ycXinyaaE+UI5lgDK0tk2sBBVAgJLauAQZmjVAUtCTETAhPYslogz3IwMbMWNZfZBGCXK00f8Jud
-        UKDMbG5ApSDI0Y5pO2IXmCqEEyfaZGUa+yAUt1D0iWmKseUUo4ZDDZa4WS6JHNfkIDCuBBrgskWY
-        LZQhgnTP5kyCUDK7pzAm0pUhhlCZph6DVxotL4hV0WCpVgVQcZBw3WRX0kx+SmfQrsvtvL+eLn2z
-        nZRLbvItMqNk089d9Lq5jcJhp+yzykqtDs04XG/iB9NZ+LiYeguPdv8xHPUJ9s0lpzIswzVaRjpg
-        t2k7FKEobaSOKN+pqtWBP+uyDGRzh8+DK26VZeIOCsMe0ixNeRzVZauj15dfq+f108vqWsAwrVkR
-        KS6GqhookRTIBLd1q6jnb9FQjPaedd/Bdt//u4b/lGwe3CcbXQfX/TBfURveDS1DUgJ3g4nnpoKZ
-        3PU8v43qxBqJVcSLtkGBF8xdL3T9h8ifLWezpR9OpuHDPJx/79w1mpL0gx+Txv3Lh8WWrYPp+2rz
-        SZ6yjeuedtlT5owuo7904x888QMAAA==
+        H4sIAAAAAAAC/61TTY+bMBC951eMOIcI2IR83FbNHrrajyjLtlXbqHJgACvGRrZJi6L89w4QskTq
+        sUjGZt545s3M4zQCcGImE54wi8ZZwQ+yAJzad4MpaVFaAnoTGbUSSBanUAkKZ/wBlEzbjyDdcxqc
+        ycXinyaaE+UI5lADK0tk2sBeVAgJLauAQZmjVAUtCTETAhPYslogz3IwMbMWNZfZBOAtV5o+4Dc7
+        okCZ2dyASkGQox3TdsAuMFUIR060yco09kEobqHoE9MUY8spRg37Gixxs1wSOa7JQWBcCTTAZYsw
+        WyhDBOmezZkEoWR2S2FMpCtDDKEyTT0GLzRaXhCrosFSrQqg4iDhusmupJn8lM6gXefreXc5nftm
+        OymX3ORbZEbJpp9v0evmOgqHHbMnlZVa7ZtxuN7ED+6m4WJ55y092v1FOOoT7JpLTmVYhs9oGemA
+        XaftUISitJE6oPykqlYH/rTLMpDNDT4LLrhVlokbKAx7SLM05XFUl62OXl9+rR+e71/WlwKGac2a
+        SHExVNVAiaRAJritW0U9fIuGYrS3rPsOtvvu3zX8p2Sz4DbZ6DK47of5gtrwbmgZkhK4G0w8NxXM
+        5K7n+W1UJ9ZIrCJetA0KvGDmeqHrzyM/XM2C1dSbzMNw7i++d+4aTUn6wc9J4/710d+yzVw86bUb
+        Lheb2SOG6v7dGZ1HfwGtI9d88QMAAA==
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
@@ -39,7 +92,7 @@ interactions:
       Content-Type:
       - application/json; charset=UTF-8
       Date:
-      - Tue, 17 Jun 2025 14:44:16 GMT
+      - Tue, 17 Jun 2025 16:52:41 GMT
       Server:
       - scaffolding on HTTPServer2
       Transfer-Encoding:
