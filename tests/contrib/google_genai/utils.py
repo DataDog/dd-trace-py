@@ -25,8 +25,8 @@ def get_google_genai_vcr(subdirectory_name=""):
         # Ignore requests to the agent
         ignore_localhost=True,
         ignore_hosts=[
-            "169.254.169.254", #GCP metadata server
-            "metadata.google.internal", #GCP metadata server
+            "169.254.169.254",  # GCP metadata server
+            "metadata.google.internal",  # GCP metadata server
             "oauth2.googleapis.com",
         ],
     )
