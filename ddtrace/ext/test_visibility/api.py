@@ -180,7 +180,7 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
         session = require_ci_visibility_service().get_session()
-        session.finish(force_finish_children, override_status)
+        session.finish(force=force_finish_children, override_status=override_status)
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
@@ -243,7 +243,7 @@ class TestModule(TestBase):
         )
 
         require_ci_visibility_service().get_module_by_id(item_id).finish(
-            override_status=override_status  # , force_finish_children=force_finish_children
+            force=force_finish_children, override_status=override_status
         )
 
 
@@ -292,7 +292,9 @@ class TestSuite(TestBase):
             override_status,
         )
 
-        require_ci_visibility_service().get_suite_by_id(item_id).finish(override_status=override_status)
+        require_ci_visibility_service().get_suite_by_id(item_id).finish(
+            force=force_finish_children, override_status=override_status
+        )
 
 
 class Test(TestBase):
