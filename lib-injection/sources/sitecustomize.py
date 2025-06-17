@@ -416,7 +416,7 @@ def _inject():
             )
             RESULT = "error"
             RESULT_REASON = "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
-            RESULT_CLASS = "missing_site-packages"
+            RESULT_CLASS = "missing_packages"
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -484,7 +484,7 @@ def _inject():
                     ),
                 )
                 RESULT = "success"
-                RESULT_REASON = "Successfully configued ddtrace package"
+                RESULT_REASON = "Successfully configured ddtrace package"
                 RESULT_CLASS = "success"
             except Exception as e:
                 TELEMETRY_DATA.append(
@@ -510,7 +510,7 @@ def _inject():
         )
         RESULT = "abort"
         RESULT_REASON = "User-installed ddtrace found: %s, aborting site-packages injection" % module_origin
-        RESULT_CLASS = "user_installed"
+        RESULT_CLASS = "manually_instrumented"
 try:
     try:
         _inject()
