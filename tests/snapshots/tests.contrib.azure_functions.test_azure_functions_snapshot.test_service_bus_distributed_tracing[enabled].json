@@ -41,7 +41,10 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
+         "messaging.destination.name": "queue.1",
+         "messaging.system": "Microsoft.ServiceBus",
          "span.kind": "producer"
        },
        "metrics": {
@@ -84,7 +87,10 @@
        "meta": {
          "_dd.base_service": "test-func",
          "_dd.p.tid": "684c654000000000",
+         "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
+         "messaging.destination.name": "topic.1",
+         "messaging.system": "Microsoft.ServiceBus",
          "span.kind": "producer"
        },
        "metrics": {
