@@ -23,7 +23,9 @@ def extract_provider_and_model_name(kwargs):
     return provider_name, model_name if len(model_name) > 0 else "unknown"
 
 
-class BaseTracedGoogleGenAIStreamResponse:
+import wrapt
+
+class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
     def __init__(self, generation_response, span):
         self._generation_response = generation_response
         self._dd_span = span
