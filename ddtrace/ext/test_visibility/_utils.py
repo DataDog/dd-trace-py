@@ -28,5 +28,5 @@ def _catch_and_log_exceptions(func):
     return wrapper
 
 
-if TESTING_RAISE.lower() in ("1", "true"):
+if TESTING_RAISE and TESTING_RAISE.lower() in ("1", "true"):
     _catch_and_log_decorator = _noop_decorator
