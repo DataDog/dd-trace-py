@@ -1,9 +1,9 @@
 from typing import Any
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import Generator
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -165,7 +165,8 @@ class BedrockIntegration(BaseLLMIntegration):
         ]
     ):
         """
-        Listens for output chunks from a converse stream response and builds a list of output messages, usage metrics, and metadata.
+        Listens for output chunks from a converse stream response and builds a
+        list of output messages, usage metrics, and metadata.
 
         Converse stream response comes in chunks. The chunks we care about are:
         - a message start/stop event, or
