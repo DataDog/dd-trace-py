@@ -1,10 +1,9 @@
 from functools import wraps
-import os
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.logger import get_logger
 
 
-TESTING_RAISE = os.getenv("DD_TESTING_RAISE", None)
 log = get_logger(__name__)
 
 
@@ -28,5 +27,5 @@ def _catch_and_log_exceptions(func):
     return wrapper
 
 
-if TESTING_RAISE and TESTING_RAISE.lower() in ("1", "true"):
+if ddconfig._raise:
     _catch_and_log_decorator = _noop_decorator
