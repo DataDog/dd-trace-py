@@ -37,6 +37,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     ):
         return func(*args, **kwargs)
 
+
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
@@ -49,6 +50,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=False,
     ):
         return await func(*args, **kwargs)
+
 
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):

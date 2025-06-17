@@ -1,5 +1,7 @@
 import sys
 
+import wrapt
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -25,8 +27,6 @@ def extract_provider_and_model_name(kwargs):
             provider_name = MODEL_PREFIX_TO_PROVIDER[prefix]
     return provider_name, model_name if len(model_name) > 0 else "unknown"
 
-
-import wrapt
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
     def __init__(self, generation_response, span):

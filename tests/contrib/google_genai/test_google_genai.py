@@ -1,7 +1,4 @@
-import os
-
 from google.genai import types
-import mock
 import pytest
 
 from tests.contrib.google_genai.utils import get_google_genai_vcr
@@ -150,6 +147,7 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
         )
         async for _ in response:
             pass
+
 
 # TODO: fix vertexai
 # @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
