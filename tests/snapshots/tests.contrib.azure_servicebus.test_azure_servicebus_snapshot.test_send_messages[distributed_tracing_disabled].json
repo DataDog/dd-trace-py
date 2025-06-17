@@ -16,7 +16,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },
@@ -47,7 +47,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },
@@ -78,7 +78,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },
@@ -109,7 +109,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },
@@ -140,7 +140,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },
@@ -171,7 +171,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "runtime-id": "06488ac8750a44bf89e4dc21198721ef",
       "span.kind": "producer"
     },

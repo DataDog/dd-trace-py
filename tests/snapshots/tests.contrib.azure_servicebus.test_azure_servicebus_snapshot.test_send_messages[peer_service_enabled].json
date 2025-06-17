@@ -17,7 +17,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"
@@ -50,7 +50,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"
@@ -83,7 +83,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"
@@ -116,7 +116,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"
@@ -149,7 +149,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"
@@ -182,7 +182,7 @@
       "component": "azure_servicebus",
       "language": "python",
       "messaging.destination.name": "queue.1",
-      "messaging.system": "Microsoft.ServiceBus",
+      "messaging.system": "servicebus",
       "peer.service": "localhost",
       "runtime-id": "3d6ee07da9e54074ab812b50431ae5be",
       "span.kind": "producer"

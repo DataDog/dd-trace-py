@@ -44,7 +44,7 @@
          "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
-         "messaging.system": "Microsoft.ServiceBus",
+         "messaging.system": "servicebus",
          "span.kind": "producer"
        },
        "metrics": {
@@ -67,7 +67,7 @@
          "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
-         "messaging.system": "Microsoft.ServiceBus",
+         "messaging.system": "servicebus",
          "span.kind": "producer"
        },
        "metrics": {

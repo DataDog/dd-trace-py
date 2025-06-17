@@ -869,7 +869,7 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span = ctx.span
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-    span.set_tag_str(MESSAGING_SYSTEM, "Microsoft.ServiceBus")
+    span.set_tag_str(MESSAGING_SYSTEM, "servicebus")
     span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
     span.set_tag_str(azure_servicebusx.NAMESPACE, fully_qualified_namespace)
 
