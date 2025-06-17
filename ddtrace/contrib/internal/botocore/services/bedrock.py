@@ -124,7 +124,7 @@ class TracedBotocoreConverseStream(wrapt.ObjectProxy):
         self._execution_ctx = ctx
 
     def __iter__(self):
-        stream_processor = self._execution_ctx["bedrock_integration"]._output_stream_processor()
+        stream_processor = self._execution_ctx["bedrock_integration"]._converse_output_stream_processor()
         exception_raised = False
         try:
             next(stream_processor)

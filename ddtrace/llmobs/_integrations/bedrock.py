@@ -82,8 +82,8 @@ class BedrockIntegration(BaseLLMIntegration):
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
                 """
-                At this point, we signal to `_output_stream_processor` that we're done with the stream
-                and ready to get the final results. This causes `_output_stream_processor` to break out of the
+                At this point, we signal to `_converse_output_stream_processor` that we're done with the stream
+                and ready to get the final results. This causes `_converse_output_stream_processor` to break out of the
                 while loop, do some final processing, and return the final results.
                 """
                 try:
@@ -157,7 +157,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _output_stream_processor() -> (
+    def _converse_output_stream_processor() -> (
         Generator[
             None,
             Dict[str, Any],
