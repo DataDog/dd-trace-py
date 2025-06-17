@@ -165,7 +165,7 @@ class BedrockIntegration(BaseLLMIntegration):
         ]
     ):
         """
-        Listens for output chunks from a converse stream response and builds a
+        Listens for output chunks from a converse streamed response and builds a
         list of output messages, usage metrics, and metadata.
 
         Converse stream response comes in chunks. The chunks we care about are:
