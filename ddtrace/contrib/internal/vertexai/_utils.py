@@ -44,9 +44,11 @@ class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:
+            metrics = extract_metrics_from_response(self._chunks[0])
             if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
                 self._kwargs["instance"] = self._model_instance
                 self._kwargs["history"] = self._history
+                self._kwargs["metrics"] = metrics
                 self._dd_integration.llmobs_set_tags(
                     self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
                 )
@@ -73,9 +75,11 @@ class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:
+            metrics = extract_metrics_from_response(self._chunks[0])
             if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
                 self._kwargs["instance"] = self._model_instance
                 self._kwargs["history"] = self._history
+                self._kwargs["metrics"] = metrics
                 self._dd_integration.llmobs_set_tags(
                     self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
                 )
@@ -104,3 +108,19 @@ def tag_request(span, integration, instance, args, kwargs, is_chat):
 
     if stream:
         span.set_tag("vertexai.request.stream", True)
+
+def extract_metrics_from_response(generations):
+    """Extract metrics from the response."""
+    generations_dict = generations.to_dict()
+
+    token_counts = generations_dict.get("usage_metadata", None)
+    if not token_counts:
+        return
+
+    metrics = {
+        "prompt_tokens": _get_attr(token_counts, "prompt_token_count", 0),
+        "completion_tokens": _get_attr(token_counts, "candidates_token_count", 0),
+        "total_tokens": _get_attr(token_counts, "total_token_count", 0),
+    }
+
+    return metrics
