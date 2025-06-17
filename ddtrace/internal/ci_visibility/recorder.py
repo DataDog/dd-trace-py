@@ -59,6 +59,8 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.git_data import get_git_data_from_tags
+from ddtrace.internal.ci_visibility.service_registry import register_ci_visibility_instance
+from ddtrace.internal.ci_visibility.service_registry import unregister_ci_visibility_instance
 from ddtrace.internal.ci_visibility.utils import _get_test_framework_telemetry_name
 from ddtrace.internal.ci_visibility.writer import CIVisibilityEventClient
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
@@ -567,8 +569,6 @@ class CIVisibility(Service):
 
     @classmethod
     def enable(cls, tracer=None, config=None, service=None) -> None:
-        from ddtrace.internal.ci_visibility.service_registry import CIVisibilityServiceRegistry
-
         log.debug("Enabling %s", cls.__name__)
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
@@ -587,7 +587,7 @@ class CIVisibility(Service):
         try:
             cls._instance = cls(tracer=tracer, config=config, service=service)
             # Register with service registry for other modules to access
-            CIVisibilityServiceRegistry.register(cls._instance)
+            register_ci_visibility_instance(cls._instance)
 
         except CIVisibilityAuthenticationException:
             log.warning("Authentication error, disabling CI Visibility, please check Datadog API key")
@@ -617,8 +617,6 @@ class CIVisibility(Service):
 
     @classmethod
     def disable(cls) -> None:
-        from ddtrace.internal.ci_visibility.service_registry import CIVisibilityServiceRegistry
-
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -626,7 +624,7 @@ class CIVisibility(Service):
         atexit.unregister(cls.disable)
 
         # Unregister from service registry first
-        CIVisibilityServiceRegistry.unregister()
+        unregister_ci_visibility_instance()
 
         cls._instance.stop()
         cls._instance = None

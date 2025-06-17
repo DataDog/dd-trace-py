@@ -1,9 +1,15 @@
 from functools import wraps
+import os
 
 from ddtrace.internal.logger import get_logger
 
 
+TESTING_RAISE = os.getenv("DD_TESTING_RAISE", None)
 log = get_logger(__name__)
+
+
+def _noop_decorator(func):
+    return func
 
 
 def _catch_and_log_exceptions(func):
@@ -20,3 +26,7 @@ def _catch_and_log_exceptions(func):
             log.error("Uncaught exception occurred while calling %s", func.__name__, exc_info=True)
 
     return wrapper
+
+
+if TESTING_RAISE.lower() in ("1", "true"):
+    _catch_and_log_decorator = _noop_decorator

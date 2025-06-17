@@ -5,45 +5,23 @@ import typing as t
 if t.TYPE_CHECKING:
     from ddtrace.internal.ci_visibility.recorder import CIVisibility
 
-
-class CIVisibilityServiceRegistry:
-    """Registry to access CIVisibility instance without circular imports.
-
-    Since CIVisibility is a singleton, no locks are needed.
-    """
-
-    _instance: t.Optional["CIVisibility"] = None
-
-    @classmethod
-    def register(cls, service: "CIVisibility") -> None:
-        """Register the CIVisibility service instance."""
-        cls._instance = service
-
-    @classmethod
-    def unregister(cls) -> None:
-        """Unregister the current service instance."""
-        cls._instance = None
-
-    @classmethod
-    def get_service(cls) -> t.Optional["CIVisibility"]:
-        """Get the registered CIVisibility service instance."""
-        return cls._instance
-
-    @classmethod
-    def require_service(cls) -> "CIVisibility":
-        """Get the registered service, raising if not available."""
-        service = cls.get_service()
-        if service is None:
-            raise RuntimeError("CIVisibility service not registered")
-        return service
+CI_VISIBILITY_INSTANCE = None
 
 
-# Convenience functions
-def get_ci_visibility_service() -> t.Optional["CIVisibility"]:
-    """Get the CIVisibility service if available."""
-    return CIVisibilityServiceRegistry.get_service()
+def register_ci_visibility_instance(service: "CIVisibility") -> None:
+    """Register the CIVisibility service instance."""
+    global CI_VISIBILITY_INSTANCE
+    CI_VISIBILITY_INSTANCE = service
+
+
+def unregister_ci_visibility_instance() -> None:
+    """Unregister the current service instance."""
+    global CI_VISIBILITY_INSTANCE
+    CI_VISIBILITY_INSTANCE = None
 
 
 def require_ci_visibility_service() -> "CIVisibility":
     """Get the CIVisibility service, raising if not available."""
-    return CIVisibilityServiceRegistry.require_service()
+    if not CI_VISIBILITY_INSTANCE:
+        raise RuntimeError("CIVisibility service not registered")
+    return CI_VISIBILITY_INSTANCE
