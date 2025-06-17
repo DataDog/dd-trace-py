@@ -263,12 +263,12 @@ class TracerFlareSubscriberTests(TestCase):
         )
 
     def generate_agent_config(self):
-        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
+        with mock.patch("ddtrace.internal.flare._subscribers.TracerFlareSubscriber._data_connector.read") as mock_pubsub_conn:
             mock_pubsub_conn.return_value = [build_payload("AGENT_CONFIG", self.agent_config, "config")]
             self.tracer_flare_sub._get_data_from_connector_and_exec()
 
     def generate_agent_task(self):
-        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
+        with mock.patch("ddtrace.internal.flare._subscribers.TracerFlareSubscriber._data_connector.read") as mock_pubsub_conn:
             mock_pubsub_conn.return_value = [build_payload("AGENT_TASK", self.agent_task, "task")]
             self.tracer_flare_sub._get_data_from_connector_and_exec()
 
