@@ -76,7 +76,8 @@ file(
 # 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
 # ${ICU_LIBRARIES})
 
-set(PYBIND11_FINDPYTHON ON)
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
@@ -92,7 +93,7 @@ endif()
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-pybind11_add_module(_native SHARED NO_EXTRAS ${SOURCE_FILES} ${HEADER_FILES})
+pybind11_add_module(_native SHARED ${SOURCE_FILES} ${HEADER_FILES})
 get_filename_component(PARENT_DIR ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 set_target_properties(_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 

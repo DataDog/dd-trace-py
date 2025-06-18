@@ -6,8 +6,8 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-set(PYBIND11_FINDPYTHON ON)
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
 file(GLOB TEST_SOURCES "*.cpp" "*.hpp")
@@ -26,7 +26,7 @@ if(NOT MSVC AND NATIVE_TEST_COVERAGE)
     list(APPEND NATIVE_TEST_LIBRARIES gcov)
 endif()
 
-target_link_libraries(native_tests ${NATIVE_TEST_LIBRARIES} pybind11::module Python::Python)
+target_link_libraries(native_tests ${NATIVE_TEST_LIBRARIES})
 
 # Discover tests
 include(GoogleTest)
