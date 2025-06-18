@@ -10,6 +10,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import typing as t
 import warnings
 
 import cmake
@@ -165,6 +166,28 @@ def load_module_from_project_file(mod_name, fname):
 
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
+
+
+class ExtensionHashes(build_ext):
+    def run(self):
+        for ext in self.distribution.ext_modules:
+            full_path = Path(self.get_ext_fullpath(ext.name))
+
+            sources = ext.get_sources(self) if isinstance(ext, CMakeExtension) else [Path(_) for _ in ext.sources]
+
+            sources_hash = hashlib.sha256()
+            for source in sorted(sources):
+                sources_hash.update(source.read_bytes())
+
+            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), str(full_path)))
+
+            # Include any dependencies that might have been built alongside
+            # the extension.
+            if isinstance(ext, CMakeExtension):
+                for dependency in ext.dependencies:
+                    print(
+                        "#EXTHASH:", (f"{ext.name}-{dependency.name}", sources_hash.hexdigest(), str(dependency) + "*")
+                    )
 
 
 class LibraryDownload:
@@ -370,26 +393,36 @@ class CMakeBuild(build_ext):
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
-    def build_extension_cmake(self, ext):
+    def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
             # DEV: Rudimentary incremental build support. We copy the logic from
             # setuptools' build_ext command, best effort.
             full_path = Path(self.get_ext_fullpath(ext.name))
             ext_path = Path(ext.source_dir, full_path.name)
 
-            # Collect all the source files within the source directory. We exclude
-            # Python sources and anything that does not have a suffix (most likely
-            # a binary file), or that has the same name as the extension binary.
-            sources = (
-                [
-                    _
-                    for _ in Path(ext.source_dir).rglob("**")
-                    if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in (".py", ".pyc", ".pyi")
+            force = self.force
+
+            if ext.dependencies:
+                dependencies = [
+                    str(d.resolve())
+                    for dependency in ext.dependencies
+                    for d in dependency.parent.glob(dependency.name + "*")
+                    if d.is_file()
                 ]
-                if ext.source_dir
-                else []
-            )
-            if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+                if not dependencies:
+                    # We expected some dependencies but none were found so we
+                    # force the build to happen
+                    force = True
+
+            else:
+                dependencies = []
+
+            if not (
+                force
+                or newer_group(
+                    [str(_.resolve()) for _ in ext.get_sources(self)] + dependencies, str(ext_path.resolve()), "newer"
+                )
+            ):
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
@@ -561,12 +594,13 @@ class CMakeExtension(Extension):
     def __init__(
         self,
         name,
-        source_dir=".",
+        source_dir=Path("."),
         cmake_args=[],
         build_args=[],
         install_args=[],
         build_type=None,
         optional=True,  # By default, extensions are optional
+        dependencies=[],
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -575,6 +609,27 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
+        self.dependencies = dependencies
+
+    def get_sources(self, cmd: build_ext) -> t.List[Path]:
+        """
+        Returns the list of source files for this extension.
+        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        """
+        full_path = Path(cmd.get_ext_fullpath(self.name))
+
+        # Collect all the source files within the source directory. We exclude
+        # Python sources and anything that does not have a suffix (most likely
+        # a binary file), or that has the same name as the extension binary.
+        return (
+            [
+                _
+                for _ in Path(self.source_dir).rglob("**")
+                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
+            ]
+            if self.source_dir
+            else []
+        )
 
 
 def check_rust_toolchain():
@@ -743,6 +798,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
+                dependencies=[CRASHTRACKER_DIR.parent / "libdd_wrapper"],
             )
         )
 
@@ -780,6 +836,7 @@ setup(
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=filter_extensions(ext_modules)
