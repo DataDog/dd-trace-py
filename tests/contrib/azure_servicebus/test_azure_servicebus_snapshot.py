@@ -42,25 +42,25 @@ def patch_azure_servicebus():
     unpatch()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def azure_servicebus_client():
     with ServiceBusClient.from_connection_string(conn_str=CONNECTION_STRING) as servicebus_client:
         yield servicebus_client
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def azure_servicebus_queue_sender(azure_servicebus_client: ServiceBusClient):
     with azure_servicebus_client.get_queue_sender(queue_name=QUEUE_NAME) as queue_sender:
         yield queue_sender
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def azure_servicebus_topic_sender(azure_servicebus_client: ServiceBusClient):
     with azure_servicebus_client.get_topic_sender(topic_name=TOPIC_NAME) as topic_sender:
         yield topic_sender
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def azure_servicebus_queue_receiver(azure_servicebus_client: ServiceBusClient):
     with azure_servicebus_client.get_queue_receiver(
         queue_name=QUEUE_NAME, receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
@@ -68,7 +68,7 @@ def azure_servicebus_queue_receiver(azure_servicebus_client: ServiceBusClient):
         yield queue_receiver
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def azure_servicebus_subscription_receiver(azure_servicebus_client: ServiceBusClient):
     with azure_servicebus_client.get_subscription_receiver(
         topic_name=TOPIC_NAME,
