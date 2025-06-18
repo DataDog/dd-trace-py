@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Code Security (IAST): Handle IAST security controls custom validation and sanitization methods.
+    See the `Security Controls <https://docs.datadoghq.com/security/code_security/iast/security_controls/>`_ documentation for more information about this feature.
