@@ -68,6 +68,7 @@ EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_exec
 SITE_PKGS_MARKER = "site-packages-ddtrace-py"
 BOOTSTRAP_MARKER = "bootstrap"
 
+
 def get_oci_ddtrace_version():
     version_path = os.path.join(SCRIPT_DIR, "version")
     try:
@@ -383,7 +384,11 @@ def _inject():
 
                 TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
                 RESULT = "abort"
-                RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST)
+                RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (
+                    PYTHON_RUNTIME,
+                    PYTHON_VERSION,
+                    RUNTIMES_ALLOW_LIST,
+                )
                 RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
@@ -507,6 +512,8 @@ def _inject():
         RESULT = "abort"
         RESULT_REASON = "User-installed ddtrace found: %s, aborting site-packages injection" % module_origin
         RESULT_CLASS = "manually_instrumented"
+
+
 try:
     try:
         _inject()
