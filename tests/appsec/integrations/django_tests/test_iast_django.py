@@ -16,6 +16,7 @@ from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 from tests.utils import override_global_config
 
 
@@ -26,35 +27,6 @@ def get_iast_stack_trace(root_span):
     appsec_traces = root_span.get_struct_tag(STACK_TRACE.TAG) or {}
     stacks = appsec_traces.get("vulnerability", [])
     return stacks
-
-
-def _aux_appsec_get_root_span(
-    client,
-    iast_span,
-    tracer,
-    payload=None,
-    url="/",
-    content_type="text/plain",
-    headers=None,
-    cookies=None,
-):
-    if cookies is None:
-        cookies = {}
-    # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._recreate()
-    # Set cookies
-    client.cookies.load(cookies)
-    if payload is None:
-        if headers:
-            response = client.get(url, **headers)
-        else:
-            response = client.get(url)
-    else:
-        if headers:
-            response = client.post(url, payload, content_type=content_type, **headers)
-        else:
-            response = client.post(url, payload, content_type=content_type)
-    return iast_span.spans[0], response
 
 
 def _aux_appsec_get_root_span_with_exception(
