@@ -383,7 +383,7 @@ def _inject():
 
                 TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
                 RESULT = "abort"
-                RESULT_REASON = "Aborting dd-trace-py instrumentation"
+                RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (PYTHON_RUNTIME, PYTHON_VERSION, RUNTIMES_ALLOW_LIST)
                 RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
