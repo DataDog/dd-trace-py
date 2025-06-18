@@ -11,6 +11,7 @@ from ddtrace.appsec.trace_utils import track_custom_event
 from ddtrace.appsec.trace_utils import track_user_login_failure_event
 from ddtrace.appsec.trace_utils import track_user_login_success_event
 from ddtrace.appsec.trace_utils import track_user_signup_event
+from ddtrace.appsec.track_user_sdk import track_user
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
 import tests.appsec.rules as rules
@@ -93,6 +94,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert (
                 user_span.get_tag(user.SESSION_ID) == "test_session_id" and parent_span.get_tag(user.SESSION_ID) is None
             )
+            user_span.finish()
 
     def test_track_user_login_event_success_auto_mode_safe(self):
         with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
@@ -227,6 +229,31 @@ class EventsSDKTestCase(TracerTestCase):
                 session_id="usr.session_id",
                 role="usr.role",
                 scope="usr.scope",
+            )
+            assert span.get_tag(user.ID)
+            assert span.get_tag(user.EMAIL)
+            assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(user.NAME)
+            assert span.get_tag(user.ROLE)
+            assert span.get_tag(user.SCOPE)
+            assert span.get_tag(user.SESSION_ID)
+            assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+            assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
+            assert is_blocked(span)
+
+    def test_track_user_blocked(self):
+        with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
+            track_user(
+                self.tracer,
+                user_id=self._BLOCKED_USER,
+                session_id="usr.session_id",
+                metadata={
+                    "email": "usr.email",
+                    "name": "usr.name",
+                    "session_id": "usr.session_id",
+                    "role": "usr.role",
+                    "scope": "usr.scope",
+                },
             )
             assert span.get_tag(user.ID)
             assert span.get_tag(user.EMAIL)
