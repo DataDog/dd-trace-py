@@ -998,12 +998,12 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(llmobs, mock_llm
     llmobs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score', or 'boolean'.")
     mock_llmobs_logs.reset_mock()
     llmobs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score', or 'boolean'.")
 
 
 def test_submit_evaluation_numerical_value_raises_unsupported_warning(llmobs, mock_llmobs_logs):
@@ -2010,11 +2010,11 @@ def test_submit_evaluation_for_empty_label_raises_error(llmobs, mock_llmobs_logs
 
 
 def test_submit_evaluation_for_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
