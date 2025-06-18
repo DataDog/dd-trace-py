@@ -151,6 +151,10 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
             pass
 
 
+# NOTE: regenerating cassettes for this test require some manual tweaking,
+#       after generating cassettes, one should replace any secrets with placeholders
+#       additionally, one should delete the gzip header from the response body to
+#       allow mock_google_auth to work properly
 @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
 def test_google_genai_generate_content_vertex(mock_google_auth, google_genai_vcr, genai):
     with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
