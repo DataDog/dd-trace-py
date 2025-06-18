@@ -85,6 +85,7 @@ DES
 deserializing
 django
 docstring
+docstrings
 doctest
 dogpile
 dogpile.cache
@@ -295,6 +296,7 @@ TensorBoard
 testagent
 TestCase
 testrunner
+timeseries
 Timeseries
 timestamp
 tokenizer
