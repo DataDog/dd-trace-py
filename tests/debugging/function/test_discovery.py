@@ -101,21 +101,27 @@ def test_function_mangled(stuff_discovery):
     assert original_method is original_func
 
 
-def test_discovery_after_external_wrapping(stuff):
+@pytest.mark.subprocess
+def test_discovery_after_external_wrapping():
     import wrapt
+
+    from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+
+    DebuggerModuleWatchdog.install()
+
+    import tests.submod.stuff as stuff
 
     def wrapper(wrapped, inst, args, kwargs):
         pass
-
-    original_function = stuff.Stuff.instancestuff
 
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
     assert isinstance(stuff.Stuff.instancestuff, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper))
 
     code = stuff.Stuff.instancestuff.__code__
-    f, *_ = FunctionDiscovery(stuff).at_line(36)
+    f, *_ = FunctionDiscovery.from_module(stuff).at_line(36)
 
-    assert f is original_function or isinstance(f, (wrapt.BoundFunctionWrapper, wrapt.FunctionWrapper)), f
+    assert f is stuff.Stuff.instancestuff.__wrapped__, (f, stuff.Stuff.instancestuff.__wrapped__)
     assert f.__code__ is code
 
 
@@ -139,3 +145,24 @@ def test_custom_decorated_stuff():
     assert home.__qualname__ == "home"
 
     DiscoveryModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess
+def test_discovery_after_external_wrapping_context():
+    from ddtrace.debugging._debugger import DebuggerModuleWatchdog
+    from ddtrace.debugging._function.discovery import FunctionDiscovery
+    from ddtrace.internal.module import origin
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    DebuggerModuleWatchdog.install()
+
+    import tests.submod.stuff as stuff
+
+    f = stuff.modulestuff
+
+    def hook(module):
+        assert FunctionDiscovery.from_module(module).at_line(f.__code__.co_firstlineno + 1)
+
+    WrappingContext(f).wrap()  # type: ignore
+
+    DebuggerModuleWatchdog.register_origin_hook(origin(stuff), hook)  # type: ignore
