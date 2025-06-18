@@ -1,3 +1,5 @@
+from typing import Dict
+
 import agents
 from agents.tracing import add_trace_processor
 
@@ -14,6 +16,10 @@ def get_version() -> str:
     from agents import version
 
     return getattr(version, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"agents": ">=0.0.2"}
 
 
 def patch():

@@ -11,6 +11,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
+from tests.utils import override_third_party_packages
 
 
 def test_exception_replay_config_enabled(monkeypatch):
@@ -355,3 +356,41 @@ class ExceptionReplayTestCase(TracerTestCase):
             assert len(n) == config.max_frames
 
             assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
+
+    def test_debugger_exception_replay_single_non_user_snapshot(self):
+        def a(v, d=None):
+            with self.trace("a"):
+                if not v:
+                    raise ValueError("hello", v)
+
+        def b(bar):
+            with self.trace("b"):
+                m = 4
+                a(bar % m)
+
+        def c(foo=42):
+            with self.trace("c"):
+                sh = 3
+                b(foo << sh)
+
+        with exception_replay() as uploader, override_third_party_packages(["tests"]):
+            # We pretend that tests is a third-party package so that we can
+            # skip all but one frames
+            with with_rate_limiter(RateLimiter(limit_rate=1, raise_on_exceed=False)):
+                with pytest.raises(ValueError):
+                    c()
+
+            self.assert_span_count(3)
+            n_snapshots = len(uploader.collector.queue)
+            assert n_snapshots == 1
+
+            snapshots = {str(s.uuid): s for s in uploader.collector.queue}
+
+            span = self.spans[-1]
+            assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
+
+            # Check that we have all the tags for each snapshot
+            assert span.get_tag("_dd.debug.error.1.snapshot_id") in snapshots
+            assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
+            assert span.get_tag("_dd.debug.error.1.function") == "a"
+            assert span.get_tag("_dd.debug.error.1.line")

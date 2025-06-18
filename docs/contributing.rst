@@ -14,6 +14,8 @@ Before working on the library, install `docker <https://www.docker.com/products/
 
 If you're trying to set up a local development environment, read `this <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-testing.rst>`_.
 
+`Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
+
 Thanks for working with us!
 
 .. _change_process:
@@ -69,35 +71,6 @@ Each minor version has its own branch.
 If your pull request is a ``fix`` or ``ci`` change, apply the backport labels corresponding to the minor
 versions that need the change.
 
-Implementation Guidelines
-=========================
-
-Parts of the Library
---------------------
-
-When designing a change, one of the first decisions to make is where it should be made. This is an overview
-of the main functional areas of the library.
-
-A **product** is a unit of code within the library that implements functionality specific to a small set of
-customer-facing Datadog products. Examples include the `appsec module <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/appsec>`_
-implementing functionality for `Application Security Management <https://www.datadoghq.com/product/application-security-management/>`_
-and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/profiling>`_ module implementing
-functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_. Ideally it only contains code
-that is specific to the Datadog product being supported, and no code related to Integrations.
-
-An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
-directory, hooking our code into the internal logic of a given Python library. Ideally it only contains code
-that is specific to the library being integrated with, and no code related to Products.
-
-The **core** of the library is the abstraction layer that allows Products and Integrations to keep their concerns
-separate. It is implemented in the Python files in the `top level of ddtracepy <https://github.com/DataDog/dd-trace-py/tree/main/ddtrace>`_
-and in the `internal` module. As an implementation detail, the core logic also happens to directly support
-`Application Performance Monitoring <https://docs.datadoghq.com/tracing/>`_.
-
-Be mindful and intentional about which of these categories your change fits into, and avoid mixing concerns between
-categories. If doing so requires more foundational refactoring or additional layers of abstraction, consider
-opening an issue describing the limitations of the current design.
-
 Tests
 -----
 
@@ -133,10 +106,28 @@ Keep the following in mind when writing logging code:
 * Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
 * Log data is sensitive and should not contain application secrets or other sensitive data.
 
+Instrumentation Telemetry
+-------------------------
+
+When you implement a new feature in ddtrace, you should usually have the library emit some Instrumentation
+Telemetry about the feature. Instrumentation Telemetry provides data about the operation of the library in
+real production environments and is often used to understand rates of product adoption.
+
+Instrumentation Telemetry conforms to an internal Datadog API. You can find the API specification in the
+private Confluence space. To send Instrumentation Telemetry data to this API from ddtrace, you can use
+the ``ddtrace.internal.telemetry.telemetry_writer`` object that provides a Python interface to the API.
+
+The most common ``telemetry_writer`` call you may use is ``add_count_metric``. This call generates timeseries
+metrics that you can use to, for example, count the number of times a given feature is used. Another useful
+call is ``add_integration``, which generates telemetry data about the integration with a particular module.
+
+Read the docstrings in ``ddtrace/internal/telemetry/writer.py`` for more comprehensive usage information
+about Instrumentation Telemetry.
 
 .. toctree::
     :hidden:
 
+    contributing-design
     contributing-integrations
     contributing-testing
     contributing-tracing
