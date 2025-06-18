@@ -55,14 +55,6 @@ else()
                                   DOWNLOAD_EXTRACT_TIMESTAMP true)
     FetchContent_MakeAvailable(absl)
 
-    # Turn off LTO on all Abseil targets after they're declared
-    get_property(
-        absl_targets
-        DIRECTORY "${absl_SOURCE_DIR}"
-        PROPERTY BUILDSYSTEM_TARGETS)
-    foreach(tgt ${absl_targets})
-        set_target_properties(${tgt} PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
-    endforeach()
 endif()
 
 # pybind11 via FetchContent
