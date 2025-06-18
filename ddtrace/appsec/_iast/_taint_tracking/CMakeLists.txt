@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
+cmake_policy(SET CMP0148 OLD)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
