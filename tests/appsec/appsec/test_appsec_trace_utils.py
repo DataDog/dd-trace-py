@@ -252,7 +252,8 @@ class EventsSDKTestCase(TracerTestCase):
                     "name": "usr.name",
                     "session_id": "usr.session_id",
                     "role": "usr.role",
-                    "scope": "usr.scope"}
+                    "scope": "usr.scope",
+                },
             )
             assert span.get_tag(user.ID)
             assert span.get_tag(user.EMAIL)
