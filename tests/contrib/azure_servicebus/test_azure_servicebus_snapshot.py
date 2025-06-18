@@ -114,7 +114,7 @@ async def azure_servicebus_subscription_receiver_async(azure_servicebus_client_a
         yield subscription_receiver
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def message_with_properties():
     return ServiceBusMessage(
         "test message with properties",
@@ -122,12 +122,12 @@ def message_with_properties():
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def message_without_properties():
     return ServiceBusMessage("test message without properties")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def trace_context_keys():
     return [
         "x-datadog-trace-id",
