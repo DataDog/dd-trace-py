@@ -115,19 +115,6 @@ async def azure_servicebus_subscription_receiver_async(azure_servicebus_client_a
 
 
 @pytest.fixture()
-def message_with_properties():
-    return ServiceBusMessage(
-        "test message with properties",
-        application_properties=DEFAULT_APPLICATION_PROPERTIES,
-    )
-
-
-@pytest.fixture()
-def message_without_properties():
-    return ServiceBusMessage("test message without properties")
-
-
-@pytest.fixture()
 def trace_context_keys():
     return [
         "x-datadog-trace-id",
@@ -137,6 +124,40 @@ def trace_context_keys():
         "traceparent",
         "tracestate",
     ]
+
+
+def make_messages():
+    return [
+        ServiceBusMessage("test message without properties"),
+        ServiceBusMessage("test message without properties"),
+        [
+            ServiceBusMessage("test message without properties"),
+            ServiceBusMessage(
+                "test message with properties",
+                application_properties=DEFAULT_APPLICATION_PROPERTIES,
+            ),
+        ],
+    ]
+
+
+async def send_messages_to_queue_async(queue_sender_async):
+    for message in make_messages():
+        await queue_sender_async.send_messages(message)
+
+
+async def send_messages_to_topic_async(topic_sender_async):
+    for message in make_messages():
+        await topic_sender_async.send_messages(message)
+
+
+async def schedule_messages_to_queue_async(queue_sender_async, schedule_time_utc):
+    for message in make_messages():
+        await queue_sender_async.schedule_messages(message, schedule_time_utc)
+
+
+async def schedule_messages_to_topic_async(topic_sender_async, schedule_time_utc):
+    for message in make_messages():
+        await topic_sender_async.schedule_messages(message, schedule_time_utc)
 
 
 def normalize_application_properties(
@@ -188,24 +209,26 @@ def normalize_application_properties(
     return {{k.decode() if isinstance(k, bytes) else k: v for k, v in application_properties.items()}}
 
 
-message_with_properties = ServiceBusMessage(
-    "test message with properties",
-    application_properties={DEFAULT_APPLICATION_PROPERTIES},
-)
-message_without_properties = ServiceBusMessage("test message without properties")
+def make_messages():
+    return [
+        ServiceBusMessage("test message without properties"),
+        ServiceBusMessage("test message without properties"),
+        [
+            ServiceBusMessage("test message without properties"),
+            ServiceBusMessage(
+                "test message with properties",
+                application_properties={DEFAULT_APPLICATION_PROPERTIES},
+            ),
+        ],
+    ]
 
-messages = [
-    message_without_properties,
-    message_without_properties,
-    [message_without_properties, message_with_properties],
-]
 
 with ServiceBusClient.from_connection_string(conn_str="{CONNECTION_STRING}") as servicebus_client:
     with servicebus_client.get_queue_sender(queue_name="{QUEUE_NAME}") as queue_sender:
-        for message in messages:
+        for message in make_messages():
             queue_sender.send_messages(message)
     with servicebus_client.get_topic_sender(topic_name="{TOPIC_NAME}") as topic_sender:
-        for message in messages:
+        for message in make_messages():
             topic_sender.send_messages(message)
     with servicebus_client.get_queue_receiver(
         queue_name="{QUEUE_NAME}", receive_mode=ServiceBusReceiveMode.RECEIVE_AND_DELETE
@@ -259,19 +282,11 @@ async def test_send_messages_async(
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
     azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
     azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
-    messages = [
-        message_without_properties,
-        message_without_properties,
-        [message_without_properties, message_with_properties],
-    ]
-
     await asyncio.gather(
-        *[azure_servicebus_queue_sender_async.send_messages(message) for message in messages],
-        *[azure_servicebus_topic_sender_async.send_messages(message) for message in messages],
+        send_messages_to_queue_async(azure_servicebus_queue_sender_async),
+        send_messages_to_topic_async(azure_servicebus_topic_sender_async),
     )
 
     received_queue_messages, received_subscription_messages = await asyncio.gather(
@@ -301,20 +316,14 @@ def test_schedule_messages(
     azure_servicebus_queue_receiver: ServiceBusReceiver,
     azure_servicebus_topic_sender: ServiceBusSender,
     azure_servicebus_subscription_receiver: ServiceBusReceiver,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
     now = datetime.now(timezone.utc)
 
-    messages = [
-        message_without_properties,
-        message_without_properties,
-        [message_without_properties, message_with_properties],
-    ]
-
-    for message in messages:
+    for message in make_messages():
         azure_servicebus_queue_sender.schedule_messages(message, now)
+
+    for message in make_messages():
         azure_servicebus_topic_sender.schedule_messages(message, now)
 
     received_queue_messages = azure_servicebus_queue_receiver.receive_messages(max_message_count=4, max_wait_time=5)
@@ -345,21 +354,13 @@ async def test_schedule_messages_async(
     azure_servicebus_queue_receiver_async: ServiceBusReceiverAsync,
     azure_servicebus_topic_sender_async: ServiceBusSenderAsync,
     azure_servicebus_subscription_receiver_async: ServiceBusReceiverAsync,
-    message_without_properties: ServiceBusMessage,
-    message_with_properties: ServiceBusMessage,
     trace_context_keys: List[str],
 ):
     now = datetime.now(timezone.utc)
 
-    messages = [
-        message_without_properties,
-        message_without_properties,
-        [message_without_properties, message_with_properties],
-    ]
-
     await asyncio.gather(
-        *[azure_servicebus_queue_sender_async.schedule_messages(message, now) for message in messages],
-        *[azure_servicebus_topic_sender_async.schedule_messages(message, now) for message in messages],
+        schedule_messages_to_queue_async(azure_servicebus_queue_sender_async, now),
+        schedule_messages_to_topic_async(azure_servicebus_topic_sender_async, now),
     )
 
     received_queue_messages, received_subscription_messages = await asyncio.gather(
