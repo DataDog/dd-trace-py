@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    This fix resolves an issue in which traced nested generator functions had their execution order subtly changed
+    in a way that affected the stack unwinding sequence during exception handling. The issue was caused
+    by the tracer's use of simple iteration via ``for v in g: yield v`` during the wrapping of generator functions
+    where full bidrectional communication with the sub-generator via ``yield from g`` was appropriate. See
+    PEP380 for an explanation of how these two generator uses differ.

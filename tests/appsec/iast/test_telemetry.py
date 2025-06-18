@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -17,10 +17,9 @@ from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
-from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
+from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
@@ -75,11 +74,12 @@ def test_metric_executed_sink(
     with override_global_config(
         dict(
             _iast_enabled=True,
+            _iast_is_testing=True,
             _iast_deduplication_enabled=deduplication_enabled,
             _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME,
         )
     ):
-        patch_iast()
+        weak_hash_patch()
 
         tracer = DummyTracer(iast_enabled=True)
 
@@ -95,6 +95,7 @@ def test_metric_executed_sink(
                 m.digest()
 
         metrics_result = telemetry_writer._namespace.flush()
+        _testing_unpatch_iast()
 
     generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.IAST.value]
     assert len(generate_metrics) == 1
@@ -108,7 +109,9 @@ def test_metric_executed_sink(
 
 
 def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
         cmdi_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CMDI)
@@ -116,8 +119,9 @@ def test_metric_instrumented_cmdi(no_request_sampling, telemetry_writer):
 
 def test_metric_instrumented_header_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    header_injection_unpatch()
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
         header_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_HEADER_INJECTION)
@@ -125,8 +129,9 @@ def test_metric_instrumented_header_injection(no_request_sampling, telemetry_wri
 
 def test_metric_instrumented_code_injection(no_request_sampling, telemetry_writer):
     # We need to unpatch first because ddtrace.appsec._iast._patch_modules loads at runtime this patch function
-    code_injection_unpatch()
-    with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
+    with override_global_config(
+        dict(_iast_enabled=True, _iast_is_testing=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)
+    ):
         code_injection_patch()
 
     _assert_instrumented_sink(telemetry_writer, VULN_CODE_INJECTION)
