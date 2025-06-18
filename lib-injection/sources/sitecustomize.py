@@ -513,7 +513,6 @@ try:
         TELEMETRY_DATA.append(
             create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])
         )
-        _log("HIIIIIII: %s" % e, level="error")
     finally:
         if TELEMETRY_DATA:
             payload = gen_telemetry_payload(TELEMETRY_DATA, DDTRACE_VERSION)
