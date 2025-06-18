@@ -75,6 +75,15 @@ if config._otel_enabled:
 
         set_tracer_provider(TracerProvider())
 
+    # TODO: Update this behind the actual new config DD_TRACE_OTEL_METRICS_ENABLED
+    @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
+    def _(_):
+        from opentelemetry.metrics import set_meter_provider
+
+        from ddtrace.opentelemetry import MeterProvider
+
+        set_meter_provider(MeterProvider())
+
 
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
