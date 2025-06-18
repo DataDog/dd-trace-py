@@ -127,11 +127,12 @@ def _loop_handler(chunk, streamed_chunks):
 
     When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
     """
-    for choice in chunk.choices:
+    for choice in getattr(chunk, "choices", []):
         # number of choices is not always set as a kwarg, so the length of streamed_chunks may need to be adjusted
-        while len(streamed_chunks) <= choice.index:
+        choice_index = getattr(choice, "index", 0)
+        while len(streamed_chunks) <= choice_index:
             streamed_chunks.append([])
-        streamed_chunks[choice.index].append(choice)
+        streamed_chunks[choice_index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
