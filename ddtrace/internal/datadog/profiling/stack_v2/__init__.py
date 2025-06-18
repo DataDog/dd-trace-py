@@ -17,8 +17,10 @@ try:
     def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]):
         if isinstance(span, ddspan.Span):
             span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            local_root_span_type = span._local_root.span_type
+            # Cache the property lookup of span._local_root
+            _local_root = span._local_root
+            local_root_span_id = _local_root.span_id
+            local_root_span_type = _local_root.span_type
             _stack_v2.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
 
 except Exception as e:
