@@ -14,8 +14,8 @@ avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
 datadog_lambda,aws_lambda,6.105.0,6.105.0,True
 azure-functions,azure_functions *,1.20.0,1.21.3,True
-boto3,botocore *,1.34.49,1.37.5,True
-botocore,botocore *,1.34.49,1.37.5,True
+boto3,botocore *,1.34.49,1.38.26,True
+botocore,botocore *,1.34.49,1.38.26,True
 bottle,bottle,0.12.25,0.13.2,True
 cassandra-driver,cassandra,3.24.0,3.28.0,True
 celery,celery,5.3.6,5.4.0,True

@@ -7,8 +7,8 @@ import pytest
 import ddtrace
 from ddtrace.ext import ci
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
