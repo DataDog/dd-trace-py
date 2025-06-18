@@ -1,3 +1,5 @@
+import os
+
 from google.genai import types
 import pytest
 
@@ -149,22 +151,20 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
             pass
 
 
-# TODO: fix vertexai
-# @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
-# @mock.patch("google.auth.compute_engine._metadata.is_on_gce", return_value=False)
-# def test_google_genai_generate_content_vertex(mock_is_on_gce, google_genai_vcr, genai):
-#     with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
-#         client = genai.Client(
-#             vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
-#         )
-#         client.models.generate_content(
-#             model="gemini-2.0-flash-001",
-#             contents="Why is the sky blue? Explain in 2-3 sentences.",
-#             config=types.GenerateContentConfig(
-#                 temperature=0,
-#                 max_output_tokens=100,
-#             ),
-#         )
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_vertex_generate_content")
+def test_google_genai_generate_content_vertex(mock_google_auth, google_genai_vcr, genai):
+    with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
+        client = genai.Client(
+            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+        )
+        client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=types.GenerateContentConfig(
+                temperature=0,
+                max_output_tokens=100,
+            ),
+        )
 
 
 @pytest.mark.parametrize(

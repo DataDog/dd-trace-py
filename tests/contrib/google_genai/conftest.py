@@ -1,5 +1,6 @@
 import os
 
+import mock
 import pytest
 
 from ddtrace.contrib.internal.google_genai.patch import patch
@@ -18,6 +19,22 @@ def mock_tracer(genai):
         yield mock_tracer
     except Exception:
         yield
+
+
+@pytest.fixture
+def mock_google_auth():
+    with mock.patch("google.auth.default") as mock_auth_default:
+        mock_credentials = mock.Mock()
+        mock_credentials.expired = False
+        mock_credentials.valid = True
+        mock_credentials.token = "mock-access-token-for-vcr"
+        mock_credentials.refresh = mock.Mock()
+        mock_credentials.quota_project_id = None
+        mock_credentials.service_account_email = None
+        mock_credentials.project_id = None
+        mock_credentials.signer = None
+        mock_auth_default.return_value = (mock_credentials, os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project"))
+        yield mock_auth_default
 
 
 @pytest.fixture
