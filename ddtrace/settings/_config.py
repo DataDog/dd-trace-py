@@ -504,6 +504,7 @@ class Config(object):
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
+        self._extra_services_sent = set()  # type: set[str]
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
@@ -667,8 +668,12 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if service_name != self.service:
-            self._extra_services_queue.put(service_name)
+
+        if service_name == self.service or service_name in self._extra_services_sent:
+            return
+
+        self._extra_services_queue.put(service_name)
+        self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self):
         # type: () -> set[str]
