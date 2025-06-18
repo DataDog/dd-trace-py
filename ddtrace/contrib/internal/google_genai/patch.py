@@ -33,7 +33,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     ):
         return func(*args, **kwargs)
 
@@ -47,7 +47,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     ):
         return await func(*args, **kwargs)
 
@@ -62,7 +62,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         resp = func(*args, **kwargs)
@@ -85,7 +85,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         resp = await func(*args, **kwargs)
