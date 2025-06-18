@@ -7,7 +7,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 set(PYBIND11_FINDPYTHON ON)
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module Development.Embed)
 find_package(pybind11 CONFIG REQUIRED)
 
 file(GLOB TEST_SOURCES "*.cpp" "*.hpp")
