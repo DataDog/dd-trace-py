@@ -564,6 +564,14 @@ AppSec
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_SECURITY_CONTROLS_CONFIGURATION:
+     type: String
+     default: ""
+     description: |
+        Allows you to specify custom sanitizers and validators that IAST should recognize when
+        analyzing your application for security vulnerabilities.
+        See the `Security Controls <https://docs.datadoghq.com/security/code_security/iast/security_controls>`_
+        documentation for more information about this feature.
 
 Test Visibility
 ---------------
@@ -741,9 +749,9 @@ Logs
 .. ddtrace-configuration-options::
 
    DD_LOGS_INJECTION:
-     type: Boolean
-     default: False
-     description: Enables :ref:`Logs Injection`.
+     type: string
+     default: structured
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -872,7 +880,7 @@ Other
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
-   DD_TRACE_RUNTIME_ID_ENABLED:
+   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
      type: Boolean
      default: False
      version_added:
