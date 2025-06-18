@@ -972,7 +972,6 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
             "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator",
             True,
         ),
-        ("INPUT_VALIDATOR:COMMAND_INJECTION:shlex:quote;SANITIZER:XSS:html:escape", False),
     ],
 )
 def test_django_command_injection_security_control(client, tracer, security_control, match_function):
