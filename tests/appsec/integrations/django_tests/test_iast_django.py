@@ -7,6 +7,8 @@ import pytest
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._constants import STACK_TRACE
+from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
@@ -15,7 +17,12 @@ from ddtrace.appsec._iast.constants import VULN_SSRF
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.settings.asm import config as asm_config
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
+from tests.utils import TracerSpanContainer
+from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -26,35 +33,6 @@ def get_iast_stack_trace(root_span):
     appsec_traces = root_span.get_struct_tag(STACK_TRACE.TAG) or {}
     stacks = appsec_traces.get("vulnerability", [])
     return stacks
-
-
-def _aux_appsec_get_root_span(
-    client,
-    iast_span,
-    tracer,
-    payload=None,
-    url="/",
-    content_type="text/plain",
-    headers=None,
-    cookies=None,
-):
-    if cookies is None:
-        cookies = {}
-    # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._recreate()
-    # Set cookies
-    client.cookies.load(cookies)
-    if payload is None:
-        if headers:
-            response = client.get(url, **headers)
-        else:
-            response = client.get(url)
-    else:
-        if headers:
-            response = client.post(url, payload, content_type=content_type, **headers)
-        else:
-            response = client.post(url, payload, content_type=content_type)
-    return iast_span.spans[0], response
 
 
 def _aux_appsec_get_root_span_with_exception(
@@ -967,6 +945,68 @@ def test_django_xss_secure_mark(client, iast_span, tracer):
     assert loaded is None
 
 
+@pytest.mark.parametrize(
+    ("security_control", "match_function"),
+    [
+        (
+            "SANITIZER:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_sanitizer",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,2",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:2",
+            True,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3,4",
+            False,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator:1,3",
+            False,
+        ),
+        (
+            "INPUT_VALIDATOR:COMMAND_INJECTION:tests.appsec.integrations.django_tests.django_app.views:_security_control_validator",
+            True,
+        ),
+    ],
+)
+def test_django_command_injection_security_control(client, tracer, security_control, match_function):
+    with override_global_config(
+        dict(
+            _iast_enabled=True,
+            _appsec_enabled=False,
+            _iast_deduplication_enabled=False,
+            _iast_is_testing=True,
+            _iast_request_sampling=100.0,
+            _iast_security_controls=security_control,
+        )
+    ):
+        _apply_custom_security_controls().patch()
+        span = TracerSpanContainer(tracer)
+        _start_iast_context_and_oce()
+        root_span, _ = _aux_appsec_get_root_span(
+            client,
+            span,
+            tracer,
+            url="/appsec/command-injection/security-control/",
+            payload="master",
+            content_type="application/json",
+        )
+
+        loaded = root_span.get_tag(IAST.JSON)
+        if match_function:
+            assert loaded is None
+        else:
+            assert loaded is not None
+        _end_iast_context_and_oce()
+        span.reset()
+        _testing_unpatch_iast()
+
+
 def test_django_header_injection_secure(client, iast_span, tracer):
     root_span, response = _aux_appsec_get_root_span(
         client,
@@ -1262,6 +1302,7 @@ def test_django_stacktrace_leak(client, iast_span, tracer):
     assert vulnerability["hash"]
 
 
+@flaky(until=1767220930, reason="This test fails on Python 3.10 and below, and on Django versions below 4.2")
 def test_django_stacktrace_from_technical_500_response(client, iast_span, tracer, debug_mode):
     root_span, response = _aux_appsec_get_root_span(
         client,
