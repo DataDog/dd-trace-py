@@ -486,7 +486,7 @@ def _inject():
                 )
                 RESULT = "success"
                 RESULT_REASON = "Successfully configured ddtrace package"
-                RESULT_CLASS = "success"
+                RESULT_CLASS = "success_forced"
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
