@@ -143,12 +143,6 @@ def _handle_itr_should_skip(item, test_id) -> bool:
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
 
-        # If we're in a worker process, count the skipped test
-        if hasattr(item.config, "workeroutput"):
-            if "itr_skipped_count" not in item.config.workeroutput:
-                item.config.workeroutput["itr_skipped_count"] = 0
-            item.config.workeroutput["itr_skipped_count"] += 1
-
         return True
 
     return False
@@ -800,6 +794,10 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         force_finish_children=True,
         override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
     )
+
+    # Done after session finishes, so the tags are in the span
+    if InternalTestSession.is_test_skipping_enabled() and hasattr(session.config, "workeroutput"):
+        session.config.workeroutput["itr_skipped_count"] = InternalTestSession.get_tag(test.ITR_TEST_SKIPPING_COUNT)
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)

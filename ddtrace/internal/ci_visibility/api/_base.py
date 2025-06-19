@@ -660,8 +660,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
-        if self._children or self._distributed_children:
-            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+        self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
 
     def set_distributed_children(self) -> None:
         self._distributed_children = True
