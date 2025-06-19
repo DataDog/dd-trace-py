@@ -18,7 +18,6 @@ from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
 
@@ -52,7 +51,7 @@ _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 
 
 def atr_handle_retries(
-    test_id: InternalTestId,
+    test_id: InternalTest,
     item: pytest.Item,
     test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,

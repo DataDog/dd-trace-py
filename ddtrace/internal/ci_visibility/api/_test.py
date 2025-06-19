@@ -37,13 +37,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)
 
-TID = Union[TestId, InternalTestId]
+TID = TestId
 
 
 class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
