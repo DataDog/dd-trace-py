@@ -15,33 +15,6 @@ log = get_logger(__name__)
 DEFAULT_STALE_FLARE_DURATION_MINS = 20
 
 
-def _is_flare_config(md):
-    # Accept AGENT_CONFIG if it has a config dict with a log_level key
-    config = md.content
-    log.warning("JJJ Checking flare config with content: %r", config)
-    if isinstance(config, list) and len(config) == 2:
-        config_data = config[1]
-        if isinstance(config_data, dict):
-            config_dict = config_data.get("config", {})
-            log.warning("JJJ Config dict: %r", config_dict)
-            if isinstance(config_dict, dict) and "log_level" in config_dict:
-                return True
-    return False
-
-
-def _is_flare_task(md):
-    # Check if AGENT_TASK is a flare task (task_type == 'tracer_flare')
-    config = md.content
-    log.warning("JJJ Checking flare task with content: %r", config)
-    if isinstance(config, list) and len(config) == 2:
-        config_data = config[1]
-        if isinstance(config_data, dict):
-            task_type = config_data.get("task_type")
-            log.warning("JJJ Task type: %r", task_type)
-            return task_type == "tracer_flare"
-    return False
-
-
 class TracerFlareSubscriber(RemoteConfigSubscriber):
     def __init__(
         self,
@@ -57,19 +30,12 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         self.flare = flare
         log.warning("JJJ TracerFlareSubscriber initialized")
 
-    def start(self):
-        log.warning("JJJ TracerFlareSubscriber.start()")
-        super().start()
-        log.warning("JJJ TracerFlareSubscriber.start() end")
-
     def has_stale_flare(self) -> bool:
         if self.current_request_start:
             curr = datetime.now()
             flare_age = (curr - self.current_request_start).total_seconds()
             stale_age = self.stale_tracer_flare_num_mins * 60
-            is_stale = flare_age >= stale_age
-            log.warning("JJJ Checking stale flare: age=%s, stale_age=%s, is_stale=%s", flare_age, stale_age, is_stale)
-            return is_stale
+            return flare_age >= stale_age
         return False
 
     def _get_data_from_connector_and_exec(self, _=None):
@@ -93,12 +59,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         for md in data:
             product_type = md.metadata.product_name
             log.warning("JJJ Processing product type: %s with content: %r", product_type, md.content)
-            # Only process flare configs
             if product_type == "AGENT_CONFIG":
-                # Check for flare config
-                if not _is_flare_config(md):
-                    log.debug("Skipping non-flare AGENT_CONFIG: %r", md.metadata)
-                    continue
                 # We will only process one tracer flare request at a time
                 if self.current_request_start is not None:
                     log.warning(
@@ -110,10 +71,6 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 if _prepare_tracer_flare(self.flare, md.content):
                     self.current_request_start = datetime.now()
             elif product_type == "AGENT_TASK":
-                # Check for flare task
-                if not _is_flare_task(md):
-                    log.debug("Skipping non-flare AGENT_TASK: %r", md.metadata)
-                    continue
                 # Possible edge case where we don't have an existing flare request
                 # In this case we won't have anything to send, so we log and do nothing
                 if self.current_request_start is None:

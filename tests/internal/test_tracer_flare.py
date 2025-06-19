@@ -3,7 +3,6 @@ from logging import Logger
 import multiprocessing
 import os
 import pathlib
-import shutil
 from typing import Optional
 from unittest import mock
 
@@ -24,44 +23,6 @@ TRACE_AGENT_URL = "http://localhost:9126"
 MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
 
 
-class MockResponse:
-    def __init__(self, status=200, reason="OK", content="Success"):
-        self.status = status
-        self.reason = reason
-        self._content = content.encode('utf-8')
-
-    def read(self):
-        return self._content
-
-    def decode(self, encoding='utf-8'):
-        return self._content.decode(encoding)
-
-
-class MockHTTPConnection:
-    def __init__(self, *args, **kwargs):
-        self.response = MockResponse(200, b"OK")
-        self.request_called = False
-        self.request_method = None
-        self.request_url = None
-        self.request_body = None
-
-    @classmethod
-    def with_base_path(cls, hostname, port, base_path=None, timeout=None):
-        return cls()
-
-    def request(self, method, url, body=None, headers=None, **kwargs):
-        self.request_called = True
-        self.request_method = method
-        self.request_url = url
-        self.request_body = body
-
-    def getresponse(self):
-        return self.response
-
-    def close(self):
-        pass
-
-
 class TracerFlareTests(TestCase):
     mock_config_dict = {}
 
@@ -77,26 +38,6 @@ class TracerFlareTests(TestCase):
         self.flare_file_path = f"{self.shared_dir.name}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{self.shared_dir.name}/tracer_config_{self.pid}.json"
 
-        # Mock the HTTP connection
-        self.http_patcher = mock.patch('ddtrace.internal.http.HTTPConnection', MockHTTPConnection)
-        self.mock_http = self.http_patcher.start()
-        mock_conn = mock.Mock()
-        mock_conn_with_base_path = mock.Mock()
-
-        # Create a response object with actual string values
-        mock_response = mock.Mock()
-        mock_response.status = 200
-        mock_response.reason = "OK"
-        mock_bytes = mock.Mock()
-        mock_bytes.decode.return_value = "Success"
-        mock_response.read.return_value = mock_bytes
-
-        # Set up the response chain
-        mock_conn.getresponse.return_value = mock_response
-        mock_conn_with_base_path.getresponse.return_value = mock_response
-        mock_conn.with_base_path.return_value = mock_conn_with_base_path
-        self.mock_http.return_value = mock_conn
-
     def tearDown(self):
         try:
             self.shared_dir.cleanup()
@@ -106,7 +47,6 @@ class TracerFlareTests(TestCase):
             # the error log clutter for python < 3.10
             pass
         self.confirm_cleanup()
-        self.http_patcher.stop()
 
     def _get_handler(self) -> Optional[logging.Handler]:
         ddlogger = get_logger("ddtrace")
@@ -191,32 +131,6 @@ class TracerFlareMultiprocessTests(TestCase):
         self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.errors = multiprocessing.Queue()
 
-        # Mock the HTTP connection
-        self.http_patcher = mock.patch('ddtrace.internal.http.HTTPConnection', MockHTTPConnection)
-        self.mock_http = self.http_patcher.start()
-        mock_conn = mock.Mock()
-        mock_conn_with_base_path = mock.Mock()
-
-        # Create a response object with actual string values
-        mock_response = mock.Mock()
-        mock_response.status = 200
-        mock_response.reason = "OK"
-        mock_bytes = mock.Mock()
-        mock_bytes.decode.return_value = "Success"
-        mock_response.read.return_value = mock_bytes
-
-        # Set up the response chain
-        mock_conn.getresponse.return_value = mock_response
-        mock_conn_with_base_path.getresponse.return_value = mock_response
-        mock_conn.with_base_path.return_value = mock_conn_with_base_path
-        self.mock_http.return_value = mock_conn
-
-    def tearDown(self):
-        self.http_patcher.stop()
-        # Clean up the shared directory in the parent process
-        if os.path.exists(self.shared_dir.name):
-            self.fs.remove_object(self.shared_dir.name)
-
     def test_multiple_process_success(self):
         """
         Validate that the tracer flare will generate for multiple processes
@@ -233,87 +147,42 @@ class TracerFlareMultiprocessTests(TestCase):
                 )
             )
 
-        def handle_agent_config(flare: Flare, error_queue):
+        def handle_agent_config(flare: Flare):
             try:
                 flare.prepare("DEBUG")
-                # Assert that the process wrote its files successfully
-                pid = os.getpid()
-                expected_files = {
-                    f"tracer_python_{pid}.log",
-                    f"tracer_config_{pid}.json"
-                }
-                actual_files = set(os.listdir(self.shared_dir.name))
-                if not expected_files.issubset(actual_files):
-                    error_queue.put(Exception(f"Files were not generated for pid {pid}. Expected {expected_files}, found {actual_files}"))
+                # Assert that each process wrote its file successfully
+                # We double the process number because each will generate a log file and a config file
+                if len(os.listdir(self.shared_dir.name)) == 0:
+                    self.errors.put(Exception("Files were not generated"))
             except Exception as e:
-                error_queue.put(e)
+                self.errors.put(e)
 
-        def handle_agent_task(flare: Flare, error_queue):
+        def handle_agent_task(flare: Flare):
             try:
                 flare.send(MOCK_FLARE_SEND_REQUEST)
+                if os.path.exists(self.shared_dir.name):
+                    self.errors.put(Exception("Directory was not cleaned up"))
             except Exception as e:
-                error_queue.put(e)
+                self.errors.put(e)
 
-        # Create and run config processes
-        config_processes = []
+        # Create multiple processes
         for i in range(num_processes):
             flare = flares[i]
-            p = multiprocessing.Process(target=handle_agent_config, args=(flare, self.errors))
-            config_processes.append(p)
+            p = multiprocessing.Process(target=handle_agent_config, args=(flare,))
+            processes.append(p)
             p.start()
-
-        # Wait for all config processes to finish
-        for p in config_processes:
+        for p in processes:
             p.join()
 
-        # Check for any errors from config phase
-        errors = []
-        try:
-            while True:
-                try:
-                    errors.append(self.errors.get_nowait())
-                except multiprocessing.queues.Empty:
-                    break
-        except (EOFError, OSError):
-            # Handle case where queue is closed/corrupted
-            pass
-
-        if errors:
-            raise Exception(f"Errors during config phase: {errors}")
-
-        # Create and run send processes
-        send_processes = []
         for i in range(num_processes):
             flare = flares[i]
-            p = multiprocessing.Process(target=handle_agent_task, args=(flare, self.errors))
-            send_processes.append(p)
+            p = multiprocessing.Process(target=handle_agent_task, args=(flare,))
+            processes.append(p)
             p.start()
-
-        # Wait for all send processes to finish
-        for p in send_processes:
+        for p in processes:
             p.join()
 
-        # Check for any errors from send phase
-        errors = []
-        try:
-            while True:
-                try:
-                    errors.append(self.errors.get_nowait())
-                except multiprocessing.queues.Empty:
-                    break
-        except (EOFError, OSError):
-            # Handle case where queue is closed/corrupted
-            pass
-
-        if errors:
-            raise Exception(f"Errors during send phase: {errors}")
-
-        # Clean up the directory in the parent process
-        if os.path.exists(self.shared_dir.name):
-            self.fs.remove_object(self.shared_dir.name)
-
-        # Final verification that directory was cleaned up
-        assert not os.path.exists(self.shared_dir.name), "Directory was not cleaned up after all processes finished"
+        assert self.errors.qsize() == 0
 
     def test_multiple_process_partial_failure(self):
         """
@@ -331,63 +200,27 @@ class TracerFlareMultiprocessTests(TestCase):
                 )
             )
 
-        def do_tracer_flare(log_level: str, send_request: FlareSendRequest, flare: Flare, error_queue):
+        def do_tracer_flare(log_level: str, send_request: FlareSendRequest, flare: Flare):
             try:
                 flare.prepare(log_level)
-                if log_level is not None:
-                    # For the successful process, verify its files exist
-                    pid = os.getpid()
-                    expected_files = {
-                        f"tracer_python_{pid}.log",
-                        f"tracer_config_{pid}.json"
-                    }
-                    actual_files = set(os.listdir(self.shared_dir.name))
-                    if not expected_files.issubset(actual_files):
-                        error_queue.put(Exception(f"Files were not generated for pid {pid}. Expected {expected_files}, found {actual_files}"))
+                # Assert that only one process wrote its file successfully
+                # We check for 2 files because it will generate a log file and a config file
+                assert 2 == len(os.listdir(self.shared_dir.name))
                 flare.send(send_request)
-            except TypeError as e:
-                # Expected error for the failing process (invalid log level)
-                if log_level is None:
-                    return
-                error_queue.put(e)
             except Exception as e:
-                error_queue.put(e)
+                self.errors.put(e)
 
         # Create successful process
-        p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", MOCK_FLARE_SEND_REQUEST, flares[0], self.errors))
+        p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", MOCK_FLARE_SEND_REQUEST, flares[0]))
         processes.append(p)
         p.start()
-
         # Create failing process
-        p = multiprocessing.Process(target=do_tracer_flare, args=(None, MOCK_FLARE_SEND_REQUEST, flares[1], self.errors))
+        p = multiprocessing.Process(target=do_tracer_flare, args=(None, MOCK_FLARE_SEND_REQUEST, flares[1]))
         processes.append(p)
         p.start()
-
-        # Wait for all processes to finish
         for p in processes:
             p.join()
-
-        # Check for unexpected errors
-        errors = []
-        try:
-            while True:
-                try:
-                    errors.append(self.errors.get_nowait())
-                except multiprocessing.queues.Empty:
-                    break
-        except (EOFError, OSError):
-            # Handle case where queue is closed/corrupted
-            pass
-
-        # We expect no errors since the TypeError from the failing process is expected
-        assert len(errors) == 0, f"Unexpected errors occurred: {errors}"
-
-        # Clean up the directory in the parent process
-        if os.path.exists(self.shared_dir.name):
-            self.fs.remove_object(self.shared_dir.name)
-
-        # Verify directory was cleaned up
-        assert not os.path.exists(self.shared_dir.name), "Directory was not cleaned up after all processes finished"
+        assert self.errors.qsize() == 1
 
 
 class MockPubSubConnector(PublisherSubscriberConnector):

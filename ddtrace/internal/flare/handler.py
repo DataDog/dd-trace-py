@@ -5,7 +5,6 @@ from typing import List
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import PayloadType
 
 
 log = get_logger(__name__)
@@ -25,7 +24,6 @@ def _tracerFlarePubSub():
 
         def __init__(self, callback: Callable, flare: Flare):
             log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__()")
-            super().__init__()
             self._publisher = self.__publisher_class__(self.__shared_data__, None)
             self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, flare)
             log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__() end")
@@ -64,82 +62,55 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
     log.warning("JJJ in _handle_tracer_flare end4")
 
 
-def _prepare_tracer_flare(flare: Flare, config: PayloadType) -> bool:
+def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     """
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
     """
-    log.warning("JJJ in _prepare_tracer_flare with config: %r", config)
-    if not config or not isinstance(config, list) or len(config) != 2:
-        log.warning("JJJ in _prepare_tracer_flare end not config or invalid format")
-        return False
+    for c in configs:
+        # AGENT_CONFIG is currently being used for multiple purposes
+        # We only want to prepare for a tracer flare if the config name
+        # starts with 'flare-log-level'
+        if not isinstance(c, dict):
+            log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
+            continue
+        if not c.get("name", "").startswith("flare-log-level"):
+            log.debug(
+                "Config item name does not start with flare-log-level, received %s instead. Skipping...", c.get("name")
+            )
+            continue
 
-    config_data = config[1]
-    if not isinstance(config_data, dict):
-        log.warning("JJJ in _prepare_tracer_flare end config_data not dict")
-        return False
-
-    config_dict = config_data.get("config", {})
-    log.warning("JJJ Config dict: %r", config_dict)
-    if not isinstance(config_dict, dict) or "log_level" not in config_dict:
-        log.debug(
-            "Config item does not have a log_level in config dict, received [%r] instead. Skipping...",
-            config_dict,
-        )
-        log.warning("JJJ in _prepare_tracer_flare end no log_level in config_dict")
-        return False
-
-    flare_log_level = config_dict["log_level"].upper()
-    log.warning("JJJ Flare log level: %r", flare_log_level)
-    if not flare_log_level:
-        log.warning("JJJ in _prepare_tracer_flare end no log_level in config")
-        return False
-
-    flare.prepare(flare_log_level)
-    log.warning("JJJ in _prepare_tracer_flare end OK True")
-    return True
+        flare_log_level = c.get("config", {}).get("log_level").upper()
+        flare.prepare(flare_log_level)
+        return True
+    return False
 
 
-def _generate_tracer_flare(flare: Flare, config: PayloadType) -> bool:
+def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     """
     Revert tracer flare configurations back to original state
     before sending the flare.
     """
-    log.warning("JJJ in _generate_tracer_flare with config: %r", config)
-    # AGENT_TASK is currently being used for multiple purposes
-    # We only want to generate the tracer flare if the task_type is
-    # 'tracer_flare'
-    if not config or not isinstance(config, list) or len(config) != 2:
-        log.warning("JJJ in _generate_tracer_flare end not config or invalid format")
-        return False
-
-    # The config is a list with [enabled, config_data]
-    config_data = config[1]
-    if not isinstance(config_data, dict):
-        log.warning("JJJ in _generate_tracer_flare end config_data not dict")
-        return False
-
-    task_type = config_data.get("task_type")
-    log.warning("JJJ Task type: %r", task_type)
-    if task_type != "tracer_flare":
-        log.debug(
-            "Config item does not have the expected task_type. Expected [tracer_flare], received [%r]. Skipping...",
-            task_type,
+    for c in configs:
+        # AGENT_TASK is currently being used for multiple purposes
+        # We only want to generate the tracer flare if the task_type is
+        # 'tracer_flare'
+        if not isinstance(c, dict):
+            log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
+            continue
+        if c.get("task_type") != "tracer_flare":
+            log.debug(
+                "Config item does not have the expected task_type. Expected [tracer_flare], received [%s]. Skipping...",
+                c.get("task_type"),
+            )
+            continue
+        args = c.get("args", {})
+        flare_request = FlareSendRequest(
+            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
         )
-        log.warning("JJJ in _generate_tracer_flare end not task_type")
-        return False
 
-    args = config_data.get("args", {})
-    log.warning("JJJ Args: %r", args)
-    if not args:
-        log.warning("JJJ in _generate_tracer_flare end no args in config")
-        return False
+        flare.revert_configs()
 
-    flare_request = FlareSendRequest(
-        case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
-    )
-
-    flare.revert_configs()
-    flare.send(flare_request)
-    log.warning("JJJ in _generate_tracer_flare end OK True")
-    return True
+        flare.send(flare_request)
+        return True
+    return False

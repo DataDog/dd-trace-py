@@ -125,12 +125,8 @@ class SignedRoot:
         for i in range(len(self.signatures)):
             if isinstance(self.signatures[i], dict):
                 self.signatures[i] = Signature(**self.signatures[i])
-        # if isinstance(self.signed, dict):
-            # JJJ
-            # Filter out version field if present
-            # signed_data = self.signed.copy()
-            # signed_data.pop('version', None)
-            # self.signed = Root(**signed_data)
+        if isinstance(self.signed, dict):
+            self.signed = Root(**self.signed)
 
 
 @dataclasses.dataclass
