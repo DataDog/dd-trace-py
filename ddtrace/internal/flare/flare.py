@@ -7,9 +7,11 @@ from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
+import time
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from urllib.parse import urlparse
 import zipfile
 
 from ddtrace._logger import _add_file_handler
@@ -113,8 +115,13 @@ class Flare:
                 raise e
             try:
                 client = get_connection(self.url, timeout=self.timeout)
-                headers, body = self._generate_payload(flare_send_req.__dict__)
-                client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+                headers, body = self._generate_payload(flare_send_req)
+                # Use the configured site for the request URL
+                site = self.ddconfig.get("_dd_site", "datadoghq.com")
+                log.warning("JJJ Using site: %s from ddconfig: %s", site, self.ddconfig.get("_dd_site"))
+                request_url = f"http://{site}{TRACER_FLARE_ENDPOINT}"
+                log.warning("JJJ Request URL: %s", request_url)
+                client.request("POST", request_url, body, headers)
                 response = client.getresponse()
                 if response.status == 200:
                     log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
@@ -167,36 +174,80 @@ class Flare:
             log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.original_log_level)
 
-    def _generate_payload(self, params: Dict[str, str]) -> Tuple[dict, bytes]:
+    def _generate_payload(self, flare_send_req):
+        """
+        Generate the multipart form-data payload for the flare request.
+        """
         log.warning("JJJ Flare._generate_payload()")
-        zip_stream = io.BytesIO()
-        with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-            for flare_file_name in self.flare_dir.iterdir():
-                zipf.write(flare_file_name, arcname=flare_file_name.name)
-        zip_stream.seek(0)
-
-        newline = b"\r\n"
-
-        boundary = binascii.hexlify(os.urandom(16))
         body = io.BytesIO()
-        for key, value in params.items():
-            encoded_key = key.encode()
-            encoded_value = value.encode()
-            body.write(b"--" + boundary + newline)
-            body.write(b'Content-Disposition: form-data; name="%s"%s%s' % (encoded_key, newline, newline))
-            body.write(b"%s%s" % (encoded_value, newline))
 
-        body.write(b"--" + boundary + newline)
-        body.write((b'Content-Disposition: form-data; name="flare_file"; filename="flare.zip"%s' % newline))
-        body.write(b"Content-Type: application/octet-stream%s%s" % (newline, newline))
-        body.write(zip_stream.getvalue() + newline)
-        body.write(b"--" + boundary + b"--")
+        # Use a fixed boundary for consistency (like .NET implementation)
+        boundary = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
+
+        # Create the multipart form data in the same order as .NET implementation:
+        # source, case_id, hostname, email, flare_file
+
+        # 1. source field
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(b'Content-Disposition: form-data; name="source"\r\n\r\n')
+        body.write(b'tracer_python\r\n')
+
+        # 2. case_id field
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(b'Content-Disposition: form-data; name="case_id"\r\n\r\n')
+        body.write(f"{flare_send_req.case_id}\r\n".encode())
+
+        # 3. hostname field
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(b'Content-Disposition: form-data; name="hostname"\r\n\r\n')
+        body.write(f"{flare_send_req.hostname}\r\n".encode())
+
+        # 4. email field
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(b'Content-Disposition: form-data; name="email"\r\n\r\n')
+        body.write(f"{flare_send_req.email}\r\n".encode())
+
+        # 5. flare_file field with descriptive filename (like .NET)
+        timestamp = int(time.time() * 1000)  # milliseconds timestamp like .NET
+        filename = f"tracer-python-{flare_send_req.case_id}-{timestamp}-debug.zip"
+        body.write(f"--{boundary}\r\n".encode())
+        body.write(f'Content-Disposition: form-data; name="flare_file"; filename="{filename}"\r\n'.encode())
+        body.write(b'Content-Type: application/octet-stream\r\n\r\n')
+
+        # Create the zip file content separately
+        zip_stream = io.BytesIO()
+        with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+            # Add config file
+            config_file = self.flare_dir / f"tracer_config_{os.getpid()}.json"
+            if config_file.exists():
+                zip_file.write(config_file, config_file.name)
+
+            # Add log file
+            log_file = self.flare_dir / f"tracer_python_{os.getpid()}.log"
+            if log_file.exists():
+                zip_file.write(log_file, log_file.name)
+
+        # Write the zip content to the body
+        zip_stream.seek(0)
+        body.write(zip_stream.getvalue())
+        body.write(b'\r\n')
+
+        # End boundary
+        body.write(f"--{boundary}--\r\n".encode())
+
+        # Set headers
         headers = {
-            "Content-Type": b"multipart/form-data; boundary=%s" % boundary,
-            "Content-Length": body.getbuffer().nbytes,
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(body.tell()),
         }
+
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
+        # Add Host header for agent proxying - should be the backend URL, not the agent URL
+        # The agent will proxy this request to the Datadog backend
+        site = self.ddconfig.get("_dd_site", "datadoghq.com")
+        log.warning("JJJ Setting Host header to: %s", site)
+        headers["Host"] = site
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:

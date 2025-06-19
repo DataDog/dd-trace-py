@@ -130,12 +130,36 @@ class TracerFlareMultiprocessTests(TestCase):
         self.setUpPyfakefs()
         self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.errors = multiprocessing.Queue()
+        self.processes = []
+
+    def tearDown(self):
+        # Terminate any remaining processes
+        for process in self.processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=1)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+
+        # Clean up the multiprocessing queue
+        try:
+            while not self.errors.empty():
+                self.errors.get_nowait()
+        except (EOFError, OSError):
+            pass
+        finally:
+            self.errors.close()
+            self.errors.join_thread()
+
+        # Clean up the shared directory
+        if hasattr(self, 'shared_dir') and os.path.exists(self.shared_dir.name):
+            self.fs.remove_object(self.shared_dir.name)
 
     def test_multiple_process_success(self):
         """
         Validate that the tracer flare will generate for multiple processes
         """
-        processes = []
         num_processes = 3
         flares = []
         for _ in range(num_processes):
@@ -150,8 +174,6 @@ class TracerFlareMultiprocessTests(TestCase):
         def handle_agent_config(flare: Flare):
             try:
                 flare.prepare("DEBUG")
-                # Assert that each process wrote its file successfully
-                # We double the process number because each will generate a log file and a config file
                 if len(os.listdir(self.shared_dir.name)) == 0:
                     self.errors.put(Exception("Files were not generated"))
             except Exception as e:
@@ -165,21 +187,22 @@ class TracerFlareMultiprocessTests(TestCase):
             except Exception as e:
                 self.errors.put(e)
 
-        # Create multiple processes
         for i in range(num_processes):
             flare = flares[i]
             p = multiprocessing.Process(target=handle_agent_config, args=(flare,))
-            processes.append(p)
+            self.processes.append(p)
             p.start()
-        for p in processes:
+        for p in self.processes:
             p.join()
+
+        self.processes.clear()
 
         for i in range(num_processes):
             flare = flares[i]
             p = multiprocessing.Process(target=handle_agent_task, args=(flare,))
-            processes.append(p)
+            self.processes.append(p)
             p.start()
-        for p in processes:
+        for p in self.processes:
             p.join()
 
         assert self.errors.qsize() == 0
@@ -189,7 +212,6 @@ class TracerFlareMultiprocessTests(TestCase):
         Validate that even if the tracer flare fails for one process, we should
         still continue the work for the other processes (ensure best effort)
         """
-        processes = []
         flares = []
         for _ in range(2):
             flares.append(
@@ -203,22 +225,18 @@ class TracerFlareMultiprocessTests(TestCase):
         def do_tracer_flare(log_level: str, send_request: FlareSendRequest, flare: Flare):
             try:
                 flare.prepare(log_level)
-                # Assert that only one process wrote its file successfully
-                # We check for 2 files because it will generate a log file and a config file
                 assert 2 == len(os.listdir(self.shared_dir.name))
                 flare.send(send_request)
             except Exception as e:
                 self.errors.put(e)
 
-        # Create successful process
         p = multiprocessing.Process(target=do_tracer_flare, args=("DEBUG", MOCK_FLARE_SEND_REQUEST, flares[0]))
-        processes.append(p)
+        self.processes.append(p)
         p.start()
-        # Create failing process
         p = multiprocessing.Process(target=do_tracer_flare, args=(None, MOCK_FLARE_SEND_REQUEST, flares[1]))
-        processes.append(p)
+        self.processes.append(p)
         p.start()
-        for p in processes:
+        for p in self.processes:
             p.join()
         assert self.errors.qsize() == 1
 
