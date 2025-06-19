@@ -266,12 +266,13 @@ build_base_venvs:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
+    PIP_VERBOSE: '1'
     DD_PROFILING_NATIVE_TESTS: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     DD_CMAKE_INCREMENTAL_BUILD: '1'
     DD_SETUP_CACHE_DOWNLOADS: '1'
     EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
+    _DD_DEBUG_EXT: '1'
   script: |
     set -e -o pipefail
     pip install riot==0.20.1
@@ -310,6 +311,7 @@ build_base_venvs:
     paths:
       - scripts/restore-ext-cache.sh
       - scripts/save-ext-cache.sh
+      - debug_ext_metadata.txt
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*
