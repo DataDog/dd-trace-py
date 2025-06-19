@@ -150,6 +150,7 @@ extra-dependencies = [
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [envs.integration_test.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
 DD_TESTING_RAISE = "1"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
@@ -172,6 +173,9 @@ dependencies = [
     "hypothesis",
     "django{matrix:django}"
 ]
+
+[envs.appsec_threats_django.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 
 [envs.appsec_threats_django.scripts]
 test = [
@@ -217,6 +221,9 @@ dependencies = [
     "Werkzeug{matrix:werkzeug:}",
     "flask{matrix:flask}"
 ]
+
+[envs.appsec_threats_flask.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 
 [envs.appsec_threats_flask.scripts]
 test = [
@@ -265,6 +272,7 @@ dependencies = [
 ]
 
 [envs.appsec_iast_default.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_DEDUPLICATION_ENABLED = "false"
@@ -291,6 +299,7 @@ dependencies = [
 ]
 
 [envs.appsec_iast_native.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
@@ -326,6 +335,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_packages.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
@@ -359,6 +369,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_django.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
@@ -410,6 +421,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_flask.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
@@ -469,6 +481,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_fastapi.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
@@ -512,6 +525,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_langchain.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_TRACE_AGENT_URL = "http://testagent:9126"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
 DD_IAST_REQUEST_SAMPLING = "100"
@@ -553,6 +567,9 @@ dependencies = [
     "fastapi{matrix:fastapi}"
 ]
 
+[envs.appsec_threats_fastapi.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
+
 [envs.appsec_threats_fastapi.scripts]
 test = [
     "uname -a",
@@ -592,6 +609,7 @@ dependencies = [
 ]
 
 [envs.iast_aggregated_leak_testing.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_IAST_ENABLED = "true"
 _DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec.,scripts.iast."
 DD_FAST_BUILD = "0"
@@ -621,6 +639,7 @@ dependencies = [
 ]
 
 [envs.profiling_pytorch.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_PROFILING_ENABLED = "true"
 DD_PROFILING_PYTORCH_ENABLED = "true"
 
@@ -649,6 +668,7 @@ dependencies = [
 ]
 
 [envs.multiple_os_tests.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_IAST_ENABLED = "false"
 DD_REMOTE_CONFIGURATION_ENABLED = "false"
 CMAKE_BUILD_PARALLEL_LEVEL="6"
@@ -696,6 +716,7 @@ dependencies = [
 ]
 
 [envs.pytest_plugin_v2.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_AGENT_PORT = "9126"
 
 [envs.pytest_plugin_v2.scripts]
@@ -733,6 +754,7 @@ dependencies = [
 ]
 
 [envs.appsec_integrations_pygoat.env-vars]
+DD_CMAKE_INCREMENTAL_BUILD = "1"
 DD_CIVISIBILITY_ITR_ENABLED = "0"
 DD_IAST_REQUEST_SAMPLING = "100"
 DD_IAST_ENABLED = "true"
