@@ -32,7 +32,6 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSeria
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
 from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
-import ddtrace.internal.test_visibility._internal_item_ids
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
 from ddtrace.settings._config import Config
