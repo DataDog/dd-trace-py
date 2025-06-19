@@ -77,7 +77,7 @@ suitespec-check = [
 
 [envs.docs]
 template = "docs"
-dev-mode = false
+skip-install = true
 python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
