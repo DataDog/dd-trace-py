@@ -8,7 +8,6 @@ import ddtrace
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.internal.test_visibility import api
-import ddtrace.internal.test_visibility._internal_item_ids
 
 
 def main():
