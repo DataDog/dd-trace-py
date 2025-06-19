@@ -25,6 +25,7 @@ def _tracerFlarePubSub():
 
         def __init__(self, callback: Callable, flare: Flare):
             log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__()")
+            super().__init__()
             self._publisher = self.__publisher_class__(self.__shared_data__, None)
             self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, flare)
             log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__() end")
