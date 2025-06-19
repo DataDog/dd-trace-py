@@ -188,3 +188,55 @@ def _testing_unpatch_iast():
     """
     iast_funcs = WrapFunctonsForIAST()
     iast_funcs.testing_unpatch()
+
+
+def _apply_custom_security_controls(iast_funcs: Optional[WrapFunctonsForIAST] = None):
+    """Apply custom security controls from DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable."""
+    try:
+        if iast_funcs is None:
+            iast_funcs = WrapFunctonsForIAST()
+        security_controls = get_security_controls_from_env()
+
+        if not security_controls:
+            log.debug("No custom security controls configured")
+            return
+
+        log.debug("Applying %s custom security controls", len(security_controls))
+
+        for control in security_controls:
+            try:
+                _apply_security_control(iast_funcs, control)
+            except Exception:
+                log.warning("Failed to apply security control %s", control, exc_info=True)
+        return iast_funcs
+    except Exception:
+        log.warning("Failed to load custom security controls", exc_info=True)
+
+
+def _apply_security_control(iast_funcs: WrapFunctonsForIAST, control: SecurityControl):
+    """Apply a single security control configuration.
+
+    Args:
+        control: SecurityControl object containing the configuration
+    """
+    # Create the appropriate wrapper function
+    if control.control_type == SC_SANITIZER:
+        wrapper_func = functools.partial(create_sanitizer, control.vulnerability_types)
+    elif control.control_type == SC_VALIDATOR:
+        wrapper_func = functools.partial(create_validator, control.vulnerability_types, control.parameters)
+    else:
+        log.warning("Unknown control type: %s", control.control_type)
+        return
+
+    iast_funcs.wrap_function(
+        control.module_path,
+        control.method_name,
+        wrapper_func,
+    )
+    log.debug(
+        "Configured %s for %s.%s (vulnerabilities: %s)",
+        control.control_type,
+        control.module_path,
+        control.method_name,
+        [v.name for v in control.vulnerability_types],
+    )
