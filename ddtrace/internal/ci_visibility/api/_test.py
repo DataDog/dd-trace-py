@@ -42,10 +42,8 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 log = get_logger(__name__)
 
-TID = TestId
 
-
-class TestVisibilityTest(TestVisibilityChildItem[TID], TestVisibilityItemBase):
+class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase):
     _event_type = TEST
     _event_type_metric_name = EVENT_TYPES.TEST
 
