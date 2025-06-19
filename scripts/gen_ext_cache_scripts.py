@@ -12,7 +12,7 @@ SAVE_FILE = HERE / "save-ext-cache.sh"
 
 # Get extension information from setup.py
 output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
-cached_files = set()
+cached_files: t.Set[t.Tuple[str, str]] = set()
 for line in output.decode().splitlines():
     if not line.startswith("#EXTHASH:"):
         continue
@@ -41,7 +41,7 @@ if not RESTORE_FILE.exists():
         "\n".join(
             [
                 f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest} "
-                f"&& echo 'Restored {cached_file} -> {dest}') || true"
+                f"&& echo '- restored {Path(dest).relative_to(ROOT)}') || true"
                 for cached_file, dest in cached_files
             ]
         )
@@ -52,7 +52,7 @@ else:
         "\n".join(
             [
                 f"    test -f {cached_file} || mkdir -p {Path(cached_file).parent} && (cp {dest} {cached_file} "
-                f"&& echo 'Saved {dest} -> {cached_file}' || true)"
+                f"&& echo '- saved {Path(dest).relative_to(ROOT)}' || true)"
                 for cached_file, dest in cached_files
             ]
         )
