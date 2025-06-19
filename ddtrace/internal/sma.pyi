@@ -9,7 +9,6 @@ class SimpleMovingAverage:
         :type size: :obj:`int`
         """
         ...
-
     def get(self) -> float:
         """
         Get the current moving average value.
@@ -18,7 +17,6 @@ class SimpleMovingAverage:
         :rtype: float
         """
         ...
-
     def set(self, count: int, total: int) -> None:
         """
         Set the value of the next bucket and update the SMA value.
@@ -29,7 +27,6 @@ class SimpleMovingAverage:
         :type total: :obj:`int`
         """
         ...
-
     @property
     def current_average(self) -> float:
         """Get current average (read-only property)"""
