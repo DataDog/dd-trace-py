@@ -3,21 +3,90 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
+from tests.contrib.openai.utils import mock_openai_chat_completions_response
+from tests.contrib.openai.utils import mock_openai_completions_response
 from tests.contrib.openai.utils import multi_message_input
 from tests.contrib.openai.utils import response_tool_function
 from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config",
+    [
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_instrumented_proxy_urls="http://localhost:4000",
+        )
+    ],
 )
 class TestLLMObsOpenaiV1:
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        # mock out the completions response
+        mock_completions_post.return_value = mock_openai_completions_response
+        model = "gpt-3.5-turbo"
+        client = openai.OpenAI(base_url="http://localhost:4000")
+        client.completions.create(
+            model=model,
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {"content": "Hello! How can I assist you today?"},
+                        {"content": "Hello! How can I assist you today?"},
+                    ],
+                    ensure_ascii=False,
+                ),
+                metadata={
+                    "temperature": 0.8,
+                    "n": 2,
+                    "stop": ".",
+                    "max_tokens": 10,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.completions.create(
+            model=model,
+            prompt="Hello world",
+            temperature=0.8,
+            n=2,
+            stop=".",
+            max_tokens=10,
+            user="ddtrace-test",
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+
     def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -49,6 +118,61 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) >= (1, 60),
+        reason="latest openai versions use modified azure requests",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_completion_azure_proxy(
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        prompt = "Hello world"
+        mock_completions_post.return_value = mock_openai_completions_response
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:4000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.completions.create(
+            model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {"content": "Hello! How can I assist you today?"},
+                        {"content": "Hello! How can I assist you today?"},
+                    ],
+                    ensure_ascii=False,
+                ),
+                metadata={
+                    "temperature": 0,
+                    "n": 1,
+                    "max_tokens": 20,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:8000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.completions.create(
+            model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -145,6 +269,51 @@ class TestLLMObsOpenaiV1:
             ),
         )
 
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_proxy(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        model = "gpt-3.5-turbo"
+        input_messages = multi_message_input
+        client = openai.OpenAI(base_url="http://localhost:4000")
+        client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json(input_messages, ensure_ascii=False),
+                output_value=safe_json(
+                    [
+                        {
+                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                            "role": "assistant",
+                        },
+                        {
+                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                            "role": "assistant",
+                        },
+                    ],
+                    ensure_ascii=False,
+                ),
+                metadata={
+                    "top_p": 0.9,
+                    "n": 2,
+                    "user": "ddtrace-test",
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+
     def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
@@ -171,6 +340,68 @@ class TestLLMObsOpenaiV1:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) >= (1, 60),
+        reason="latest openai versions use modified azure requests",
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_azure_proxy(
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        input_messages = [
+            {"content": "Where did the Los Angeles Dodgers play to win the world series in 2020?", "role": "user"}
+        ]
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:4000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        expected_event = _expected_llmobs_non_llm_span_event(
+            span,
+            "workflow",
+            input_value=safe_json(input_messages, ensure_ascii=False),
+            output_value=safe_json(
+                [
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                ],
+                ensure_ascii=False,
+            ),
+            metadata={
+                "temperature": 0,
+                "n": 1,
+                "max_tokens": 20,
+                "user": "ddtrace-test",
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+        )
+        mock_llmobs_writer.enqueue.assert_called_with(expected_event)
+
+        # span created from request with non-proxy URL should result in an LLM span
+        azure_client = openai.AzureOpenAI(
+            base_url="http://localhost:8000",
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+        )
+        azure_client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
