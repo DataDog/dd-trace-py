@@ -226,6 +226,11 @@ def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
             pass
 
 
+def test_start_span_without_ml_app_does_noop():
+    with llmobs_service.task():
+        pass
+
+
 def test_ml_app_local_precedence(llmobs, tracer):
     with tracer.trace("apm") as apm_span:
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
