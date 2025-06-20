@@ -1,12 +1,12 @@
 from enum import Enum
 import typing as t
 
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.status import TestExcInfo
 from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 
 
 log = get_logger(__name__)
@@ -45,21 +45,21 @@ class EFDSessionMixin:
 class EFDTestMixin:
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_should_retry(item_id: InternalTestId) -> bool:
+    def efd_should_retry(item_id: TestId) -> bool:
         log.debug("Checking if test %s should be retried by EFD", item_id)
 
         return require_ci_visibility_service().get_test_by_id(item_id).efd_should_retry()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_add_retry(item_id: InternalTestId, start_immediately: bool = False) -> t.Optional[int]:
+    def efd_add_retry(item_id: TestId, start_immediately: bool = False) -> t.Optional[int]:
         retry_number = require_ci_visibility_service().get_test_by_id(item_id).efd_add_retry(start_immediately)
         log.debug("Adding EFD retry %s for test %s", retry_number, item_id)
         return retry_number
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_start_retry(item_id: InternalTestId, retry_number: int) -> None:
+    def efd_start_retry(item_id: TestId, retry_number: int) -> None:
         log.debug("Starting EFD retry %s for test %s", retry_number, item_id)
 
         require_ci_visibility_service().get_test_by_id(item_id).efd_start_retry(retry_number)
@@ -67,7 +67,7 @@ class EFDTestMixin:
     @staticmethod
     @_catch_and_log_exceptions
     def efd_finish_retry(
-        item_id: InternalTestId,
+        item_id: TestId,
         retry_number: int,
         status: TestStatus,
         skip_reason: t.Optional[str] = None,
@@ -87,7 +87,7 @@ class EFDTestMixin:
 
     @staticmethod
     @_catch_and_log_exceptions
-    def efd_get_final_status(item_id: InternalTestId) -> EFDTestStatus:
+    def efd_get_final_status(item_id: TestId) -> EFDTestStatus:
         log.debug("Getting EFD final status for test %s", item_id)
 
         return require_ci_visibility_service().get_test_by_id(item_id).efd_get_final_status()
