@@ -50,6 +50,7 @@ PATCH_MODULES = {
     "futures": True,
     "freezegun": True,
     "google_generativeai": True,
+    "google_genai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -160,6 +161,7 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
+    "google_genai": ("google.genai",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
