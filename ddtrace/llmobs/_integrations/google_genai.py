@@ -16,6 +16,7 @@ from ddtrace._trace.span import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.internal.google_genai._utils import normalize_contents
+from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 
 
@@ -39,21 +40,16 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
          config = get_argument_value(args, kwargs, -1, "config", optional=True)
-         metadata = config.model_dump() if config else {}
-
-         input_messages = self._extract_input_message(args, kwargs, config)
-         output_messages = None
-         metrics = None
 
          span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
                 MODEL_NAME: span.get_tag("google_genai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("google_genai.request.provider") or "",
-                METADATA: metadata,
-                INPUT_MESSAGES: input_messages,
-                # OUTPUT_MESSAGES: output_messages,
-                # METRICS: get_llmobs_metrics_tags("vertexai", span),
+                METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {},
+                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+                # OUTPUT_MESSAGES: self._extract_output_message(response),
+                METRICS: extract_metrics_google_genai(response),
             }
         )
     
@@ -77,7 +73,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                         if isinstance(part, str):
                             messages.append({"content": part, "role": role})
                         else:
-                            message = extract_message_from_part_google_genai(part, role)
+                            message = extract_message_from_part_google(part, role)
                             messages.append(message)
        
         contents = get_argument_value(args, kwargs, -1, "contents")
@@ -101,29 +97,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                     messages.append(message)
                     continue
 
-                message = extract_message_from_part_google_genai(part, role)
+                message = extract_message_from_part_google(part, role)
                 messages.append(message)
 
         return messages
-    
-
-def extract_message_from_part_google_genai(part, role=None):
-    text = _get_attr(part, "text", "")
-    function_call = _get_attr(part, "function_call", None)
-    function_response = _get_attr(part, "function_response", None)
-    message = {"content": text}
-    if role:
-        message["role"] = role
-    if function_call:
-        function_call_dict = function_call
-        if not isinstance(function_call, dict):
-            function_call_dict = function_call.model_dump()
-        message["tool_calls"] = [
-            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-        ]
-    if function_response:
-        function_response_dict = function_response
-        if not isinstance(function_response, dict):
-            function_response_dict = function_response.model_dump()
-        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", "")) #this will override the text in the part?
-    return message

@@ -1,6 +1,9 @@
 import sys
 import wrapt
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 
 
 def normalize_contents(contents):
@@ -31,6 +34,27 @@ def normalize_contents(contents):
     if isinstance(contents, list):
         return [extract_content(c) for c in contents]
     return [extract_content(contents)]
+
+# since we are not setting metrics in APM span, can't call get_llmobs_metrics_tags
+def extract_metrics_google_genai(response):
+    usage = {}
+
+    if not response:
+        return usage
+    
+    usage_metadata = _get_attr(response, "usage_metadata", {})
+
+    input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
+    output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
+    total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
+
+    if input_tokens is not None:
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+    if output_tokens is not None:
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if total_tokens is not None:
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    return usage
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
