@@ -1,6 +1,5 @@
 import os
 
-from google.genai import types
 import pytest
 
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
@@ -59,6 +58,7 @@ def test_google_genai_generate_content_error(genai):
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
 
@@ -72,6 +72,7 @@ def test_google_genai_generate_content_stream(google_genai_vcr, genai):
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
         )
         for _ in response:
             pass
@@ -87,6 +88,7 @@ def test_google_genai_generate_content_stream_error(genai):
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
         for _ in response:
@@ -117,6 +119,7 @@ async def test_google_genai_generate_content_async_error(genai):
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
 
@@ -131,6 +134,7 @@ async def test_google_genai_generate_content_async_stream(google_genai_vcr, gena
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
         )
         async for _ in response:
             pass
@@ -146,6 +150,7 @@ async def test_google_genai_generate_content_async_stream_error(genai):
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
         async for _ in response:
@@ -162,10 +167,7 @@ def test_google_genai_generate_content_vertex(mock_vertex_generate_content, gena
     client.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=100,
-        ),
+        config=FULL_GENERATE_CONTENT_CONFIG,
     )
 
 
@@ -183,6 +185,7 @@ def test_google_genai_generate_content_vertex_error(mock_vertex_generate_content
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
 
@@ -199,6 +202,7 @@ def test_google_genai_generate_content_stream_vertex(mock_vertex_generate_conten
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
+        config=FULL_GENERATE_CONTENT_CONFIG,
     )
     for _ in response:
         pass
@@ -218,6 +222,7 @@ def test_google_genai_generate_content_stream_vertex_error(mock_vertex_generate_
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
         for _ in response:
@@ -237,10 +242,7 @@ async def test_google_genai_generate_content_async_vertex(mock_vertex_generate_c
     await client.aio.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=types.GenerateContentConfig(
-            temperature=0,
-            max_output_tokens=100,
-        ),
+        config=FULL_GENERATE_CONTENT_CONFIG,
     )
 
 
@@ -258,6 +260,7 @@ async def test_google_genai_generate_content_async_vertex_error(mock_vertex_gene
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
 
@@ -275,6 +278,7 @@ async def test_google_genai_generate_content_async_stream_vertex(mock_vertex_gen
     response = await client.aio.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
+        config=FULL_GENERATE_CONTENT_CONFIG,
     )
     async for _ in response:
         pass
@@ -294,6 +298,7 @@ async def test_google_genai_generate_content_async_stream_vertex_error(mock_vert
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
             not_an_argument="why am i here?",
         )
         async for _ in response:

@@ -27,6 +27,11 @@ def genai():
     patch()
     from google import genai
 
+    # these environment variables are checked by vertexai
+    # when running locally, these lines ensure that the client is not using the real API key.
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
+    os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
+
     # When testing locally to generate new cassette files,
     # comment the lines below to use the real Google API key
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
