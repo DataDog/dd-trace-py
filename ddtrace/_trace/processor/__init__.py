@@ -513,6 +513,8 @@ class SpanAggregator(SpanProcessor):
         Arguments that are None will not override existing values.
         """
         try:
+            # Flush any remaining spans in the writer's queue before reconfiguring.
+            self.writer.flush_queue()
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.writer.stop()
         except ServiceStatusError:
