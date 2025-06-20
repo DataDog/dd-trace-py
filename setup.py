@@ -1,6 +1,7 @@
 import atexit
 import fnmatch
 import hashlib
+from itertools import chain
 import os
 import platform
 import re
@@ -10,6 +11,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import typing as t
 import warnings
 
 import cmake
@@ -95,7 +97,11 @@ def interpose_sccache():
         return
 
     # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    sccache_path = Path(os.getenv("SCCACHE_PATH", shutil.which("sccache")))
+    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
+    if _sccache_path is None:
+        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
+        return
+    sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
@@ -158,7 +164,11 @@ def load_module_from_project_file(mod_name, fname):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    if spec is None:
+        raise ImportError(f"Could not find module {mod_name} in {fpath}")
     mod = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        raise ImportError(f"Could not load module {mod_name} from {fpath}")
     spec.loader.exec_module(mod)
     return mod
 
@@ -167,17 +177,65 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+class ExtensionHashes(build_ext):
+    def run(self):
+        try:
+            dist = self.distribution
+            for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
+                if isinstance(ext, CMakeExtension):
+                    sources = ext.get_sources(self)
+                elif isinstance(ext, RustExtension):
+                    source_path = Path(ext.path).parent
+                    sources = [
+                        _
+                        for _ in source_path.glob("**/*")
+                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                    ]
+                else:
+                    sources = [Path(_) for _ in ext.sources]
+
+                sources_hash = hashlib.sha256()
+                for source in sorted(sources):
+                    sources_hash.update(source.read_bytes())
+                hash_digest = sources_hash.hexdigest()
+
+                entries: t.List[t.Tuple[str, str, str]] = []
+
+                if isinstance(ext, RustExtension):
+                    entries.extend(
+                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
+                        for module in ext.target.values()
+                    )
+                else:
+                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+
+                # Include any dependencies that might have been built alongside
+                # the extension.
+                if isinstance(ext, CMakeExtension):
+                    entries.extend(
+                        (f"{ext.name}-{dependency.name}", hash_digest, str(dependency) + "*")
+                        for dependency in ext.dependencies
+                    )
+
+                for entry in entries:
+                    print("#EXTHASH:", entry)
+
+        except Exception as e:
+            print("WARNING: Failed to compute extension hashes: %s" % e)
+            raise e
+
+
 class LibraryDownload:
     CACHE_DIR = HERE / ".download_cache"
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
 
     name = None
-    download_dir = None
+    download_dir = Path.cwd()
     version = None
     url_root = None
-    available_releases = None
+    available_releases = {}
     expected_checksums = None
-    translate_suffix = None
+    translate_suffix = {}
 
     @classmethod
     def download_artifacts(cls):
@@ -198,7 +256,7 @@ class LibraryDownload:
                 # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
                 target_platform = os.getenv("PLAT")
                 # Darwin Universal2 should bundle both architectures
-                if not target_platform.endswith(("universal2", arch)):
+                if target_platform and not target_platform.endswith(("universal2", arch)):
                     continue
             elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
@@ -219,7 +277,7 @@ class LibraryDownload:
                 archive_name,
             )
 
-            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else archive_name
+            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
             if cls.USE_CACHE and not cls.CACHE_DIR.exists():
                 cls.CACHE_DIR.mkdir(parents=True)
 
@@ -274,6 +332,10 @@ class LibraryDownload:
         cls.download_artifacts()
 
     @classmethod
+    def get_package_name(cls, arch, os) -> str:
+        raise NotImplementedError()
+
+    @classmethod
     def get_archive_name(cls, arch, os):
         return cls.get_package_name(arch, os) + ".tar.gz"
 
@@ -291,13 +353,13 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def get_package_name(cls, arch, opsys):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, opsys.lower(), arch)
+    def get_package_name(cls, arch, os):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
         return archive_dir
 
     @classmethod
-    def get_archive_name(cls, arch, opsys):
-        os_name = opsys.lower()
+    def get_archive_name(cls, arch, os):
+        os_name = os.lower()
         if os_name == "linux":
             archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
         else:
@@ -370,26 +432,36 @@ class CMakeBuild(build_ext):
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
-    def build_extension_cmake(self, ext):
+    def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
             # DEV: Rudimentary incremental build support. We copy the logic from
             # setuptools' build_ext command, best effort.
             full_path = Path(self.get_ext_fullpath(ext.name))
             ext_path = Path(ext.source_dir, full_path.name)
 
-            # Collect all the source files within the source directory. We exclude
-            # Python sources and anything that does not have a suffix (most likely
-            # a binary file), or that has the same name as the extension binary.
-            sources = (
-                [
-                    _
-                    for _ in Path(ext.source_dir).rglob("**")
-                    if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in (".py", ".pyc", ".pyi")
+            force = self.force
+
+            if ext.dependencies:
+                dependencies = [
+                    str(d.resolve())
+                    for dependency in ext.dependencies
+                    for d in dependency.parent.glob(dependency.name + "*")
+                    if d.is_file()
                 ]
-                if ext.source_dir
-                else []
-            )
-            if not (self.force or newer_group([str(_.resolve()) for _ in sources], str(ext_path.resolve()), "newer")):
+                if not dependencies:
+                    # We expected some dependencies but none were found so we
+                    # force the build to happen
+                    force = True
+
+            else:
+                dependencies = []
+
+            if not (
+                force
+                or newer_group(
+                    [str(_.resolve()) for _ in ext.get_sources(self)] + dependencies, str(ext_path.resolve()), "newer"
+                )
+            ):
                 print(f"skipping '{ext.name}' CMake extension (up-to-date)")
 
                 # We need to copy the binary where setuptools expects it
@@ -561,12 +633,13 @@ class CMakeExtension(Extension):
     def __init__(
         self,
         name,
-        source_dir=".",
+        source_dir=Path.cwd(),
         cmake_args=[],
         build_args=[],
         install_args=[],
         build_type=None,
         optional=True,  # By default, extensions are optional
+        dependencies=[],
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -575,6 +648,27 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
+        self.dependencies = dependencies
+
+    def get_sources(self, cmd: build_ext) -> t.List[Path]:
+        """
+        Returns the list of source files for this extension.
+        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        """
+        full_path = Path(cmd.get_ext_fullpath(self.name))
+
+        # Collect all the source files within the source directory. We exclude
+        # Python sources and anything that does not have a suffix (most likely
+        # a binary file), or that has the same name as the extension binary.
+        return (
+            [
+                _
+                for _ in Path(self.source_dir).rglob("**")
+                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
+            ]
+            if self.source_dir
+            else []
+        )
 
 
 def check_rust_toolchain():
@@ -601,12 +695,13 @@ DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "
 DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
 
 
-def filter_extensions(extensions):
-    # type: (list[Extension]) -> list[Extension]
+def filter_extensions(
+    extensions: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]],
+) -> t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]]:
     if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
         return extensions
 
-    filtered: list[Extension] = []
+    filtered: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = []
     for ext in extensions:
         if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
             print(f"INFO: Excluding extension {ext.name}")
@@ -638,12 +733,6 @@ def get_exts_for(name):
         return []
 
 
-if sys.byteorder == "big":
-    encoding_macros = [("__BIG_ENDIAN__", "1")]
-else:
-    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
-
-
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -672,7 +761,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules = [
+    ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
@@ -743,6 +832,7 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
+                dependencies=[CRASHTRACKER_DIR.parent / "libdd_wrapper"],
             )
         )
 
@@ -780,6 +870,7 @@ setup(
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
     ext_modules=filter_extensions(ext_modules)
@@ -801,7 +892,7 @@ setup(
                     ["ddtrace/internal/_encoding.pyx"],
                     include_dirs=["."],
                     libraries=encoding_libraries,
-                    define_macros=encoding_macros,
+                    define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
                 ),
                 Extension(
                     "ddtrace.internal.telemetry.metrics_namespaces",
