@@ -808,7 +808,10 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
-                dependencies=[CRASHTRACKER_DIR.parent / "libdd_wrapper"],
+                dependencies=[
+                    CRASHTRACKER_DIR / "crashtracker_exe",
+                    CRASHTRACKER_DIR.parent / "libdd_wrapper",
+                ],
             )
         )
 
