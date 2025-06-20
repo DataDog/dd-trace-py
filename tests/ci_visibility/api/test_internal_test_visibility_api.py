@@ -3,7 +3,6 @@ import pytest
 import ddtrace.ext.test_visibility.api as ext_api
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.test_visibility import api
-import ddtrace.internal.test_visibility._internal_item_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import set_up_mock_civisibility
@@ -46,17 +45,11 @@ class TestCIITRMixin:
             skippable_module_id = ext_api.TestModuleId("skippable_module")
 
             skippable_suite_id = ext_api.TestSuiteId(skippable_module_id, "suite.py")
-            skippable_test_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                skippable_suite_id, "skippable_test"
-            )
-            non_skippable_test_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                skippable_suite_id, "non_skippable_test"
-            )
+            skippable_test_id = ext_api.TestId(skippable_suite_id, "skippable_test")
+            non_skippable_test_id = ext_api.TestId(skippable_suite_id, "non_skippable_test")
 
             non_skippable_suite_id = ext_api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
-            non_skippable_suite_skippable_test_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                non_skippable_suite_id, "skippable_test"
-            )
+            non_skippable_suite_skippable_test_id = ext_api.TestId(non_skippable_suite_id, "skippable_test")
 
             assert api.InternalTest.is_itr_skippable(skippable_test_id) is True
             assert api.InternalTest.is_itr_skippable(non_skippable_test_id) is False
@@ -80,19 +73,11 @@ class TestCIITRMixin:
                 skippable_module_id = ext_api.TestModuleId("skippable_module")
 
                 skippable_suite_id = ext_api.TestSuiteId(skippable_module_id, "suite.py")
-                skippable_test_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                    skippable_suite_id, "skippable_test"
-                )
-                non_skippable_test_id = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                    skippable_suite_id, "non_skippable_test"
-                )
+                skippable_test_id = ext_api.TestId(skippable_suite_id, "skippable_test")
+                non_skippable_test_id = ext_api.TestId(skippable_suite_id, "non_skippable_test")
 
                 non_skippable_suite_id = ext_api.TestSuiteId(skippable_module_id, "non_skippable_suite.py")
-                non_skippable_suite_skippable_test_id = (
-                    ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-                        non_skippable_suite_id, "skippable_test"
-                    )
-                )
+                non_skippable_suite_skippable_test_id = ext_api.TestId(non_skippable_suite_id, "skippable_test")
 
                 assert api.InternalTest.is_itr_skippable(skippable_test_id) is False
                 assert api.InternalTest.is_itr_skippable(non_skippable_test_id) is False
