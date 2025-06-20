@@ -19,21 +19,24 @@ for line in output.decode().splitlines():
     ext_name, ext_hash, ext_target = t.cast(t.Tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
     target = Path(ext_target)
     cache_dir = CACHE / ext_name / ext_hash
-    if ext_target.endswith("*"):
-        target_dir = target.parent.resolve()
-        if RESTORE_FILE.exists():
-            # Iterate over the target as these are the files we want to cache
-            for d in target_dir.glob(target.name):
-                if d.is_file():
-                    cached_files.add((str(cache_dir / d.name), str(d.resolve())))
-        else:
-            # Iterate over the cached files as these are the ones we want to
-            # restore
-            for d in cache_dir.glob(target.name):
-                if d.is_file():
-                    cached_files.add((str(d.resolve()), str(target_dir / d.name)))
+    target_dir = target.parent.resolve()
+    if RESTORE_FILE.exists():
+        # Iterate over the target as these are the files we want to cache
+        if not (matches := target_dir.glob(target.name)):
+            print(f"Warning: No target files found for {target.name} in {target_dir}", file=sys.stderr)
+            continue
+        for d in matches:
+            if d.is_file():
+                cached_files.add((str(cache_dir / d.name), str(d.resolve())))
     else:
-        cached_files.add((str(cache_dir / target.name), ext_target))
+        # Iterate over the cached files as these are the ones we want to
+        # restore
+        if not (matches := list(cache_dir.glob(target.name))):
+            print(f"Warning: No cached files found for {target.name} in {cache_dir}", file=sys.stderr)
+            continue
+        for d in matches:
+            if d.is_file():
+                cached_files.add((str(d.resolve()), str(target_dir / d.name)))
 
 # Generate the restore script on the first run
 if not RESTORE_FILE.exists():
