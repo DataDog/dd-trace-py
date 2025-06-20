@@ -1,7 +1,8 @@
 import os
 
-import vcr
 from google.genai import types
+import vcr
+
 
 # sample config for generate_content
 FULL_GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(

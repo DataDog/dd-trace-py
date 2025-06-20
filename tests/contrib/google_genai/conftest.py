@@ -1,8 +1,8 @@
 import os
+from typing import Any
+from typing import Iterator
 
-import mock
 import pytest
-from typing import Any, Iterator, AsyncIterator
 
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
@@ -34,17 +34,20 @@ def genai():
     yield genai
     unpatch()
 
+
 @pytest.fixture
 def mock_vertex_generate_content(monkeypatch):
     """
     Vertex enabled genAI clients are difficult to test with VCRpy due to their use of google auth.
-    Instead we patch the generate_content and generate_content_stream methods (sync and async) to return a mock response.
+    Instead we patch the generate_content and generate_content_stream methods (sync and async) to return a mock response
     """
     from google import genai
     from google.genai import types
 
     candidate = types.Candidate(
-        content=types.Content(role='user', parts=[types.Part.from_text(text='The sky is blue due to rayleigh scattering')])
+        content=types.Content(
+            role="user", parts=[types.Part.from_text(text="The sky is blue due to rayleigh scattering")]
+        )
     )
     _response = types.GenerateContentResponse(candidates=[candidate])
 
@@ -54,11 +57,10 @@ def mock_vertex_generate_content(monkeypatch):
     def _fake_generate_content(self, *, model: str, contents, config=None):
         return _response
 
-    async def _fake_async_stream(
-        self, *, model: str, contents, config=None
-    ):
+    async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
             yield _response
+
         return _async_iterator()
 
     async def _fake_async_generate_content(self, *, model: str, contents, config=None):

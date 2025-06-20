@@ -3,8 +3,8 @@ import os
 from google.genai import types
 import pytest
 
-from tests.contrib.google_genai.utils import get_google_genai_vcr
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import get_google_genai_vcr
 from tests.utils import override_global_config
 
 
