@@ -34,6 +34,7 @@ class FlareSendRequest:
     case_id: str
     hostname: str
     email: str
+    uuid: str  # UUID from AGENT_TASK config for race condition prevention
     source: str = "tracer_python"
 
 
@@ -50,7 +51,6 @@ class Flare:
         timeout_sec: int = DEFAULT_TIMEOUT_SECONDS,
         flare_dir: str = TRACER_FLARE_DIRECTORY,
     ):
-        log.warning("JJJ Flare.__init__()")
         self.original_log_level: int = logging.NOTSET
         self.timeout: int = timeout_sec
         self.flare_dir: pathlib.Path = pathlib.Path(flare_dir)
@@ -58,14 +58,12 @@ class Flare:
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
-        log.warning("JJJ Flare.__init__() end")
 
     def prepare(self, log_level: str):
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
         """
-        log.warning("JJJ Flare.prepare()")
         try:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
@@ -102,46 +100,56 @@ class Flare:
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
-        log.warning("JJJ Flare.send()")
         self.revert_configs()
-        # We only want the flare to be sent once, even if there are
-        # multiple tracer instances
-        lock_path = self.flare_dir / TRACER_FLARE_LOCK
-        if not os.path.exists(lock_path):
-            try:
-                open(lock_path, "w").close()
-            except Exception as e:
-                log.error("Failed to create %s file", lock_path)
-                raise e
-            try:
-                client = get_connection(self.url, timeout=self.timeout)
-                headers, body = self._generate_payload(flare_send_req)
-                # Use the configured site for the request URL
-                site = self.ddconfig.get("_dd_site", "datadoghq.com")
-                log.warning("JJJ Using site: %s from ddconfig: %s", site, self.ddconfig.get("_dd_site"))
-                request_url = f"http://{site}{TRACER_FLARE_ENDPOINT}"
-                log.warning("JJJ Request URL: %s", request_url)
-                client.request("POST", request_url, body, headers)
-                response = client.getresponse()
-                if response.status == 200:
-                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-                else:
-                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
-                        response.status,
-                        response.reason,
-                        response.read().decode(),
-                    )
-                    raise TracerFlareSendError(msg)
-            except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-                raise e
-            finally:
-                client.close()
-                # Clean up files regardless of success/failure
-                self.clean_up_files()
+
+        # Validate case_id (cannot be 0 according to spec)
+        if flare_send_req.case_id == "0":
+            log.warning("Case ID cannot be 0, skipping flare send")
+            return
+
+        # Race condition prevention: use UUID-based synchronization file
+        # If we can create the file, we proceed with sending the flare
+        # If we can't, another tracer already won the race
+        sync_file_path = self.flare_dir / f"flare_sync_{flare_send_req.uuid}"
+        try:
+            # Try to create the synchronization file with exclusive access
+            sync_file = open(sync_file_path, "x")
+            sync_file.close()
+            log.info("Won race condition, proceeding with flare send")
+        except FileExistsError:
+            log.info("Lost race condition, another tracer is handling this flare")
+            return
+        except Exception as e:
+            log.error("Failed to create synchronization file %s: %s", sync_file_path, e)
+            return
+
+        try:
+            client = get_connection(self.url, timeout=self.timeout)
+            headers, body = self._generate_payload(flare_send_req)
+
+            # Send to agent endpoint, not directly to backend
+            request_url = f"{self.url}{TRACER_FLARE_ENDPOINT}"
+
+            client.request("POST", request_url, body, headers)
+            response = client.getresponse()
+            if response.status == 200:
+                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+            else:
+                msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                    response.status,
+                    response.reason,
+                    response.read().decode(),
+                )
+                raise TracerFlareSendError(msg)
+        except Exception as e:
+            log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+            raise e
+        finally:
+            client.close()
+            # Clean up files regardless of success/failure
+            self.clean_up_files()
 
     def _generate_config_file(self, pid: int):
-        log.warning("JJJ Flare.generate_config_file()")
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
@@ -165,7 +173,6 @@ class Flare:
                 os.remove(config_file)
 
     def revert_configs(self):
-        log.warning("JJJ Flare.revert_configs()")
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
@@ -178,7 +185,6 @@ class Flare:
         """
         Generate the multipart form-data payload for the flare request.
         """
-        log.warning("JJJ Flare._generate_payload()")
         body = io.BytesIO()
 
         # Use a fixed boundary for consistency (like .NET implementation)
@@ -241,22 +247,13 @@ class Flare:
             "Content-Length": str(body.tell()),
         }
 
-        if self._api_key:
-            headers["DD-API-KEY"] = self._api_key
-        # Add Host header for agent proxying - should be the backend URL, not the agent URL
-        # The agent will proxy this request to the Datadog backend
-        site = self.ddconfig.get("_dd_site", "datadoghq.com")
-        log.warning("JJJ Setting Host header to: %s", site)
-        headers["Host"] = site
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
-        log.warning("JJJ Flare._get_valid_logger_level()")
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
     def clean_up_files(self):
-        log.warning("JJJ Flare.clean_up_files()")
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:

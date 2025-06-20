@@ -11,7 +11,6 @@ log = get_logger(__name__)
 
 
 def _tracerFlarePubSub():
-    log.warning("JJJ in _tracerFlarePubSub")
     from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
     from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
@@ -23,43 +22,34 @@ def _tracerFlarePubSub():
         __shared_data__ = PublisherSubscriberConnector()
 
         def __init__(self, callback: Callable, flare: Flare):
-            log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__()")
             self._publisher = self.__publisher_class__(self.__shared_data__, None)
             self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, flare)
-            log.warning("JJJ in _tracerFlarePubSub._TracerFlarePubSub.__init__() end")
 
-    log.warning("JJJ in _tracerFlarePubSub() end")
     return _TracerFlarePubSub
 
 
 def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
-    log.warning("JJJ in _handle_tracer_flare with data: %r", data)
     if cleanup:
         log.info("Reverting tracer flare configurations and cleaning up any generated files")
         flare.revert_configs()
         flare.clean_up_files()
-        log.warning("JJJ in _handle_tracer_flare end1")
         return
 
     if "config" not in data:
         log.warning("Unexpected tracer flare RC payload %r", data)
-        log.warning("JJJ in _handle_tracer_flare end2")
         return
     if len(data["config"]) == 0:
         log.warning("Unexpected number of tracer flare RC payloads %r", data)
-        log.warning("JJJ in _handle_tracer_flare end3")
         return
 
     product_type = data.get("metadata", [{}])[0].get("product_name")
     configs = data.get("config", [{}])
-    log.warning("JJJ Processing product_type: %s with configs: %r", product_type, configs)
     if product_type == "AGENT_CONFIG":
         _prepare_tracer_flare(flare, configs)
     elif product_type == "AGENT_TASK":
         _generate_tracer_flare(flare, configs)
     else:
         log.warning("Received unexpected tracer flare product type: %s", product_type)
-    log.warning("JJJ in _handle_tracer_flare end4")
 
 
 def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
@@ -68,19 +58,20 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     to be sent in a flare later.
     """
     for c in configs:
-        # AGENT_CONFIG is currently being used for multiple purposes
-        # We only want to prepare for a tracer flare if the config name
-        # starts with 'flare-log-level'
         if not isinstance(c, dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
-        if not c.get("name", "").startswith("flare-log-level"):
+
+        config_content = c.get("config", {})
+        log_level = config_content.get("log_level", "")
+        if log_level == "":
             log.debug(
-                "Config item name does not start with flare-log-level, received %s instead. Skipping...", c.get("name")
+                "Config item does not contain log_level, received %s instead. Skipping...",
+                config_content.get("log_level")
             )
             continue
 
-        flare_log_level = c.get("config", {}).get("log_level").upper()
+        flare_log_level = log_level.lower()
         flare.prepare(flare_log_level)
         return True
     return False
@@ -105,8 +96,16 @@ def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
             )
             continue
         args = c.get("args", {})
+        uuid = c.get("uuid")
+        if not uuid:
+            log.warning("AGENT_TASK config missing UUID, skipping tracer flare")
+            continue
+
         flare_request = FlareSendRequest(
-            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
+            case_id=args.get("case_id"),
+            hostname=args.get("hostname"),
+            email=args.get("user_handle"),
+            uuid=uuid
         )
 
         flare.revert_configs()

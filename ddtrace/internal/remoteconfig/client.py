@@ -101,7 +101,7 @@ class Root:
     expires: datetime
     keys: Mapping[str, Key]
     roles: Mapping[str, Role]
-    version: int = 0  # JJJ
+    version: int = 0
 
     def __post_init__(self):
         if self._type != "root":
@@ -143,7 +143,7 @@ class Targets:
     expires: datetime
     spec_version: str
     targets: Mapping[str, TargetDesc]
-    version: int = 0  # JJJ
+    version: int = 0
 
     def __post_init__(self):
         if self._type != "targets":
@@ -161,7 +161,7 @@ class Targets:
 class SignedTargets:
     signatures: List[Signature]
     signed: Targets
-    version: int = 0  # JJJ
+    version: int = 0
 
     def __post_init__(self):
         for i in range(len(self.signatures)):

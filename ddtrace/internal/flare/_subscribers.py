@@ -23,12 +23,10 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         flare: Flare,
         stale_flare_age: int = DEFAULT_STALE_FLARE_DURATION_MINS,
     ):
-        log.warning("JJJ TracerFlareSubscriber.__init__()")
         super().__init__(data_connector, callback, "TracerFlareConfig")
         self.current_request_start: Optional[datetime] = None
         self.stale_tracer_flare_num_mins = stale_flare_age
         self.flare = flare
-        log.warning("JJJ TracerFlareSubscriber initialized")
 
     def has_stale_flare(self) -> bool:
         if self.current_request_start:
@@ -39,7 +37,6 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
         return False
 
     def _get_data_from_connector_and_exec(self, _=None):
-        log.warning("JJJ TracerFlareSubscriber._get_data_from_connector_and_exec()")
         if self.has_stale_flare():
             log.info(
                 "Tracer flare request started at %s is stale, reverting "
@@ -55,10 +52,8 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             log.debug("No data received from data connector")
             return
 
-        log.warning("JJJ Received data from connector: %r", data)
         for md in data:
             product_type = md.metadata.product_name
-            log.warning("JJJ Processing product type: %s with content: %r", product_type, md.content)
             if product_type == "AGENT_CONFIG":
                 # We will only process one tracer flare request at a time
                 if self.current_request_start is not None:
@@ -81,4 +76,3 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     self.current_request_start = None
             else:
                 log.warning("Received unexpected product type for tracer flare: {}", product_type)
-        log.warning("JJJ TracerFlareSubscriber._get_data_from_connector_and_exec() end")

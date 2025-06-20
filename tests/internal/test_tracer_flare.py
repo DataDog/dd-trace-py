@@ -3,10 +3,12 @@ from logging import Logger
 import multiprocessing
 import os
 import pathlib
+import tempfile
 from typing import Optional
 from unittest import mock
 
 from pyfakefs.fake_filesystem_unittest import TestCase
+import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -20,7 +22,12 @@ from tests.utils import remote_config_build_payload as build_payload
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
-MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
+MOCK_FLARE_SEND_REQUEST = FlareSendRequest(
+    case_id="1111111",
+    hostname="myhostname",
+    email="user.name@datadoghq.com",
+    uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+)
 
 
 class TracerFlareTests(TestCase):
@@ -125,10 +132,11 @@ class TracerFlareTests(TestCase):
         assert self._get_handler() is None, "File handler was not removed"
 
 
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 class TracerFlareMultiprocessTests(TestCase):
     def setUp(self):
-        self.setUpPyfakefs()
-        self.shared_dir = self.fs.create_dir("tracer_flare_test")
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.shared_dir = self.tempdir
         self.errors = multiprocessing.Queue()
         self.processes = []
 
@@ -142,19 +150,36 @@ class TracerFlareMultiprocessTests(TestCase):
                     process.kill()
                     process.join()
 
-        # Clean up the multiprocessing queue
-        try:
-            while not self.errors.empty():
-                self.errors.get_nowait()
-        except (EOFError, OSError):
-            pass
-        finally:
-            self.errors.close()
-            self.errors.join_thread()
+        # Clean up the multiprocessing queue more thoroughly
+        if hasattr(self, 'errors'):
+            try:
+                # Drain the queue
+                while not self.errors.empty():
+                    try:
+                        self.errors.get_nowait()
+                    except (EOFError, OSError):
+                        break
+                # Close the queue
+                self.errors.close()
+                self.errors.join_thread()
+            except (OSError, ValueError, AttributeError):
+                pass
+            finally:
+                try:
+                    del self.errors
+                except:
+                    pass
 
         # Clean up the shared directory
-        if hasattr(self, 'shared_dir') and os.path.exists(self.shared_dir.name):
-            self.fs.remove_object(self.shared_dir.name)
+        if hasattr(self, 'tempdir'):
+            try:
+                self.tempdir.cleanup()
+            except Exception:
+                pass
+
+        # Force cleanup of any remaining multiprocessing connections
+        import gc
+        gc.collect()
 
     def test_multiple_process_success(self):
         """
@@ -205,6 +230,11 @@ class TracerFlareMultiprocessTests(TestCase):
         for p in self.processes:
             p.join()
 
+        if self.errors.qsize() != 0:
+            errors = []
+            while not self.errors.empty():
+                errors.append(self.errors.get())
+            print('Multiprocess errors:', errors)
         assert self.errors.qsize() == 0
 
     def test_multiple_process_partial_failure(self):
@@ -238,6 +268,11 @@ class TracerFlareMultiprocessTests(TestCase):
         p.start()
         for p in self.processes:
             p.join()
+        if self.errors.qsize() != 1:
+            errors = []
+            while not self.errors.empty():
+                errors.append(self.errors.get())
+            print('Multiprocess errors:', errors)
         assert self.errors.qsize() == 1
 
 
@@ -252,8 +287,9 @@ class MockPubSubConnector(PublisherSubscriberConnector):
         pass
 
 
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 class TracerFlareSubscriberTests(TestCase):
-    agent_config = [False, {"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_config = [False, {"config": {"log_level": "debug"}}]
     agent_task = [
         False,
         {
@@ -279,6 +315,19 @@ class TracerFlareSubscriberTests(TestCase):
                 flare_dir=pathlib.Path(self.shared_dir.name),
             ),
         )
+
+    def tearDown(self):
+        # Clean up the shared directory
+        if hasattr(self, 'shared_dir') and os.path.exists(self.shared_dir.name):
+            try:
+                self.fs.remove_object(self.shared_dir.name)
+            except (OSError, ValueError):
+                # Handle file descriptor errors gracefully
+                pass
+
+        # Force cleanup of any remaining connections
+        import gc
+        gc.collect()
 
     def generate_agent_config(self):
         with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
