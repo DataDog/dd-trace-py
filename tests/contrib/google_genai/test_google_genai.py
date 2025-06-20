@@ -318,8 +318,16 @@ async def test_google_genai_generate_content_async_stream_vertex_error(mock_goog
         ("claude-3-opus", "anthropic", "claude-3-opus"),
         ("publishers/meta/models/llama-3.1-405b-instruct-maas", "meta", "llama-3.1-405b-instruct-maas"),
         ("mistral-7b", "mistral", "mistral-7b"),
+        ("codestral-22b", "mistral", "codestral-22b"),
+        ("deepseek-coder", "deepseek", "deepseek-coder"),
+        ("olmo-7b", "ai2", "olmo-7b"),
+        ("qodo-7b", "qodo", "qodo-7b"),
+        ("mars-7b", "camb.ai", "mars-7b"),
+        # edge cases
         ("weird_directory/unknown-model", "custom", "unknown-model"),
-        ("", "custom", "unknown"),
+        ("", "custom", "custom"),
+        ("just-a-slash/", "custom", "custom"),
+        ("multiple/slashes/in/path/model-name", "custom", "model-name"),
     ],
 )
 def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):

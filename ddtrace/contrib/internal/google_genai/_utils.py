@@ -5,7 +5,8 @@ import wrapt
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
-# VertexAI: can map provided models to provider based on prefix, but not a complete list
+# VertexAI: can map provided models to provider based on prefix, a best effort mapping
+# as huggingface exports hundreds of custom provided models
 MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
@@ -16,16 +17,24 @@ MODEL_PREFIX_TO_PROVIDER = {
     "mistral": "mistral",
     "codestral": "mistral",
     "deepseek": "deepseek",
+    "olmo": "ai2",
+    "tulu": "ai2",
+    "molmo": "ai2",
+    "specter": "ai2",
+    "cosmoo": "ai2",
+    "qodo": "qodo",
+    "mars": "camb.ai",
 }
 
 
 def extract_provider_and_model_name(kwargs):
-    model_name = kwargs.get("model", "").split("/")[-1]
-    provider_name = "custom"
+    model_path = kwargs.get("model", "")
+    model_name = model_path.split("/")[-1]
     for prefix in MODEL_PREFIX_TO_PROVIDER.keys():
-        if model_name.startswith(prefix):
+        if model_name.lower().startswith(prefix):
             provider_name = MODEL_PREFIX_TO_PROVIDER[prefix]
-    return provider_name, model_name if len(model_name) > 0 else "unknown"
+            return provider_name, model_name
+    return "custom", model_name if len(model_name) > 0 else "custom"
 
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
