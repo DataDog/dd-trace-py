@@ -96,11 +96,7 @@ def interpose_sccache():
         return
 
     # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
-    if _sccache_path is None:
-        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
-        return
-    sccache_path = Path(_sccache_path)
+    sccache_path = Path(os.getenv("SCCACHE_PATH", shutil.which("sccache")))
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
@@ -163,11 +159,7 @@ def load_module_from_project_file(mod_name, fname):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(mod_name, fpath)
-    if spec is None:
-        raise ImportError(f"Could not find module {mod_name} in {fpath}")
     mod = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Could not load module {mod_name} from {fpath}")
     spec.loader.exec_module(mod)
     return mod
 
@@ -203,12 +195,12 @@ class LibraryDownload:
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
 
     name = None
-    download_dir = Path.cwd()
+    download_dir = None
     version = None
     url_root = None
-    available_releases = {}
+    available_releases = None
     expected_checksums = None
-    translate_suffix = {}
+    translate_suffix = None
 
     @classmethod
     def download_artifacts(cls):
@@ -229,7 +221,7 @@ class LibraryDownload:
                 # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
                 target_platform = os.getenv("PLAT")
                 # Darwin Universal2 should bundle both architectures
-                if target_platform and not target_platform.endswith(("universal2", arch)):
+                if not target_platform.endswith(("universal2", arch)):
                     continue
             elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
@@ -250,7 +242,7 @@ class LibraryDownload:
                 archive_name,
             )
 
-            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
+            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else archive_name
             if cls.USE_CACHE and not cls.CACHE_DIR.exists():
                 cls.CACHE_DIR.mkdir(parents=True)
 
@@ -305,10 +297,6 @@ class LibraryDownload:
         cls.download_artifacts()
 
     @classmethod
-    def get_package_name(cls, arch, os) -> str:
-        raise NotImplementedError()
-
-    @classmethod
     def get_archive_name(cls, arch, os):
         return cls.get_package_name(arch, os) + ".tar.gz"
 
@@ -326,13 +314,13 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def get_package_name(cls, arch, os):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
+    def get_package_name(cls, arch, opsys):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, opsys.lower(), arch)
         return archive_dir
 
     @classmethod
-    def get_archive_name(cls, arch, os):
-        os_name = os.lower()
+    def get_archive_name(cls, arch, opsys):
+        os_name = opsys.lower()
         if os_name == "linux":
             archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
         else:
@@ -606,7 +594,7 @@ class CMakeExtension(Extension):
     def __init__(
         self,
         name,
-        source_dir=Path.cwd(),
+        source_dir=Path("."),
         cmake_args=[],
         build_args=[],
         install_args=[],
@@ -668,13 +656,12 @@ DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "
 DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
 
 
-def filter_extensions(
-    extensions: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]],
-) -> t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]]:
+def filter_extensions(extensions):
+    # type: (list[Extension]) -> list[Extension]
     if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
         return extensions
 
-    filtered: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = []
+    filtered: list[Extension] = []
     for ext in extensions:
         if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
             print(f"INFO: Excluding extension {ext.name}")
@@ -706,6 +693,12 @@ def get_exts_for(name):
         return []
 
 
+if sys.byteorder == "big":
+    encoding_macros = [("__BIG_ENDIAN__", "1")]
+else:
+    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
+
+
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -734,7 +727,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
+    ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
@@ -865,7 +858,7 @@ setup(
                     ["ddtrace/internal/_encoding.pyx"],
                     include_dirs=["."],
                     libraries=encoding_libraries,
-                    define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+                    define_macros=encoding_macros,
                 ),
                 Extension(
                     "ddtrace.internal.telemetry.metrics_namespaces",

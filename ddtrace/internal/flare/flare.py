@@ -102,52 +102,46 @@ class Flare:
         """
         self.revert_configs()
 
-        # Validate case_id (cannot be 0 according to spec)
+        # # Validate case_id (cannot be 0 according to spec)
         if flare_send_req.case_id == "0":
             log.warning("Case ID cannot be 0, skipping flare send")
             return
 
-        # Race condition prevention: use UUID-based synchronization file
-        # If we can create the file, we proceed with sending the flare
-        # If we can't, another tracer already won the race
-        sync_file_path = self.flare_dir / f"flare_sync_{flare_send_req.uuid}"
-        try:
-            # Try to create the synchronization file with exclusive access
-            sync_file = open(sync_file_path, "x")
-            sync_file.close()
-            log.info("Won race condition, proceeding with flare send")
-        except FileExistsError:
-            log.info("Lost race condition, another tracer is handling this flare")
-            return
-        except Exception as e:
-            log.error("Failed to create synchronization file %s: %s", sync_file_path, e)
+        if not flare_send_req.case_id.isdigit():
+            log.warniong("Case ID string must contain a digit, skipping flare send")
             return
 
-        try:
-            client = get_connection(self.url, timeout=self.timeout)
-            headers, body = self._generate_payload(flare_send_req)
-
-            # Send to agent endpoint, not directly to backend
-            request_url = f"{self.url}{TRACER_FLARE_ENDPOINT}"
-
-            client.request("POST", request_url, body, headers)
-            response = client.getresponse()
-            if response.status == 200:
-                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-            else:
-                msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
-                    response.status,
-                    response.reason,
-                    response.read().decode(),
-                )
-                raise TracerFlareSendError(msg)
-        except Exception as e:
-            log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-            raise e
-        finally:
-            client.close()
-            # Clean up files regardless of success/failure
-            self.clean_up_files()
+        # We only want the flare to be sent once, even if there are
+        # multiple tracer instances
+        lock_path = self.flare_dir / TRACER_FLARE_LOCK
+        if not os.path.exists(lock_path):
+            try:
+                open(lock_path, "w").close()
+            except Exception as e:
+                log.error("Failed to create %s file", lock_path)
+                self.clean_up_files()
+                raise e
+            try:
+                client = get_connection(self.url, timeout=self.timeout)
+                headers, body = self._generate_payload(flare_send_req)
+                client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+                response = client.getresponse()
+                if response.status == 200:
+                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                else:
+                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                        response.status,
+                        response.reason,
+                        response.read().decode(),
+                    )
+                    raise TracerFlareSendError(msg)
+            except Exception as e:
+                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                raise e
+            finally:
+                client.close()
+                # Clean up files regardless of success/failure
+                self.clean_up_files()
 
     def _generate_config_file(self, pid: int):
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
@@ -187,7 +181,7 @@ class Flare:
         """
         body = io.BytesIO()
 
-        # Use a fixed boundary for consistency (like .NET implementation)
+        # Use a fixed boundary for consistency (from .NET implementation)
         boundary = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
         # Create the multipart form data in the same order as .NET implementation:
@@ -222,18 +216,9 @@ class Flare:
 
         # Create the zip file content separately
         zip_stream = io.BytesIO()
-        with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-            # Add config file
-            config_file = self.flare_dir / f"tracer_config_{os.getpid()}.json"
-            if config_file.exists():
-                zip_file.write(config_file, config_file.name)
-
-            # Add log file
-            log_file = self.flare_dir / f"tracer_python_{os.getpid()}.log"
-            if log_file.exists():
-                zip_file.write(log_file, log_file.name)
-
-        # Write the zip content to the body
+        with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+            for flare_file_name in self.flare_dir.iterdir():
+                zipf.write(flare_file_name, arcname=flare_file_name.name)
         zip_stream.seek(0)
         body.write(zip_stream.getvalue())
         body.write(b'\r\n')
@@ -247,6 +232,7 @@ class Flare:
             "Content-Length": str(body.tell()),
         }
 
+        # Don't send DD-API-KEY or Host Header - the agent should add it when forwarding to backend
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:

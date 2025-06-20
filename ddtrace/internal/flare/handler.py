@@ -58,6 +58,9 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     to be sent in a flare later.
     """
     for c in configs:
+        # AGENT_CONFIG is currently being used for multiple purposes
+        # We only want to prepare for a tracer flare if the config content
+        # has a log_level.
         if not isinstance(c, dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
