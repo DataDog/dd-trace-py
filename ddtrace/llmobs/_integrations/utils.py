@@ -149,14 +149,18 @@ def extract_message_from_part_google(part, role=None):
         message["role"] = role
     if function_call:
         function_call_dict = function_call
-        if not isinstance(function_call, dict):
+        if hasattr(function_call, "model_dump"):
+            function_call_dict = function_call.model_dump()
+        elif not isinstance(function_call, dict):
             function_call_dict = type(function_call).to_dict(function_call)
         message["tool_calls"] = [
             {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
         ]
     if function_response:
         function_response_dict = function_response
-        if not isinstance(function_response, dict):
+        if hasattr(function_response, "model_dump"):
+            function_response_dict = function_response.model_dump()
+        elif not isinstance(function_response, dict):
             function_response_dict = type(function_response).to_dict(function_response)
         message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
     return message
