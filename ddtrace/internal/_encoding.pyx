@@ -507,7 +507,6 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
-
         # PERF: _trace_id_64bits is a computed property, cache/convert once for all spans
         trace_id_64bits = trace[0]._trace_id_64bits
         for span in trace:
