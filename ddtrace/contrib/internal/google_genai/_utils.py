@@ -1,7 +1,36 @@
 import sys
-
 import wrapt
+from ddtrace.llmobs._utils import _get_attr
 
+
+def normalize_contents(contents):
+    """
+    Contents has a complex union type structure:
+    - contents: Union[ContentListUnion, ContentListUnionDict]
+    - ContentListUnion = Union[list[ContentUnion], ContentUnion]  
+    - ContentListUnionDict = Union[list[ContentUnionDict], ContentUnionDict]
+    
+    This function normalizes all these variants into a list of dicts
+    """
+    def extract_content(content):
+        role = _get_attr(content, "role", None)
+        parts = _get_attr(content, "parts", None)
+
+        #if parts is missing and content itself is a PartUnion or list[PartUnion]
+        if parts is None:
+            if isinstance(content, list):
+                parts = content
+            else:
+                parts = [content]
+
+        elif not isinstance(parts, list):
+            parts = [parts]
+
+        return {"role": role, "parts": parts}
+
+    if isinstance(contents, list):
+        return [extract_content(c) for c in contents]
+    return [extract_content(contents)]
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
