@@ -10,10 +10,10 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.internal.utils import get_argument_value
 
 
 class GoogleGenAIIntegration(BaseLLMIntegration):
@@ -35,10 +35,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-         response = kwargs.get("response", None)
-         # TODO: make metadata actually return something
-         metadata =  llmobs_get_metadata_google(kwargs, response)
-         print("metadata: ", metadata)
+         config = get_argument_value(args, kwargs, -1, "config", optional=True)
+         metadata =  llmobs_get_metadata_google_genai(config)
          input_messages = None
          output_messages = None
          metrics = None
@@ -54,3 +52,16 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 # METRICS: get_llmobs_metrics_tags("vertexai", span),
             }
         )
+
+def llmobs_get_metadata_google_genai(config):
+    # if not config:
+    #     return {}
+    # metadata = {}
+    # parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
+    # for param in parameters:
+    #     config_value = _get_attr(config, param, None)
+    #     if config_value:
+    #         metadata[param] = config_value
+    # return metadata
+    # alternatively, can convert config direcrtly to a dict and feed it in as metadata
+    return config.model_dump() if config else {}
