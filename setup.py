@@ -1,5 +1,6 @@
 import atexit
 import hashlib
+from itertools import chain
 import os
 import platform
 import re
@@ -177,24 +178,50 @@ def is_64_bit_python():
 
 class ExtensionHashes(build_ext):
     def run(self):
-        for ext in self.distribution.ext_modules:
-            full_path = Path(self.get_ext_fullpath(ext.name))
+        try:
+            dist = self.distribution
+            for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
+                if isinstance(ext, CMakeExtension):
+                    sources = ext.get_sources(self)
+                elif isinstance(ext, RustExtension):
+                    source_path = Path(ext.path).parent
+                    sources = [
+                        _
+                        for _ in source_path.glob("**/*")
+                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                    ]
+                else:
+                    sources = [Path(_) for _ in ext.sources]
 
-            sources = ext.get_sources(self) if isinstance(ext, CMakeExtension) else [Path(_) for _ in ext.sources]
+                sources_hash = hashlib.sha256()
+                for source in sorted(sources):
+                    sources_hash.update(source.read_bytes())
+                hash_digest = sources_hash.hexdigest()
 
-            sources_hash = hashlib.sha256()
-            for source in sorted(sources):
-                sources_hash.update(source.read_bytes())
+                entries: t.List[t.Tuple[str, str, str]] = []
 
-            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), str(full_path)))
-
-            # Include any dependencies that might have been built alongside
-            # the extension.
-            if isinstance(ext, CMakeExtension):
-                for dependency in ext.dependencies:
-                    print(
-                        "#EXTHASH:", (f"{ext.name}-{dependency.name}", sources_hash.hexdigest(), str(dependency) + "*")
+                if isinstance(ext, RustExtension):
+                    entries.extend(
+                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
+                        for module in ext.target.values()
                     )
+                else:
+                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+
+                # Include any dependencies that might have been built alongside
+                # the extension.
+                if isinstance(ext, CMakeExtension):
+                    entries.extend(
+                        (f"{ext.name}-{dependency.name}", hash_digest, str(dependency) + "*")
+                        for dependency in ext.dependencies
+                    )
+
+                for entry in entries:
+                    print("#EXTHASH:", entry)
+
+        except Exception as e:
+            print("WARNING: Failed to compute extension hashes: %s" % e)
+            raise e
 
 
 class LibraryDownload:
