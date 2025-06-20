@@ -14,6 +14,7 @@ from ddtrace.internal.test_visibility._attempt_to_fix_mixins import AttemptToFix
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkTestMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDSessionMixin
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestMixin
+from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._itr_mixins import ITRMixin
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.trace import Span
@@ -23,14 +24,14 @@ from ddtrace.trace import Tracer
 log = get_logger(__name__)
 
 
-def _get_item_span(item_id: t.Union[ext_api.TestVisibilityItemId, ext_api.TestId]) -> Span:
+def _get_item_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
     return require_ci_visibility_service().get_item_by_id(item_id).get_span()
 
 
 class InternalTestBase(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
-    def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, ext_api.TestId]) -> Span:
+    def get_span(item_id: t.Union[ext_api.TestVisibilityItemId, InternalTestId]) -> Span:
         return _get_item_span(item_id)
 
     @staticmethod
@@ -57,7 +58,7 @@ class InternalTestBase(ext_api.TestBase):
     @staticmethod
     @_catch_and_log_exceptions
     def overwrite_attributes(
-        item_id: ext_api.TestId,
+        item_id: InternalTestId,
         name: t.Optional[str] = None,
         suite_name: t.Optional[str] = None,
         parameters: t.Optional[str] = None,
@@ -164,7 +165,7 @@ class InternalTest(
     @staticmethod
     @_catch_and_log_exceptions
     def finish(
-        item_id: ext_api.TestId,
+        item_id: InternalTestId,
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,
         exc_info: t.Optional[ext_api.TestExcInfo] = None,
@@ -177,28 +178,28 @@ class InternalTest(
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_new_test(test_id: ext_api.TestId) -> bool:
+    def is_new_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is new", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).is_new()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_quarantined_test(test_id: ext_api.TestId) -> bool:
+    def is_quarantined_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is quarantined", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).is_quarantined()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_disabled_test(test_id: ext_api.TestId) -> bool:
+    def is_disabled_test(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is disabled", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).is_disabled()
 
     @staticmethod
     @_catch_and_log_exceptions
-    def is_attempt_to_fix(test_id: ext_api.TestId) -> bool:
+    def is_attempt_to_fix(test_id: t.Union[ext_api.TestId, InternalTestId]) -> bool:
         log.debug("Checking if test %s is attempt to fix", test_id)
 
         return require_ci_visibility_service().get_test_by_id(test_id).is_attempt_to_fix()
@@ -206,7 +207,7 @@ class InternalTest(
     @staticmethod
     @_catch_and_log_exceptions
     def overwrite_attributes(
-        item_id: ext_api.TestId,
+        item_id: InternalTestId,
         name: t.Optional[str] = None,
         suite_name: t.Optional[str] = None,
         parameters: t.Optional[str] = None,
