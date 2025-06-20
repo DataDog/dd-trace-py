@@ -1,6 +1,6 @@
 interactions:
 - request:
-    body: grant_type=refresh_token&client_id=PLACEHOLDER_CLIENT_ID&client_secret=PLACEHOLDER_CLIENT_SECRET&refresh_token=PLACEHOLDER_REFRESH_TOKEN
+    body: grant_type=refresh_token&client_id=<not-a-real-secret>&client_secret=<not-a-real-secret>&refresh_token=<not-a-real-secret>
     headers:
       Accept:
       - '*/*'
@@ -16,10 +16,10 @@ interactions:
     uri: https://oauth2.googleapis.com/token
   response:
     body:
-      string: "{\n  \"access_token\": \"PLACEHOLDER_ACCESS_TOKEN\",\n
+      string: "{\n  \"access_token\": \"<not-a-real-secret>\",\n
         \ \"expires_in\": 3599,\n  \"scope\": \"https://www.googleapis.com/auth/sqlservice.login
-        https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform
-        openid\",\n  \"token_type\": \"Bearer\",\n  \"id_token\": \"PLACEHOLDER_ID_TOKEN\"\n}"
+        openid https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email\",\n
+        \ \"token_type\": \"Bearer\",\n  \"id_token\": \"<not-a-real-secret>\"\n}"
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
@@ -28,7 +28,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Wed, 18 Jun 2025 16:34:02 GMT
+      - Wed, 18 Jun 2025 21:33:49 GMT
       Expires:
       - Mon, 01 Jan 1990 00:00:00 GMT
       Pragma:
@@ -68,20 +68,20 @@ interactions:
       host:
       - us-central1-aiplatform.googleapis.com
     method: POST
-    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/PLACEHOLDER_PROJECT_ID/locations/us-central1/publishers/google/models/gemini-2.0-flash-001:generateContent
+    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/<project-id>/locations/us-central1/publishers/google/models/gemini-2.0-flash-001:generateContent
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAC/61TUY+bMAx+76+weC4V0BbRvk3raTrprndr0TRtq6YUDEQNCUpCt17V/34GSo9K
-        exxSSPDn2J/tj/MIwEmYTHnKLBpnCT/JAnBu3w2mpEVpCehNZNRKIFmcUqUonPEHUDFtP4J0z3lw
-        JheLf5toTlwgmMMJWFUh0wb2okZIaVkFDKoCpSppSUiYEJjChp0E8rwAkzBrUXOZTwC2hdL0AX/Y
-        EQXK3BYGVAaCHO2YtgN2galCOHKiTVamsQ9CcUtFn5hlmFhOMU6wP4ElbpZLIsc1OQhMaoEGuGwR
-        ZktliCDdswWTIJTM7ymMiXRtiCHUpqnH4JVGywsSVTZYplUJVBykXDfZlTSTX9IZtOtyO++up0vf
-        bCfjkptig8wo2fRzG7+83kbhsGP+pPJKq30zDteb+MF0FkaLqbfwaPejcNQn2DWXnNqwHJ/RMtIB
-        u03boQhlZWN1QPlZ1a0O/FmXZSCbO3weXHGrLBN3UBj2kGZZxpP4VLU6eln/Xj08f1qvrgUM05oV
-        keJiqKqBEkmBTHB7ahX18D0eitHes+472O67f9fwn5LNg/tko+vguh/mG2rDu6HlSErgbjDx3Eww
-        U7ie57dRnUQjsYp52TYo8IK564WuH8V+uJzOll4wiaKpPw1+dO4aTUX6wce0cce62rKnt7c1C7+U
-        i8fXPDpuoq8HZ3QZvQMjcPI78QMAAA==
+        H4sIAAAAAAAC/61T34+iMBB+96+Y8CwGUXTXt73Th0t21eySy/0ylwoDNJaWtIU7YvzfdwBxMbnH
+        Iykt801nvpn5OI8AnIjJmMfMonFW8JMsAOf23WBKWpSWgN5ERq0EksXJVYzCGX8ABdP2I0j3nAdn
+        crH4t4nmhBmCOdXAigKZNnAUJUJMyypgUGQoVU5LQsSEwBheWS2QpxmYiFmLmst0AvCWKU0f8IdV
+        KFCmNjOgEhDkaMe0nbALTBVCxYk2WZnGPgjFzRV9YpJgZDnFqOFYgyVulksixzU5CIxKgQa4bBFm
+        c2WIIN2zGZMglEzvKYyJdGmIIZSmqcfglUbLCyKVN1iiVQ5UHMRcN9mVNJNf0hm063I7H66nS99s
+        J+GSm+wVmVGy6edbuNvfRuGwKn1WaaHVsRmH602mvh8E/nLpPczmS89f+qM+waG55JSGpfiClpEO
+        2G3aDkXICxuqE8rPqmx1MJ13WQayucMD/4pbZZm4gxaLHtIsSXgU1kWro93293rz8rRdXwsYpjVr
+        IsXFUFUDJZICmeC2bhW1+RYOxWjvWfcdbPfDv2v4T8kC/z7Z6Dq47of5itrwbmgpkhK46088NxHM
+        ZK7nTduoTqSRWIU8bxvke37gegt3+hD609Vstpo/Th7ncxrmj85doylIP/glbtyr8FPItvv9Lnne
+        yCrdB9+TqnxKndFl9A6wHlfo8QMAAA==
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
@@ -90,7 +90,7 @@ interactions:
       Content-Type:
       - application/json; charset=UTF-8
       Date:
-      - Wed, 18 Jun 2025 16:34:03 GMT
+      - Wed, 18 Jun 2025 21:33:50 GMT
       Server:
       - scaffolding on HTTPServer2
       Transfer-Encoding:
