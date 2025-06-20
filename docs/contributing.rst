@@ -106,6 +106,23 @@ Keep the following in mind when writing logging code:
 * Log messages should be standalone and actionable. They should not require context from other logs, metrics or trace data.
 * Log data is sensitive and should not contain application secrets or other sensitive data.
 
+Instrumentation Telemetry
+-------------------------
+
+When you implement a new feature in ddtrace, you should usually have the library emit some Instrumentation
+Telemetry about the feature. Instrumentation Telemetry provides data about the operation of the library in
+real production environments and is often used to understand rates of product adoption.
+
+Instrumentation Telemetry conforms to an internal Datadog API. You can find the API specification in the
+private Confluence space. To send Instrumentation Telemetry data to this API from ddtrace, you can use
+the ``ddtrace.internal.telemetry.telemetry_writer`` object that provides a Python interface to the API.
+
+The most common ``telemetry_writer`` call you may use is ``add_count_metric``. This call generates timeseries
+metrics that you can use to, for example, count the number of times a given feature is used. Another useful
+call is ``add_integration``, which generates telemetry data about the integration with a particular module.
+
+Read the docstrings in ``ddtrace/internal/telemetry/writer.py`` for more comprehensive usage information
+about Instrumentation Telemetry.
 
 .. toctree::
     :hidden:

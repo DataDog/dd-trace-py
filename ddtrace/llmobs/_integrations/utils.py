@@ -17,11 +17,13 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -401,7 +403,7 @@ def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any])
     if not streamed_chunks:
         return {"text": ""}
     completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if streamed_chunks[-1].finish_reason is not None:
+    if getattr(streamed_chunks[-1], "finish_reason", None):
         completion["finish_reason"] = streamed_chunks[-1].finish_reason
     if hasattr(streamed_chunks[0], "usage"):
         completion["usage"] = streamed_chunks[0].usage
@@ -470,6 +472,18 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
         message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
     return message
+
+
+def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
+    """Helper to update the input and output value for workflow spans."""
+    if span_kind != "workflow":
+        return
+    input_messages = span._get_ctx_item(INPUT_MESSAGES)
+    output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+    if input_messages:
+        span._set_ctx_item(INPUT_VALUE, input_messages)
+    if output_messages:
+        span._set_ctx_item(OUTPUT_VALUE, output_messages)
 
 
 class OaiSpanAdapter:
