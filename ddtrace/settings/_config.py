@@ -195,6 +195,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_server",
         "yaaredis",
         "openai_agents",
+        "mcp",
     }
 )
 

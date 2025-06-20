@@ -107,6 +107,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "mcp": "mcp",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",

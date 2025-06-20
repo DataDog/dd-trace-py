@@ -341,6 +341,13 @@ Mako
 .. automodule:: ddtrace.contrib._mako
 
 
+.. _mcp:
+
+MCP
+^^^
+.. automodule:: ddtrace.contrib._mcp
+
+
 .. _mariadb:
 
 MariaDB
