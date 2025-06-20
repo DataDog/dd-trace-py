@@ -390,4 +390,4 @@ notify-slo-breaches:
   needs: ["check-slo-breaches"]
   when: always
   variables:
-    CHANNEL: "guild-dd-trace-py"
+    CHANNEL: "test-ddtracepy-alerts"
