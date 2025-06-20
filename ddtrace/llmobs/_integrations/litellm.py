@@ -5,22 +5,20 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
@@ -81,8 +79,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self._update_litellm_metadata(span, kwargs, operation)
 
         # update input and output value for non-LLM spans
-        span_kind = self._get_span_kind(kwargs, model_name, operation)
-        self._update_input_output_value(span, span_kind)
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        update_proxy_workflow_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
         span._set_ctx_items(
@@ -91,7 +89,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
     def _update_litellm_metadata(self, span: Span, kwargs: Dict[str, Any], operation: str):
         metadata = span._get_ctx_item(METADATA) or {}
-        base_url = kwargs.get("api_base")
+        base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
         if "metadata" in metadata:
             inner_metadata = {}
@@ -146,16 +144,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             )
         return new_model_list
 
-    def _update_input_output_value(self, span: Span, span_kind: str = ""):
-        if span_kind == "llm":
-            return
-        input_messages = span._get_ctx_item(INPUT_MESSAGES)
-        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
-        if input_messages:
-            span._set_ctx_item(INPUT_VALUE, input_messages)
-        if output_messages:
-            span._set_ctx_item(OUTPUT_VALUE, output_messages)
-
     def _has_downstream_openai_span(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
         """
         Determine whether an LLM span will be submitted for the given request from outside the LiteLLM integration.
@@ -172,17 +160,16 @@ class LiteLLMIntegration(BaseLLMIntegration):
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
     def _get_span_kind(
-        self, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
+        self, span: Span, kwargs: Dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:
         """
         Workflow span should be submitted to LLMObs if:
             - span represents a router operation OR
-            - base_url is set (indicates a request to the proxy)
+            - span represents a proxy request
         LLM spans should be submitted to LLMObs if:
-            - base_url is not set AND an LLM span will not be submitted elsewhere
+            - span does not represent a router operation or a proxy request
         """
-        base_url = kwargs.get("api_base")
-        if self.is_router_operation(operation) or base_url:
+        if self.is_router_operation(operation) or span._get_ctx_item(PROXY_REQUEST):
             return "workflow"
         return "llm"
 
@@ -218,13 +205,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
 
-    def should_submit_to_llmobs(self, kwargs: Dict[str, Any], model: Optional[str] = None) -> bool:
-        """
-        LiteLLM spans will be submitted to LLMObs unless the following are true:
-            - base_url is not set AND
-            - the LLM request will be submitted elsewhere (e.g. OpenAI integration)
-        """
-        base_url = kwargs.get("api_base")
-        if not base_url and self._has_downstream_openai_span(kwargs, model):
-            return False
-        return True
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        base_url = kwargs.get("base_url")
+        return str(base_url) if base_url else None
