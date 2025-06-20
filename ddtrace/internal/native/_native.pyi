@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 class DDSketch:
     def __init__(self): ...
@@ -94,3 +94,127 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     :param data: The tracer configuration to store.
     """
     ...
+
+# Result types for dispatch_with_results functionality
+class ResultType:
+    """Result type constants for EventResult."""
+    RESULT_OK: int = 0
+    RESULT_EXCEPTION: int = 1
+    RESULT_UNDEFINED: int = -1
+
+class EventResult:
+    """Individual listener result from dispatch_with_results."""
+    response_type: int
+    value: Any
+    exception: Optional[Exception]
+    
+    def __init__(self, response_type: int = -1, value: Any = None, exception: Optional[Exception] = None) -> None: ...
+    def __bool__(self) -> bool: ...
+
+class EventResultDict:
+    """Dictionary-like container for event results with attribute access support."""
+    
+    def __init__(self) -> None: ...
+    def __getitem__(self, key: str) -> EventResult: ...
+    def __setitem__(self, key: str, value: EventResult) -> None: ...
+    def __getattr__(self, name: str) -> EventResult: ...
+    def __contains__(self, key: str) -> bool: ...
+    def keys(self) -> List[str]: ...
+    def values(self) -> List[EventResult]: ...
+    def items(self) -> List[Tuple[str, EventResult]]: ...
+
+# Event hub submodule - high-performance event dispatcher implemented in Rust
+class event_hub:
+    """High-performance event hub submodule containing all event dispatcher functions."""
+    
+    # Event hub classes available in the submodule
+    class ResultType:
+        """Result type constants for EventResult."""
+        RESULT_OK: int = 0
+        RESULT_EXCEPTION: int = 1
+        RESULT_UNDEFINED: int = -1
+
+    class EventResult:
+        """Individual listener result from dispatch_with_results."""
+        response_type: int
+        value: Any
+        exception: Optional[Exception]
+        
+        def __init__(self, response_type: int = -1, value: Any = None, exception: Optional[Exception] = None) -> None: ...
+        def __bool__(self) -> bool: ...
+
+    class EventResultDict:
+        """Dictionary-like container for event results with attribute access support."""
+        
+        def __init__(self) -> None: ...
+        def __getitem__(self, key: str) -> EventResult: ...
+        def __setitem__(self, key: str, value: EventResult) -> None: ...
+        def __getattr__(self, name: str) -> EventResult: ...
+        def __contains__(self, key: str) -> bool: ...
+        def keys(self) -> List[str]: ...
+        def values(self) -> List[EventResult]: ...
+        def items(self) -> List[Tuple[str, EventResult]]: ...
+    
+
+    # Module-level event hub functions (using global EventHub instance)
+    @staticmethod
+    def has_listeners(event_id: str) -> bool:
+        """
+        Check if there are listeners registered for the provided event_id.
+
+        :param event_id: The event identifier to check
+        :return: True if listeners exist, False otherwise
+        """
+        ...
+
+    @staticmethod
+    def on(event_id: str, callback: Callable[..., Any], name: Any = None) -> None:
+        """
+        Register a listener for the provided event_id.
+
+        :param event_id: The event identifier to listen for
+        :param callback: The callback function to invoke when the event is dispatched
+        :param name: Optional name/ID for the callback (uses callback ID if None)
+        """
+        ...
+
+    @staticmethod
+    def on_all(callback: Callable[..., Any]) -> None:
+        """
+        Register a listener for all events emitted.
+
+        :param callback: The callback function to invoke for all events
+                        Called with (event_id, args) as arguments
+        """
+        ...
+
+    @staticmethod
+    def dispatch(event_id: str, args: Optional[Tuple[Any, ...]] = None) -> None:
+        """
+        Dispatch an event to all registered listeners.
+
+        :param event_id: The event identifier to dispatch
+        :param args: Optional tuple of arguments to pass to listeners
+        """
+        ...
+
+    @staticmethod
+    def dispatch_with_results(event_id: str, args: Optional[Tuple[Any, ...]] = None) -> EventResultDict:
+        """
+        Dispatch an event and collect individual results from each listener.
+
+        :param event_id: The event identifier to dispatch
+        :param args: Optional tuple of arguments to pass to listeners
+        :return: EventResultDict containing results from each listener
+        """
+        ...
+
+    @staticmethod
+    def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]] = None) -> None:
+        """
+        Remove registered listeners.
+
+        :param event_id: If provided, only clear listeners for this event
+        :param callback: If provided, only remove this specific callback
+        """
+        ...
