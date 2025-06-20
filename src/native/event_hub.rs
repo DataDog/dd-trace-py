@@ -77,9 +77,7 @@ impl EventHub {
 
         {
             let mut listeners = self.listeners.write().unwrap();
-            let event_listeners = listeners
-                .entry(event_id.clone())
-                .or_default();
+            let event_listeners = listeners.entry(event_id.clone()).or_default();
             event_listeners.insert(callback_name, callback);
         }
 
@@ -145,7 +143,10 @@ impl EventHub {
             let all_listeners = self.all_listeners.read().unwrap();
             for callback in all_listeners.iter() {
                 // Create minimal tuple for global listeners: (event_id, args)
-                let global_args = (event_id.to_string().into_pyobject(py).unwrap(), args.clone_ref(py));
+                let global_args = (
+                    event_id.to_string().into_pyobject(py).unwrap(),
+                    args.clone_ref(py),
+                );
 
                 if let Err(e) = callback.call1(py, global_args) {
                     // Check if we should raise exceptions based on config._raise
@@ -269,7 +270,10 @@ impl EventHub {
         {
             let all_listeners = self.all_listeners.read().unwrap();
             for (idx, callback) in all_listeners.iter().enumerate() {
-                let global_args = (event_id.to_string().into_pyobject(py).unwrap(), args.clone_ref(py));
+                let global_args = (
+                    event_id.to_string().into_pyobject(py).unwrap(),
+                    args.clone_ref(py),
+                );
                 let listener_name = format!("__global_listener_{}", idx);
 
                 let result = match callback.call1(py, global_args) {
