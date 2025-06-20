@@ -1,3 +1,4 @@
+from collections import defaultdict
 import sys
 
 import wrapt
@@ -20,10 +21,9 @@ def extract_host_tag(kwargs):
 class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, kwargs):
         super().__init__(wrapped)
-        n = kwargs.get("n", 1) or 1
         self._dd_integration = integration
         self._span_info = [(span, kwargs)]
-        self._streamed_chunks = [[] for _ in range(n)]
+        self._streamed_chunks = defaultdict(list)
 
     def _add_router_span_info(self, span, kwargs, instance):
         """Handler to add router span to this streaming object.
@@ -127,8 +127,9 @@ def _loop_handler(chunk, streamed_chunks):
 
     When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
     """
-    for choice in chunk.choices:
-        streamed_chunks[choice.index].append(choice)
+    for choice in getattr(chunk, "choices", []):
+        choice_index = getattr(choice, "index", 0)
+        streamed_chunks[choice_index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
@@ -138,11 +139,11 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
         formatted_completions = None
         if integration.is_completion_operation(operation):
             formatted_completions = [
-                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
+                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks.values()
             ]
         else:
             formatted_completions = [
-                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
+                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks.values()
             ]
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(

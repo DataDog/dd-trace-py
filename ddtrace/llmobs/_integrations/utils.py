@@ -401,7 +401,7 @@ def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any])
     if not streamed_chunks:
         return {"text": ""}
     completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if streamed_chunks[-1].finish_reason is not None:
+    if getattr(streamed_chunks[-1], "finish_reason", None):
         completion["finish_reason"] = streamed_chunks[-1].finish_reason
     if hasattr(streamed_chunks[0], "usage"):
         completion["usage"] = streamed_chunks[0].usage
