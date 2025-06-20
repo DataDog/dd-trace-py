@@ -1,5 +1,6 @@
 from ddtrace.internal.native._native import event_hub as _native_event_hub
 
+
 # Export native functions and classes
 has_listeners = _native_event_hub.has_listeners
 on = _native_event_hub.on

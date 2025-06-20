@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 /// High-performance event dispatcher implemented in Rust
-/// 
+///
 /// Design principles for performance:
 /// - Use Rust native types (HashMap, Vec, String) for internal storage
 /// - Minimize Python object creation/conversion in hot paths
@@ -17,11 +17,11 @@ pub struct EventHub {
     /// Event-specific listeners: event_id -> {name -> callback}
     /// Using native Rust HashMap for O(1) lookup performance
     listeners: Arc<RwLock<HashMap<String, HashMap<String, PyObject>>>>,
-    
+
     /// Global listeners that receive all events
     /// Stored as Vec for fast iteration during dispatch
     all_listeners: Arc<RwLock<Vec<PyObject>>>,
-    
+
     /// Cached listener counts for fast has_listeners() checks
     /// This avoids read locks on the main HashMap for simple checks
     listener_counts: Arc<RwLock<HashMap<String, usize>>>,
@@ -42,11 +42,14 @@ impl EventHub {
     fn has_listeners(&self, event_id: &str) -> PyResult<bool> {
         // Fast path: check cached counts first
         let counts = self.listener_counts.read().unwrap();
-        Ok(counts.get(event_id).map(|&count| count > 0).unwrap_or(false))
+        Ok(counts
+            .get(event_id)
+            .map(|&count| count > 0)
+            .unwrap_or(false))
     }
 
     /// Register a listener for a specific event
-    /// 
+    ///
     /// Args:
     ///     event_id: Event identifier (stored as native Rust String)
     ///     callback: Python callable (stored as PyObject for zero-copy dispatch)
@@ -63,7 +66,10 @@ impl EventHub {
             // Use callback's id as string if no name provided
             Python::with_gil(|py| {
                 // Try hash first, fall back to simple string representation of pointer
-                let id_val = callback.bind(py).call_method0("__hash__").map(|h| h.extract::<i64>().unwrap_or(0))
+                let id_val = callback
+                    .bind(py)
+                    .call_method0("__hash__")
+                    .map(|h| h.extract::<i64>().unwrap_or(0))
                     .unwrap_or_else(|_| callback.as_ptr() as i64);
                 id_val.to_string()
             })
@@ -71,7 +77,9 @@ impl EventHub {
 
         {
             let mut listeners = self.listeners.write().unwrap();
-            let event_listeners = listeners.entry(event_id.clone()).or_insert_with(HashMap::new);
+            let event_listeners = listeners
+                .entry(event_id.clone())
+                .or_insert_with(HashMap::new);
             event_listeners.insert(callback_name, callback);
         }
 
@@ -90,24 +98,30 @@ impl EventHub {
     /// Register a global listener for all events
     fn on_all(&self, callback: PyObject) -> PyResult<()> {
         let mut all_listeners = self.all_listeners.write().unwrap();
-        
+
         // Check if callback already exists to avoid duplicates
         let callback_id = Python::with_gil(|py| {
-            callback.bind(py).call_method0("__hash__").unwrap_or_else(|_| {
-                callback.bind(py).call_method0("__repr__").unwrap()
-            }).extract::<u64>().unwrap_or(0)
+            callback
+                .bind(py)
+                .call_method0("__hash__")
+                .unwrap_or_else(|_| callback.bind(py).call_method0("__repr__").unwrap())
+                .extract::<u64>()
+                .unwrap_or(0)
         });
-        
+
         // Simple duplicate check - could be optimized further with a HashSet
         let exists = all_listeners.iter().any(|existing| {
             Python::with_gil(|py| {
-                let existing_id = existing.bind(py).call_method0("__hash__").unwrap_or_else(|_| {
-                    existing.bind(py).call_method0("__repr__").unwrap()
-                }).extract::<u64>().unwrap_or(1);
+                let existing_id = existing
+                    .bind(py)
+                    .call_method0("__hash__")
+                    .unwrap_or_else(|_| existing.bind(py).call_method0("__repr__").unwrap())
+                    .extract::<u64>()
+                    .unwrap_or(1);
                 existing_id == callback_id
             })
         });
-        
+
         if !exists {
             all_listeners.insert(0, callback); // Insert at front like Python version
         }
@@ -116,7 +130,7 @@ impl EventHub {
     }
 
     /// High-performance event dispatch - the critical hot path
-    /// 
+    ///
     /// This is optimized for minimal Python object creation:
     /// - Takes event_id as &str to avoid String allocation
     /// - Takes args as PyObject to handle any tuple type
@@ -132,7 +146,7 @@ impl EventHub {
             for callback in all_listeners.iter() {
                 // Create minimal tuple for global listeners: (event_id, args)
                 let global_args = (event_id.to_string().into_py(py), args.clone_ref(py));
-                
+
                 if let Err(e) = callback.call1(py, global_args) {
                     // Check if we should raise exceptions based on config._raise
                     if should_raise_exceptions(py) {
@@ -146,7 +160,11 @@ impl EventHub {
         // Fast path: check if event has listeners before acquiring read lock
         {
             let counts = self.listener_counts.read().unwrap();
-            if !counts.get(event_id).map(|&count| count > 0).unwrap_or(false) {
+            if !counts
+                .get(event_id)
+                .map(|&count| count > 0)
+                .unwrap_or(false)
+            {
                 return Ok(());
             }
         }
@@ -161,7 +179,7 @@ impl EventHub {
                         Ok(tuple) => tuple.clone(),
                         Err(_) => PyTuple::new(py, &[args.clone_ref(py)]).unwrap(),
                     };
-                    
+
                     if let Err(e) = callback.call1(py, args_tuple) {
                         // Check if we should raise exceptions based on config._raise
                         if should_raise_exceptions(py) {
@@ -177,7 +195,7 @@ impl EventHub {
     }
 
     /// Reset/clear listeners
-    /// 
+    ///
     /// Args:
     ///     event_id: If provided, only clear listeners for this event
     ///     callback: If provided, only remove this specific callback
@@ -208,16 +226,19 @@ impl EventHub {
             (Some(event_id), Some(callback)) => {
                 // Remove specific callback from specific event
                 let callback_name = Python::with_gil(|py| {
-                    let id_val = callback.bind(py).call_method0("__hash__").map(|h| h.extract::<i64>().unwrap_or(0))
+                    let id_val = callback
+                        .bind(py)
+                        .call_method0("__hash__")
+                        .map(|h| h.extract::<i64>().unwrap_or(0))
                         .unwrap_or_else(|_| callback.as_ptr() as i64);
                     id_val.to_string()
                 });
-                
+
                 {
                     let mut listeners = self.listeners.write().unwrap();
                     if let Some(event_listeners) = listeners.get_mut(&event_id) {
                         event_listeners.retain(|name, _| name != &callback_name);
-                        
+
                         // Update cached count
                         let mut counts = self.listener_counts.write().unwrap();
                         counts.insert(event_id, event_listeners.len());
@@ -225,16 +246,21 @@ impl EventHub {
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Dispatch an event and collect individual results from each listener
-    /// 
+    ///
     /// This is the high-fidelity version of dispatch that returns results and exceptions
     /// from each individual listener. Used when the caller needs detailed feedback.
     #[pyo3(signature = (event_id, args = None))]
-    fn dispatch_with_results(&self, py: Python<'_>, event_id: &str, args: Option<PyObject>) -> PyResult<EventResultDict> {
+    fn dispatch_with_results(
+        &self,
+        py: Python<'_>,
+        event_id: &str,
+        args: Option<PyObject>,
+    ) -> PyResult<EventResultDict> {
         let args = args.unwrap_or_else(|| PyTuple::empty(py).into());
         let mut results = EventResultDict::new(py);
         let should_raise = should_raise_exceptions(py);
@@ -245,17 +271,18 @@ impl EventHub {
             for (idx, callback) in all_listeners.iter().enumerate() {
                 let global_args = (event_id.to_string().into_py(py), args.clone_ref(py));
                 let listener_name = format!("__global_listener_{}", idx);
-                
+
                 let result = match callback.call1(py, global_args) {
                     Ok(return_value) => EventResult::new(py, 0, Some(return_value), None), // RESULT_OK
                     Err(e) => {
                         if should_raise {
                             return Err(e);
                         }
-                        EventResult::new(py, 1, None, Some(e.value(py).clone().unbind().into())) // RESULT_EXCEPTION
+                        EventResult::new(py, 1, None, Some(e.value(py).clone().unbind().into()))
+                        // RESULT_EXCEPTION
                     }
                 };
-                
+
                 results.__setitem__(listener_name, result);
             }
         }
@@ -270,17 +297,18 @@ impl EventHub {
                         Ok(tuple) => tuple.clone(),
                         Err(_) => PyTuple::new(py, &[args.clone_ref(py)]).unwrap(),
                     };
-                    
+
                     let result = match callback.call1(py, args_tuple) {
                         Ok(return_value) => EventResult::new(py, 0, Some(return_value), None), // RESULT_OK
                         Err(e) => {
                             if should_raise {
                                 return Err(e);
                             }
-                            EventResult::new(py, 1, None, Some(e.value(py).clone().unbind().into())) // RESULT_EXCEPTION
+                            EventResult::new(py, 1, None, Some(e.value(py).clone().unbind().into()))
+                            // RESULT_EXCEPTION
                         }
                     };
-                    
+
                     results.__setitem__(name.clone(), result);
                 }
             }
@@ -293,8 +321,11 @@ impl EventHub {
     fn stats(&self, py: Python<'_>) -> PyResult<PyObject> {
         let listeners_count = self.listeners.read().unwrap().len();
         let all_listeners_count = self.all_listeners.read().unwrap().len();
-        
-        let total_event_listeners: usize = self.listeners.read().unwrap()
+
+        let total_event_listeners: usize = self
+            .listeners
+            .read()
+            .unwrap()
             .values()
             .map(|event_listeners| event_listeners.len())
             .sum();
@@ -303,7 +334,7 @@ impl EventHub {
         stats.set_item("events_with_listeners", listeners_count)?;
         stats.set_item("global_listeners", all_listeners_count)?;
         stats.set_item("total_event_listeners", total_event_listeners)?;
-        
+
         Ok(stats.into())
     }
 }
@@ -335,12 +366,10 @@ pub struct EventResult {
 
 impl Clone for EventResult {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| {
-            Self {
-                response_type: self.response_type,
-                value: self.value.clone_ref(py),
-                exception: self.exception.as_ref().map(|e| e.clone_ref(py)),
-            }
+        Python::with_gil(|py| Self {
+            response_type: self.response_type,
+            value: self.value.clone_ref(py),
+            exception: self.exception.as_ref().map(|e| e.clone_ref(py)),
         })
     }
 }
@@ -349,7 +378,12 @@ impl Clone for EventResult {
 impl EventResult {
     #[new]
     #[pyo3(signature = (response_type = -1, value = None, exception = None))]
-    fn new(py: Python<'_>, response_type: i32, value: Option<PyObject>, exception: Option<PyObject>) -> Self {
+    fn new(
+        py: Python<'_>,
+        response_type: i32,
+        value: Option<PyObject>,
+        exception: Option<PyObject>,
+    ) -> Self {
         Self {
             response_type,
             value: value.unwrap_or_else(|| py.None()),
@@ -380,7 +414,10 @@ impl EventResultDict {
     }
 
     fn __getitem__(&self, key: &str) -> EventResult {
-        self.results.get(key).cloned().unwrap_or_else(|| self.missing_result.clone())
+        self.results
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| self.missing_result.clone())
     }
 
     fn __setitem__(&mut self, key: String, value: EventResult) {
@@ -404,7 +441,10 @@ impl EventResultDict {
     }
 
     fn items(&self) -> Vec<(String, EventResult)> {
-        self.results.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        self.results
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 }
 
@@ -412,17 +452,13 @@ impl EventResultDict {
 fn should_raise_exceptions(py: Python<'_>) -> bool {
     // Try to import and check config._raise
     match py.import("ddtrace.settings._config") {
-        Ok(config_module) => {
-            match config_module.getattr("config") {
-                Ok(config_obj) => {
-                    match config_obj.getattr("_raise") {
-                        Ok(raise_val) => raise_val.is_truthy().unwrap_or(false),
-                        Err(_) => false,
-                    }
-                }
+        Ok(config_module) => match config_module.getattr("config") {
+            Ok(config_obj) => match config_obj.getattr("_raise") {
+                Ok(raise_val) => raise_val.is_truthy().unwrap_or(false),
                 Err(_) => false,
-            }
-        }
+            },
+            Err(_) => false,
+        },
         Err(_) => false,
     }
 }
@@ -467,7 +503,11 @@ fn reset(event_id: Option<String>, callback: Option<PyObject>) -> PyResult<()> {
 
 #[pyfunction]
 #[pyo3(signature = (event_id, args = None))]
-fn dispatch_with_results(py: Python<'_>, event_id: &str, args: Option<PyObject>) -> PyResult<EventResultDict> {
+fn dispatch_with_results(
+    py: Python<'_>,
+    event_id: &str,
+    args: Option<PyObject>,
+) -> PyResult<EventResultDict> {
     let hub = GLOBAL_HUB.get_or_init(EventHub::new);
     hub.dispatch_with_results(py, event_id, args)
 }
@@ -487,4 +527,3 @@ pub fn event_hub(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(reset, m)?)?;
     Ok(())
 }
-

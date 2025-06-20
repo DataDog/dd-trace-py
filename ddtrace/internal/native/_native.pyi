@@ -98,22 +98,24 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
 # Result types for dispatch_with_results functionality
 class ResultType:
     """Result type constants for EventResult."""
+
     RESULT_OK: int = 0
     RESULT_EXCEPTION: int = 1
     RESULT_UNDEFINED: int = -1
 
 class EventResult:
     """Individual listener result from dispatch_with_results."""
+
     response_type: int
     value: Any
     exception: Optional[Exception]
-    
+
     def __init__(self, response_type: int = -1, value: Any = None, exception: Optional[Exception] = None) -> None: ...
     def __bool__(self) -> bool: ...
 
 class EventResultDict:
     """Dictionary-like container for event results with attribute access support."""
-    
+
     def __init__(self) -> None: ...
     def __getitem__(self, key: str) -> EventResult: ...
     def __setitem__(self, key: str, value: EventResult) -> None: ...
@@ -126,26 +128,30 @@ class EventResultDict:
 # Event hub submodule - high-performance event dispatcher implemented in Rust
 class event_hub:
     """High-performance event hub submodule containing all event dispatcher functions."""
-    
+
     # Event hub classes available in the submodule
     class ResultType:
         """Result type constants for EventResult."""
+
         RESULT_OK: int = 0
         RESULT_EXCEPTION: int = 1
         RESULT_UNDEFINED: int = -1
 
     class EventResult:
         """Individual listener result from dispatch_with_results."""
+
         response_type: int
         value: Any
         exception: Optional[Exception]
-        
-        def __init__(self, response_type: int = -1, value: Any = None, exception: Optional[Exception] = None) -> None: ...
+
+        def __init__(
+            self, response_type: int = -1, value: Any = None, exception: Optional[Exception] = None
+        ) -> None: ...
         def __bool__(self) -> bool: ...
 
     class EventResultDict:
         """Dictionary-like container for event results with attribute access support."""
-        
+
         def __init__(self) -> None: ...
         def __getitem__(self, key: str) -> EventResult: ...
         def __setitem__(self, key: str, value: EventResult) -> None: ...
@@ -154,7 +160,6 @@ class event_hub:
         def keys(self) -> List[str]: ...
         def values(self) -> List[EventResult]: ...
         def items(self) -> List[Tuple[str, EventResult]]: ...
-    
 
     # Module-level event hub functions (using global EventHub instance)
     @staticmethod
@@ -166,7 +171,6 @@ class event_hub:
         :return: True if listeners exist, False otherwise
         """
         ...
-
     @staticmethod
     def on(event_id: str, callback: Callable[..., Any], name: Any = None) -> None:
         """
@@ -177,7 +181,6 @@ class event_hub:
         :param name: Optional name/ID for the callback (uses callback ID if None)
         """
         ...
-
     @staticmethod
     def on_all(callback: Callable[..., Any]) -> None:
         """
@@ -187,7 +190,6 @@ class event_hub:
                         Called with (event_id, args) as arguments
         """
         ...
-
     @staticmethod
     def dispatch(event_id: str, args: Optional[Tuple[Any, ...]] = None) -> None:
         """
@@ -197,7 +199,6 @@ class event_hub:
         :param args: Optional tuple of arguments to pass to listeners
         """
         ...
-
     @staticmethod
     def dispatch_with_results(event_id: str, args: Optional[Tuple[Any, ...]] = None) -> EventResultDict:
         """
@@ -208,7 +209,6 @@ class event_hub:
         :return: EventResultDict containing results from each listener
         """
         ...
-
     @staticmethod
     def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]] = None) -> None:
         """
