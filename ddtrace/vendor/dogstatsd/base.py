@@ -1,3 +1,4 @@
+import secrets
 #!/usr/bin/env python
 
 # Unless explicitly stated otherwise all files in this repository are licensed under
@@ -912,7 +913,7 @@ class DogStatsd(object):
         if sample_rate is None:
             sample_rate = self.default_sample_rate
 
-        if sample_rate != 1 and random() > sample_rate:
+        if sample_rate != 1 and secrets.randbelow(100) / 100 > sample_rate:
             return
 
         # Resolve the full tag list
