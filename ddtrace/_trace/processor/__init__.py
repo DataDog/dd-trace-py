@@ -551,4 +551,3 @@ class SpanAggregator(SpanProcessor):
                 "spans_created": defaultdict(int),
                 "spans_finished": defaultdict(int),
             }
-            self._lock = RLock()
