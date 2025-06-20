@@ -4,21 +4,8 @@ from google.genai import types
 import pytest
 
 from tests.contrib.google_genai.utils import get_google_genai_vcr
+from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.utils import override_global_config
-
-
-# Shared config to avoid duplication
-FULL_GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(
-    temperature=0,
-    top_p=0.95,
-    top_k=20,
-    candidate_count=1,
-    seed=5,
-    max_output_tokens=100,
-    stop_sequences=["STOP!"],
-    presence_penalty=0.0,
-    frequency_penalty=0.0,
-)
 
 
 @pytest.fixture(scope="session")
@@ -165,33 +152,33 @@ async def test_google_genai_generate_content_async_stream_error(genai):
             pass
 
 
-# NOTE: regenerating cassettes for this test require some manual tweaking,
-#       after generating cassettes, one should replace any secrets with placeholders
-#       and delete the Content-Encoding - gzip header from the response body
 @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content")
-def test_google_genai_generate_content_vertex(mock_google_auth, google_genai_vcr, genai):
-    with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
-        client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
-        )
-        client.models.generate_content(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=types.GenerateContentConfig(
-                temperature=0,
-                max_output_tokens=100,
-            ),
-        )
+def test_google_genai_generate_content_vertex(mock_vertex_generate_content, genai):
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+    )
+    client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents="Why is the sky blue? Explain in 2-3 sentences.",
+        config=types.GenerateContentConfig(
+            temperature=0,
+            max_output_tokens=100,
+        ),
+    )
 
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_vertex_error(mock_google_auth, genai):
+def test_google_genai_generate_content_vertex_error(mock_vertex_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
         client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -200,30 +187,33 @@ def test_google_genai_generate_content_vertex_error(mock_google_auth, genai):
         )
 
 
-# @pytest.mark.snapshot(
-#     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-# )
-# def test_google_genai_generate_content_stream_vertex(mock_google_auth, google_genai_vcr, genai):
-#     with google_genai_vcr.use_cassette("generate_content_stream_vertex.yaml"):
-#         client = genai.Client(
-#             vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
-#         )
-#         response = client.models.generate_content_stream(
-#             model="gemini-2.0-flash-001",
-#             contents="Why is the sky blue? Explain in 2-3 sentences.",
-#         )
-#         for _ in response:
-#             pass
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
+)
+def test_google_genai_generate_content_stream_vertex(mock_vertex_generate_content, genai):
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+    )
+    response = client.models.generate_content_stream(
+        model="gemini-2.0-flash-001",
+        contents="Why is the sky blue? Explain in 2-3 sentences.",
+    )
+    for _ in response:
+        pass
 
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_stream_vertex_error(mock_google_auth, genai):
+def test_google_genai_generate_content_stream_vertex_error(mock_vertex_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -238,29 +228,32 @@ def test_google_genai_generate_content_stream_vertex_error(mock_google_auth, gen
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async_vertex(mock_google_auth, google_genai_vcr, genai):
-    with google_genai_vcr.use_cassette("generate_content_vertex.yaml"):
-        client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
-        )
-        await client.aio.models.generate_content(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=types.GenerateContentConfig(
-                temperature=0,
-                max_output_tokens=100,
-            ),
-        )
+async def test_google_genai_generate_content_async_vertex(mock_vertex_generate_content, genai):
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+    )
+    await client.aio.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents="Why is the sky blue? Explain in 2-3 sentences.",
+        config=types.GenerateContentConfig(
+            temperature=0,
+            max_output_tokens=100,
+        ),
+    )
 
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_vertex_error(mock_google_auth, genai):
+async def test_google_genai_generate_content_async_vertex_error(mock_vertex_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -269,31 +262,34 @@ async def test_google_genai_generate_content_async_vertex_error(mock_google_auth
         )
 
 
-# @pytest.mark.snapshot(
-#     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-#     ignores=["resource"],
-# )
-# async def test_google_genai_generate_content_async_stream_vertex(mock_google_auth, google_genai_vcr, genai):
-#     with google_genai_vcr.use_cassette("generate_content_stream_vertex.yaml"):
-#         client = genai.Client(
-#             vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
-#         )
-#         response = await client.aio.models.generate_content_stream(
-#             model="gemini-2.0-flash-001",
-#             contents="Why is the sky blue? Explain in 2-3 sentences.",
-#         )
-#         async for _ in response:
-#             pass
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
+    ignores=["resource"],
+)
+async def test_google_genai_generate_content_async_stream_vertex(mock_vertex_generate_content, genai):
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+    )
+    response = await client.aio.models.generate_content_stream(
+        model="gemini-2.0-flash-001",
+        contents="Why is the sky blue? Explain in 2-3 sentences.",
+    )
+    async for _ in response:
+        pass
 
 
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_stream_vertex_error(mock_google_auth, genai):
+async def test_google_genai_generate_content_async_stream_vertex_error(mock_vertex_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
-            vertexai=True, project=os.environ["GOOGLE_CLOUD_PROJECT"], location=os.environ["GOOGLE_CLOUD_LOCATION"]
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
