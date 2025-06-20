@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "graphql.server.request",
+    "service": "tests.opentelemetry",
+    "resource": "otel-graphql",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67f8271e00000000",
+      "graphql.operation.type": "query",
+      "language": "python",
+      "runtime-id": "157ad98ab7374462a6628dad2c3fe8f8",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 9887
+    },
+    "duration": 155101,
+    "start": 1744316190522132940
+  }]]
