@@ -123,3 +123,16 @@
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite
+  azureservicebusemulator:
+    name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:1.1.2
+    alias: azureservicebusemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Localtestpass1!"
+      SQL_SERVER: azuresqledge
+  azuresqledge:
+    name: registry.ddbuild.io/images/mirror/azure-sql-edge:1.0.7
+    alias: azuresqledge
+    variables:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Localtestpass1!"

@@ -45,7 +45,7 @@
          "http.method": "GET",
          "http.status_code": "200",
          "http.url": "http://localhost:7071/api/httpgetchild",
-         "http.useragent": "python-requests/2.32.3",
+         "http.useragent": "python-requests/x.xx.x",
          "out.host": "localhost",
          "span.kind": "client"
        },
@@ -73,7 +73,7 @@
             "http.route": "/api/httpgetchild",
             "http.status_code": "200",
             "http.url": "http://localhost:7071/api/httpgetchild",
-            "http.useragent": "python-requests/2.32.3",
+            "http.useragent": "python-requests/x.xx.x",
             "runtime-id": "b1b15a7ba91041b6a04c6a866fb7709f",
             "span.kind": "server"
           },
