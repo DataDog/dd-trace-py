@@ -97,10 +97,11 @@ class _TelemetryClient:
                 resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
-                    "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
+                    "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event: %s. Response: %s",
                     len(rb_json),
                     sw.elapsed(),
                     self.url,
+                    request["request_type"],
                     resp.status,
                 )
             else:
