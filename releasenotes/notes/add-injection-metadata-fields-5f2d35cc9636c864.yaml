@@ -1,0 +1,4 @@
+---
+other:
+  - | 
+    lib-injection: Additional fields have been added to the telemetry forwarder used during Single Step to surface troubleshooting insights in the Datadog UI.
