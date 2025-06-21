@@ -6,8 +6,9 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-include_directories(${PYTHON_INCLUDE_DIRS})
-include_directories(${PYBIND11_INCLUDE_DIRS})
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
+find_package(pybind11 CONFIG REQUIRED)
 
 file(GLOB TEST_SOURCES "*.cpp" "*.hpp")
 add_executable(native_tests ${TEST_SOURCES} ${SOURCE_FILES} ${HEADER_FILES})
