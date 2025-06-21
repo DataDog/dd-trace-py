@@ -16,7 +16,6 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -31,13 +30,13 @@ from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
 from ddtrace.internal import atexit
+from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
-from ddtrace.internal.core import dispatch
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -214,7 +213,6 @@ class Tracer(object):
             self.data_streams_processor = DataStreamsProcessor()
             register_on_exit_signal(self._atexit)
 
-        self._hooks = Hooks()
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
@@ -263,7 +261,7 @@ class Tracer(object):
         :param func: The function to call when starting a span.
                      The started span will be passed as argument.
         """
-        self._hooks.register(self.__class__.start_span, func)
+        core.on("trace.span_finish", callback=func)
         return func
 
     def deregister_on_start_span(self, func: Callable) -> Callable:
@@ -274,7 +272,7 @@ class Tracer(object):
         :param func: The function to stop calling when starting a span.
         """
 
-        self._hooks.deregister(self.__class__.start_span, func)
+        core.on("trace.span_start", callback=func)
         return func
 
     def sample(self, span):
@@ -634,8 +632,7 @@ class Tracer(object):
             ):
                 if p:
                     p.on_span_start(span)
-        self._hooks.emit(self.__class__.start_span, span)
-        dispatch("trace.span_start", (span,))
+        core.dispatch("trace.span_start", (span,))
         return span
 
     start_span = _start_span
@@ -655,7 +652,7 @@ class Tracer(object):
                 if p:
                     p.on_span_finish(span)
 
-        dispatch("trace.span_finish", (span,))
+        core.dispatch("trace.span_finish", (span,))
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
