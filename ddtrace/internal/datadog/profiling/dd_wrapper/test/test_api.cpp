@@ -10,7 +10,7 @@ void
 single_sample_noframe()
 {
 
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
 
     // Collect and flush one sample
     auto h = ddup_start_sample();
@@ -33,7 +33,7 @@ TEST(UploadDeathTest, SingleSample)
 void
 single_oneframe_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -57,7 +57,7 @@ TEST(UploadDeathTest, SingleSampleOneFrame)
 void
 single_manyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -89,7 +89,7 @@ TEST(UploadDeathTest, SingleSampleManyFrames)
 void
 single_toomanyframes_sample()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
 
     // Collect and flush one sample with one frame
     auto h = ddup_start_sample();
@@ -121,7 +121,7 @@ TEST(UploadDeathTest, SingleSampleTooManyFrames)
 void
 lotsa_frames_lotsa_samples()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 512);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
 
     // 60 seconds @ 100 hertz
     for (int i = 0; i < 60 * 100; i++) {

@@ -9,7 +9,7 @@
 void
 simple_init()
 {
-    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100");
     std::exit(0);
 }
 
@@ -21,7 +21,7 @@ TEST(InitDeathTest, TestInit)
 void
 empty_init()
 {
-    configure("", "", "", "", "", "", "", 0);
+    configure("", "", "", "", "", "", "");
     std::exit(0);
 }
 
