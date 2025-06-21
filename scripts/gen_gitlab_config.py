@@ -266,23 +266,15 @@ build_base_venvs:
       - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
+    PIP_VERBOSE: '1'
     DD_PROFILING_NATIVE_TESTS: '1'
-    DD_USE_SCCACHE: '1'
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_FAST_BUILD: '1'
     DD_CMAKE_INCREMENTAL_BUILD: '1'
     DD_SETUP_CACHE_DOWNLOADS: '1'
     EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
+    _DD_DEBUG_EXT: '1'
   script: |
     set -e -o pipefail
-    apt update && apt install -y sccache
     pip install riot==0.20.1
     if [ ! -d $EXT_CACHE_VENV ]; then
         python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
@@ -293,6 +285,7 @@ build_base_venvs:
     fi
     python scripts/gen_ext_cache_scripts.py
     deactivate
+    echo "Restoring native extensions"
     $SHELL scripts/restore-ext-cache.sh
     riot -P -v generate --python=$PYTHON_VERSION
     echo "Running smoke tests"
@@ -300,9 +293,10 @@ build_base_venvs:
     source $EXT_CACHE_VENV/bin/activate
     python scripts/gen_ext_cache_scripts.py
     deactivate
+    echo "Saving native extensions"
     $SHELL scripts/save-ext-cache.sh
   cache:
-    # Share pip/sccache between jobs of the same Python version
+    # Share pip between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
@@ -317,6 +311,7 @@ build_base_venvs:
     paths:
       - scripts/restore-ext-cache.sh
       - scripts/save-ext-cache.sh
+      - debug_ext_metadata.txt
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*
