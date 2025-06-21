@@ -4,7 +4,6 @@ from itertools import chain
 from os import environ
 from threading import RLock
 from typing import Dict
-from typing import Iterable
 from typing import List
 from typing import Optional
 
@@ -129,7 +128,13 @@ class TraceSamplingProcessor(TraceProcessor):
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    def __init__(self, compute_stats_enabled: bool, single_span_rules: List[SpanSamplingRule], apm_opt_out: bool):
+    def __init__(
+        self,
+        compute_stats_enabled: bool,
+        single_span_rules: List[SpanSamplingRule],
+        apm_opt_out: bool,
+        agent_based_samplers: Optional[dict] = None,
+    ):
         super(TraceSamplingProcessor, self).__init__()
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
@@ -138,9 +143,14 @@ class TraceSamplingProcessor(TraceProcessor):
             # If ASM is enabled but tracing is disabled,
             # we need to set the rate limiting to 1 trace per minute
             # for the backend to consider the service as alive.
-            self.sampler = DatadogSampler(rate_limit=1, rate_limit_window=60e9, rate_limit_always_on=True)
+            self.sampler = DatadogSampler(
+                rate_limit=1,
+                rate_limit_window=60e9,
+                rate_limit_always_on=True,
+                agent_based_samplers=agent_based_samplers,
+            )
         else:
-            self.sampler = DatadogSampler()
+            self.sampler = DatadogSampler(agent_based_samplers=agent_based_samplers)
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -261,8 +271,8 @@ class SpanAggregator(SpanProcessor):
         self,
         partial_flush_enabled: bool,
         partial_flush_min_spans: int,
-        trace_processors: Iterable[TraceProcessor],
-        writer: Optional[TraceWriter] = None,
+        dd_processors: Optional[List[TraceProcessor]] = None,
+        user_processors: Optional[List[TraceProcessor]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -272,12 +282,10 @@ class SpanAggregator(SpanProcessor):
             config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
         )
         self.tags_processor = TraceTagsProcessor()
-        self.trace_processors = trace_processors
-        # Initialize writer
-        if writer is not None:
-            self.writer: TraceWriter = writer
-        elif SpanAggregator._use_log_writer():
-            self.writer = LogWriter()
+        self.dd_processors = dd_processors or []
+        self.user_processors = user_processors or []
+        if SpanAggregator._use_log_writer():
+            self.writer: TraceWriter = LogWriter()
         else:
             verify_url(agent_config.trace_agent_url)
             self.writer = AgentWriter(
@@ -308,7 +316,9 @@ class SpanAggregator(SpanProcessor):
             f"{self.partial_flush_min_spans}, "
             f"{self.sampling_processor},"
             f"{self.tags_processor},"
-            f"{self.trace_processors}, "
+            f"{self.dd_processors}, "
+            f"{self.user_processors}, "
+            f"{self._span_metrics}, "
             f"{self.writer})"
         )
 
@@ -373,7 +383,9 @@ class SpanAggregator(SpanProcessor):
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
-                for tp in chain(self.trace_processors, [self.sampling_processor, self.tags_processor]):
+                for tp in chain(
+                    self.dd_processors, self.user_processors, [self.sampling_processor, self.tags_processor]
+                ):
                     try:
                         if spans is None:
                             return
@@ -484,3 +496,58 @@ class SpanAggregator(SpanProcessor):
                     TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)
+
+    def reset(
+        self,
+        user_processors: Optional[List[TraceProcessor]] = None,
+        compute_stats: Optional[bool] = None,
+        apm_opt_out: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        reset_buffer: bool = True,
+    ) -> None:
+        """
+        Resets the internal state of the SpanAggregator, including the writer, sampling processor,
+        user-defined processors, and optionally the trace buffer and span metrics.
+
+        This method is typically used after a process fork or during runtime reconfiguration.
+        Arguments that are None will not override existing values.
+        """
+        try:
+            # Stop the writer to ensure it is not running while we reconfigure it.
+            self.writer.stop()
+        except ServiceStatusError:
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            pass
+
+        if isinstance(self.writer, AgentWriter) and appsec_enabled:
+            # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+            self.writer._api_version = "v0.4"
+        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
+        self.writer = self.writer.recreate()
+
+        # Recreate the sampling processor using new or existing config values.
+        # If an argument is None, the current value is preserved.
+        if compute_stats is None:
+            compute_stats = self.sampling_processor._compute_stats_enabled
+        if apm_opt_out is None:
+            apm_opt_out = self.sampling_processor.apm_opt_out
+        self.sampling_processor = TraceSamplingProcessor(
+            compute_stats,
+            get_span_sampling_rules(),
+            apm_opt_out,
+            self.sampling_processor.sampler._agent_based_samplers,
+        )
+
+        # Update user processors if provided.
+        if user_processors is not None:
+            self.user_processors = user_processors
+
+        # Reset the trace buffer and span metrics.
+        # Useful when forking to prevent sending duplicate spans from parent and child processes.
+        if reset_buffer:
+            self._traces = defaultdict(lambda: _Trace())
+            self._span_metrics = {
+                "spans_created": defaultdict(int),
+                "spans_finished": defaultdict(int),
+            }

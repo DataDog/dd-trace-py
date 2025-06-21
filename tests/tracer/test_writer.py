@@ -748,6 +748,17 @@ def test_writer_recreate_keeps_headers():
     assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
 
 
+def test_writer_recreate_keeps_response_callback():
+    def response_callback(response):
+        pass
+
+    writer = AgentWriter("http://dne:1234", response_callback=response_callback)
+    assert writer._response_cb is response_callback
+    writer = writer.recreate()
+    assert isinstance(writer, AgentWriter)
+    assert writer._response_cb is response_callback
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
