@@ -20,7 +20,12 @@ from tests.utils import remote_config_build_payload as build_payload
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
-MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
+MOCK_FLARE_SEND_REQUEST = FlareSendRequest(
+    case_id="1111111",
+    hostname="myhostname",
+    email="user.name@datadoghq.com",
+    uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+)
 
 
 class TracerFlareTests(TestCase):
