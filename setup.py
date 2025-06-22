@@ -1,6 +1,6 @@
 import atexit
-import fnmatch
 import hashlib
+from itertools import chain
 import os
 import platform
 import re
@@ -178,24 +178,50 @@ def is_64_bit_python():
 
 class ExtensionHashes(build_ext):
     def run(self):
-        for ext in self.distribution.ext_modules:
-            full_path = Path(self.get_ext_fullpath(ext.name))
+        try:
+            dist = self.distribution
+            for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
+                if isinstance(ext, CMakeExtension):
+                    sources = ext.get_sources(self)
+                elif isinstance(ext, RustExtension):
+                    source_path = Path(ext.path).parent
+                    sources = [
+                        _
+                        for _ in source_path.glob("**/*")
+                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                    ]
+                else:
+                    sources = [Path(_) for _ in ext.sources]
 
-            sources = ext.get_sources(self) if isinstance(ext, CMakeExtension) else [Path(_) for _ in ext.sources]
+                sources_hash = hashlib.sha256()
+                for source in sorted(sources):
+                    sources_hash.update(source.read_bytes())
+                hash_digest = sources_hash.hexdigest()
 
-            sources_hash = hashlib.sha256()
-            for source in sorted(sources):
-                sources_hash.update(source.read_bytes())
+                entries: t.List[t.Tuple[str, str, str]] = []
 
-            print("#EXTHASH:", (ext.name, sources_hash.hexdigest(), str(full_path)))
-
-            # Include any dependencies that might have been built alongside
-            # the extension.
-            if isinstance(ext, CMakeExtension):
-                for dependency in ext.dependencies:
-                    print(
-                        "#EXTHASH:", (f"{ext.name}-{dependency.name}", sources_hash.hexdigest(), str(dependency) + "*")
+                if isinstance(ext, RustExtension):
+                    entries.extend(
+                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
+                        for module in ext.target.values()
                     )
+                else:
+                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+
+                # Include any dependencies that might have been built alongside
+                # the extension.
+                if isinstance(ext, CMakeExtension):
+                    entries.extend(
+                        (f"{ext.name}-{dependency.name}", hash_digest, str(dependency) + "*")
+                        for dependency in ext.dependencies
+                    )
+
+                for entry in entries:
+                    print("#EXTHASH:", entry)
+
+        except Exception as e:
+            print("WARNING: Failed to compute extension hashes: %s" % e)
+            raise e
 
 
 class LibraryDownload:
@@ -664,29 +690,6 @@ def check_rust_toolchain():
         raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
-DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "").split(",") if _.strip()]
-DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
-
-
-def filter_extensions(
-    extensions: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]],
-) -> t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]]:
-    if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
-        return extensions
-
-    filtered: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = []
-    for ext in extensions:
-        if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
-            print(f"INFO: Excluding extension {ext.name}")
-            continue
-        elif DD_BUILD_EXT_INCLUDES and not any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_INCLUDES):
-            print(f"INFO: Excluding extension {ext.name}")
-            continue
-        print(f"INFO: Including extension {ext.name}")
-        filtered.append(ext)
-    return filtered
-
-
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
@@ -805,7 +808,10 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
-                dependencies=[CRASHTRACKER_DIR.parent / "libdd_wrapper"],
+                dependencies=[
+                    CRASHTRACKER_DIR / "crashtracker_exe",
+                    CRASHTRACKER_DIR.parent / "libdd_wrapper",
+                ],
             )
         )
 
@@ -846,60 +852,57 @@ setup(
         "ext_hashes": ExtensionHashes,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=filter_extensions(ext_modules)
+    ext_modules=ext_modules
     + cythonize(
-        filter_extensions(
-            [
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._rand",
-                    sources=["ddtrace/internal/_rand.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._tagset",
-                    sources=["ddtrace/internal/_tagset.pyx"],
-                    language="c",
-                ),
-                Extension(
-                    "ddtrace.internal._encoding",
-                    ["ddtrace/internal/_encoding.pyx"],
-                    include_dirs=["."],
-                    libraries=encoding_libraries,
-                    define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
-                ),
-                Extension(
-                    "ddtrace.internal.telemetry.metrics_namespaces",
-                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector.stack",
-                    sources=["ddtrace/profiling/collector/stack.pyx"],
-                    language="c",
-                    # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
-                    # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
-                    # everything else is on a GNU-like toolchain
-                    extra_compile_args=extra_compile_args
-                    + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._traceback",
-                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling._threading",
-                    sources=["ddtrace/profiling/_threading.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._task",
-                    sources=["ddtrace/profiling/collector/_task.pyx"],
-                    language="c",
-                ),
-            ]
-        ),
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._rand",
+                sources=["ddtrace/internal/_rand.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal._tagset",
+                sources=["ddtrace/internal/_tagset.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+            ),
+            Extension(
+                "ddtrace.internal.telemetry.metrics_namespaces",
+                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
+                # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
+                # everything else is on a GNU-like toolchain
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._threading",
+                sources=["ddtrace/profiling/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+        ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
@@ -910,16 +913,14 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + filter_extensions(get_exts_for("psutil")),
-    rust_extensions=filter_extensions(
-        [
-            RustExtension(
-                "ddtrace.internal.native._native",
-                path="src/native/Cargo.toml",
-                py_limited_api="auto",
-                binding=Binding.PyO3,
-                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-            ),
-        ]
-    ),
+    + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.native._native",
+            path="src/native/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )
