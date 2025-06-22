@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+import copy
 import json
 import os
 import time
@@ -127,8 +128,19 @@ class LLMObsSpan:
 
     Example::
         def span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
+            # Access full span context for decision making
+            ctx = span.get_span_context()
+            if ctx:
+                model_name = ctx._get_ctx_item("_ml_obs.meta.model_name")
+                metadata = ctx._get_ctx_item("_ml_obs.meta.metadata") or {}
+                
+                # Omit spans based on full context
+                if model_name == "sensitive-model" and metadata.get("contains_pii"):
+                    return None  # This span will be omitted
+            
+            # Modify input/output
             if span.get_tag("omit_span") == "1":
-                return None  # This span will be omitted
+                return None
             if span.get_tag("no_input") == "1":
                 span.input = []
             return span
@@ -141,6 +153,7 @@ class LLMObsSpan:
     input: List[Message] = field(default_factory=list)
     output: List[Message] = field(default_factory=list)
     _tags: Dict[str, str] = field(default_factory=dict)
+    _span_context: Optional["Span"] = field(default=None, init=False)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -150,6 +163,17 @@ class LLMObsSpan:
         :rtype: Optional[str]
         """
         return self._tags.get(key)
+    
+    def get_span_context(self) -> Optional["Span"]:
+        """Get read-only access to the full span for context.
+        
+        This provides access to all span data including metadata, metrics,
+        model information, and any other span fields for decision making.
+        
+        :return: The full span object for reading context, or None if not available.
+        :rtype: Optional[Span]
+        """
+        return self._span_context
 
 
 class LLMObs(Service):
@@ -280,7 +304,10 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
+                span_clone = copy.copy(span)
+                llmobs_span._span_context = span_clone
                 llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS) or {})
+                
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
