@@ -280,7 +280,7 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
-                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
+                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS) or {})
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
