@@ -59,8 +59,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if response is not None:
             output_messages = self._extract_output_message(response)
-
-        metrics = self._extract_metrics_from_response(response)
+            metrics = self._extract_metrics_from_response(response)
 
         span._set_ctx_items(
             {
@@ -76,15 +75,24 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _extract_metrics_from_response(self, response):
         """Extract metrics from the response."""
-        generations_dict = response.to_dict()
+        if isinstance(response, list):
+            for chunk in response:
+                token_counts = _get_attr(chunk, "usage_metadata", None)
+                if not token_counts:
+                    continue
+                input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+                output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+                total_tokens = _get_attr(token_counts, "total_token_count", 0)
+        else:
+            generations_dict = response.to_dict()
 
-        token_counts = generations_dict.get("usage_metadata", None)
-        if not token_counts:
-            return
+            token_counts = generations_dict.get("usage_metadata", None)
+            if not token_counts:
+                return
 
-        input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
-        output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
-        total_tokens = _get_attr(token_counts, "total_token_count", 0)
+            input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+            output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+            total_tokens = _get_attr(token_counts, "total_token_count", 0)
 
         metrics = {}
         if input_tokens is not None:
