@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -16,10 +15,6 @@ from ddtrace.trace import Span
 
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
-
-    def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        """Set base span tags for MCP operations."""
-        pass
 
     def llmobs_set_tags(
         self,
