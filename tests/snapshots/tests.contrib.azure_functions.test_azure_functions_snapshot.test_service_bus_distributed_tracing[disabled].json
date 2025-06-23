@@ -34,17 +34,18 @@
      {
        "name": "azure.servicebus.produce",
        "service": "azure_servicebus",
-       "resource": "azure.servicebus.produce",
+       "resource": "queue.1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
+         "messaging.operation": "send",
          "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
@@ -56,7 +57,7 @@
      {
        "name": "azure.servicebus.produce",
        "service": "azure_servicebus",
-       "resource": "azure.servicebus.produce",
+       "resource": "topic.1",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
@@ -64,10 +65,11 @@
        "meta": {
          "_dd.base_service": "test-func",
          "_dd.p.tid": "684c654c00000000",
-         "azure.servicebus.fully_qualified_namespace": "localhost",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
+         "messaging.operation": "send",
          "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
