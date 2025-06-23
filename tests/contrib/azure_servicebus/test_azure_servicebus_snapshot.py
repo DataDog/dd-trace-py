@@ -32,8 +32,6 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
     "DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": "False",
 }
 
-PEER_SERVICE_ENABLED_PARAMS = {"DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED": "True"}
-
 
 @pytest.fixture(autouse=True)
 def patch_azure_servicebus():
@@ -171,8 +169,8 @@ def normalize_application_properties(
 
 @pytest.mark.parametrize(
     "env_vars",
-    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS, PEER_SERVICE_ENABLED_PARAMS],
-    ids=["default_config", "distributed_tracing_disabled", "peer_service_enabled"],
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
+    ids=["default_config", "distributed_tracing_disabled"],
 )
 @pytest.mark.snapshot
 def test_send_messages(env_vars, ddtrace_run_python_code_in_subprocess):

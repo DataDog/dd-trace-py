@@ -11,7 +11,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
 
-def create_context(context_name, pin):
+def create_context(context_name, pin, resource=None):
     operation_name = schematize_messaging_operation(
         azure_servicebusx.PRODUCE, provider="azure_servicebus", direction=SpanDirection.OUTBOUND
     )
@@ -19,6 +19,7 @@ def create_context(context_name, pin):
         context_name,
         span_name=operation_name,
         pin=pin,
+        resource=resource,
         service=ext_service(pin, config.azure_servicebus),
         span_type=SpanTypes.WORKER,
     )

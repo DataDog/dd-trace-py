@@ -63,13 +63,15 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+    resource_name = instance.entity_name
+
+    with create_context("azure.servicebus.patched_producer", pin, resource_name) as ctx, ctx.span:
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
         )
 
         return wrapped(*args, **kwargs)
@@ -80,13 +82,15 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+    resource_name = instance.entity_name
+
+    with create_context("azure.servicebus.patched_producer", pin, resource_name) as ctx, ctx.span:
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
         )
 
         return await wrapped(*args, **kwargs)
@@ -97,13 +101,15 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+    resource_name = instance.entity_name
+
+    with create_context("azure.servicebus.patched_producer", pin, resource_name) as ctx, ctx.span:
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
         )
 
         return wrapped(*args, **kwargs)
@@ -114,13 +120,15 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with create_context("azure.servicebus.patched_producer", pin) as ctx, ctx.span:
+    resource_name = instance.entity_name
+
+    with create_context("azure.servicebus.patched_producer", pin, resource_name) as ctx, ctx.span:
         if config.azure_servicebus.distributed_tracing:
             message_arg_value = get_argument_value(args, kwargs, 0, "messages", True)
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, instance.entity_name, instance.fully_qualified_namespace),
+            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
         )
 
         return await wrapped(*args, **kwargs)
