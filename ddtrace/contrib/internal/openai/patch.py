@@ -122,6 +122,13 @@ def patch():
         openai, "resources.AsyncCompletionsWithRawResponse.__init__", patched_completions_with_raw_response_init(openai)
     )
 
+    # HACK: openai.resources.responses is not imported by default in openai 1.78.0 and later, so we need to import it
+    #       to detect and patch it below.
+    try:
+        import openai.resources.responses
+    except ImportError:
+        pass
+
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
             continue
