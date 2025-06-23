@@ -70,7 +70,7 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
         if log_level == "":
             log.debug(
                 "Config item does not contain log_level, received %s instead. Skipping...",
-                config_content.get("log_level")
+                config_content.get("log_level"),
             )
             continue
 
@@ -105,10 +105,7 @@ def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
             continue
 
         flare_request = FlareSendRequest(
-            case_id=args.get("case_id"),
-            hostname=args.get("hostname"),
-            email=args.get("user_handle"),
-            uuid=uuid
+            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle"), uuid=uuid
         )
 
         flare.revert_configs()

@@ -1,4 +1,3 @@
-import binascii
 import dataclasses
 import io
 import json
@@ -8,10 +7,7 @@ import os
 import pathlib
 import shutil
 import time
-from typing import Dict
 from typing import Optional
-from typing import Tuple
-from urllib.parse import urlparse
 import zipfile
 
 from ddtrace._logger import _add_file_handler
@@ -192,7 +188,7 @@ class Flare:
         """
         body = io.BytesIO()
 
-        # Use a fixed boundary for consistency 
+        # Use a fixed boundary for consistency
         boundary = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
         # Create the multipart form data in the same order:
@@ -201,7 +197,7 @@ class Flare:
         # 1. source field
         body.write(f"--{boundary}\r\n".encode())
         body.write(b'Content-Disposition: form-data; name="source"\r\n\r\n')
-        body.write(b'tracer_python\r\n')
+        body.write(b"tracer_python\r\n")
 
         # 2. case_id field
         body.write(f"--{boundary}\r\n".encode())
@@ -223,12 +219,12 @@ class Flare:
         body.write(b'Content-Disposition: form-data; name="uuid"\r\n\r\n')
         body.write(f"{flare_send_req.uuid}\r\n".encode())
 
-        # 6. flare_file field with descriptive filename 
-        timestamp = int(time.time() * 1000) 
+        # 6. flare_file field with descriptive filename
+        timestamp = int(time.time() * 1000)
         filename = f"tracer-python-{flare_send_req.case_id}-{timestamp}-debug.zip"
         body.write(f"--{boundary}\r\n".encode())
         body.write(f'Content-Disposition: form-data; name="flare_file"; filename="{filename}"\r\n'.encode())
-        body.write(b'Content-Type: application/octet-stream\r\n\r\n')
+        body.write(b"Content-Type: application/octet-stream\r\n\r\n")
 
         # Create the zip file content separately
         zip_stream = io.BytesIO()
@@ -237,7 +233,7 @@ class Flare:
                 zipf.write(flare_file_name, arcname=flare_file_name.name)
         zip_stream.seek(0)
         body.write(zip_stream.getvalue())
-        body.write(b'\r\n')
+        body.write(b"\r\n")
 
         # End boundary
         body.write(f"--{boundary}--\r\n".encode())

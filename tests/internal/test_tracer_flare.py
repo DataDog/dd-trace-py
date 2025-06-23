@@ -1,17 +1,16 @@
+import json
 import logging
 from logging import Logger
 import multiprocessing
 import os
 import pathlib
+import re
+import shutil
 from typing import Optional
 from unittest import mock
-import tempfile
-import pytest
-import shutil
-import json
-import re
 
 from pyfakefs.fake_filesystem_unittest import TestCase
+import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -29,7 +28,7 @@ MOCK_FLARE_SEND_REQUEST = FlareSendRequest(
     case_id="1111111",
     hostname="myhostname",
     email="user.name@datadoghq.com",
-    uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+    uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
 )
 
 
@@ -149,7 +148,7 @@ class TracerFlareTests(TestCase):
             case_id="abc123",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         # The send method should return early without sending the flare
@@ -164,7 +163,7 @@ class TracerFlareTests(TestCase):
             case_id="",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -176,7 +175,7 @@ class TracerFlareTests(TestCase):
             case_id="123-456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -188,7 +187,7 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -215,7 +214,7 @@ class TracerFlareTests(TestCase):
             case_id="0",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         # The send method should return early without sending the flare
@@ -229,7 +228,7 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -255,7 +254,7 @@ class TracerFlareTests(TestCase):
             case_id="0",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
             self.flare.send(zero_case_request)
@@ -267,7 +266,7 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
             mock_client = mock.MagicMock()
@@ -286,12 +285,12 @@ class TracerFlareTests(TestCase):
         # Remove directory if it exists
         if self.flare.flare_dir.exists():
             shutil.rmtree(self.flare.flare_dir)
-        
+
         # Call prepare - should create the directory
         self.flare.prepare("DEBUG")
         self.prepare_called = True
         assert self.flare.flare_dir.exists()
-        
+
         # Clean up manually since prepare doesn't call clean_up_files
         self.flare.clean_up_files()
         # Also revert configs to remove the file handler
@@ -304,12 +303,12 @@ class TracerFlareTests(TestCase):
         # Remove directory if it exists
         if self.flare.flare_dir.exists():
             shutil.rmtree(self.flare.flare_dir)
-        
+
         valid_request = FlareSendRequest(
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
             mock_client = mock.MagicMock()
@@ -332,7 +331,7 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
         with mock.patch("ddtrace.internal.flare.flare.get_connection", side_effect=Exception("fail")):
             try:
@@ -356,7 +355,7 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -370,10 +369,7 @@ class TracerFlareTests(TestCase):
 
         # Test with empty uuid
         empty_uuid_request = FlareSendRequest(
-            case_id="123456",
-            hostname="myhostname",
-            email="user.name@datadoghq.com",
-            uuid=""
+            case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
         )
 
         with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
@@ -394,19 +390,16 @@ class TracerFlareTests(TestCase):
 
         test_uuid = "d53fc8a4-8820-47a2-aa7d-d565582feb81"
         request = FlareSendRequest(
-            case_id="123456",
-            hostname="myhostname",
-            email="user.name@datadoghq.com",
-            uuid=test_uuid
+            case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=test_uuid
         )
 
         _, body = self.flare._generate_payload(request)
-        
+
         try:
-            body_str = body.decode('utf-8')
+            body_str = body.decode("utf-8")
         except UnicodeDecodeError:
-            body_str = body[:1000].decode('utf-8', errors='ignore')
-        
+            body_str = body[:1000].decode("utf-8", errors="ignore")
+
         assert test_uuid in body_str, f"UUID {test_uuid} should be in payload form fields"
         self.flare.clean_up_files()
         self.flare.revert_configs()
@@ -419,31 +412,31 @@ class TracerFlareTests(TestCase):
         self.prepare_called = True
 
         # Test with valid config - should generate config file
-        valid_request = FlareSendRequest(
+        FlareSendRequest(
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         # Check that config file was created with proper contents
         config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
         assert len(config_files) == 1, "Should have exactly one config file"
-        
+
         config_file = config_files[0]
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             config_data = json.load(f)
-        
+
         # Validate config structure
         assert "configs" in config_data, "Config should have 'configs' key"
         assert config_data["configs"] == self.flare.ddconfig, "Config should contain ddconfig"
-        
+
         # Test with problematic ddconfig that might cause JSON serialization issues
         problematic_config = {
             "normal_key": "normal_value",
             "problematic_key": object(),  # Non-serializable object
         }
-        
+
         # Create a new flare instance with problematic config
         problematic_flare = Flare(
             trace_agent_url="http://localhost:8126",
@@ -451,21 +444,21 @@ class TracerFlareTests(TestCase):
             api_key="test_api_key",
             flare_dir="tracer_flare_problematic_test",
         )
-        
+
         # This should handle the serialization error gracefully
         problematic_flare.prepare("DEBUG")
-        
+
         # Check that the flare directory still exists and contains log files
         assert problematic_flare.flare_dir.exists(), "Flare directory should exist even if config generation fails"
-        
+
         # Check for log files (should still be created)
         log_files = list(problematic_flare.flare_dir.glob("tracer_python_*.log"))
         assert len(log_files) >= 1, "Log files should still be created even if config generation fails"
-        
+
         # Clean up
         problematic_flare.clean_up_files()
         problematic_flare.revert_configs()
-        
+
         # Clean up original flare
         self.flare.clean_up_files()
         self.flare.revert_configs()
@@ -481,37 +474,37 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         # Generate payload and check headers
         headers, body = self.flare._generate_payload(request)
-        
+
         # Verify that DD-API-KEY is not in the headers
         assert "DD-API-KEY" not in headers, "DD-API-KEY should not be in headers - agent forwards it"
         assert "dd-api-key" not in headers, "dd-api-key should not be in headers - agent forwards it"
-        
+
         # Verify that the API key is not in the body content
-        body_str = body[:1000].decode('utf-8', errors='ignore')
+        body_str = body[:1000].decode("utf-8", errors="ignore")
         api_key = self.flare._api_key
         if api_key:
-            assert api_key not in body_str, f"API key should not be in payload body - agent forwards it"
-        
+            assert api_key not in body_str, "API key should not be in payload body - agent forwards it"
+
         # Check that API key is redacted in the config file
         config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
         assert len(config_files) == 1, "Should have exactly one config file"
-        
+
         config_file = config_files[0]
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             config_data = json.load(f)
-        
+
         # Check that _dd_api_key is redacted (should be ****last4chars format)
         if "_dd_api_key" in config_data["configs"]:
             redacted_key = config_data["configs"]["_dd_api_key"]
             assert redacted_key.startswith("*" * (len(api_key) - 4)), "API key should be redacted with asterisks"
             assert redacted_key.endswith(api_key[-4:]), "API key should end with last 4 characters"
             assert redacted_key != api_key, "API key should not be the original value"
-        
+
         # Clean up
         self.flare.clean_up_files()
         self.flare.revert_configs()
@@ -528,25 +521,25 @@ class TracerFlareTests(TestCase):
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81"
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
 
         # Generate payload
         headers, body = self.flare._generate_payload(request)
-        
+
         # Convert body to string for easier parsing
-        body_str = body.decode('utf-8', errors='ignore')
-        
+        body_str = body.decode("utf-8", errors="ignore")
+
         # Find all Content-Disposition lines to extract field order
         content_disposition_pattern = r'Content-Disposition: form-data; name="([^"]+)"'
         field_names = re.findall(content_disposition_pattern, body_str)
-        
+
         # Expected order: source, case_id, hostname, email, uuid, flare_file
         expected_order = ["source", "case_id", "hostname", "email", "uuid", "flare_file"]
-        
+
         # Verify the order matches exactly
         assert field_names == expected_order, f"Field order mismatch. Expected: {expected_order}, Got: {field_names}"
-        
+
         # Clean up
         self.flare.clean_up_files()
         self.flare.revert_configs()
