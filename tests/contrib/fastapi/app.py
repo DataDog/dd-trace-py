@@ -45,17 +45,20 @@ def get_app():
         root_span = tracer.current_root_span()
         if root_span:
             root_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-1")
+            root_span.context.set_baggage_item("foo", "bar")
+            root_span.context.sampling_priority = 1
         await websocket.send_json({"test": "Hello WebSocket"})
         while True:
-            try:
-                message = await websocket.receive_text()
-                if message == "goodbye":
-                    await websocket.send_text("bye")
-                    await websocket.close()
+            with tracer.trace(name="websocket-sample-app"):
+                try:
+                    message = await websocket.receive_text()
+                    if message == "goodbye":
+                        await websocket.send_text("bye")
+                        await websocket.close()
+                        break
+                    await websocket.send_text(f"pong {message.split()[-1]}")
+                except Exception:
                     break
-                await websocket.send_text(f"pong {message.split()[-1]}")
-            except Exception:
-                break
 
     @app.get("/")
     async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
