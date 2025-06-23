@@ -1,5 +1,6 @@
 import os
 
+import botocore
 import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
@@ -91,8 +92,28 @@ def bedrock_agent_client(boto3, request_vcr):
 
 
 @pytest.fixture
+def bedrock_client_proxy(boto3):
+    session = boto3.Session(
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+    )
+    bedrock_client = session.client("bedrock-runtime", endpoint_url="http://localhost:4000")
+    yield bedrock_client
+
+
+@pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+
+
+@pytest.fixture
+def mock_tracer_proxy(bedrock_client_proxy):
+    mock_tracer = DummyTracer()
+    pin = Pin.get_from(bedrock_client_proxy)
+    pin._override(bedrock_client_proxy, tracer=mock_tracer)
+    yield mock_tracer
 
 
 @pytest.fixture
@@ -110,3 +131,36 @@ def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
 @pytest.fixture
 def llmobs_events(bedrock_llmobs, llmobs_span_writer):
     return llmobs_span_writer.events
+
+
+@pytest.fixture
+def mock_invoke_model_http():
+    yield botocore.awsrequest.AWSResponse("fake-url", 200, [], None)
+
+
+@pytest.fixture
+def mock_invoke_model_http_error():
+    yield botocore.awsrequest.AWSResponse("fake-url", 403, [], None)
+
+
+@pytest.fixture
+def mock_invoke_model_response_error():
+    yield {
+        "Error": {
+            "Message": "The security token included in the request is expired",
+            "Code": "ExpiredTokenException",
+        },
+        "ResponseMetadata": {
+            "RequestId": "b1c68b9a-552a-466b-b761-4ee6b710ece4",
+            "HTTPStatusCode": 403,
+            "HTTPHeaders": {
+                "date": "Wed, 05 Mar 2025 21:45:12 GMT",
+                "content-type": "application/json",
+                "content-length": "67",
+                "connection": "keep-alive",
+                "x-amzn-requestid": "b1c68b9a-552a-466b-b761-4ee6b710ece4",
+                "x-amzn-errortype": "ExpiredTokenException:http://internal.amazon.com/coral/com.amazon.coral.service/",
+            },
+            "RetryAttempts": 0,
+        },
+    }
