@@ -48,7 +48,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag("google_genai.request.provider") or "",
                 METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {},
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
-                # OUTPUT_MESSAGES: self._extract_output_message(response),
+                OUTPUT_MESSAGES: self._extract_output_message(response),
                 METRICS: extract_metrics_google_genai(response),
             }
         )
@@ -101,3 +101,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
 
         return messages
+    
+    def _extract_output_message(self, response):
+         output_messages = []
+         if not response:
+            return output_messages
