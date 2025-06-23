@@ -35,18 +35,26 @@ def normalize_contents(contents):
         return [extract_content(c) for c in contents]
     return [extract_content(contents)]
 
-# since we are not setting metrics in APM span, can't call get_llmobs_metrics_tags
+# since we are not setting metrics in APM span, can't reuse get_llmobs_metrics_tags
 def extract_metrics_google_genai(response):
-    usage = {}
-
     if not response:
-        return usage
+        return {}
     
-    usage_metadata = _get_attr(response, "usage_metadata", {})
-
-    input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
-    output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
-    total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
+    usage = {}
+    # streamed responses will be a list of GenerateContentResponse chunks
+    if isinstance(response, list):
+        # get prompt token count from first chunk
+        usage_metadata_first = _get_attr(response[0], "usage_metadata", {})
+        input_tokens = _get_attr(usage_metadata_first, "prompt_token_count", None)
+        # get candidates token count from last chunk
+        usage_metadata_last = _get_attr(response[-1], "usage_metadata", {})
+        output_tokens = _get_attr(usage_metadata_last, "candidates_token_count", None)
+        total_tokens = input_tokens + output_tokens if input_tokens and output_tokens else _get_attr(usage_metadata_last, "total_token_count", None)
+    else: # non-streamed case
+        usage_metadata = _get_attr(response, "usage_metadata", {})
+        input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
+        output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
+        total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
 
     if input_tokens is not None:
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
@@ -112,7 +120,7 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
         except StopIteration:
             if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
                 self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self.__wrapped__
+                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_chunks
                 )
             self._self_dd_span.finish()
             raise
@@ -134,7 +142,7 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
         except StopAsyncIteration:
             if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
                 self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self.__wrapped__
+                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_chunks
                 )
             self._self_dd_span.finish()
             raise

@@ -44,7 +44,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
          span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("google_genai.request.model") or "",
+                MODEL_NAME: span.get_tag("google_genai.request.model") or "", #TODO: change away from span.get_tag
                 MODEL_PROVIDER: span.get_tag("google_genai.request.provider") or "",
                 METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {},
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
@@ -103,6 +103,33 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         return messages
     
     def _extract_output_message(self, response):
-         output_messages = []
-         if not response:
+        if not response:
+            return [{"content": ""}]
+        # streamed responses will be a list of chunks
+        if isinstance(response, list):
+            output_messages = []
+            # response is a list of GenerateContentResponse chunks
+            for r in response:
+                output_messages.extend(self._process_response(r))
             return output_messages
+        # non-streamed responses will be a single GenerateContentResponse
+        return self._process_response(response)
+
+
+    def _process_response(self, response):
+        messages = []
+        candidates = _get_attr(response, "candidates", [])
+        for candidate in candidates:
+            content = _get_attr(candidate, "content", None)
+            if not content:
+                continue
+            parts = _get_attr(content, "parts", [])
+            role = _get_attr(content, "role", None)
+            for part in parts:
+                message = extract_message_from_part_google(part, role)
+                messages.append(message)
+        return messages
+
+
+
+    
