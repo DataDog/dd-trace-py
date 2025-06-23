@@ -630,7 +630,7 @@ class CIVisibility(Service):
         log.debug("%s disabled", cls.__name__)
 
     def _start_service(self) -> None:
-        tracer_filters = self.tracer._user_trace_processors
+        tracer_filters = self.tracer._span_aggregator.user_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)

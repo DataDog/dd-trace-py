@@ -571,6 +571,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
         self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
+        # DEV: We don't want to do anything with the response callback
+        # so we set it to a no-op lambda function
+        kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
