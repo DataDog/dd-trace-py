@@ -1,6 +1,7 @@
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from types import GeneratorType, AsyncGeneratorType
 
 import wrapt
 
@@ -10,9 +11,10 @@ log = get_logger(__name__)
 
 
 class BaseStreamHandler(ABC):
-    def __init__(self, integration, span, kwargs, **options):
+    def __init__(self, integration, span, args, kwargs, **options):
         self.integration = integration
         self.primary_span = span
+        self.request_args = args
         self.request_kwargs = kwargs
         self.options = options
         
@@ -28,27 +30,64 @@ class BaseStreamHandler(ABC):
         self.spans.append((span, kwargs))
     
     def handle_exception(self, exception):
+        """
+        Handle exceptions that occur during streaming.
+        
+        Default implementation sets exception info on the primary span.
+        
+        Args:
+            exception: The exception that occurred
+        """
         if self.primary_span:
             self.primary_span.set_exc_info(*sys.exc_info())
 
     @abstractmethod
     def finalize_stream(self, exception=None):
+        """
+        Finalize the stream and complete all spans.
+        
+        This method is called when the stream ends (successfully or with error).
+        Implementations should:
+        1. Process accumulated chunks into final response
+        2. Set appropriate span tags
+        3. Finish all spans
+        """
         pass
 
 
 class StreamHandler(BaseStreamHandler):
     @abstractmethod
     def process_chunk(self, chunk, iterator=None):
+        """
+        Process a single chunk from the stream.
+        
+        This method is called for each chunk as it's received.
+        Implementations should extract and store relevant data.
+        
+        Args:
+            chunk: The chunk object from the stream
+            iterator: The sync iterator object from the stream
+        """
         pass
 
 
 class AsyncStreamHandler(BaseStreamHandler):
     @abstractmethod
     async def process_chunk(self, chunk, iterator=None):
+        """
+        Process a single chunk from the stream.
+        
+        This method is called for each chunk as it's received.
+        Implementations should extract and store relevant data.
+        
+        Args:
+            chunk: The chunk object from the stream
+            iterator: The async iterator object from the stream
+        """
         pass
 
 
-class TracedStream(wrapt.ObjectProxy):
+class _ClassTracedStream(wrapt.ObjectProxy):
     def __init__(self, wrapped_stream, handler: StreamHandler):
         super().__init__(wrapped_stream)
         self._handler = handler
@@ -85,7 +124,7 @@ class TracedStream(wrapt.ObjectProxy):
         return self._handler
 
 
-class TracedAsyncStream(wrapt.ObjectProxy):
+class _ClassTracedAsyncStream(wrapt.ObjectProxy):
     def __init__(self, wrapped_stream, handler: AsyncStreamHandler):
         super().__init__(wrapped_stream)
         self._handler = handler
@@ -119,4 +158,68 @@ class TracedAsyncStream(wrapt.ObjectProxy):
     
     @property
     def handler(self):
-        return self._handler 
+        return self._handler
+    
+
+class _GeneratorTracedStream:
+    def __init__(self, wrapped_stream, handler: StreamHandler):
+        self._wrapped_stream = wrapped_stream
+        self._handler = handler
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        try:
+            chunk = next(self._wrapped_stream)
+            self._handler.process_chunk(chunk, self._wrapped_stream)
+            return chunk
+        except StopIteration:
+            self._handler.finalize_stream()
+            raise
+        except Exception as e:
+            self._handler.handle_exception(e)
+            self._handler.finalize_stream(e)
+            raise
+    
+    @property
+    def handler(self):
+        return self._handler
+
+
+class _AsyncGeneratorTracedStream:
+    def __init__(self, wrapped_stream, handler: AsyncStreamHandler):
+        self._wrapped_stream = wrapped_stream
+        self._handler = handler
+    
+    def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
+        try:
+            chunk = await anext(self._wrapped_stream)
+            await self._handler.process_chunk(chunk, self._wrapped_stream)
+            return chunk
+        except StopAsyncIteration:
+            self._handler.finalize_stream()
+            raise
+        except Exception as e:
+            self._handler.handle_exception(e)
+            self._handler.finalize_stream(e)
+            raise
+    
+    @property
+    def handler(self):
+        return self._handler
+
+
+def make_traced_stream(wrapped_stream, handler: StreamHandler):
+    if isinstance(wrapped_stream, GeneratorType):
+        return _GeneratorTracedStream(wrapped_stream, handler)
+    return _ClassTracedStream(wrapped_stream, handler)
+
+
+def make_traced_async_stream(wrapped_stream, handler: AsyncStreamHandler):
+    if isinstance(wrapped_stream, AsyncGeneratorType):
+        return _AsyncGeneratorTracedStream(wrapped_stream, handler)
+    return _ClassTracedAsyncStream(wrapped_stream, handler) 

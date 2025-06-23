@@ -4,85 +4,39 @@ from vertexai.generative_models import GenerativeModel
 from vertexai.generative_models import Part
 
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.utils import get_generation_config_google
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
 from ddtrace.llmobs._utils import _get_attr
 
+class BaseVertexAIStreamHandler:
+    def _initialize_chunk_storage(self):
+        return []
+    
+    def _process_chunk(self, chunk):
+        if not self.options.get("is_chat", False) or not self.chunks:
+            self.chunks.append(chunk)
 
-class BaseTracedVertexAIStreamResponse:
-    def __init__(self, generator, model_instance, integration, span, args, kwargs, is_chat, history):
-        self._generator = generator
-        self._model_instance = model_instance
-        self._dd_integration = integration
-        self._dd_span = span
-        self._args = args
-        self._kwargs = kwargs
-        self.is_chat = is_chat
-        self._chunks = []
-        self._history = history
+    def finalize_stream(self, exception=None):
+        tag_stream_response(self.primary_span, self.chunks, self.integration)
+        if self.integration.is_pc_sampled_llmobs(self.primary_span):
+            self.request_kwargs["instance"] = self.options.get("model_instance", None)
+            self.request_kwargs["history"] = self.options.get("history", None)
+            self.integration.llmobs_set_tags(
+                self.primary_span, args=self.request_args, kwargs=self.request_kwargs, response=self.chunks
+            )
+        self.primary_span.finish()
 
+class VertexAIStreamHandler(BaseVertexAIStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self._process_chunk(chunk)
 
-class TracedVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
-    def __enter__(self):
-        self._generator.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._generator.__exit__(exc_type, exc_val, exc_tb)
-
-    def __iter__(self):
-        try:
-            for chunk in self._generator.__iter__():
-                # only keep track of the first chunk for chat messages since
-                # it is modified during the streaming process
-                if not self.is_chat or not self._chunks:
-                    self._chunks.append(chunk)
-                yield chunk
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-            if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
-                self._kwargs["instance"] = self._model_instance
-                self._kwargs["history"] = self._history
-                self._dd_integration.llmobs_set_tags(
-                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
-                )
-            self._dd_span.finish()
-
-
-class TracedAsyncVertexAIStreamResponse(BaseTracedVertexAIStreamResponse):
-    def __aenter__(self):
-        self._generator.__enter__()
-        return self
-
-    def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._generator.__exit__(exc_type, exc_val, exc_tb)
-
-    async def __aiter__(self):
-        try:
-            async for chunk in self._generator.__aiter__():
-                # only keep track of the first chunk for chat messages since
-                # it is modified during the streaming process
-                if not self.is_chat or not self._chunks:
-                    self._chunks.append(chunk)
-                yield chunk
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            tag_stream_response(self._dd_span, self._chunks, self._dd_integration)
-            if self._dd_integration.is_pc_sampled_llmobs(self._dd_span):
-                self._kwargs["instance"] = self._model_instance
-                self._kwargs["history"] = self._history
-                self._dd_integration.llmobs_set_tags(
-                    self._dd_span, args=self._args, kwargs=self._kwargs, response=self._chunks
-                )
-            self._dd_span.finish()
-
+class VertexAIAsyncStreamHandler(BaseVertexAIStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        self._process_chunk(chunk)
 
 def extract_info_from_parts(parts):
     """Return concatenated text from parts and function calls."""

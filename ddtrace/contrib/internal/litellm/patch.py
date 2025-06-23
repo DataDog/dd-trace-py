@@ -13,8 +13,8 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import TracedAsyncStream
-from ddtrace.llmobs._integrations.base_stream_handler import TracedStream
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.trace import Pin
 
 
@@ -48,7 +48,7 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = func(*args, **kwargs)
         if stream:
-            return TracedStream(resp, LiteLLMStreamHandler(integration, span, kwargs))
+            return make_traced_stream(resp, LiteLLMStreamHandler(integration, span, args, kwargs))
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -79,7 +79,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncStream(resp, LiteLLMAsyncStreamHandler(integration, span, kwargs))
+            return make_traced_async_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs))
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())
