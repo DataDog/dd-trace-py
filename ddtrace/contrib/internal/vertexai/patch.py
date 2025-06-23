@@ -3,6 +3,7 @@ import sys
 from typing import Dict
 
 import vertexai
+from vertexai.generative_models import GenerativeModel # noqa:F401
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
