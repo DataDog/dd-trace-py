@@ -5,8 +5,6 @@ from typing import Dict
 import google.generativeai as genai
 
 from ddtrace import config
-from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
-from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.google_generativeai._utils import tag_response
@@ -15,6 +13,10 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIAsyncStreamHandler
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIStramHandler
 from ddtrace.trace import Pin
 
 
@@ -57,7 +59,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         if api_key:
             span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
         if stream:
-            return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
+            return make_traced_stream(generations, GoogleGenerativeAIStramHandler(integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations))
         tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -87,7 +89,7 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)
+            return make_traced_async_stream(generations, GoogleGenerativeAIAsyncStreamHandler(integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations))
         tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())

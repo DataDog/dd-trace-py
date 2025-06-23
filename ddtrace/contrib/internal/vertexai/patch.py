@@ -8,11 +8,13 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
-from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import tag_request
 from ddtrace.contrib.internal.vertexai._utils import tag_response
 from ddtrace.llmobs._integrations import VertexAIIntegration
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
+from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
 
@@ -72,9 +74,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
         tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = func(*args, **kwargs)
         if stream:
-            return TracedVertexAIStreamResponse(
-                generations, model_instance, integration, span, args, kwargs, is_chat, history
-            )
+            return make_traced_stream(generations, VertexAIStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -107,9 +107,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
         tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncVertexAIStreamResponse(
-                generations, model_instance, integration, span, args, kwargs, is_chat, history
-            )
+            return make_traced_async_stream(generations, VertexAIAsyncStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
         tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
