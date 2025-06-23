@@ -1,8 +1,6 @@
 import sys
 
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.internal.utils import get_argument_value
-from vertexai.generative_models import Part
 
 
 class BaseTracedVertexAIStreamResponse:

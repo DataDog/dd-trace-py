@@ -23,6 +23,8 @@ from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
+from vertexai.generative_models._generative_models import Part
+
 
 class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
@@ -105,8 +107,6 @@ class VertexAIIntegration(BaseLLMIntegration):
         return metrics
 
     def _extract_input_message(self, contents, history, system_instruction=None):
-        from vertexai.generative_models._generative_models import Part
-
         messages = []
         if system_instruction:
             for instruction in system_instruction:
