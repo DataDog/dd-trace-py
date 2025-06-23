@@ -421,7 +421,6 @@ class Tracer(object):
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        self.enabled = config._tracing_enabled
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
