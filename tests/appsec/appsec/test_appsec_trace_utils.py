@@ -230,16 +230,16 @@ class EventsSDKTestCase(TracerTestCase):
                 role="usr.role",
                 scope="usr.scope",
             )
-            assert span.get_tag(user.ID)
-            assert span.get_tag(user.EMAIL)
-            assert span.get_tag(user.SESSION_ID)
-            assert span.get_tag(user.NAME)
-            assert span.get_tag(user.ROLE)
-            assert span.get_tag(user.SCOPE)
-            assert span.get_tag(user.SESSION_ID)
-            assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
-            assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
-            assert is_blocked(span)
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+        assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
+        assert is_blocked(span)
 
     def test_track_user_blocked(self):
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
@@ -250,21 +250,22 @@ class EventsSDKTestCase(TracerTestCase):
                 metadata={
                     "email": "usr.email",
                     "name": "usr.name",
-                    "session_id": "usr.session_id",
                     "role": "usr.role",
                     "scope": "usr.scope",
                 },
             )
-            assert span.get_tag(user.ID)
-            assert span.get_tag(user.EMAIL)
-            assert span.get_tag(user.SESSION_ID)
-            assert span.get_tag(user.NAME)
-            assert span.get_tag(user.ROLE)
-            assert span.get_tag(user.SCOPE)
-            assert span.get_tag(user.SESSION_ID)
-            assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
-            assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
-            assert is_blocked(span)
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE) == LOGIN_EVENTS_MODE.SDK
+        # assert metadata tags are not set for usual data
+        assert span.get_tag("appsec.events.auth_sdk.track") is None
+        assert span.get_tag("usr.id") == str(self._BLOCKED_USER)
+        assert is_blocked(span)
 
     def test_no_span_doesnt_raise(self):
         from ddtrace.trace import tracer
