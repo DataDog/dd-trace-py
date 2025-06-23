@@ -107,11 +107,19 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             return [{"content": ""}]
         # streamed responses will be a list of chunks
         if isinstance(response, list):
-            output_messages = []
+            message_content = []
+            tool_calls = []
+            role = "model"
             # response is a list of GenerateContentResponse chunks
             for r in response:
-                output_messages.extend(self._process_response(r))
-            return output_messages
+                messages = self._process_response(r)
+                for message in messages:
+                    message_content.append(message.get("content", ""))
+                    tool_calls.extend(message.get("tool_calls", []))
+            message = {"content": "".join(message_content), "role": role}
+            if tool_calls:
+                message["tool_calls"] = tool_calls
+            return [message]
         # non-streamed responses will be a single GenerateContentResponse
         return self._process_response(response)
 
