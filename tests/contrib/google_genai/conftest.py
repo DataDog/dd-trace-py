@@ -27,13 +27,9 @@ def genai():
     patch()
     from google import genai
 
-    # these environment variables are checked by vertexai
-    # when running locally, these lines ensure that the client is not using the real API key.
+    # when running locally, these lines ensure that the client is not using any real secrets
     os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
     os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
-
-    # When testing locally to generate new cassette files,
-    # comment the lines below to use the real Google API key
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
     yield genai
@@ -41,11 +37,7 @@ def genai():
 
 
 @pytest.fixture
-def mock_vertex_generate_content(monkeypatch):
-    """
-    Vertex enabled genAI clients are difficult to test with VCRpy due to their use of google auth.
-    Instead we patch the generate_content and generate_content_stream methods (sync and async) to return a mock response
-    """
+def mock_generate_content(monkeypatch):
     from google import genai
     from google.genai import types
 

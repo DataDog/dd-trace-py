@@ -1,7 +1,4 @@
-import os
-
 from google.genai import types
-import vcr
 
 
 # sample config for generate_content
@@ -17,22 +14,3 @@ FULL_GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(
     frequency_penalty=0.0,
     system_instruction="You are a helpful assistant.",
 )
-
-
-# VCR is used to capture and store network requests.
-# This is done to avoid making real calls to the API which could introduce
-# flakiness and cost.
-# To (re)-generate the cassettes: set environment variables for GOOGLE_API_KEY
-# and delete the old cassettes, then rerun the tests
-# NOTE: be sure to check that the generated cassettes don't contain your
-#       API key. Keys should be redacted by the filter_headers option below.
-def get_google_genai_vcr(subdirectory_name=""):
-    vcr_instance = vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
-        record_mode="once",
-        match_on=["path"],
-        filter_headers=["x-goog-api-key", "authorization", "x-goog-api-client", "user-agent"],
-        # Ignore requests to the agent
-        ignore_localhost=True,
-    )
-    return vcr_instance
