@@ -42,6 +42,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   apache2-utils \
   # provides sqlite3 for sql injection tests
   sqlite3 \
+  # Linux perf tools for profiling
+  linux-perf \
+  # perl for FlameGraph processing
+  perl \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
@@ -49,6 +53,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
     sh -s -- --default-toolchain stable -y
+
+# Install FlameGraph tools for perf visualization
+RUN git clone https://github.com/brendangregg/FlameGraph.git /opt/FlameGraph
+ENV PATH="/opt/FlameGraph:$PATH"
+
+# Create perf symlink
+RUN ln -sf /usr/bin/perf_* /usr/bin/perf 2>/dev/null || true
 
 # Add base common files used by all scenarios
 COPY ./base/ /app/

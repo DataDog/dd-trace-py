@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+# perf-run-scenario-profiling - Run a benchmark scenario with Linux perf profiling
+# Usage: scripts/perf-run-scenario-profiling <scenario> <version> <artifacts>
+
+set -e
+
+if [ $# -ne 3 ]; then
+    echo "Usage: $0 <scenario> <version> <artifacts>"
+    echo "Example: $0 recursive_computation ddtrace==3.8.1 ./artifacts/"
+    exit 1
+fi
+
+SCENARIO="$1"
+VERSION="$2"
+ARTIFACTS="$3"
+
+if [ ! -d "benchmarks/$SCENARIO" ]; then
+    echo "Error: Scenario directory not found: benchmarks/$SCENARIO"
+    exit 1
+fi
+
+mkdir -p "$ARTIFACTS"
+export RUN_ID=$(uuidgen)
+
+echo "Building Docker image..."
+docker build -t "dd-trace-py-bench-$SCENARIO" --build-arg SCENARIO="$SCENARIO" benchmarks/ -q
+
+echo "Running perf profiling..."
+docker run --privileged --rm \
+    -e DDTRACE_INSTALL_V1="$VERSION" \
+    -e DDTRACE_INSTALL_V2="$VERSION" \
+    -e ENABLE_PERF_PROFILING=1 \
+    -e RUN_ID="$RUN_ID" \
+    -v "$(pwd)/$ARTIFACTS:/artifacts" \
+    "dd-trace-py-bench-$SCENARIO" \
+    /app/benchmark_perf
+
+PERF_OUTPUT="$ARTIFACTS/$RUN_ID/$SCENARIO/perf"
+if [ -f "$PERF_OUTPUT/flamegraph.svg" ]; then
+    echo "Opening flamegraph..."
+    open "$PERF_OUTPUT/flamegraph.svg" 2>/dev/null || echo "Flamegraph saved to: $PERF_OUTPUT/flamegraph.svg"
+fi 
