@@ -88,10 +88,14 @@ class AsyncStreamHandler(BaseStreamHandler):
 
 
 class _ClassTracedStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped_stream, handler: StreamHandler):
+    def __init__(self, wrapped_stream, handler: StreamHandler, on_stream_created=None):
         super().__init__(wrapped_stream)
         self._handler = handler
-        self._stream_iter = iter(self.__wrapped__) if not hasattr(self.__wrapped__, '__next__') else self.__wrapped__
+        self._on_stream_created = on_stream_created
+        if hasattr(self.__wrapped__, '__next__') or not hasattr(self.__wrapped__, '__iter__'):
+            self._stream_iter = self.__wrapped__
+        else:
+            self._stream_iter = iter(self.__wrapped__)
     
     def __iter__(self):
         return self
@@ -112,7 +116,13 @@ class _ClassTracedStream(wrapt.ObjectProxy):
     def __enter__(self):
         if hasattr(self.__wrapped__, '__enter__'):
             result = self.__wrapped__.__enter__()
-            return self if result is self.__wrapped__ else result
+            # update iterator in case we are wrapping a stream manager
+            if result is not self.__wrapped__:
+                self._stream_iter = iter(result) if not hasattr(result, '__next__') else result
+                new_stream = _ClassTracedStream(result, self._handler, self._on_stream_created)
+                if self._on_stream_created:
+                    self._on_stream_created(new_stream)
+                return new_stream
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -125,10 +135,14 @@ class _ClassTracedStream(wrapt.ObjectProxy):
 
 
 class _ClassTracedAsyncStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped_stream, handler: AsyncStreamHandler):
+    def __init__(self, wrapped_stream, handler: AsyncStreamHandler, on_stream_created=None):
         super().__init__(wrapped_stream)
         self._handler = handler
-        self._async_stream_iter = aiter(self.__wrapped__) if not hasattr(self.__wrapped__, '__anext__') else self.__wrapped__
+        self._on_stream_created = on_stream_created
+        if hasattr(self.__wrapped__, '__anext__') or not hasattr(self.__wrapped__, '__aiter__'):
+            self._async_stream_iter = self.__wrapped__
+        else:
+            self._async_stream_iter = aiter(self.__wrapped__)
     
     def __aiter__(self):
         return self
@@ -149,7 +163,13 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
     async def __aenter__(self):
         if hasattr(self.__wrapped__, '__aenter__'):
             result = await self.__wrapped__.__aenter__()
-            return self if result is self.__wrapped__ else result
+            # update iterator in case we are wrapping a stream manager
+            if result is not self.__wrapped__:
+                self._async_stream_iter = aiter(result) if not hasattr(result, '__anext__') else result
+                new_stream = _ClassTracedAsyncStream(result, self._handler, self._on_stream_created)
+                if self._on_stream_created:
+                    self._on_stream_created(new_stream)
+                return new_stream
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -213,13 +233,13 @@ class _AsyncGeneratorTracedStream:
         return self._handler
 
 
-def make_traced_stream(wrapped_stream, handler: StreamHandler):
+def make_traced_stream(wrapped_stream, handler: StreamHandler, on_stream_created=None):
     if isinstance(wrapped_stream, GeneratorType):
         return _GeneratorTracedStream(wrapped_stream, handler)
-    return _ClassTracedStream(wrapped_stream, handler)
+    return _ClassTracedStream(wrapped_stream, handler, on_stream_created)
 
 
-def make_traced_async_stream(wrapped_stream, handler: AsyncStreamHandler):
+def make_traced_async_stream(wrapped_stream, handler: AsyncStreamHandler, on_stream_created=None):
     if isinstance(wrapped_stream, AsyncGeneratorType):
         return _AsyncGeneratorTracedStream(wrapped_stream, handler)
-    return _ClassTracedAsyncStream(wrapped_stream, handler) 
+    return _ClassTracedAsyncStream(wrapped_stream, handler, on_stream_created) 
