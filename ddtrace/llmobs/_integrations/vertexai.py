@@ -4,8 +4,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 
-from vertexai.generative_models._generative_models import Part
-
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -107,6 +105,8 @@ class VertexAIIntegration(BaseLLMIntegration):
         return metrics
 
     def _extract_input_message(self, contents, history, system_instruction=None):
+        from vertexai.generative_models._generative_models import Part
+
         messages = []
         if system_instruction:
             for instruction in system_instruction:
