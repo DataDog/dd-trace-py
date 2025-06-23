@@ -74,10 +74,10 @@ def track_user(
     if login:
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
     meta = metadata or {}
-    usr_name = meta.get("name") or meta.get("usr.name")
-    usr_email = meta.get("email") or meta.get("usr.email")
-    usr_scope = meta.get("scope") or meta.get("usr.scope")
-    usr_role = meta.get("role") or meta.get("usr.role")
+    usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
+    usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
+    usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
+    usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
     _trace_utils.set_user(
         None,
         user_id,
@@ -88,8 +88,8 @@ def track_user(
         session_id=session_id,
         may_block=False,
     )
-    if metadata:
-        _trace_utils.track_custom_event(None, "auth_sdk", metadata=metadata)
+    if meta:
+        _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
     if _asm_request_context.in_asm_context():
         custom_data = {
