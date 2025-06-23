@@ -1,2 +1,2 @@
-SERVICE = "azure_servicebus"
+SERVICE = "servicebus"
 PRODUCE = "azure.servicebus.produce"

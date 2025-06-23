@@ -23,6 +23,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -871,7 +872,7 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
     span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
     span.set_tag_str(MESSAGING_OPERATION, "send")
-    span.set_tag_str(MESSAGING_SYSTEM, "servicebus")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
     span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
