@@ -54,13 +54,6 @@ class TracerFlareTests(TestCase):
         self._caplog = caplog
 
     def tearDown(self):
-        try:
-            self.shared_dir.cleanup()
-        except Exception:
-            # This will always fail because our Flare logic cleans up the entire directory
-            # We're explicitly calling this in tearDown so that we can remove
-            # the error log clutter for python < 3.10
-            pass
         self.confirm_cleanup()
 
     def _get_handler(self) -> Optional[logging.Handler]:
@@ -344,8 +337,11 @@ class TracerFlareTests(TestCase):
         with mock.patch("ddtrace.internal.flare.flare.get_connection", side_effect=Exception("fail")):
             try:
                 self.flare.send(valid_request)
-            except Exception:
-                pass
+            except Exception as exc:
+                # Check that this is the Exception raised in _execute_mock_call and no other one
+                assert str(exc) == "fail"
+            else:
+                assert False, "Expected Exception('fail') to be raised"
         assert not self.flare.flare_dir.exists()
 
     def test_uuid_field_validation(self):

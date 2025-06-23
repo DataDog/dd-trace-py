@@ -130,6 +130,7 @@ class Flare:
                 except Exception as e:
                     log.error("Failed to create %s file", lock_path)
                     raise e
+                client = None
                 try:
                     client = get_connection(self.url, timeout=self.timeout)
                     headers, body = self._generate_payload(flare_send_req)
@@ -148,7 +149,8 @@ class Flare:
                     log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
                     raise e
                 finally:
-                    client.close()
+                    if client is not None:
+                        client.close()
         finally:
             self.clean_up_files()
 
