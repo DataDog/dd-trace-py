@@ -1,6 +1,6 @@
 from collections import defaultdict
 import json
-from typing import Any
+from typing import Any, Literal
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -152,7 +152,7 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
+        operation: Literal["llm", "chat", "chain", "embedding", "retrieval", "tool", ""] = "",
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:
@@ -484,6 +484,7 @@ class LangChainIntegration(BaseLLMIntegration):
             tokens_set_top_level = total_tokens > 0
 
         tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # for message_set in getattr(chat_completions, "generations", []):
         for message_set in chat_completions.generations:
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message

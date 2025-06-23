@@ -3,6 +3,7 @@ from operator import itemgetter
 import os
 import sys
 
+import langchain
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
@@ -10,6 +11,7 @@ import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
+from ddtrace.trace import Span
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.langchain.utils import get_request_vcr
@@ -561,6 +563,18 @@ def test_llmobs_non_ascii_completion(langchain_openai, llmobs_events, tracer):
     assert len(llmobs_events) == 1
     actual_llmobs_span_event = llmobs_events[0]
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
+
+
+def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
+    integration = langchain._datadog_integration
+    integration._llmobs_set_tags(
+        span=Span("test_span", service="test_service"),
+        args=[],
+        kwargs={},
+        response=None,
+        operation="chat",
+    )
+    assert 0
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
