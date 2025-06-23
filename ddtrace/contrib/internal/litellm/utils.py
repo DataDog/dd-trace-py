@@ -5,6 +5,7 @@ from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 
 
 log = get_logger(__name__)
@@ -15,19 +16,20 @@ def extract_host_tag(kwargs):
         return kwargs["metadata"]["headers"]["host"]
     return None
 
-class BaseLiteLLMStreamHandler(StreamHandler):
+
+class BaseLiteLLMStreamHandler:
     def add_span(self, span, kwargs, instance):
         kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
         self.spans.append((span, kwargs))
 
-    def _process_chunk(self, chunk, iterator=None) -> None:
+    def _process_chunk(self, chunk, iterator=None):
         for choice in getattr(chunk, "choices", []):
             choice_index = getattr(choice, "index", 0)
             self.chunks[choice_index].append(choice)
         if getattr(chunk, "usage", None):
             self.chunks[0].insert(0, chunk)
 
-    def finalize_stream(self, exception=None) -> None:
+    def finalize_stream(self, exception=None):
         formatted_completions = None
         for span, kwargs in self.spans:
             if not formatted_completions:
@@ -52,14 +54,17 @@ class BaseLiteLLMStreamHandler(StreamHandler):
                     openai_construct_message_from_streamed_chunks(choice) 
                     for choice in self.chunks.values()
                 ]
+            return formatted_completions
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
-        return formatted_completions
+            return formatted_completions
 
-class LiteLLMStreamHandler(BaseLiteLLMStreamHandler):
-    def process_chunk(self, chunk, iterator=None) -> None:
+
+class LiteLLMStreamHandler(BaseLiteLLMStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk, iterator)
 
-class LiteLLMAsyncStreamHandler(BaseLiteLLMStreamHandler):
-    async def process_chunk(self, chunk, iterator=None) -> None:
+
+class LiteLLMAsyncStreamHandler(BaseLiteLLMStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk, iterator)

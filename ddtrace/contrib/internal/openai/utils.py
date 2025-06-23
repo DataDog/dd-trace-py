@@ -8,6 +8,7 @@ import wrapt
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._utils import _get_attr
 
@@ -25,7 +26,7 @@ log = get_logger(__name__)
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
-class BaseOpenAIStreamHandler(StreamHandler):
+class BaseOpenAIStreamHandler:
     def _loop_handler(self, span, chunk, streamed_chunks):
         """
         Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
@@ -73,7 +74,7 @@ class BaseOpenAIStreamHandler(StreamHandler):
         except Exception:
             log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
-class OpenAIStreamHandler(BaseOpenAIStreamHandler):
+class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self._extract_token_chunk(chunk, iterator)
         self._loop_handler(self.primary_span, chunk, self.chunks)
@@ -97,7 +98,7 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler):
         except (StopIteration, GeneratorExit):
             return
 
-class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler):
+class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         await self._extract_token_chunk(chunk, iterator)
         self._loop_handler(self.primary_span, chunk, self.chunks)
