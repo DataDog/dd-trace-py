@@ -131,7 +131,7 @@ def patch():
 
     for resource, method_hook_dict in _RESOURCES.items():
         if deep_getattr(openai.resources, resource) is None:
-            log.debug("resource %s is not found", resource)
+            log.debug("WARNING: resource %s is not found", resource)
             continue
         for method_name, endpoint_hook in method_hook_dict.items():
             sync_method = "resources.{}.{}".format(resource, method_name)
