@@ -18,6 +18,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.contrib.internal.google_genai._utils import normalize_contents
 from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
+from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 
 
 class GoogleGenAIIntegration(BaseLLMIntegration):
@@ -40,12 +41,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
          config = get_argument_value(args, kwargs, -1, "config", optional=True)
+         provider_name, model_name = extract_provider_and_model_name(kwargs)
 
          span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("google_genai.request.model") or "", #TODO: change away from span.get_tag
-                MODEL_PROVIDER: span.get_tag("google_genai.request.provider") or "",
+                MODEL_NAME: model_name,
+                MODEL_PROVIDER: provider_name,
                 METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {},
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_message(response),
