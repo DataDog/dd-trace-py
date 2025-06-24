@@ -175,14 +175,19 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
+
+            input_tokens = prompt_tokens or input_tokens
+            output_tokens = completion_tokens or output_tokens
 
             prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {})
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
 
             metrics = {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
 
             if cached_tokens is not None:
