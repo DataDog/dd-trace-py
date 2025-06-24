@@ -420,13 +420,10 @@ class TestLLMObsBedrock:
                 user_message="What are the key principles for microservices architecture?",
                 modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
             )
-            response1 = bedrock_client.converse(**request_params)
-            response2 = bedrock_client.converse(**request_params)
-
+            _, _ = bedrock_client.converse(**request_params), bedrock_client.converse(**request_params)
             assert len(llmobs_events) == 2
             spans = mock_tracer.pop_traces()
-            span1 = spans[0][0]
-            span2 = spans[1][0]
+            span1, span2 = spans[0][0], spans[1][0]
             assert llmobs_events[0] == _expected_llmobs_llm_span_event(
                 span1,
                 model_name="claude-3-7-sonnet-20250219-v1:0",
