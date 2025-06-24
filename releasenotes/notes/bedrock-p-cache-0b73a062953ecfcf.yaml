@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: This introduces the ability to track the number of tokens read and written for prompt caching in the Bedrock Converse API.
+    LLM Observability: This introduces the ability to track the number of tokens read and written to the prompt cache for the Bedrock Converse API.
