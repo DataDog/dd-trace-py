@@ -965,6 +965,92 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
+    def test_chat_completion_stream_prompt_caching(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Test that prompt caching metrics are properly captured for streamed chat completions."""
+        input_messages = [
+            {
+                "role": "system",
+                "content": "You are an expert software engineer specializing in system design and architecture. " * 200,
+            },
+            {"role": "user", "content": "What are the best practices for API design?"},
+        ]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_stream_prompt_caching.yaml"):
+            model = "gpt-4o"
+            request_args = {
+                "model": model,
+                "messages": input_messages,
+                "max_tokens": 100,
+                "temperature": 0.1,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            }
+            client = openai.OpenAI()
+            resp1 = client.chat.completions.create(**request_args)
+            for chunk in resp1:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
+            resp2 = client.chat.completions.create(**request_args)
+            for chunk in resp2:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
+
+            spans = mock_tracer.pop_traces()
+            span1, span2 = spans[0][0], spans[1][0]
+            assert mock_llmobs_writer.enqueue.call_count == 2
+            mock_llmobs_writer.enqueue.assert_has_calls(
+                [
+                    mock.call(
+                        _expected_llmobs_llm_span_event(
+                            span1,
+                            model_name=resp_model,
+                            model_provider="openai",
+                            input_messages=request_args["messages"],
+                            output_messages=[{"role": "assistant", "content": mock.ANY}],
+                            metadata={
+                                "max_tokens": 100,
+                                "temperature": 0.1,
+                                "stream": True,
+                                "stream_options": {"include_usage": True},
+                            },
+                            token_metrics={
+                                "input_tokens": mock.ANY,
+                                "output_tokens": mock.ANY,
+                                "total_tokens": mock.ANY,
+                                "cache_read_input_tokens": 0,
+                            },
+                            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        )
+                    ),
+                    mock.call(
+                        _expected_llmobs_llm_span_event(
+                            span2,
+                            model_name=resp_model,
+                            model_provider="openai",
+                            input_messages=request_args["messages"],
+                            output_messages=[{"role": "assistant", "content": mock.ANY}],
+                            metadata={
+                                "max_tokens": 100,
+                                "temperature": 0.1,
+                                "stream": True,
+                                "stream_options": {"include_usage": True},
+                            },
+                            token_metrics={
+                                "input_tokens": mock.ANY,
+                                "output_tokens": mock.ANY,
+                                "total_tokens": mock.ANY,
+                                "cache_read_input_tokens": 2560,
+                            },
+                            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                        )
+                    ),
+                ]
+            )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
     def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()

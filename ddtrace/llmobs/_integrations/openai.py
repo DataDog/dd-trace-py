@@ -167,7 +167,11 @@ class OpenAIIntegration(BaseLLMIntegration):
     @staticmethod
     def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
-        token_usage = _get_attr(resp, "usage", None)
+        token_usage = None
+        if resp and isinstance(resp, list) and _get_attr(resp[0], "usage", None):
+            token_usage = resp[0].get("usage", {})
+        elif resp and getattr(resp, "usage", None):
+            token_usage = resp.usage
         if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
