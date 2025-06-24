@@ -448,7 +448,8 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.60.0",
+        "max_tracer_supported": "1.76.2",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
