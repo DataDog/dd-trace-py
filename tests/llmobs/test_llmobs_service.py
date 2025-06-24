@@ -2291,8 +2291,8 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_event
 
 
 def test_submit_evaluation_for_enqueues_writer_with_boolean_metric(llmobs, mock_llmobs_eval_metric_writer):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
         label="is_toxic",
         metric_type="boolean",
         value=True,
@@ -2305,8 +2305,8 @@ def test_submit_evaluation_for_enqueues_writer_with_boolean_metric(llmobs, mock_
     )
     mock_llmobs_eval_metric_writer.reset_mock()
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
-        llmobs.submit_evaluation(
-            span_context=llmobs.export_span(span),
+        llmobs.submit_evaluation_for(
+            span=llmobs.export_span(span),
             label="is_toxic",
             metric_type="boolean",
             value=True,
