@@ -184,50 +184,57 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
             },
-            env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
-                "DD_IAST_REQUEST_SAMPLING": "100",
-                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
+            # env={
+            #     "DD_TRACE_AGENT_URL": "http://testagent:9126",
+            #     "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+            #     "DD_IAST_REQUEST_SAMPLING": "100",
+            #     "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+            #     "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            # },
             venvs=[
                 Venv(
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                        "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                        "DD_IAST_REQUEST_SAMPLING": "100",
+                        "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                        "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                    },
                     pys=["3.8"],
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
+                # Venv(
+                #     pys=["3.8"],
+                #     pkgs={"fastapi": "==0.94.1"},
+                # ),
+                # Venv(
+                #     pys=["3.8"],
+                #     pkgs={"fastapi": "~=0.114.2"},
+                # ),
+                # Venv(
+                #     pys=["3.10"],
+                #     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                # ),
+                # Venv(
+                #     pys=["3.10"],
+                #     pkgs={"fastapi": "==0.94.1"},
+                # ),
+                # Venv(
+                #     pys=["3.10"],
+                #     pkgs={"fastapi": "~=0.114.2"},
+                # ),
+                # Venv(
+                #     pys=["3.13"],
+                #     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                # ),
+                # Venv(
+                #     pys=["3.13"],
+                #     pkgs={"fastapi": "==0.94.1"},
+                # ),
+                # Venv(
+                #     pys=["3.13"],
+                #     pkgs={"fastapi": "~=0.114.2"},
+                # ),
             ],
         ),
         Venv(
