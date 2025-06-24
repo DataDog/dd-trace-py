@@ -10,13 +10,6 @@ def tracer_injection(logger, log_method, event_dict):
     return event_dict
 
 
-def format_trace_id(span):
-    if config._128_bit_trace_id_enabled:
-        return "{:032x}".format(span.trace_id)
-    else:
-        return str(span._trace_id_64bits)
-
-
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
 )
@@ -24,14 +17,14 @@ def test_get_log_correlation_ust():
     """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
     from ddtrace.constants import ENV_KEY
     from ddtrace.constants import VERSION_KEY
+    from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.trace import tracer
-    from tests.tracer.test_correlation_log_context import format_trace_id
 
     with tracer.trace("test-span-1") as span1:
         dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "dd.span_id": str(span1.span_id),
-            "dd.trace_id": format_trace_id(span1),
+            "dd.trace_id": format_trace_id(span1.trace_id),
             "dd.service": "test-service",
             "dd.env": "test-env",
             "dd.version": "test-version",
@@ -43,7 +36,7 @@ def test_get_log_correlation_ust():
         dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "dd.span_id": str(span2.span_id),
-            "dd.trace_id": format_trace_id(span2),
+            "dd.trace_id": format_trace_id(span2.trace_id),
             "dd.service": "test-service",
             "dd.env": "test-env",
             "dd.version": "test-version",
@@ -79,8 +72,8 @@ def test_get_log_correlation_trace_context():
 )
 def test_get_log_correlation_context_opentracer():
     """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
+    from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.opentracer.tracer import Tracer as OT_Tracer
-    from tests.tracer.test_correlation_log_context import format_trace_id
 
     ot_tracer = OT_Tracer(service_name="test-service")
     with ot_tracer.start_active_span("operation") as scope:
@@ -88,7 +81,7 @@ def test_get_log_correlation_context_opentracer():
         dd_log_record = ot_tracer.get_log_correlation_context()
     assert dd_log_record == {
         "dd.span_id": str(dd_span.span_id),
-        "dd.trace_id": format_trace_id(dd_span),
+        "dd.trace_id": format_trace_id(dd_span.trace_id),
         "dd.service": "test-service",
         "dd.env": "test-env",
         "dd.version": "test-version",
@@ -131,9 +124,8 @@ def test_custom_logging_injection_global_config():
     """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
     import structlog
 
-    from ddtrace import config
+    from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.trace import tracer
-    from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.tracer.test_correlation_log_context import tracer_injection
 
     capture_log = structlog.testing.LogCapture()
@@ -151,7 +143,7 @@ def test_custom_logging_injection_global_config():
     assert capture_log.entries[0] == {
         "event": "Hello!",
         "dd.span_id": str(span.span_id),
-        "dd.trace_id": format_trace_id(span),
+        "dd.trace_id": format_trace_id(span.trace_id),
         "dd.service": "global-service",
         "dd.env": "global-env",
         "dd.version": "global-version",
@@ -190,8 +182,8 @@ def test_custom_logging_injection():
     """Ensure custom log injection via get_correlation_log_record returns proper active span information."""
     import structlog
 
+    from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.trace import tracer
-    from tests.tracer.test_correlation_log_context import format_trace_id
     from tests.tracer.test_correlation_log_context import tracer_injection
 
     capture_log = structlog.testing.LogCapture()
@@ -205,7 +197,7 @@ def test_custom_logging_injection():
     assert capture_log.entries[0] == {
         "event": "Hello!",
         "dd.span_id": str(span.span_id),
-        "dd.trace_id": format_trace_id(span),
+        "dd.trace_id": format_trace_id(span.trace_id),
         "dd.service": "ddtrace_subprocess_dir",
         "dd.env": "",
         "dd.version": "",
