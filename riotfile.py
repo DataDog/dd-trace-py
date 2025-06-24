@@ -104,13 +104,6 @@ venv = Venv(
         Venv(
             name="appsec_integrations_fastapi",
             command="python -m pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
-            env={
-                "DD_TRACE_AGENT_URL": "http://localhost:9126",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
-                "DD_IAST_REQUEST_SAMPLING": "100",
-                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
             pkgs={
                 "requests": latest,
                 "python-multipart": latest,
@@ -118,16 +111,59 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
             },
+            env={
+                "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
             venvs=[
-                Venv(pys=["3.8"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
-                Venv(pys=["3.8"], pkgs={"fastapi": "==0.94.1"}),
-                Venv(pys=["3.8"], pkgs={"fastapi": "~=0.114.2"}),
-                Venv(pys=["3.10"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
-                Venv(pys=["3.10"], pkgs={"fastapi": "==0.94.1"}),
-                Venv(pys=["3.10"], pkgs={"fastapi": "~=0.114.2"}),
-                Venv(pys=["3.13"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
-                Venv(pys=["3.13"], pkgs={"fastapi": "==0.94.1"}),
-                Venv(pys=["3.13"], pkgs={"fastapi": "~=0.114.2"}),
+                Venv(
+                    name="appsec_integrations_fastapi_38_fastapi0_86_0_anyio3_7_1",
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_38_fastapi0_94_1",
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_38_fastapi0_114_2",
+                    pys=["3.8"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_310_fastapi0_86_0_anyio3_7_1",
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_310_fastapi0_94_1",
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_310_fastapi0_114_2",
+                    pys=["3.10"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_313_fastapi0_86_0_anyio3_7_1",
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_313_fastapi0_94_1",
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    name="appsec_integrations_fastapi_313_fastapi0_114_2",
+                    pys=["3.13"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
             ],
         ),
         Venv(
