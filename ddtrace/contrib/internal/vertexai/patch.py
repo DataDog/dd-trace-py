@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
-from ddtrace.contrib.internal.vertexai._utils import tag_request
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
@@ -71,7 +70,6 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = func(*args, **kwargs)
         if stream:
             return TracedVertexAIStreamResponse(
@@ -105,7 +103,6 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncVertexAIStreamResponse(

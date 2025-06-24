@@ -85,14 +85,3 @@ def extract_info_from_parts(parts):
         if function_call is not None:
             function_calls.append(function_call)
     return concatenated_text, function_calls
-
-
-def tag_request(span, integration, instance, args, kwargs, is_chat):
-    """Tag the generation span with request details.
-    Includes capturing generation configuration, system prompt, and messages.
-    """
-    # instance is either a chat session or a model itself
-    stream = kwargs.get("stream", None)
-
-    if stream:
-        span.set_tag("vertexai.request.stream", True)
