@@ -17,9 +17,7 @@ def global_config(config):
 
 def tracer_injection(logger, log_method, event_dict):
     """Inject tracer information into custom structlog log"""
-    correlation_log_context = tracer.get_log_correlation_context()
-    # add ids and configs to structlog event dictionary
-    event_dict["dd"] = correlation_log_context
+    event_dict.update(tracer.get_log_correlation_context())
     return event_dict
 
 
@@ -42,22 +40,22 @@ def test_get_log_correlation_service():
         with tracer.trace("test-span-1", service="span-service") as span1:
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
-            "span_id": str(span1.span_id),
-            "trace_id": format_trace_id(span1),
-            "service": "span-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": str(span1.span_id),
+            "dd.trace_id": format_trace_id(span1),
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }
 
         test_tracer = DummyTracer()
         with test_tracer.trace("test-span-2", service="span-service") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
-            "span_id": str(span2.span_id),
-            "trace_id": format_trace_id(span2),
-            "service": "span-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": str(span2.span_id),
+            "dd.trace_id": format_trace_id(span2),
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }
 
 
@@ -74,21 +72,21 @@ def test_get_log_correlation_context_basic():
         with tracer.trace("test-span-1") as span1:
             dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
-            "span_id": str(span1.span_id),
-            "trace_id": format_trace_id(span1),
-            "service": "test-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": str(span1.span_id),
+            "dd.trace_id": format_trace_id(span1),
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }, dd_log_record
         test_tracer = DummyTracer()
         with test_tracer.trace("test-span-2") as span2:
             dd_log_record = test_tracer.get_log_correlation_context()
         assert dd_log_record == {
-            "span_id": str(span2.span_id),
-            "trace_id": format_trace_id(span2),
-            "service": "test-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": str(span2.span_id),
+            "dd.trace_id": format_trace_id(span2),
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }, dd_log_record
 
         tracer.context_provider.activate(
@@ -98,11 +96,11 @@ def test_get_log_correlation_context_basic():
             )
         )
         assert test_tracer.get_log_correlation_context() == {
-            "span_id": "234",
-            "trace_id": "4321",
-            "service": "test-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": "234",
+            "dd.trace_id": "4321",
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }, test_tracer.get_log_correlation_context()
 
 
@@ -119,11 +117,11 @@ def test_get_log_correlation_context_opentracer():
             dd_span = scope._span._dd_span
             dd_log_record = ot_tracer.get_log_correlation_context()
         assert dd_log_record == {
-            "span_id": str(dd_span.span_id),
-            "trace_id": format_trace_id(dd_span),
-            "service": "test-service",
-            "env": "test-env",
-            "version": "test-version",
+            "dd.span_id": str(dd_span.span_id),
+            "dd.trace_id": format_trace_id(dd_span),
+            "dd.service": "test-service",
+            "dd.env": "test-env",
+            "dd.version": "test-version",
         }, dd_log_record
 
 
@@ -135,11 +133,11 @@ def test_get_log_correlation_context_no_active_span():
     tracer = DummyTracer()
     dd_log_record = tracer.get_log_correlation_context()
     assert dd_log_record == {
-        "span_id": "0",
-        "trace_id": "0",
-        "service": "ddtrace_subprocess_dir",
-        "env": "",
-        "version": "",
+        "dd.span_id": "0",
+        "dd.trace_id": "0",
+        "dd.service": "ddtrace_subprocess_dir",
+        "dd.env": "",
+        "dd.version": "",
     }, dd_log_record
 
 
@@ -152,11 +150,11 @@ def test_get_log_correlation_context_disabled_tracer():
     with tracer.trace("test-span"):
         dd_log_record = tracer.get_log_correlation_context()
     assert dd_log_record == {
-        "span_id": "0",
-        "trace_id": "0",
-        "service": "ddtrace_subprocess_dir",
-        "env": "",
-        "version": "",
+        "dd.span_id": "0",
+        "dd.trace_id": "0",
+        "dd.service": "ddtrace_subprocess_dir",
+        "dd.env": "",
+        "dd.version": "",
     }, dd_log_record
 
 
@@ -185,14 +183,15 @@ def test_custom_logging_injection_global_config():
 
     assert len(capture_log.entries) == 1
     assert capture_log.entries[0]["event"] == "Hello!"
-    dd_log_record = capture_log.entries[0]["dd"]
-    assert dd_log_record == {
-        "span_id": str(span.span_id),
-        "trace_id": format_trace_id(span),
-        "service": "global-service",
-        "env": "global-env",
-        "version": "global-version",
-    }, dd_log_record
+    assert capture_log.entries[0] == {
+        "event": "Hello!",
+        "dd.span_id": str(span.span_id),
+        "dd.trace_id": format_trace_id(span),
+        "dd.service": "global-service",
+        "dd.env": "global-env",
+        "dd.version": "global-version",
+        "log_level": "info",
+    }, capture_log.entries
 
 
 @pytest.mark.subprocess()
@@ -216,15 +215,15 @@ def test_custom_logging_injection_no_span():
         logger.msg("No Span!")
 
     assert len(capture_log.entries) == 1
-    assert capture_log.entries[0]["event"] == "No Span!"
-    dd_log_record = capture_log.entries[0]["dd"]
-    assert dd_log_record == {
-        "span_id": "0",
-        "trace_id": "0",
-        "service": "global-service",
-        "env": "global-env",
-        "version": "global-version",
-    }, dd_log_record
+    assert capture_log.entries[0] == {
+        "event": "No Span!",
+        "dd.span_id": "0",
+        "dd.trace_id": "0",
+        "dd.service": "global-service",
+        "dd.env": "global-env",
+        "dd.version": "global-version",
+        "log_level": "info",
+    }, capture_log.entries[0]
 
 
 @pytest.mark.subprocess()
@@ -247,12 +246,12 @@ def test_custom_logging_injection():
         logger.msg("Hello!")
 
     assert len(capture_log.entries) == 1
-    assert capture_log.entries[0]["event"] == "Hello!"
-    dd_log_record = capture_log.entries[0]["dd"]
-    assert dd_log_record == {
-        "span_id": str(span.span_id),
-        "trace_id": format_trace_id(span),
-        "service": "ddtrace_subprocess_dir",
-        "env": "",
-        "version": "",
-    }, dd_log_record
+    assert capture_log.entries[0] == {
+        "event": "Hello!",
+        "dd.span_id": str(span.span_id),
+        "dd.trace_id": format_trace_id(span),
+        "dd.service": "ddtrace_subprocess_dir",
+        "dd.env": "",
+        "dd.version": "",
+        "log_level": "info",
+    }, capture_log.entries
