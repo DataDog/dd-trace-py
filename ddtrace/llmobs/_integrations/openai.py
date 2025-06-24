@@ -168,6 +168,8 @@ class OpenAIIntegration(BaseLLMIntegration):
     def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = None
+
+        # in the streamed responses case, `resp` is a list with `usage` being stored in the first element
         if resp and isinstance(resp, list) and _get_attr(resp[0], "usage", None):
             token_usage = resp[0].get("usage", {})
         elif resp and getattr(resp, "usage", None):
