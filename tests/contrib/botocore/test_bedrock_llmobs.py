@@ -473,6 +473,78 @@ class TestLLMObsBedrock:
                 tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
             )
 
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        """Test that prompt caching metrics are properly captured for streamed converse responses."""
+        large_system_content = [
+            {"text": "Software architecture guidelines: " + "hello " * 2000},
+            {"cachePoint": {"type": "default"}},
+        ]
+
+        with request_vcr.use_cassette("bedrock_converse_stream_prompt_caching.yaml"):
+            request_params = create_bedrock_converse_request(
+                system=large_system_content,
+                user_message="What are the key principles for microservices architecture?",
+                modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            )
+            stream_1 = bedrock_client.converse_stream(**request_params)
+            for _ in stream_1["stream"]:
+                pass
+            stream_2 = bedrock_client.converse_stream(**request_params)
+            for _ in stream_2["stream"]:
+                pass
+
+            assert len(llmobs_events) == 2
+            spans = mock_tracer.pop_traces()
+            span1, span2 = spans[0][0], spans[1][0]
+
+            assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+                span1,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": "Software architecture guidelines: " + "hello " * 2000, "role": "system"},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"content": "What are the key principles for microservices architecture?", "role": "user"},
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": mock.ANY,
+                    "output_tokens": mock.ANY,
+                    "total_tokens": mock.ANY,
+                    "cache_write_input_tokens": 2004,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+            assert llmobs_events[1] == _expected_llmobs_llm_span_event(
+                span2,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": "Software architecture guidelines: " + "hello " * 2000, "role": "system"},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"content": "What are the key principles for microservices architecture?", "role": "user"},
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": mock.ANY,
+                    "output_tokens": mock.ANY,
+                    "total_tokens": mock.ANY,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 2004,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
