@@ -58,7 +58,7 @@ def test_google_genai_generate_content_error(mock_generate_content, genai):
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
 )
-def test_google_genai_generate_content_stream(mock_generate_content, genai):
+def test_google_genai_generate_content_stream(mock_generate_content_stream, genai):
     client = genai.Client()
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash-001",
@@ -73,7 +73,7 @@ def test_google_genai_generate_content_stream(mock_generate_content, genai):
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_stream_error(mock_generate_content, genai):
+def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai):
     with pytest.raises(TypeError):
         client = genai.Client()
         response = client.models.generate_content_stream(
@@ -90,7 +90,7 @@ def test_google_genai_generate_content_stream_error(mock_generate_content, genai
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async(mock_generate_content, genai):
+async def test_google_genai_generate_content_async(mock_async_generate_content, genai):
     client = genai.Client()
     await client.aio.models.generate_content(
         model="gemini-2.0-flash-001",
@@ -103,7 +103,7 @@ async def test_google_genai_generate_content_async(mock_generate_content, genai)
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_error(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client()
         await client.aio.models.generate_content(
@@ -118,7 +118,7 @@ async def test_google_genai_generate_content_async_error(mock_generate_content, 
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async_stream(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_stream(mock_async_generate_content_stream, genai):
     client = genai.Client()
     response = await client.aio.models.generate_content_stream(
         model="gemini-2.0-flash-001",
@@ -133,7 +133,7 @@ async def test_google_genai_generate_content_async_stream(mock_generate_content,
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_stream_error(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_stream_error(mock_async_generate_content_stream, genai):
     with pytest.raises(TypeError):
         client = genai.Client()
         response = await client.aio.models.generate_content_stream(
@@ -182,7 +182,7 @@ def test_google_genai_generate_content_vertex_error(mock_generate_content, genai
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
 )
-def test_google_genai_generate_content_stream_vertex(mock_generate_content, genai):
+def test_google_genai_generate_content_stream_vertex(mock_generate_content_stream, genai):
     client = genai.Client(
         vertexai=True,
         project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
@@ -201,7 +201,7 @@ def test_google_genai_generate_content_stream_vertex(mock_generate_content, gena
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_stream_vertex_error(mock_generate_content, genai):
+def test_google_genai_generate_content_stream_vertex_error(mock_generate_content_stream, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
             vertexai=True,
@@ -222,7 +222,7 @@ def test_google_genai_generate_content_stream_vertex_error(mock_generate_content
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async_vertex(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_vertex(mock_async_generate_content, genai):
     client = genai.Client(
         vertexai=True,
         project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
@@ -239,7 +239,7 @@ async def test_google_genai_generate_content_async_vertex(mock_generate_content,
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_vertex_error(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_vertex_error(mock_async_generate_content, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
             vertexai=True,
@@ -258,7 +258,7 @@ async def test_google_genai_generate_content_async_vertex_error(mock_generate_co
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async_stream_vertex(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_stream_vertex(mock_async_generate_content_stream, genai):
     client = genai.Client(
         vertexai=True,
         project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
@@ -277,7 +277,7 @@ async def test_google_genai_generate_content_async_stream_vertex(mock_generate_c
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_stream_vertex_error(mock_generate_content, genai):
+async def test_google_genai_generate_content_async_stream_vertex_error(mock_async_generate_content_stream, genai):
     with pytest.raises(TypeError):
         client = genai.Client(
             vertexai=True,
