@@ -92,26 +92,23 @@ class _ClassTracedStream(wrapt.ObjectProxy):
         super().__init__(wrapped_stream)
         self._handler = handler
         self._on_stream_created = on_stream_created
+        self._exception = None
         if hasattr(self.__wrapped__, '__next__') or not hasattr(self.__wrapped__, '__iter__'):
             self._stream_iter = self.__wrapped__
         else:
             self._stream_iter = iter(self.__wrapped__)
     
     def __iter__(self):
-        return self
-    
-    def __next__(self):
         try:
-            chunk = next(self._stream_iter)
-            self._handler.process_chunk(chunk, self._stream_iter)
-            return chunk
-        except StopIteration:
-            self._handler.finalize_stream()
-            raise
+            for chunk in self._stream_iter:
+                self._handler.process_chunk(chunk, self._stream_iter)
+                yield chunk
         except Exception as e:
+            self._exception = e
             self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
             raise
+        finally:
+            self._handler.finalize_stream(self._exception)
     
     def __enter__(self):
         if hasattr(self.__wrapped__, '__enter__'):
@@ -139,26 +136,23 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
         super().__init__(wrapped_stream)
         self._handler = handler
         self._on_stream_created = on_stream_created
+        self._exception = None
         if hasattr(self.__wrapped__, '__anext__') or not hasattr(self.__wrapped__, '__aiter__'):
             self._async_stream_iter = self.__wrapped__
         else:
             self._async_stream_iter = aiter(self.__wrapped__)
     
-    def __aiter__(self):
-        return self
-    
-    async def __anext__(self):
+    async def __aiter__(self):
         try:
-            chunk = await anext(self._async_stream_iter)
-            await self._handler.process_chunk(chunk, self._async_stream_iter)
-            return chunk
-        except StopAsyncIteration:
-            self._handler.finalize_stream()
-            raise
+            async for chunk in self._async_stream_iter:
+                await self._handler.process_chunk(chunk, self._async_stream_iter)
+                yield chunk
         except Exception as e:
+            self._exception = e
             self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
             raise
+        finally:
+            self._handler.finalize_stream(self._exception)
     
     async def __aenter__(self):
         if hasattr(self.__wrapped__, '__aenter__'):
@@ -185,22 +179,19 @@ class _GeneratorTracedStream:
     def __init__(self, wrapped_stream, handler: StreamHandler):
         self._wrapped_stream = wrapped_stream
         self._handler = handler
+        self._exception = None
     
     def __iter__(self):
-        return self
-    
-    def __next__(self):
         try:
-            chunk = next(self._wrapped_stream)
-            self._handler.process_chunk(chunk, self._wrapped_stream)
-            return chunk
-        except StopIteration:
-            self._handler.finalize_stream()
-            raise
+            for chunk in self._wrapped_stream:
+                self._handler.process_chunk(chunk, self._wrapped_stream)
+                yield chunk
         except Exception as e:
+            self._exception = e
             self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
             raise
+        finally:
+            self._handler.finalize_stream(self._exception)
     
     @property
     def handler(self):
@@ -211,22 +202,19 @@ class _AsyncGeneratorTracedStream:
     def __init__(self, wrapped_stream, handler: AsyncStreamHandler):
         self._wrapped_stream = wrapped_stream
         self._handler = handler
+        self._exception = None
     
-    def __aiter__(self):
-        return self
-    
-    async def __anext__(self):
+    async def __aiter__(self):
         try:
-            chunk = await anext(self._wrapped_stream)
-            await self._handler.process_chunk(chunk, self._wrapped_stream)
-            return chunk
-        except StopAsyncIteration:
-            self._handler.finalize_stream()
-            raise
+            async for chunk in self._wrapped_stream:
+                await self._handler.process_chunk(chunk, self._wrapped_stream)
+                yield chunk
         except Exception as e:
+            self._exception = e
             self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
             raise
+        finally:
+            self._handler.finalize_stream(self._exception)
     
     @property
     def handler(self):
