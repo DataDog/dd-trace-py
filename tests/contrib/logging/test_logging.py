@@ -1,6 +1,7 @@
 from io import StringIO
 import logging
 
+import pytest
 import wrapt
 
 import ddtrace
@@ -20,6 +21,16 @@ logger.level = logging.INFO
 DEFAULT_FORMAT = (
     "%(message)s - dd.service=%(dd.service)s dd.version=%(dd.version)s dd.env=%(dd.env)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s"
+)
+
+DOLLAR_FORMAT = (
+    "${message} - dd.service=${dd.service} dd.version=${dd.version} dd.env=${dd.env} "
+    "dd.trace_id=${dd.trace_id} dd.span_id=${dd.span_id}"
+)
+
+BRACE_FORMAT = (
+    "{message} - dd.service={dd.service} dd.version={dd.version} dd.env={dd.env} "
+    "dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}"
 )
 
 
@@ -49,7 +60,7 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_sty
     # add stream handler to capture output
     out = StringIO()
     sh = logging.StreamHandler(out)
-
+    assert_filter = AssertFilter()
     try:
         if fmt_style:
             formatter = logging.Formatter(fmt, style=fmt_style)
@@ -57,7 +68,6 @@ def capture_function_log(func, fmt=DEFAULT_FORMAT, logger_override=None, fmt_sty
             formatter = logging.Formatter(fmt)
         sh.setFormatter(formatter)
         logger_to_capture.addHandler(sh)
-        assert_filter = AssertFilter()
         logger_to_capture.addFilter(assert_filter)
         result = func()
     finally:
@@ -229,32 +239,42 @@ class LoggingTestCase(TracerTestCase):
                 logger.info("Hello!")
                 return span
 
-        fmt = (
-            "{message} [dd.service={dd.service} dd.env={dd.env} "
-            "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
-        )
+        for fmt, style in ((DEFAULT_FORMAT, None), (DEFAULT_FORMAT, "%"), (BRACE_FORMAT, "{")):
+            with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
+                dict(_logs_injection="true")
+            ):
+                output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
+
+                lines = output.splitlines()
+                assert (
+                    "Hello! - dd.service=tests.contrib.logging dd.version= dd.env= "
+                    + "dd.trace_id={:032x} dd.span_id={}".format(span.trace_id, span.span_id)
+                    == lines[0]
+                )
+
+                with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
+                    output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
+
+                    lines = output.splitlines()
+                    expected = (
+                        "Hello! - dd.service=my.service dd.version=my.version dd.env=my.env dd.trace_id={:032x} "
+                        + "dd.span_id={}"
+                    ).format(span.trace_id, span.span_id)
+                    assert expected == lines[0]
+
+    def test_log_strformat_style_dollar_sign(self):
+        # FIXME: This test that verifies that the logging integration doesnt work with dollar sign style format strings.
+        def func():
+            with self.tracer.trace("test.logging") as span:
+                logger.info("Hello!")
+                return span
 
         with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
             dict(_logs_injection="true")
         ):
-            output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
-
-            lines = output.splitlines()
-            assert (
-                "Hello! [dd.service=tests.contrib.logging dd.env= dd.version= "
-                + "dd.trace_id={:032x} dd.span_id={}]".format(span.trace_id, span.span_id)
-                == lines[0]
-            )
-
-            with self.override_global_config(dict(service="my.service", version="my.version", env="my.env")):
-                output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
-
-                lines = output.splitlines()
-                expected = (
-                    "Hello! [dd.service=my.service dd.env=my.env dd.version=my.version dd.trace_id={:032x} "
-                    + "dd.span_id={}]"
-                ).format(span.trace_id, span.span_id)
-                assert expected == lines[0]
+            with pytest.raises(ValueError) as exc:
+                _, _ = capture_function_log(func, fmt=DOLLAR_FORMAT, fmt_style="$")
+            assert str(exc.value) == "invalid format: bare '$' not allowed"
 
     def test_log_strformat_style_format(self):
         # DEV: We have to use `{msg}` instead of `{message}` because we are manually creating
