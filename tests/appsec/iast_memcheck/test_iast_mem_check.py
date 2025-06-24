@@ -4,6 +4,7 @@ import pytest
 from pytest_memray import LeaksFilterFunction
 from pytest_memray import Stack
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
@@ -14,7 +15,6 @@ from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.appsec.iast_memcheck.fixtures.stacktrace import func_1
 
 
@@ -79,7 +79,7 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         )
         result = mod.propagation_memory_check(tainted_string_1, tainted_string_2)
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
         assert len(get_tainted_ranges(result)) == 1
@@ -140,7 +140,7 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
         )
         result = await mod.propagation_memory_check_async(tainted_string_1, tainted_string_2)
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
         assert len(span_report.sources) > 0
         assert len(span_report.vulnerabilities) > 0
         assert len(get_tainted_ranges(result)) == 6
