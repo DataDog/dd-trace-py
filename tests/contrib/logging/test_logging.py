@@ -256,11 +256,10 @@ class LoggingTestCase(TracerTestCase):
                     output, span = capture_function_log(func, fmt=fmt, fmt_style=style)
 
                     lines = output.splitlines()
-                    expected = (
-                        "Hello! - dd.service=my.service dd.version=my.version dd.env=my.env dd.trace_id={:032x} "
-                        + "dd.span_id={}"
-                    ).format(span.trace_id, span.span_id)
-                    assert expected == lines[0]
+                    assert (
+                        "Hello! - dd.service=my.service dd.version=my.version dd.env=my.env "
+                        f"dd.trace_id={span.trace_id:032x} dd.span_id={span.span_id}"
+                    ) == lines[0]
 
     def test_log_strformat_style_dollar_sign(self):
         # FIXME: This test that verifies that the logging integration doesnt work with dollar sign style format strings.
