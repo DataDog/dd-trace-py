@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -131,6 +132,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind)
+
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
@@ -167,11 +169,20 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
-            return {
+            
+            prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {})
+            cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
+
+            metrics = {
                 INPUT_TOKENS_METRIC_KEY: prompt_tokens,
                 OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
                 TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
             }
+
+            if cached_tokens is not None:
+                metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+
+            return metrics
         return get_llmobs_metrics_tags("openai", span)
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
