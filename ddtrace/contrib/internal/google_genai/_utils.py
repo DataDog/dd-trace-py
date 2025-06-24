@@ -34,7 +34,7 @@ def extract_provider_and_model_name(kwargs):
         if model_name.lower().startswith(prefix):
             provider_name = MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-    return "custom", model_name if len(model_name) > 0 else "custom"
+    return "custom", model_name if model_name else "custom"
 
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
