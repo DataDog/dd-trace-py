@@ -102,6 +102,35 @@ venv = Venv(
     },
     venvs=[
         Venv(
+            name="appsec_integrations_fastapi",
+            command="uname -a && pip freeze && python -m pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            pkgs={
+                "requests": latest,
+                "python-multipart": latest,
+                "jinja2": latest,
+                "httpx": "<0.28.0",
+                "uvicorn": "==0.33.0",
+            },
+            venvs=[
+                Venv(pys=["3.8"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
+                Venv(pys=["3.8"], pkgs={"fastapi": "==0.94.1"}),
+                Venv(pys=["3.8"], pkgs={"fastapi": "~=0.114.2"}),
+                Venv(pys=["3.10"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
+                Venv(pys=["3.10"], pkgs={"fastapi": "==0.94.1"}),
+                Venv(pys=["3.10"], pkgs={"fastapi": "~=0.114.2"}),
+                Venv(pys=["3.13"], pkgs={"fastapi": "==0.94.1"}),
+                Venv(pys=["3.13"], pkgs={"fastapi": "~=0.114.2"}),
+                Venv(pys=["3.13"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
+            ],
+        ),
+        Venv(
             name="meta-testing",
             pys=["3.10"],
             command="pytest {cmdargs} --no-ddtrace tests/meta",

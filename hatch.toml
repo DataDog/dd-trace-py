@@ -453,20 +453,20 @@ werkzeug = ["~=3.1"]
 
 ## ASM appsec_integrations_fastapi
 
-[envs.appsec_integrations_fastapi]
-template = "appsec_integrations_fastapi"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "python-multipart",
-    "jinja2",
-    "httpx<0.28.0",
-    "uvicorn==0.33.0",
-    "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
-]
+#[envs.appsec_integrations_fastapi]
+#template = "appsec_integrations_fastapi"
+#dependencies = [
+#    "pytest",
+#    "pytest-cov",
+#    "requests",
+#    "hypothesis",
+#    "python-multipart",
+#    "jinja2",
+#    "httpx<0.28.0",
+#    "uvicorn==0.33.0",
+#    "anyio{matrix:anyio:}",
+#    "fastapi{matrix:fastapi}"
+#]
 
 [envs.appsec_integrations_fastapi.env-vars]
 DD_TRACE_AGENT_URL = "http://testagent:9126"
