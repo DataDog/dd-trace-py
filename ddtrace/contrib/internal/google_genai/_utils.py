@@ -11,7 +11,7 @@ MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
     "veo": "google",
-    "jamba": "ai21labs",
+    "jamba": "ai21",
     "claude": "anthropic",
     "llama": "meta",
     "mistral": "mistral",
