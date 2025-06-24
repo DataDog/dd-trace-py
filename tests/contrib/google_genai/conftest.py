@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
@@ -53,14 +52,15 @@ def mock_generate_content():
     async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
             yield _response
+
         return _async_iterator()
 
     async def _fake_async_generate_content(self, *, model: str, contents, config=None):
         return _response
 
-    # Using mock.patch as context managers
-    with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream), \
-         mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content), \
-         mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream), \
-         mock_patch.object(genai.models.AsyncModels, "_generate_content", _fake_async_generate_content):
+    with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream), mock_patch.object(
+        genai.models.Models, "_generate_content", _fake_generate_content
+    ), mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream), mock_patch.object(
+        genai.models.AsyncModels, "_generate_content", _fake_async_generate_content
+    ):
         yield
