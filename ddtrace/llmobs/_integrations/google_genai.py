@@ -48,7 +48,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 SPAN_KIND: "llm",
                 MODEL_NAME: model_name,
                 MODEL_PROVIDER: provider_name,
-                METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {},
+                METADATA: config.model_dump() if config and hasattr(config, "model_dump") else {}, #TODO: replace with self._extract_metadata(config)
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_message(response),
                 METRICS: extract_metrics_google_genai(response),
@@ -140,6 +140,18 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         return messages
 
-
-
+    def _extract_metadata(self, config):
+        if not config:
+            return {}
+        
+        if hasattr(config, "model_dump"):
+            metadata_dict = config.model_dump()
+        else:
+            metadata_dict = config
+        if "system_instruction" in metadata_dict:
+            del metadata_dict["system_instruction"]
+        return metadata_dict
+            
+                
+        
     
