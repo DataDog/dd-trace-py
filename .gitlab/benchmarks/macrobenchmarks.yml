@@ -381,7 +381,7 @@ check-slo-breaches:
       - platform/artifacts/
     expire_in: 3 months
   script:
-    - bp-runner bp-runner.fail-on-breach.yml
+    - bp-runner .gitlab/benchmarks/bp-runner.fail-on-breach.yml
 
 notify-slo-breaches:
   extends: .notify-slo-breaches
