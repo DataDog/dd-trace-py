@@ -17,9 +17,9 @@ from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
+from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
 
@@ -43,7 +43,7 @@ _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 
 
 def attempt_to_fix_handle_retries(
-    test_id: InternalTestId,
+    test_id: TestId,
     item: pytest.Item,
     test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
