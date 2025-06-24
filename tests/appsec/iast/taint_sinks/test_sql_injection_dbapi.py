@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.appsec._iast import load_iast
