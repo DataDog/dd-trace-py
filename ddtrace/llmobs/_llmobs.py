@@ -1333,8 +1333,7 @@ class LLMObs(Service):
                 raise TypeError("value must be an integer or float for a score metric.")
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
-                log.warning("value must be a boolean for a boolean metric.")
-                return
+                raise TypeError("Value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 log.warning("tags must be a dictionary of string key-value pairs.")
@@ -1479,8 +1478,7 @@ class LLMObs(Service):
                 return
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
-                log.warning("value must be a boolean for a boolean metric.")
-                return
+                raise TypeError("Value must be a boolean for a boolean metric.")
             if tags is not None and not isinstance(tags, dict):
                 error = "invalid_tags"
                 log.warning("tags must be a dictionary of string key-value pairs.")

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLMObs: Added support for boolean metric type in evaluation metrics. This allows
+    submitting boolean values alongside existing categorical and score metrics. 

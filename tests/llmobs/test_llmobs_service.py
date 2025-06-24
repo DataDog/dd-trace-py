@@ -2288,3 +2288,58 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_event
     for event in llmobs_events:
         assert event["trace_id"] == llmobs_events[0]["trace_id"]
         assert event["_dd"]["apm_trace_id"] == llmobs_events[0]["_dd"]["apm_trace_id"]
+
+
+def test_submit_evaluation_for_enqueues_writer_with_boolean_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="is_toxic",
+        metric_type="boolean",
+        value=True,
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123", trace_id="456", label="is_toxic", metric_type="boolean", boolean_value=True, ml_app="dummy"
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.submit_evaluation(
+            span_context=llmobs.export_span(span),
+            label="is_toxic",
+            metric_type="boolean",
+            value=True,
+            ml_app="dummy",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            label="is_toxic",
+            metric_type="boolean",
+            boolean_value=True,
+            ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_for_incorrect_boolean_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="Value must be a boolean for a boolean metric."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="is_toxic", metric_type="boolean", value="true"
+        )
+
+
+def test_submit_evaluation_incorrect_categorical_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="Value must be a string for a categorical metric."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
+        )
+
+
+def test_submit_evaluation_for_incorrect_categorical_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="Value must be a string for a categorical metric."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
+        )
