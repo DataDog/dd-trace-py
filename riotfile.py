@@ -2759,7 +2759,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
-                "google-genai": [">=1.19.0", latest],
+                "google-genai": latest,
             },
         ),
         Venv(
