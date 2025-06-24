@@ -79,9 +79,13 @@ if config._otel_enabled:
     @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
     def _(_):
         from opentelemetry.metrics import set_meter_provider
+        # from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
         from ddtrace.opentelemetry import MeterProvider
 
+        # exporter = OTLPMetricExporter(insecure=True)
+        # reader = PeriodicExportingMetricReader(exporter)
+        # provider = MeterProvider(metric_readers=[reader])
         set_meter_provider(MeterProvider())
 
 
