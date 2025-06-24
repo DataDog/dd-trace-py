@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Iterator
+from unittest.mock import patch as mock_patch
 
 import pytest
 
@@ -27,17 +28,12 @@ def genai():
     patch()
     from google import genai
 
-    # when running locally, these lines ensure that the client is not using any real secrets
-    os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
-    os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
-    os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
-
     yield genai
     unpatch()
 
 
 @pytest.fixture
-def mock_generate_content(monkeypatch):
+def mock_generate_content():
     from google import genai
     from google.genai import types
 
@@ -57,15 +53,14 @@ def mock_generate_content(monkeypatch):
     async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
             yield _response
-
         return _async_iterator()
 
     async def _fake_async_generate_content(self, *, model: str, contents, config=None):
         return _response
 
-    monkeypatch.setattr(genai.models.Models, "_generate_content_stream", _fake_stream)
-    monkeypatch.setattr(genai.models.Models, "_generate_content", _fake_generate_content)
-    monkeypatch.setattr(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream)
-    monkeypatch.setattr(genai.models.AsyncModels, "_generate_content", _fake_async_generate_content)
-
-    yield
+    # Using mock.patch as context managers
+    with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream), \
+         mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content), \
+         mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream), \
+         mock_patch.object(genai.models.AsyncModels, "_generate_content", _fake_async_generate_content):
+        yield

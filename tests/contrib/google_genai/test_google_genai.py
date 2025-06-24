@@ -304,7 +304,7 @@ async def test_google_genai_generate_content_async_stream_vertex_error(mock_gene
         ),
         ("imagen-1.0", "google", "imagen-1.0"),
         ("models/veo-1.0", "google", "veo-1.0"),
-        ("jamba-1.0", "ai21labs", "jamba-1.0"),
+        ("jamba-1.0", "ai21", "jamba-1.0"),
         ("claude-3-opus", "anthropic", "claude-3-opus"),
         ("publishers/meta/models/llama-3.1-405b-instruct-maas", "meta", "llama-3.1-405b-instruct-maas"),
         ("mistral-7b", "mistral", "mistral-7b"),

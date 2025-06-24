@@ -38,8 +38,8 @@ def extract_provider_and_model_name(kwargs):
 
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
-    def __init__(self, generation_response, span):
-        super().__init__(generation_response)
+    def __init__(self, wrapped, span):
+        super().__init__(wrapped)
         self._self_dd_span = span
         self._self_chunks = []
 
