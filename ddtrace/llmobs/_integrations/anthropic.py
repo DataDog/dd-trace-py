@@ -75,8 +75,17 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         metrics = get_llmobs_metrics_tags("anthropic", span)
         usage = _get_attr(response, "usage", {})
-        cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
-        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
+        # in the streamed case, `usage` is a dict, not an object
+        cache_write_tokens = (
+            _get_attr(usage, "cache_creation_input_tokens", None)
+            if not isinstance(usage, dict)
+            else usage.get("cache_creation_input_tokens", None)
+        )
+        cache_read_tokens = (
+            _get_attr(usage, "cache_read_input_tokens", None)
+            if not isinstance(usage, dict)
+            else usage.get("cache_read_input_tokens", None)
+        )
         if cache_write_tokens is not None:
             metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
         if cache_read_tokens is not None:
