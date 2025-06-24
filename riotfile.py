@@ -103,7 +103,7 @@ venv = Venv(
     venvs=[
         Venv(
             name="appsec_integrations_fastapi",
-            command="uname -a && pip freeze && python -m pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            command="python -m pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -125,9 +125,9 @@ venv = Venv(
                 Venv(pys=["3.10"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
                 Venv(pys=["3.10"], pkgs={"fastapi": "==0.94.1"}),
                 Venv(pys=["3.10"], pkgs={"fastapi": "~=0.114.2"}),
+                Venv(pys=["3.13"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
                 Venv(pys=["3.13"], pkgs={"fastapi": "==0.94.1"}),
                 Venv(pys=["3.13"], pkgs={"fastapi": "~=0.114.2"}),
-                Venv(pys=["3.13"], pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"}),
             ],
         ),
         Venv(
