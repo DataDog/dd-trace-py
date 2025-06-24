@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the ability to track the number of tokens read from the prompt cache in the OpenAI API.
