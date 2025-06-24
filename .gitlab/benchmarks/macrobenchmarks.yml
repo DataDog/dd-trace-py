@@ -26,11 +26,10 @@ variables:
   when: on_success
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
-    git clone --branch python/macrobenchmarks https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
-      bp-runner bp-runner.flask-realworld.yml --debug
+      bp-runner .gitlab/benchmarks/bp-runner.flask-realworld.yml --debug
     else
-      bp-runner bp-runner.simple.yml --debug
+      bp-runner .gitlab/benchmarks/bp-runner.simple.yml --debug
     fi
   artifacts:
     name: "artifacts"
