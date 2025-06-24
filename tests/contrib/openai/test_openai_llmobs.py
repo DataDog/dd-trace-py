@@ -740,6 +740,71 @@ class TestLLMObsOpenaiV1:
             )
         )
 
+    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that prompt caching metrics are properly captured"""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching.yaml"):
+            model = "gpt-4o"
+            large_prompt = "You are an expert software engineer specializing in system design and architecture. " * 200
+            base_messages = [{"role": "system", "content": large_prompt}]
+            client = openai.OpenAI()
+
+            resp1 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+
+            span1 = mock_tracer.pop_traces()[0][0]
+            assert mock_llmobs_writer.enqueue.call_count == 1
+
+            mock_llmobs_writer.enqueue.assert_called_with(
+                _expected_llmobs_llm_span_event(
+                    span1,
+                    model_name=resp1.model,
+                    model_provider="openai",
+                    input_messages=base_messages
+                    + [{"role": "user", "content": "What are the best practices for API design?"}],
+                    output_messages=[{"role": "assistant", "content": mock.ANY}],
+                    metadata={"max_tokens": 100, "temperature": 0.1},
+                    token_metrics={
+                        "input_tokens": mock.ANY,
+                        "output_tokens": mock.ANY,
+                        "total_tokens": mock.ANY,
+                        "cache_read_input_tokens": 0,
+                    },
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                )
+            )
+
+            resp2 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+            span2 = mock_tracer.pop_traces()[0][0]
+            assert mock_llmobs_writer.enqueue.call_count == 2
+            mock_llmobs_writer.enqueue.assert_called_with(
+                _expected_llmobs_llm_span_event(
+                    span2,
+                    model_name=resp2.model,
+                    model_provider="openai",
+                    input_messages=base_messages
+                    + [{"role": "user", "content": "How should I structure my database schema?"}],
+                    output_messages=[{"role": "assistant", "content": mock.ANY}],
+                    metadata={"max_tokens": 100, "temperature": 0.1},
+                    token_metrics={
+                        "input_tokens": mock.ANY,
+                        "output_tokens": mock.ANY,
+                        "total_tokens": mock.ANY,
+                        "cache_read_input_tokens": 2560,
+                    },
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                )
+            )
+
+
     def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()

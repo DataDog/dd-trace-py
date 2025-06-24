@@ -169,7 +169,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
-            
+
             prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {})
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
 
