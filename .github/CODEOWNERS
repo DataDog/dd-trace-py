@@ -173,6 +173,7 @@ tests/contrib/botocore/bedrock_utils.py                       @DataDog/ml-observ
 tests/contrib/botocore/bedrock_cassettes                      @DataDog/ml-observability
 tests/contrib/anthropic                                       @DataDog/ml-observability
 tests/contrib/google_generativeai                             @DataDog/ml-observability
+tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
 tests/contrib/langgraph                                       @DataDog/ml-observability
 tests/contrib/crewai                                          @DataDog/ml-observability
