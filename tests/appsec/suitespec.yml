@@ -168,7 +168,7 @@ suites:
       - testagent
     timeout: 30m
   appsec_integrations_fastapi:
-    parallelism: 9
+    parallelism: 1 # JJJ
     paths:
       - '@bootstrap'
       - '@core'
