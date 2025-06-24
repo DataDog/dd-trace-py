@@ -20,8 +20,6 @@ class BaseStreamHandler(ABC):
         
         self.spans = [(span, kwargs)]
         self.chunks = self._initialize_chunk_storage()
-        self.metadata = {}
-        self.is_finished = False
     
     def _initialize_chunk_storage(self):
         return defaultdict(list)
