@@ -7,6 +7,8 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import CACHE_CREATION_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -71,6 +73,15 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
+        metrics = get_llmobs_metrics_tags("anthropic", span)
+        usage = _get_attr(response, "usage", {})
+        cache_creation_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
+        if cache_creation_tokens is not None:
+            metrics[CACHE_CREATION_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+        if cache_read_tokens is not None:
+            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
@@ -79,7 +90,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("anthropic", span) if span_kind != "workflow" else {},
+                METRICS: metrics if span_kind != "workflow" else {},
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
