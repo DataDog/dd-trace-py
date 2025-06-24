@@ -2760,7 +2760,6 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "google-genai": [latest],
-                "vcrpy": latest,
             },
         ),
         Venv(
