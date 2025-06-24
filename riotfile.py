@@ -105,7 +105,7 @@ venv = Venv(
             name="appsec_integrations_fastapi",
             command="python -m pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/",
             env={
-                "DD_TRACE_AGENT_URL": "http://ddagent:9126",
+                "DD_TRACE_AGENT_URL": "http://localhost:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
