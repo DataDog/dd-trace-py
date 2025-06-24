@@ -1,9 +1,11 @@
 from typing import Any
 from typing import Dict
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
@@ -15,6 +17,7 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
@@ -23,6 +26,7 @@ from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -56,6 +60,7 @@ class BedrockIntegration(BaseLLMIntegration):
                                 "top_p": Optional[int]}
             "llmobs.usage": Optional[dict],
             "llmobs.stop_reason": Optional[str],
+            "llmobs.proxy_request": Optional[bool],
         }
         """
         if operation == "agent":
@@ -64,6 +69,8 @@ class BedrockIntegration(BaseLLMIntegration):
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
+
+        span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
 
         request_params = ctx.get_item("llmobs.request_params") or {}
 
@@ -94,11 +101,18 @@ class BedrockIntegration(BaseLLMIntegration):
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
             elif ctx["resource"] == "ConverseStream":
-                (
-                    output_messages,
-                    additional_metadata,
-                    streamed_usage_metrics,
-                ) = self._extract_output_message_for_converse_stream(response)
+                """
+                At this point, we signal to `_converse_output_stream_processor` that we're done with the stream
+                and ready to get the final results. This causes `_converse_output_stream_processor` to break out of the
+                while loop, do some final processing, and return the final results.
+                """
+                try:
+                    response.send(None)
+                except StopIteration as e:
+                    output_messages, additional_metadata, streamed_usage_metrics = e.value
+                finally:
+                    response.close()
+
                 metadata.update(additional_metadata)
                 usage_metrics.update(streamed_usage_metrics)
             else:
@@ -106,15 +120,17 @@ class BedrockIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: ctx.get_item("model_name") or "",
                 MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
                 METADATA: metadata,
-                METRICS: usage_metrics,
+                METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
@@ -205,11 +221,16 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _extract_output_message_for_converse_stream(
-        streamed_body: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]]:
+    def _converse_output_stream_processor() -> (
+        Generator[
+            None,
+            Dict[str, Any],
+            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+        ]
+    ):
         """
-        Extract output messages from streamed converse responses.
+        Listens for output chunks from a converse streamed response and builds a
+        list of output messages, usage metrics, and metadata.
 
         Converse stream response comes in chunks. The chunks we care about are:
         - a message start/stop event, or
@@ -229,7 +250,9 @@ class BedrockIntegration(BaseLLMIntegration):
 
         current_message: Optional[Dict[str, Any]] = None
 
-        for chunk in streamed_body:
+        chunk = yield
+
+        while chunk is not None:
             if "metadata" in chunk and "usage" in chunk["metadata"]:
                 usage = chunk["metadata"]["usage"]
                 for token_type in ("input", "output", "total"):
@@ -275,6 +298,8 @@ class BedrockIntegration(BaseLLMIntegration):
                     get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
                 )
                 current_message = None
+
+            chunk = yield
 
         # Handle the case where we didn't receive an explicit message stop event
         if current_message is not None and current_message.get("content_block_indicies"):
@@ -323,3 +348,14 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
+
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        endpoint = getattr(instance, "_endpoint", None)
+        endpoint_host = getattr(endpoint, "host", None) if endpoint else None
+        return str(endpoint_host) if endpoint_host else None
+
+    def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
+        base_url = self._get_base_url(instance=ctx.get_item("instance"))
+        if self._is_instrumented_proxy_url(base_url):
+            ctx.set_item(PROXY_REQUEST, True)
