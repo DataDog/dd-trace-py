@@ -8,15 +8,14 @@ from ddtrace import config
 from ddtrace._logger import LogInjectionState
 from ddtrace._logger import set_log_formatting
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.utils import get_argument_value
-
-from .constants import RECORD_ATTR_ENV
-from .constants import RECORD_ATTR_SERVICE
-from .constants import RECORD_ATTR_SPAN_ID
-from .constants import RECORD_ATTR_TRACE_ID
-from .constants import RECORD_ATTR_VALUE_EMPTY
-from .constants import RECORD_ATTR_VALUE_ZERO
-from .constants import RECORD_ATTR_VERSION
 
 
 config._add(
@@ -58,12 +57,7 @@ def _w_makeRecord(func, instance, args, kwargs):
     if config._logs_injection != LogInjectionState.ENABLED:
         # log injection is opt-in for non-structured logging
         return record
-
-    for k, v in ddtrace.tracer.get_log_correlation_context().items():
-        log_key = f"dd.{k}"
-        if log_key not in record.__dict__:
-            # Do not overwrite existing attributes
-            record.__dict__[log_key] = v
+    record.__dict__.update(ddtrace.tracer.get_log_correlation_context())
     return record
 
 
@@ -80,11 +74,11 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
     # We can use "dd.service={dd_service}" instead and still produce the same log message.
     # This is a breaking change, so we will not do it in this PR.
     record.dd = DDLogRecord(
-        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
-        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-        service=getattr(record, RECORD_ATTR_SERVICE, RECORD_ATTR_VALUE_EMPTY),
-        version=getattr(record, RECORD_ATTR_VERSION, RECORD_ATTR_VALUE_EMPTY),
-        env=getattr(record, RECORD_ATTR_ENV, RECORD_ATTR_VALUE_EMPTY),
+        trace_id=getattr(record, LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO),
+        span_id=getattr(record, LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO),
+        service=getattr(record, LOG_ATTR_SERVICE, LOG_ATTR_VALUE_EMPTY),
+        version=getattr(record, LOG_ATTR_VERSION, LOG_ATTR_VALUE_EMPTY),
+        env=getattr(record, LOG_ATTR_ENV, LOG_ATTR_VALUE_EMPTY),
     )
 
     try:

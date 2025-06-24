@@ -7,10 +7,10 @@ import wrapt
 import ddtrace
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_SPAN_ID
-from ddtrace.contrib.internal.logging.constants import RECORD_ATTR_TRACE_ID
 from ddtrace.contrib.internal.logging.patch import patch
 from ddtrace.contrib.internal.logging.patch import unpatch
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from tests.utils import TracerTestCase
 
@@ -42,10 +42,10 @@ def current_span(tracer=None):
 
 class AssertFilter(logging.Filter):
     def filter(self, record):
-        trace_id = getattr(record, RECORD_ATTR_TRACE_ID)
+        trace_id = getattr(record, LOG_ATTR_TRACE_ID)
         assert isinstance(trace_id, str)
 
-        span_id = getattr(record, RECORD_ATTR_SPAN_ID)
+        span_id = getattr(record, LOG_ATTR_SPAN_ID)
         assert isinstance(span_id, str)
 
         return True
@@ -298,5 +298,5 @@ class LoggingTestCase(TracerTestCase):
                 assert log == expected
 
                 assert not hasattr(record, "dd")
-                assert getattr(record, RECORD_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
-                assert getattr(record, RECORD_ATTR_SPAN_ID) == str(span.span_id)
+                assert getattr(record, LOG_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
+                assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
