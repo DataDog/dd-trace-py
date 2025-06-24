@@ -112,6 +112,7 @@ venv = Venv(
                 "uvicorn": "==0.33.0",
             },
             env={
+                "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
