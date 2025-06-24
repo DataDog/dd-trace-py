@@ -45,6 +45,7 @@ def test_fstring_with_bytes():
     assert result == "b'text'"
 
 
+@pytest.mark.skip_iast_check_logs
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_fstring_tainted(text):

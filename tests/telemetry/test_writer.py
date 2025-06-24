@@ -12,11 +12,14 @@ import pytest
 from ddtrace import config
 import ddtrace.internal.telemetry
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._config import DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT
+from ddtrace.settings._telemetry import config as telemetry_config
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.utils import call_program
 from tests.utils import override_global_config
@@ -398,6 +401,7 @@ import ddtrace.settings.exception_replay
             "[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}",
         },
         {"name": "DD_IAST_REQUEST_SAMPLING", "origin": "default", "value": 30.0},
+        {"name": "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", "origin": "default", "value": ""},
         {"name": "DD_IAST_STACK_TRACE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_IAST_TELEMETRY_VERBOSITY", "origin": "default", "value": "INFORMATION"},
         {"name": "DD_IAST_VULNERABILITIES_PER_REQUEST", "origin": "default", "value": 2},
@@ -409,6 +413,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": "true"},
@@ -951,3 +956,64 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+
+
+def test_add_integration_error_log(mock_time, telemetry_writer, test_agent_session):
+    """Test add_integration_error_log functionality with real stack trace"""
+    try:
+        raise ValueError("Test exception")
+    except ValueError as e:
+        telemetry_writer.add_integration_error_log("Test error message", e)
+        telemetry_writer.periodic(force_flush=True)
+
+        log_events = test_agent_session.get_events("logs")
+        assert len(log_events) == 1
+
+        logs = log_events[0]["payload"]["logs"]
+        assert len(logs) == 1
+
+        log_entry = logs[0]
+        assert log_entry["level"] == TELEMETRY_LOG_LEVEL.ERROR.value
+        assert log_entry["message"] == "Test error message"
+
+        stack_trace = log_entry["stack_trace"]
+        expected_lines = [
+            "Traceback (most recent call last):",
+            "  <REDACTED>",
+            "    <REDACTED>",
+            "builtins.ValueError: Test exception",
+        ]
+        for expected_line in expected_lines:
+            assert expected_line in stack_trace
+
+
+def test_add_integration_error_log_with_log_collection_disabled(mock_time, telemetry_writer, test_agent_session):
+    """Test that add_integration_error_log respects LOG_COLLECTION_ENABLED setting"""
+    original_value = telemetry_config.LOG_COLLECTION_ENABLED
+    try:
+        telemetry_config.LOG_COLLECTION_ENABLED = False
+
+        try:
+            raise ValueError("Test exception")
+        except ValueError as e:
+            telemetry_writer.add_integration_error_log("Test error message", e)
+            telemetry_writer.periodic(force_flush=True)
+
+            log_events = test_agent_session.get_events("logs", subprocess=True)
+            assert len(log_events) == 0
+    finally:
+        telemetry_config.LOG_COLLECTION_ENABLED = original_value
+
+
+@pytest.mark.parametrize(
+    "filename, is_redacted",
+    [
+        ("/path/to/file.py", True),
+        ("/path/to/ddtrace/contrib/flask/file.py", False),
+        ("/path/to/dd-trace-something/file.py", True),
+    ],
+)
+def test_redact_filename(filename, is_redacted):
+    """Test file redaction logic"""
+    writer = TelemetryWriter(is_periodic=False)
+    assert writer._should_redact(filename) == is_redacted

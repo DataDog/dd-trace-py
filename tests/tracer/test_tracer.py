@@ -313,6 +313,48 @@ class TracerTestCases(TracerTestCase):
         assert span.duration is not None
         assert span.duration > 0.03
 
+    def test_tracer_wrap_nested_generators_preserves_stack_order(self):
+        result = {"handled": False}
+
+        def trace_and_call_next(*call_args, **call_kwargs):
+            def _outer_wrapper(func):
+                @self.tracer.wrap("foobar")
+                def _inner_wrapper(*args, **kwargs):
+                    wrapped_generator = func(*args, **kwargs)
+                    try:
+                        yield next(wrapped_generator)
+                    except BaseException as e:
+                        result["handled"] = True
+                        wrapped_generator.throw(e)
+
+                return _inner_wrapper
+
+            return _outer_wrapper(*call_args, **call_kwargs)
+
+        @contextlib.contextmanager
+        @trace_and_call_next
+        def wrapper():
+            try:
+                yield
+            except NotImplementedError:
+                raise ValueError()
+
+        exception_note = (
+            "The expected exception should bubble up from a traced generator-based context manager "
+            "that yields another generator"
+        )
+        try:
+            with wrapper():
+                raise NotImplementedError()
+        except Exception as e:
+            assert isinstance(e, ValueError), exception_note
+        else:
+            assert False, exception_note
+        assert result["handled"], (
+            "Exceptions raised by traced generator-based context managers that yield generators should be "
+            "visible to the caller"
+        )
+
     def test_tracer_disabled(self):
         self.tracer.enabled = True
         with self.trace("foo") as s:
