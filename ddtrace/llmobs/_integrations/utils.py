@@ -274,7 +274,7 @@ def get_messages_from_converse_content(role: str, content: list):
     messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
     content_blocks = []
     tool_calls_info = []
-    unsupported_content_messages = []
+    unsupported_content_messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
