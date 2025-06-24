@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings._config import Config
@@ -16,6 +17,7 @@ from tests.utils import override_global_config
 class TestTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestTracedCursor, self).setUp()
+        load_iast()
         with override_global_config(
             dict(
                 _iast_enabled=True,
