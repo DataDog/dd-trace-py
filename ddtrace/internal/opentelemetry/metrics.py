@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from opentelemetry import version
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.metrics import Meter as OtelMeter
 from opentelemetry.metrics import MeterProvider as OtelMeterProvider
 
@@ -66,7 +66,7 @@ class MeterProvider(OtelMeterProvider):
     """
 
     def __init__(self) -> None:
-        self._exporter = OTLPMetricExporter(insecure=True)
+        self._exporter = OTLPMetricExporter()
         super().__init__()
 
     if OTEL_VERSION >= (1, 26):
