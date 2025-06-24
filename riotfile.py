@@ -644,6 +644,10 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "requests": latest,
             },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+            },
         ),
         Venv(
             name="httplib",
