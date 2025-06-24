@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    litellm: This fix resolves an out of bounds error when handling streamed responses.
+    This error occurred when the number of choices in a streamed response was not set as a keyword argument.

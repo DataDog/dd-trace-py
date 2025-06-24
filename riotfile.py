@@ -1377,7 +1377,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
+                    pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
                 ),
             ],
         ),
@@ -2423,7 +2423,7 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": "==4.2.1",
+                "vcrpy": latest,
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
@@ -2440,7 +2440,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": latest,
+                        "openai": [latest, "~=1.76.2"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
