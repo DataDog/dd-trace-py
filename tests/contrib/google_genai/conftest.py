@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
@@ -26,6 +27,11 @@ def mock_tracer(genai):
 def genai():
     patch()
     from google import genai
+
+    # tests require that these environment variables are set (especially for remote CI testing)
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
+    os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
+    os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
     yield genai
     unpatch()
