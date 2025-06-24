@@ -13,7 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.llmobs._constants import CACHE_CREATION_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
@@ -167,7 +167,7 @@ def _set_llmobs_usage(
     if cache_read_tokens is not None:
         llmobs_usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
     if cache_write_tokens is not None:
-        llmobs_usage[CACHE_CREATION_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+        llmobs_usage[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -424,8 +424,12 @@ def handle_bedrock_response(
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
                 total_tokens = usage.get("totalTokens", total_tokens)
-                cache_read_tokens = usage.get("cacheReadInputTokensCount", None)
-                cache_write_tokens = usage.get("cacheWriteInputTokensCount", None)
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
 
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
