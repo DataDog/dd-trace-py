@@ -1,7 +1,4 @@
 from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import Text
 from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
@@ -22,9 +19,7 @@ class SqlInjection(VulnerabilityBase):
     secure_mark = VulnerabilityType.SQL_INJECTION
 
 
-def check_and_report_sqli(
-    args: Tuple[Text, ...], kwargs: Dict[str, Any], integration_name: Text, method: Callable[..., Any]
-) -> bool:
+def _on_report_sqli(args_from_core: Tuple[Any, ...]) -> bool:
     """Check for SQL injection vulnerabilities in database operations and report them.
 
     This function analyzes database operation arguments for potential SQL injection
@@ -38,6 +33,8 @@ def check_and_report_sqli(
     """
     reported = False
     try:
+        args, kwargs, integration_name, method = args_from_core
+
         if supported_dbapi_integration(integration_name) and method.__name__ == "execute":
             if len(args) and args[0] and isinstance(args[0], IAST.TEXT_TYPES) and asm_config.is_iast_request_enabled:
                 if SqlInjection.has_quota() and SqlInjection.is_tainted_pyobject(args[0]):
