@@ -3,6 +3,8 @@ import sys
 from typing import Dict
 
 import vertexai
+
+# Force the generative_models module to load
 from vertexai.generative_models import GenerativeModel  # noqa:F401
 
 from ddtrace import config
