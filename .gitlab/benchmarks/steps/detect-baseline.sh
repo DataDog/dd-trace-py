@@ -14,12 +14,14 @@ set -ex -o pipefail
 
 
 # The branch or tag name of the CI run
-UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
+# UPSTREAM_BRANCH=${UPSTREAM_BRANCH:-$CI_COMMIT_REF_NAME}
+UPSTREAM_BRANCH="main"
 
 # If this is a build on the `main` branch then test against the latest released version
 if [ "${UPSTREAM_BRANCH}" == "main" ]; then
-  echo "BASELINE_BRANCH=main" | tee baseline.env
-  BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
+  echo "BASELINE_BRANCH=2.21" | tee baseline.env
+  # BASELINE_TAG=$(git describe --tags --abbrev=0 --exclude "*rc*" "origin/main" || echo "")
+  BASELINE_TAG="v2.21.9"
 
 # If this is a release tag (e.g. `v2.21.3`) then test against the latest version from that point (e.g. v2.21.2, or v2.20.x)
 elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
