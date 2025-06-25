@@ -33,9 +33,9 @@ variables:
   image: $MACROBENCHMARKS_CI_IMAGE
   script: |
     if [ "$BP_PYTHON_SCENARIO_DIR" == "flask-realworld" ]; then
-      bp-runner .gitlab/benchmarks/bp-runner.flask-realworld.yml --debug
+      bp-runner bp-runner.flask-realworld.yml --debug
     else
-      bp-runner .gitlab/benchmarks/bp-runner.simple.yml --debug
+      bp-runner bp-runner.simple.yml --debug
     fi
   artifacts:
     name: "artifacts"
