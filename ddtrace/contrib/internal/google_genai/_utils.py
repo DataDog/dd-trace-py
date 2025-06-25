@@ -7,7 +7,7 @@ import wrapt
 # GeminiAPI: only exports google provided models
 # VertexAI: can map provided models to provider based on prefix, a best effort mapping
 # as huggingface exports hundreds of custom provided models
-MODEL_PREFIX_TO_PROVIDER = {
+KNOWN_MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
     "veo": "google",
