@@ -247,13 +247,13 @@ class Gauge(OtelApiGauge):
         )
 
 class ObservableCounter(OtelApiObservableCounter):
-    def __init__(self, exporter, name, unit = "", description = ""):
-        super().__init__(name, unit=unit, description=description)
+    def __init__(self, exporter, name, callbacks = None, unit = "", description = ""):
+        super().__init__(name, callbacks, unit=unit, description=description)
         self._exporter = exporter
 
 class ObservableUpDownCounter(OtelApiObservableUpDownCounter):
-    def __init__(self, exporter, name, unit = "", description = ""):
-        super().__init__(name, unit=unit, description=description)
+    def __init__(self, exporter, name, callbacks = None, unit = "", description = ""):
+        super().__init__(name, callbacks, unit=unit, description=description)
         self._exporter = exporter
 
 class ObservableGauge(OtelApiObservableGauge):
