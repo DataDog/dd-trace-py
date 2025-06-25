@@ -34,6 +34,7 @@ PREGEL_TASKS = "__pregel_tasks"
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, Dict[str, Any]] = WeakKeyDictionary()
+    _react_agents: WeakKeyDictionary[Any, Dict[str, Any]] = WeakKeyDictionary()
 
     def _llmobs_set_tags(
         self,
@@ -92,6 +93,25 @@ class LangGraphIntegration(BaseLLMIntegration):
         )
         invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
         return invoked_node
+    
+    def llmobs_handle_agent_manifest(self, agent, args: tuple, kwargs: dict):
+        if not self.llmobs_enabled:
+            return
+        
+        model = get_argument_value(args, kwargs, 0, "model")
+        model_name, model_provider = _get_model_info(model)
+
+        tools = get_argument_value(args, kwargs, 1, "tools")
+        system_prompt = kwargs.get("prompt")
+        name = kwargs.get("name")
+        
+        self._react_agents[agent] = {
+            "model_name": model_name,
+            "model_provider": model_provider,
+            "tools": tools,
+            "system_prompt": system_prompt,
+            "name": name,
+        }
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
@@ -225,6 +245,21 @@ class LangGraphIntegration(BaseLLMIntegration):
                 }
             )
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
+
+
+def _get_model_info(model) -> Tuple[str, str]:
+    """Get the model name and provider from a langchain llm"""
+    model_name = getattr(model, "model_name", None)
+    model_provider = _get_model_provider(model)
+    return model_name, model_provider
+
+def _get_model_provider(model):
+        model_provider_info_fn = getattr(model, "_get_ls_params", None)
+        if model_provider_info_fn is None or not callable(model_provider_info_fn):
+            return None
+        
+        model_provider_info = model_provider_info_fn()
+        return model_provider_info.get("ls_provider", None)
 
 
 def _get_parent_ids_from_finished_tasks(
