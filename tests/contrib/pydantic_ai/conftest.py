@@ -4,20 +4,15 @@ import os
 
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
-from tests.utils import override_global_config
-
-def default_global_config():
-    return {}
 
 @pytest.fixture(autouse=True)
 def pydantic_ai(monkeypatch):
-    with override_global_config(default_global_config()):
-        monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
-        patch()
-        import pydantic_ai
+    monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+    patch()
+    import pydantic_ai
 
-        yield pydantic_ai
-        unpatch()
+    yield pydantic_ai
+    unpatch()
 
 @pytest.fixture
 def request_vcr(ignore_localhost=True):
