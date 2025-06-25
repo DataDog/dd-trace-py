@@ -133,11 +133,11 @@ class Flare:
         if case_id in ("0", 0):
             log.warning("Case ID cannot be 0, skipping flare send")
             return False
-        
+
         if not case_id.isdigit():
             log.warning("Case ID string must contain a digit, skipping flare send")
             return False
-        
+
         return True
 
     def _setup_flare_logging(self, flare_log_level_int: int) -> int:
