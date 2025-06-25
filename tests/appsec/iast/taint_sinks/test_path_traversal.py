@@ -19,6 +19,25 @@ from tests.appsec.iast.taint_sinks._taint_sinks_utils import ROOT_DIR
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/path_traversal.py"
 
 
+@pytest.fixture
+def ensure_test_file():
+    """Fixture to ensure the test file exists for path traversal tests."""
+    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
+    file_existed = os.path.exists(file_path)
+
+    # Create the file if it doesn't exist
+    if not file_existed:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w") as f:
+            f.write("test content for path traversal")
+
+    yield file_path
+
+    # Clean up: remove the file if we created it
+    if not file_existed and os.path.exists(file_path):
+        os.remove(file_path)
+
+
 def _get_path_traversal_module_functions():
     for module, functions in DEFAULT_PATH_TRAVERSAL_FUNCTIONS.items():
         for function in functions:
@@ -111,10 +130,10 @@ def test_path_traversal_open_secure(file_path, iast_context_defaults):
     "module, function",
     _get_path_traversal_module_functions(),
 )
-def test_path_traversal(module, function, iast_context_defaults):
+def test_path_traversal(module, function, iast_context_defaults, ensure_test_file):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
 
-    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
+    file_path = ensure_test_file
 
     tainted_string = taint_pyobject(
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
@@ -140,9 +159,9 @@ def test_path_traversal(module, function, iast_context_defaults):
 
 
 @pytest.mark.parametrize("num_vuln_expected", [1, 0, 0])
-def test_path_traversal_deduplication(num_vuln_expected, iast_context_deduplication_enabled):
+def test_path_traversal_deduplication(num_vuln_expected, iast_context_deduplication_enabled, ensure_test_file):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")
-    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
+    file_path = ensure_test_file
 
     tainted_string = taint_pyobject(
         file_path, source_name="path", source_value=file_path, source_origin=OriginType.PATH
