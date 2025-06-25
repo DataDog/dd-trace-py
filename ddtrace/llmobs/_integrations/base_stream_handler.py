@@ -86,18 +86,18 @@ class AsyncStreamHandler(BaseStreamHandler):
 
 
 class _ClassTracedStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped_stream, handler: StreamHandler, on_stream_created=None):
+    def __init__(self, wrapped, handler: StreamHandler, on_stream_created=None):
         """
         Wrap a stream object to trace the stream.
         
         Args:
-            wrapped_stream: The stream object to wrap
+            wrapped: The stream object to wrap
             handler: The StreamHandler instance to use for processing chunks
             on_stream_created: In the case that the stream is created by a stream manager, this 
                 callback function will be called when the underlying stream is created in case
                 modifications to the stream object are needed
         """
-        super().__init__(wrapped_stream)
+        super().__init__(wrapped)
         self._handler = handler
         self._on_stream_created = on_stream_created
         self._exception = None
@@ -140,18 +140,18 @@ class _ClassTracedStream(wrapt.ObjectProxy):
 
 
 class _ClassTracedAsyncStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped_stream, handler: AsyncStreamHandler, on_stream_created=None):
+    def __init__(self, wrapped, handler: AsyncStreamHandler, on_stream_created=None):
         """
         Wrap an async stream object to trace the stream.
         
         Args:
-            wrapped_stream: The stream object to wrap
+            wrapped: The stream object to wrap
             handler: The AsyncStreamHandler instance to use for processing chunks
             on_stream_created: In the case that the stream is created by a stream manager, this 
                 callback function will be called when the underlying stream is created in case
                 modifications to the stream object are needed
         """
-        super().__init__(wrapped_stream)
+        super().__init__(wrapped)
         self._handler = handler
         self._on_stream_created = on_stream_created
         self._exception = None
@@ -194,22 +194,22 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
     
 
 class _GeneratorTracedStream:
-    def __init__(self, wrapped_stream, handler: StreamHandler):
+    def __init__(self, wrapped, handler: StreamHandler):
         """
         Wrap a generator to trace the stream.
         
         Args:
-            wrapped_stream: The stream object to wrap
+            wrapped: The stream object to wrap
             handler: The StreamHandler instance to use for processing chunks
         """
-        self._wrapped_stream = wrapped_stream
+        self._wrapped = wrapped
         self._handler = handler
         self._exception = None
     
     def __iter__(self):
         try:
-            for chunk in self._wrapped_stream:
-                self._handler.process_chunk(chunk, self._wrapped_stream)
+            for chunk in self._wrapped:
+                self._handler.process_chunk(chunk, self._wrapped)
                 yield chunk
         except Exception as e:
             self._exception = e
@@ -224,22 +224,22 @@ class _GeneratorTracedStream:
 
 
 class _AsyncGeneratorTracedStream:
-    def __init__(self, wrapped_stream, handler: AsyncStreamHandler):
+    def __init__(self, wrapped, handler: AsyncStreamHandler):
         """
         Wrap an async generator to trace the stream.
         
         Args:
-            wrapped_stream: The stream object to wrap
+            wrapped: The stream object to wrap
             handler: The StreamHandler instance to use for processing chunks
         """
-        self._wrapped_stream = wrapped_stream
+        self._wrapped = wrapped
         self._handler = handler
         self._exception = None
     
     async def __aiter__(self):
         try:
-            async for chunk in self._wrapped_stream:
-                await self._handler.process_chunk(chunk, self._wrapped_stream)
+            async for chunk in self._wrapped:
+                await self._handler.process_chunk(chunk, self._wrapped)
                 yield chunk
         except Exception as e:
             self._exception = e
@@ -253,13 +253,13 @@ class _AsyncGeneratorTracedStream:
         return self._handler
 
 
-def make_traced_stream(wrapped_stream, handler: StreamHandler, on_stream_created=None):
-    if isinstance(wrapped_stream, GeneratorType):
-        return _GeneratorTracedStream(wrapped_stream, handler)
-    return _ClassTracedStream(wrapped_stream, handler, on_stream_created)
+def make_traced_stream(wrapped, handler: StreamHandler, on_stream_created=None):
+    if isinstance(wrapped, GeneratorType):
+        return _GeneratorTracedStream(wrapped, handler)
+    return _ClassTracedStream(wrapped, handler, on_stream_created)
 
 
-def make_traced_async_stream(wrapped_stream, handler: AsyncStreamHandler, on_stream_created=None):
-    if isinstance(wrapped_stream, AsyncGeneratorType):
-        return _AsyncGeneratorTracedStream(wrapped_stream, handler)
-    return _ClassTracedAsyncStream(wrapped_stream, handler, on_stream_created) 
+def make_traced_async_stream(wrapped, handler: AsyncStreamHandler, on_stream_created=None):
+    if isinstance(wrapped, AsyncGeneratorType):
+        return _AsyncGeneratorTracedStream(wrapped, handler)
+    return _ClassTracedAsyncStream(wrapped, handler, on_stream_created) 
