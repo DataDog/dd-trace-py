@@ -553,52 +553,26 @@ def _run_websocket_test():
     try:
         application = app.get_app()
         with TestClient(application) as client:
-            # print("Connecting to websocket...")
             with client.websocket_connect("/ws") as websocket:
-                # print("Websocket connected")
-
-                # Receive initial message
-                # print("Receiving initial message...")
                 initial_data = websocket.receive_json()
-                # print(f"Received initial data: {initial_data}")
                 assert initial_data == {"test": "Hello WebSocket"}
 
-                # Send a message
-                # print("Sending message...")
                 websocket.send_text("message")
-                # print("Waiting for response...")
-
-                # Add timeout to see if we can get more information
                 try:
                     response = websocket.receive_text()
-                    # print(f"Received response: {response}")
                     assert response == "pong message"
                 except Exception:
-                    # print(f"Error receiving response: {e}")
                     raise
 
-                # Properly close the websocket connection
-                # print("Sending goodbye...")
                 websocket.send_text("goodbye")
                 farewell = websocket.receive_text()
-                # print(f"Received farewell: {farewell}")
                 assert farewell == "bye"
-                # print("Websocket test completed")
     finally:
         fastapi_unpatch()
 
 
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
-    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
-
-    _run_websocket_test()
-
-
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
-@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
-def test_websocket_tracing_enabled(test_spans, snapshot_app):
-    """Test websocket tracing when explicitly enabled."""
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
 
     _run_websocket_test()
@@ -630,7 +604,7 @@ def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
     _run_websocket_test()
 
 
-# @pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_long_running_websocket_session(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
 
@@ -696,17 +670,17 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-# @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
-# @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(test_spans, snapshot_app):
-    """Test that websocket message spans inherit trace state from the handshake span."""
+    """Test trace context propagation."""
     from tests.contrib.fastapi.test_fastapi import _run_websocket_context_propagation_test
 
     _run_websocket_context_propagation_test()
     assert test_spans
     spans = test_spans.pop_traces()
 
-    # Find the handshake span (server handshake)
+    # Find the handshake span
     handshake_span = None
     for trace in spans:
         for span in trace:
