@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ddtrace import config
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -13,6 +15,9 @@ def get_version() -> str:
     import pydantic_ai
 
     return getattr(pydantic_ai, "__version__", "0.0.0")
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pydantic_ai": "*"}
 
 
 @with_traced_module
