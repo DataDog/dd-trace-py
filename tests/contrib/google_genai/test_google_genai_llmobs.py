@@ -33,8 +33,84 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    # def test_generate_content_stream():
-        # pass
+    def test_generate_content_stream(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream):
+        client = genai.Client()
+        response = client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        for _ in response:
+            pass
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+    
+    def test_generate_content_stream_error(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream):
+        client = genai.Client()
+        with pytest.raises(TypeError):
+            client.models.generate_content_stream(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+
+    async def test_generate_content_async(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content):
+        client = genai.Client()
+        await client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+
+    async def test_generate_content_async_error(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content):
+        client = genai.Client()
+        with pytest.raises(TypeError):
+            await client.aio.models.generate_content(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+
+    async def test_generate_content_stream_async(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream):
+        client = genai.Client()
+        response = await client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents="Why is the sky blue? Explain in 2-3 sentences.",
+            config=FULL_GENERATE_CONTENT_CONFIG,
+        )
+        async for _ in response:
+            pass
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+
+    async def test_generate_content_stream_async_error(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream):
+        client = genai.Client()
+        with pytest.raises(TypeError):
+            await client.aio.models.generate_content_stream(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+
+        
+
 
 
 
