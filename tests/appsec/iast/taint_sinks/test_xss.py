@@ -8,7 +8,7 @@ from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST
 
 
 @pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
-def test_xss_non_text_types_no_vulnerability(self, non_text_obj, obj_type, iast_context_defaults):
+def test_xss_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_context_defaults):
     """Test that non-text types don't trigger XSS vulnerabilities."""
     # Taint the non-text object
     tainted_obj = taint_pyobject(

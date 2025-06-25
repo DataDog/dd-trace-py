@@ -297,7 +297,7 @@ def test_ssrf_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_conte
         from ddtrace.appsec._iast.taint_sinks.ssrf import _FUNC_TO_URL_ARGUMENT
 
         original_mapping = _FUNC_TO_URL_ARGUMENT.copy()
-        _FUNC_TO_URL_ARGUMENT["tests.appsec.iast.taint_sinks.test_text_type_validation.mock_request_func"] = (0, "url")
+        _FUNC_TO_URL_ARGUMENT["tests.appsec.iast.taint_sinks.test_ssrf.mock_request_func"] = (0, "url")
 
         try:
             # Call the SSRF reporting function
