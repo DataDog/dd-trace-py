@@ -275,7 +275,7 @@ integrations:
   tested_versions_by_dependency:
     dramatiq:
       min: 1.10.0
-      max: 1.17.0
+      max: 1.18.0
 
 - integration_name: elasticsearch
   is_external_package: true

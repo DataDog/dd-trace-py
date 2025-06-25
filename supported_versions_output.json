@@ -199,7 +199,7 @@
         "dependency": "dramatiq",
         "integration": "dramatiq",
         "minimum_tracer_supported": "1.10.0",
-        "max_tracer_supported": "1.17.0",
+        "max_tracer_supported": "1.18.0",
         "auto-instrumented": true
     },
     {
