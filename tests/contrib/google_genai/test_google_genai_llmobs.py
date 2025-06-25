@@ -19,7 +19,6 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-
     def test_generate_content_error(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content):
         client = genai.Client()
         with pytest.raises(TypeError):
@@ -45,7 +44,7 @@ class TestLLMObsGoogleGenAI:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
-    
+
     def test_generate_content_stream_error(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream):
         client = genai.Client()
         with pytest.raises(TypeError):
@@ -70,7 +69,9 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    async def test_generate_content_async_error(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content):
+    async def test_generate_content_async_error(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content
+    ):
         client = genai.Client()
         with pytest.raises(TypeError):
             await client.aio.models.generate_content(
@@ -83,7 +84,9 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    async def test_generate_content_stream_async(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream):
+    async def test_generate_content_stream_async(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream
+    ):
         client = genai.Client()
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -96,7 +99,9 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    async def test_generate_content_stream_async_error(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream):
+    async def test_generate_content_stream_async_error(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream
+    ):
         client = genai.Client()
         with pytest.raises(TypeError):
             await client.aio.models.generate_content_stream(
@@ -109,10 +114,6 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-        
-
-
-
 
 def expected_llmobs_span_event(span):
     return _expected_llmobs_llm_span_event(
@@ -121,13 +122,14 @@ def expected_llmobs_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "You are a helpful assistant.", "role": "system"},
-            {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"}
+            {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
         ],
         output_messages=[{"content": "The sky is blue due to rayleigh scattering", "role": "model"}],
         metadata=FULL_GENERATE_CONTENT_CONFIG.model_dump(),
         token_metrics={"input_tokens": 8, "output_tokens": 9, "total_tokens": 17},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
     )
+
 
 def expected_llmobs_error_span_event(span):
     return _expected_llmobs_llm_span_event(
@@ -136,7 +138,7 @@ def expected_llmobs_error_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "You are a helpful assistant.", "role": "system"},
-            {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"}
+            {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
         ],
         output_messages=[{"content": ""}],
         error="builtins.TypeError",

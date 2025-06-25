@@ -1,7 +1,6 @@
 from google.genai import types
 
 
-
 FULL_GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(
     temperature=0,
     top_p=0.95,
@@ -24,51 +23,29 @@ MOCK_GENERATE_CONTENT_RESPONSE = types.GenerateContentResponse(
         )
     ],
     usage_metadata=types.GenerateContentResponseUsageMetadata(
-        prompt_token_count=8,
-        candidates_token_count=9,
-        total_token_count=17
-    )
+        prompt_token_count=8, candidates_token_count=9, total_token_count=17
+    ),
 )
 
 MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
     types.GenerateContentResponse(
+        candidates=[types.Candidate(content=types.Content(role="model", parts=[types.Part.from_text(text="The sky")]))],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
         candidates=[
-            types.Candidate(
-                content=types.Content(
-                    role="model", parts=[types.Part.from_text(text="The sky")]
-                )
-            )
+            types.Candidate(content=types.Content(role="model", parts=[types.Part.from_text(text=" is blue")]))
         ],
-        usage_metadata=types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=8,
-            total_token_count=8
-        )
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
     ),
     types.GenerateContentResponse(
         candidates=[
             types.Candidate(
-                content=types.Content(
-                    role="model", parts=[types.Part.from_text(text=" is blue")]
-                )
+                content=types.Content(role="model", parts=[types.Part.from_text(text=" due to rayleigh scattering")])
             )
         ],
         usage_metadata=types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=8,
-            total_token_count=8
-        )
+            prompt_token_count=8, candidates_token_count=9, total_token_count=17
+        ),
     ),
-    types.GenerateContentResponse(
-        candidates=[
-            types.Candidate(
-                content=types.Content(
-                    role="model", parts=[types.Part.from_text(text=" due to rayleigh scattering")]
-                )
-            )
-        ],
-        usage_metadata=types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=8,
-            candidates_token_count=9,
-            total_token_count=17
-        )
-    )
 ]

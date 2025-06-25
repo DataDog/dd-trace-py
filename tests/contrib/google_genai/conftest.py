@@ -2,10 +2,9 @@ import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
-from tests.utils import override_global_config
 
-import pytest
 import mock
+import pytest
 
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
@@ -13,10 +12,13 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
+
 
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
 
 @pytest.fixture
 def mock_tracer(ddtrace_global_config, genai):
@@ -31,6 +33,7 @@ def mock_tracer(ddtrace_global_config, genai):
         yield mock_tracer
     except Exception:
         yield
+
 
 @pytest.fixture
 def mock_llmobs_writer():
@@ -58,9 +61,11 @@ def genai(ddtrace_global_config):
         yield genai
         unpatch()
 
+
 @pytest.fixture
 def mock_generate_content():
     from google import genai
+
     from .utils import MOCK_GENERATE_CONTENT_RESPONSE
 
     def _fake_generate_content(self, *, model: str, contents, config=None):
@@ -69,9 +74,11 @@ def mock_generate_content():
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content):
         yield
 
+
 @pytest.fixture
 def mock_async_generate_content():
     from google import genai
+
     from .utils import MOCK_GENERATE_CONTENT_RESPONSE
 
     async def _fake_async_generate_content(self, *, model: str, contents, config=None):
@@ -84,6 +91,7 @@ def mock_async_generate_content():
 @pytest.fixture
 def mock_generate_content_stream():
     from google import genai
+
     from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 
     def _fake_stream(self, *, model: str, contents, config=None) -> Iterator[Any]:
@@ -93,9 +101,11 @@ def mock_generate_content_stream():
     with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream):
         yield
 
+
 @pytest.fixture
 def mock_async_generate_content_stream():
     from google import genai
+
     from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 
     async def _fake_async_stream(self, *, model: str, contents, config=None):
@@ -107,5 +117,3 @@ def mock_async_generate_content_stream():
 
     with mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream):
         yield
-
-

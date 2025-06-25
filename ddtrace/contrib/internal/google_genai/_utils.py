@@ -1,25 +1,28 @@
 import sys
+
 import wrapt
-from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _get_attr
 
 
 def normalize_contents(contents):
     """
     Contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
-    - ContentListUnion = Union[list[ContentUnion], ContentUnion]  
+    - ContentListUnion = Union[list[ContentUnion], ContentUnion]
     - ContentListUnionDict = Union[list[ContentUnionDict], ContentUnionDict]
-    
+
     This function normalizes all these variants into a list of dicts
     """
+
     def extract_content(content):
         role = _get_attr(content, "role", None)
         parts = _get_attr(content, "parts", None)
 
-        #if parts is missing and content itself is a PartUnion or list[PartUnion]
+        # if parts is missing and content itself is a PartUnion or list[PartUnion]
         if parts is None:
             if isinstance(content, list):
                 parts = content
@@ -35,26 +38,31 @@ def normalize_contents(contents):
         return [extract_content(c) for c in contents]
     return [extract_content(contents)]
 
+
 # since we are not setting metrics in APM span, can't reuse get_llmobs_metrics_tags
 def extract_metrics_google_genai(response):
     if not response:
         return {}
-    
+
     usage = {}
     # streamed responses will be a list of GenerateContentResponse chunks
     if isinstance(response, list):
-        #NOTE: currently for streamed responses, we get prompt from first chunk and output from last chunk
+        # NOTE: currently for streamed responses, we get prompt from first chunk and output from last chunk
         #      this is because prompt count from last chunk is often less than the prompt count from first chunk
         #      which may be due to caching, may need to account for this cost computing in the future
-        
+
         # get prompt token count from first chunk
         usage_metadata_first = _get_attr(response[0], "usage_metadata", {})
         input_tokens = _get_attr(usage_metadata_first, "prompt_token_count", None)
         # get candidates token count from last chunk
         usage_metadata_last = _get_attr(response[-1], "usage_metadata", {})
         output_tokens = _get_attr(usage_metadata_last, "candidates_token_count", None)
-        total_tokens = input_tokens + output_tokens if input_tokens and output_tokens else _get_attr(usage_metadata_last, "total_token_count", None)
-    else: # non-streamed case
+        total_tokens = (
+            input_tokens + output_tokens
+            if input_tokens and output_tokens
+            else _get_attr(usage_metadata_last, "total_token_count", None)
+        )
+    else:  # non-streamed case
         usage_metadata = _get_attr(response, "usage_metadata", {})
         input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
         output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
@@ -67,6 +75,7 @@ def extract_metrics_google_genai(response):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
