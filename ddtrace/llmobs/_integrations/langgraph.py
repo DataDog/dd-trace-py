@@ -262,16 +262,25 @@ def _get_parent_ids_from_finished_tasks(
             # since Send's are a one-off to be consumed, remove it from the
             # branches to finished_tasks dict entry
             pregel_pushes = cast(List[Tuple[str, str]], task_trigger_channels_to_finished_tasks.get(PREGEL_TASKS, []))
-            for _ in range(len(pregel_pushes)):
-                pregel_push_node, trigger_id = pregel_pushes.pop(0)
-                if pregel_push_node == getattr(task, "name", ""):
-                    parent_ids.append(trigger_id)
-                    break
-                pregel_pushes.append((pregel_push_node, trigger_id))
+            pregel_push_index = _find_pregel_push_index(task, pregel_pushes)
+            if pregel_push_index != -1:
+                _, trigger_id = pregel_pushes.pop(pregel_push_index)
+                parent_ids.append(trigger_id)
         else:
             parent_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
 
     return parent_ids
+
+
+def _find_pregel_push_index(task, pregel_pushes: List[Tuple[str, str]]) -> int:
+    """
+    Find the index of a specific pregel push node in the list of pregel push nodes
+    (assuming there were many pregel writes for a given graph tick).
+    """
+    for i, (pregel_push_node, _) in enumerate(pregel_pushes):
+        if pregel_push_node == getattr(task, "name", ""):
+            return i
+    return -1
 
 
 def _map_channel_writes_to_finished_tasks_ids(
