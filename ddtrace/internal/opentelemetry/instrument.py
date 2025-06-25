@@ -1,4 +1,5 @@
 from enum import IntEnum
+from typing import Iterable, List, Generator
 from opentelemetry.metrics import Counter as OtelApiCounter
 from opentelemetry.metrics import Histogram as OtelApiHistogram
 from opentelemetry.metrics import Meter as OtelApiMeter
@@ -10,6 +11,7 @@ from opentelemetry.metrics import (
 )
 from opentelemetry.metrics import UpDownCounter as OtelApiUpDownCounter
 from opentelemetry.metrics import _Gauge as OtelApiGauge
+from opentelemetry.metrics import CallbackOptions, CallbackT
 from time import time_ns
 
 # For production, there would not be a dependency between the instruments and all the data types
@@ -160,7 +162,7 @@ class UpDownCounter(OtelApiUpDownCounter):
                         description=self.description,
                         unit=self.unit,
                         data=Sum(
-                            aggregation_temporality=AggregationTemporality.DELTA,
+                            aggregation_temporality=AggregationTemporality.CUMULATIVE,
                             data_points=[
                                 NumberDataPoint(
                                     attributes=attributes,
@@ -250,16 +252,171 @@ class ObservableCounter(OtelApiObservableCounter):
     def __init__(self, exporter, name, callbacks = None, unit = "", description = ""):
         super().__init__(name, callbacks, unit=unit, description=description)
         self._exporter = exporter
+        self.name = name
+        self.unit = unit
+        self.description = description
+
+        self._callbacks: List[CallbackT] = []
+
+        if callbacks is not None:
+            for callback in callbacks:
+                if isinstance(callback, Generator):
+                    # advance generator to it's first yield
+                    next(callback)
+
+                    def inner(
+                        options: CallbackOptions,
+                        callback=callback,
+                    ) -> Iterable[Metric]:
+                        try:
+                            return callback.send(options)
+                        except StopIteration:
+                            return []
+
+                    self._callbacks.append(inner)
+                else:
+                    self._callbacks.append(callback)
+
+    def callback(
+        self, callback_options: CallbackOptions
+    ) -> Iterable[Metric]:
+        for callback in self._callbacks:
+            try:
+                for api_measurement in callback(callback_options):
+                    yield Metric(
+                        name=self.name,
+                        description=self.description,
+                        unit=self.unit,
+                        data=Sum(
+                            aggregation_temporality=AggregationTemporality.DELTA,
+                            data_points=[
+                                NumberDataPoint(
+                                    attributes=api_measurement.attributes,
+                                    start_time_unix_nano=time_ns(),
+                                    time_unix_nano=time_ns(),
+                                    value=api_measurement.value,
+                                )
+                            ],
+                            is_monotonic=True,
+                        ),
+                    )
+            except Exception:  # pylint: disable=broad-exception-caught
+                log.exception(
+                    "Callback failed for instrument %s.", self.name
+                )
+
 
 class ObservableUpDownCounter(OtelApiObservableUpDownCounter):
     def __init__(self, exporter, name, callbacks = None, unit = "", description = ""):
         super().__init__(name, callbacks, unit=unit, description=description)
         self._exporter = exporter
+        self.name = name
+        self.unit = unit
+        self.description = description
+
+        self._callbacks: List[CallbackT] = []
+
+        if callbacks is not None:
+            for callback in callbacks:
+                if isinstance(callback, Generator):
+                    # advance generator to it's first yield
+                    next(callback)
+
+                    def inner(
+                        options: CallbackOptions,
+                        callback=callback,
+                    ) -> Iterable[Metric]:
+                        try:
+                            return callback.send(options)
+                        except StopIteration:
+                            return []
+
+                    self._callbacks.append(inner)
+                else:
+                    self._callbacks.append(callback)
+
+    def callback(
+        self, callback_options: CallbackOptions
+    ) -> Iterable[Metric]:
+        for callback in self._callbacks:
+            try:
+                for api_measurement in callback(callback_options):
+                    yield Metric(
+                        name=self.name,
+                        description=self.description,
+                        unit=self.unit,
+                        data=Sum(
+                            aggregation_temporality=AggregationTemporality.CUMULATIVE,
+                            data_points=[
+                                NumberDataPoint(
+                                    attributes=api_measurement.attributes,
+                                    start_time_unix_nano=time_ns(),
+                                    time_unix_nano=time_ns(),
+                                    value=api_measurement.value,
+                                )
+                            ],
+                            is_monotonic=True,
+                        ),
+                    )
+            except Exception:  # pylint: disable=broad-exception-caught
+                log.exception(
+                    "Callback failed for instrument %s.", self.name
+                )
 
 class ObservableGauge(OtelApiObservableGauge):
     def __init__(self, exporter, name, callbacks = None, unit = "", description = ""):
         super().__init__(name, callbacks, unit=unit, description=description)
         self._exporter = exporter
+        self.name = name
+        self.unit = unit
+        self.description = description
+
+        self._callbacks: List[CallbackT] = []
+
+        if callbacks is not None:
+            for callback in callbacks:
+                if isinstance(callback, Generator):
+                    # advance generator to it's first yield
+                    next(callback)
+
+                    def inner(
+                        options: CallbackOptions,
+                        callback=callback,
+                    ) -> Iterable[Metric]:
+                        try:
+                            return callback.send(options)
+                        except StopIteration:
+                            return []
+
+                    self._callbacks.append(inner)
+                else:
+                    self._callbacks.append(callback)
+
+    def callback(
+        self, callback_options: CallbackOptions
+    ) -> Iterable[Metric]:
+        for callback in self._callbacks:
+            try:
+                for api_measurement in callback(callback_options):
+                    yield Metric(
+                        name=self.name,
+                        description=self.description,
+                        unit=self.unit,
+                        data=OtelGauge(
+                            data_points=[
+                                NumberDataPoint(
+                                    attributes=api_measurement.attributes,
+                                    start_time_unix_nano=time_ns(),
+                                    time_unix_nano=time_ns(),
+                                    value=api_measurement.value,
+                                )
+                            ]
+                        ),
+                    )
+            except Exception:  # pylint: disable=broad-exception-caught
+                log.exception(
+                    "Callback failed for instrument %s.", self.name
+                )
 
 class Histogram(OtelApiHistogram):
     def __init__(self, exporter, name, unit = "", description = ""):

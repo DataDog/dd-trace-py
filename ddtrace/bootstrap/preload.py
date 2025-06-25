@@ -84,12 +84,11 @@ if config._otel_enabled:
     def _(_):
         from opentelemetry.metrics import set_meter_provider
 
-        from ddtrace.opentelemetry import MeterProvider
+        from ddtrace.opentelemetry import MeterProvider, PeriodicExportingMetricReader
 
-        # exporter = OTLPMetricExporter(insecure=True)
-        # reader = PeriodicExportingMetricReader(exporter)
-        # provider = MeterProvider(metric_readers=[reader])
-        set_meter_provider(MeterProvider(OTLPMetricExporter()))
+        exporter = OTLPMetricExporter()
+        reader = PeriodicExportingMetricReader(exporter)
+        set_meter_provider(MeterProvider(metric_reader=reader))
 
 
 if config._llmobs_enabled:
