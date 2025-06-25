@@ -175,6 +175,63 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_fastapi",
+            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            pkgs={
+                "requests": latest,
+                "python-multipart": latest,
+                "jinja2": latest,
+                "httpx": "<0.28.0",
+                "uvicorn": "==0.33.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+            ],
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -514,6 +571,10 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
                 "requests": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
             },
         ),
         Venv(
@@ -2423,7 +2484,7 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": "==4.2.1",
+                "vcrpy": latest,
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
@@ -2440,7 +2501,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": latest,
+                        "openai": [latest, "~=1.76.2"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
