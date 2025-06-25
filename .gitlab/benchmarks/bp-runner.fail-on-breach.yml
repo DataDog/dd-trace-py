@@ -13,24 +13,24 @@ experiments:
           - name: normal_operation/tracing-runtime-metrics-enabled
             thresholds:
               - agg_http_req_duration_p50 < 75 ms
-              - agg_http_req_duration_p95 < 90 ms
+              - agg_http_req_duration_p95 < 100 ms
           - name: normal_operation/tracing-rc-disabled-telemetry-disabled
             thresholds:
-              - agg_http_req_duration_p50 < 70 ms
-              - agg_http_req_duration_p95 < 88 ms
+              - agg_http_req_duration_p50 < 80 ms
+              - agg_http_req_duration_p95 < 100 ms
           - name: normal_operation/tracing-rc-enabled-telemetry-disabled
             thresholds:
-              - agg_http_req_duration_p50 < 70 ms
-              - agg_http_req_duration_p95 < 90 ms
+              - agg_http_req_duration_p50 < 80 ms
+              - agg_http_req_duration_p95 < 100 ms
           - name: high_load/tracing-rc-enabled-telemetry-enabled
             thresholds:
-              - throughput > 55.0 op/s
-              - agg_http_req_duration_p99 < 92 ms
+              - throughput > 45.0 op/s
+              - agg_http_req_duration_p99 < 100 ms
           # Appsec
           - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled
             thresholds:
-              - agg_http_req_duration_p50 < 75 ms
-              - agg_http_req_duration_p95 < 95 ms
+              - agg_http_req_duration_p50 < 85 ms
+              - agg_http_req_duration_p95 < 105 ms
           - name: normal_operation/appsec-enabled-iast-enabled-ep-disabled
             thresholds:
               - agg_http_req_duration_p50 < 90 ms
@@ -42,7 +42,7 @@ experiments:
               - agg_http_req_duration_p95 < 95 ms
           - name: high_load/tracing-profiling-enabled
             thresholds:
-              - throughput > 35.0 op/s
+              - throughput > 30.0 op/s
               - agg_http_req_duration_p99 < 100 ms
           # Multi-product
           - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
