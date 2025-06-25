@@ -2815,6 +2815,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_genai",
+            command="pytest {cmdargs} tests/contrib/google_genai",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-genai": latest,
+            },
+        ),
+        Venv(
             name="crewai",
             command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
