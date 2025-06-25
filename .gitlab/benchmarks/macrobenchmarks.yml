@@ -400,7 +400,7 @@ check-slo-breaches:
       - platform/artifacts/
     expire_in: 3 months
   script:
-    - cd platform
+    - export ARTIFACTS_DIR="$(pwd)/platform/artifacts/"
     - bp-runner .gitlab/benchmarks/bp-runner.fail-on-breach.yml
 
 notify-slo-breaches:
