@@ -406,7 +406,7 @@
         "dependency": "mako",
         "integration": "mako",
         "minimum_tracer_supported": "1.0.14",
-        "max_tracer_supported": "1.3.8",
+        "max_tracer_supported": "1.3.10",
         "auto-instrumented": true
     },
     {
@@ -448,8 +448,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.76.2",
-        "pinned": "true",
+        "max_tracer_supported": "1.91.0",
         "auto-instrumented": true
     },
     {
