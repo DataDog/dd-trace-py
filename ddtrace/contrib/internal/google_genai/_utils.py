@@ -30,9 +30,9 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 def extract_provider_and_model_name(kwargs):
     model_path = kwargs.get("model", "")
     model_name = model_path.split("/")[-1]
-    for prefix in MODEL_PREFIX_TO_PROVIDER.keys():
+    for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
         if model_name.lower().startswith(prefix):
-            provider_name = MODEL_PREFIX_TO_PROVIDER[prefix]
+            provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
     return "custom", model_name if model_name else "custom"
 
