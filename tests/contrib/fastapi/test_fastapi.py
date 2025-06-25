@@ -571,6 +571,11 @@ def _run_websocket_test():
         fastapi_unpatch()
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
@@ -672,61 +677,11 @@ def _run_websocket_context_propagation_test():
 
 @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
-def test_websocket_context_propagation(test_spans, snapshot_app):
+def test_websocket_context_propagation(snapshot_app):
     """Test trace context propagation."""
     from tests.contrib.fastapi.test_fastapi import _run_websocket_context_propagation_test
 
     _run_websocket_context_propagation_test()
-    assert test_spans
-    spans = test_spans.pop_traces()
-
-    # Find the handshake span
-    handshake_span = None
-    for trace in spans:
-        for span in trace:
-            if span.name == "fastapi.request":
-                handshake_span = span
-                break
-        if handshake_span:
-            break
-
-    assert handshake_span is not None, "Could not find fastapi.request span"
-
-    assert handshake_span.get_tag("baggage.user.id") == "123"
-    assert handshake_span.get_tag("baggage.account.id") == "456"
-    assert handshake_span.get_tag("baggage.session.id") == "789"
-    assert handshake_span.get_tag("_dd.origin") == "rum"
-    assert handshake_span.get_tag("_dd.p.dm") == "-1"
-
-    # Find all websocket spans that are children of the handshake span
-    websocket_spans = []
-    for trace in spans:
-        for span in trace:
-            if span.name == "websocket.receive" or span.name == "websocket.close":
-                if span._links and span._links[0].trace_id == handshake_span.trace_id:
-                    websocket_spans.append(span)
-
-    assert len(websocket_spans) > 0, "No websocket spans found as children of handshake span"
-
-    for ws_span in websocket_spans:
-        assert (
-            ws_span.context.sampling_priority == handshake_span.context.sampling_priority
-        ), f"Websocket span {ws_span.name} should inherit sampling priority from handshake"
-
-        assert ws_span.get_tag("_dd.origin") == handshake_span.get_tag(
-            "_dd.origin"
-        ), f"Websocket span {ws_span.name} should inherit origin from handshake"
-
-        expected_baggage = {"user.id": "123", "account.id": "456", "session.id": "789"}
-        for key, value in expected_baggage.items():
-            assert (
-                ws_span.get_tag(f"baggage.{key}") == value
-            ), f"Websocket span {ws_span.name} should inherit baggage.{key} from handshake"
-            assert (
-                ws_span.context.get_baggage_item(key) == value
-            ), f"Websocket span {ws_span.name} should have baggage.{key} in context"
-
-        assert len(ws_span.context._baggage) > 0, f"Websocket span {ws_span.name} should have non-empty baggage"
 
 
 # Ignoring span link attributes until values are
