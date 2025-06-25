@@ -9,9 +9,6 @@ from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_respon
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
 from ddtrace.contrib.internal.anthropic.utils import _extract_api_key
 from ddtrace.contrib.internal.anthropic.utils import handle_non_streamed_response
-from ddtrace.contrib.internal.anthropic.utils import tag_params_on_span
-from ddtrace.contrib.internal.anthropic.utils import tag_tool_result_input_on_span
-from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_input_on_span
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -62,49 +59,12 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        for message_idx, message in enumerate(chat_messages):
-            if not isinstance(message, dict):
-                continue
-            if isinstance(message.get("content", None), str):
-                if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % message_idx,
-                        integration.trunc(str(message.get("content", ""))),
-                    )
-                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
-            elif isinstance(message.get("content", None), list):
-                for block_idx, block in enumerate(message.get("content", [])):
-                    if integration.is_pc_sampled_span(span):
-                        if _get_attr(block, "type", None) == "text":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(_get_attr(block, "text", ""))),
-                            )
-                        elif _get_attr(block, "type", None) == "image":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                "([IMAGE DETECTED])",
-                            )
-                        elif _get_attr(block, "type", None) == "tool_use":
-                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
-
-                        elif _get_attr(block, "type", None) == "tool_result":
-                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
-
-                    span.set_tag_str(
-                        "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        str(_get_attr(block, "type", "text")),
-                    )
-            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
-        tag_params_on_span(span, kwargs, integration)
-
         chat_completions = func(*args, **kwargs)
 
         if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-        else:
-            handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
+        handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -135,49 +95,12 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
 
     chat_completions = None
     try:
-        for message_idx, message in enumerate(chat_messages):
-            if not isinstance(message, dict):
-                continue
-            if isinstance(message.get("content", None), str):
-                if integration.is_pc_sampled_span(span):
-                    span.set_tag_str(
-                        "anthropic.request.messages.%d.content.0.text" % message_idx,
-                        integration.trunc(str(message.get("content", ""))),
-                    )
-                span.set_tag_str("anthropic.request.messages.%d.content.0.type" % message_idx, "text")
-            elif isinstance(message.get("content", None), list):
-                for block_idx, block in enumerate(message.get("content", [])):
-                    if integration.is_pc_sampled_span(span):
-                        if _get_attr(block, "type", None) == "text":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                integration.trunc(str(_get_attr(block, "text", ""))),
-                            )
-                        elif _get_attr(block, "type", None) == "image":
-                            span.set_tag_str(
-                                "anthropic.request.messages.%d.content.%d.text" % (message_idx, block_idx),
-                                "([IMAGE DETECTED])",
-                            )
-                        elif _get_attr(block, "type", None) == "tool_use":
-                            tag_tool_use_input_on_span(integration, span, block, message_idx, block_idx)
-
-                        elif _get_attr(block, "type", None) == "tool_result":
-                            tag_tool_result_input_on_span(integration, span, block, message_idx, block_idx)
-
-                    span.set_tag_str(
-                        "anthropic.request.messages.%d.content.%d.type" % (message_idx, block_idx),
-                        str(_get_attr(block, "type", "text")),
-                    )
-            span.set_tag_str("anthropic.request.messages.%d.role" % message_idx, str(message.get("role", "")))
-        tag_params_on_span(span, kwargs, integration)
-
         chat_completions = await func(*args, **kwargs)
 
         if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-        else:
-            handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
+        handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
