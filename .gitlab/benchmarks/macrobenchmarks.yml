@@ -379,6 +379,7 @@ check-slo-breaches:
   when: always
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  needs: [".macrobenchmarks"]
   artifacts:
     name: "artifacts"
     when: always
