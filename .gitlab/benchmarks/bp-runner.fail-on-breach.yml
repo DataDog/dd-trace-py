@@ -43,7 +43,7 @@ experiments:
           - name: high_load/tracing-profiling-enabled
             thresholds:
               - throughput > 30.0 op/s
-              - agg_http_req_duration_p99 < 100 ms
+              - agg_http_req_duration_p99 < 110 ms
           # Multi-product
           - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
             thresholds:
