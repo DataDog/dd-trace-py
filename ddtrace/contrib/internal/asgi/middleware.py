@@ -264,7 +264,7 @@ class TraceMiddleware:
                     return await receive()
 
                 # Create the span when the handler is invoked (when receive() is called)
-                # This matches the specification: "started once the handler is invoked"
+                # This measures dispatch time of the message (from receive to send completion)
                 recv_span = self.tracer.start_span(
                     name="websocket.receive",
                     service=span.service,
@@ -345,7 +345,7 @@ class TraceMiddleware:
                     raise
                 finally:
                     # Ensure the recv_span is finished if it wasn't stored in scope
-                    # This handles cases where the message type is not websocket.receive or websocket.disconnect
+                    # handles cases where the message type is not websocket.receive or websocket.disconnect
                     if "datadog" not in scope or "current_receive_span" not in scope["datadog"]:
                         recv_span.finish()
 
@@ -423,7 +423,7 @@ class TraceMiddleware:
                         websocket.close.reason
 
                         """
-                        # Get the current receive span from scope
+                        # get current receive span from scope
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
                         with self.tracer.start_span(
@@ -509,7 +509,6 @@ class TraceMiddleware:
                     raise BlockingException(blocked)
                 try:
                     # Finish the receive span after the send is complete
-                    # This measures the dispatch time of the message (from receive to send completion)
                     if self.integration_config._trace_asgi_websocket_messages and message.get("type") in (
                         "websocket.send",
                         "websocket.accept",
