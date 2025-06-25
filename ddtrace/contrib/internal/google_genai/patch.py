@@ -91,6 +91,8 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         raise
     finally:
         if span.error:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
             span.finish()
 
 
@@ -113,6 +115,8 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         raise
     finally:
         if span.error:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
             span.finish()
 
 
