@@ -379,7 +379,24 @@ check-slo-breaches:
   when: always
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
-  needs: [".macrobenchmarks"]
+  needs:
+    # DEV: Need to add all jobs individually, GitLab doesn't support needs: [stageName]
+    - job: tracing-runtime-metrics-enabled
+      artifacts: true
+    - job: tracing-rc-disabled-telemetry-disabled
+      artifacts: true
+    - job: tracing-rc-enabled-telemetry-disabled
+      artifacts: true
+    - job: tracing-rc-enabled-telemetry-enabled
+      artifacts: true
+    - job: appsec-enabled-iast-disabled-ep-disabled
+      artifacts: true
+    - job: appsec-enabled-iast-enabled-ep-disabled
+      artifacts: true
+    - job: tracing-profiling-enabled
+      artifacts: true
+    - job: vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
+      artifacts: true
   artifacts:
     name: "artifacts"
     when: always
