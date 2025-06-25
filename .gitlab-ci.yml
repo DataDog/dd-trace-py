@@ -90,6 +90,7 @@ macrobenchmarks:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
+    - if: 
     - when: manual
 
 check_new_flaky_tests:

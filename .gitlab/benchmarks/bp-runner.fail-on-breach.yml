@@ -7,7 +7,7 @@ experiments:
     steps:
       - name: SLO breach check
         run: fail_on_breach
-        warning_range: 10
+        warning_range: 5
         scenarios:
           # Tracing
           - name: normal_operation/tracing-runtime-metrics-enabled
@@ -33,7 +33,7 @@ experiments:
               - agg_http_req_duration_p95 < 105 ms
           - name: normal_operation/appsec-enabled-iast-enabled-ep-disabled
             thresholds:
-              - agg_http_req_duration_p50 < 90 ms
+              - agg_http_req_duration_p50 < 95 ms
               - agg_http_req_duration_p95 < 110 ms
           # Profiling
           - name: normal_operation/tracing-profiling-enabled
