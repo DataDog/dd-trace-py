@@ -1,12 +1,13 @@
 from typing import Dict
 
 from ddtrace import config
-from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+from ddtrace.trace import Pin
+
 
 config._add("pydantic_ai", {})
 

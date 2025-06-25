@@ -1,6 +1,7 @@
+import os
+
 import pytest
 import vcr
-import os
 
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
