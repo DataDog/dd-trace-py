@@ -1,15 +1,10 @@
-import functools
-
 from ddtrace import config
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.contrib.internal.trace_utils import with_traced_module
-from ddtrace.contrib.internal.trace_utils_async import with_traced_module as with_traced_module_async
+from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.trace import Pin
-from ddtrace.contrib.internal.pydantic_ai.utils import tag_request
+from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 
 config._add("pydantic_ai", {})
 
@@ -24,20 +19,21 @@ def get_version() -> str:
     return getattr(pydantic_ai, "__version__", "0.0.0")
 
 
-@with_traced_module_async
-async def traced_agent_run(pydantic_ai, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    with integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False) as span:
-        span.name = instance.name
-        tag_request(span, instance)
-        return await func(*args, **kwargs)
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False)
+    span.name = getattr(instance, "name", None) or "Pydantic Agent"
+
+    result = func(*args, **kwargs)
+    return TracedPydanticAsyncContextManager(result, span, instance)
 
 
-@with_traced_module_async
+@with_traced_module
 async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     with integration.trace(pin, "Pydantic Tool", submit_to_llmobs=False) as span:
-        span.name = instance.name
+        span.name = getattr(instance, "name", None) or "Pydantic Tool"
         return await func(*args, **kwargs)
 
 
@@ -47,14 +43,14 @@ def patch():
     pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
     Pin().onto(pydantic_ai)
 
-    wrap(pydantic_ai, "agent.Agent.run", traced_agent_run(pydantic_ai))
+    wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter(pydantic_ai))
     wrap(pydantic_ai, "tools.Tool.run", traced_tool_run(pydantic_ai))
 
 
 def unpatch():
     import pydantic_ai
 
-    unwrap(pydantic_ai.agent.Agent, "run")
+    unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.tools.Tool, "run")
 
     del pydantic_ai._datadog_integration
