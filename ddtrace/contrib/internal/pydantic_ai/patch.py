@@ -16,6 +16,7 @@ def get_version() -> str:
 
     return getattr(pydantic_ai, "__version__", "0.0.0")
 
+
 def _supported_versions() -> Dict[str, str]:
     return {"pydantic_ai": "*"}
 
@@ -40,6 +41,7 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
 
 def patch():
     import pydantic_ai
+
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
 
@@ -54,6 +56,7 @@ def patch():
 
 def unpatch():
     import pydantic_ai
+
     if not getattr(pydantic_ai, "_datadog_patch", False):
         return
 

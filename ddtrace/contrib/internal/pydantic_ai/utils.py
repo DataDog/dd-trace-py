@@ -1,19 +1,17 @@
 import wrapt
 
+
 class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, instance):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_instance = instance
-    
+
     async def __aenter__(self):
         return await self.__wrapped__.__aenter__()
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         try:
             return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
             self._dd_span.finish()
-
-    
-

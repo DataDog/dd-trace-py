@@ -5,6 +5,7 @@ import os
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 
+
 @pytest.fixture(autouse=True)
 def pydantic_ai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
@@ -13,6 +14,7 @@ def pydantic_ai(monkeypatch):
 
     yield pydantic_ai
     unpatch()
+
 
 @pytest.fixture
 def request_vcr(ignore_localhost=True):

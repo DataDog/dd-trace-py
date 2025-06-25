@@ -2823,7 +2823,7 @@ venv = Venv(
                 "openai": latest,
                 "crewai": ["~=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
-            }
+            },
         ),
         Venv(
             name="pydantic_ai",
