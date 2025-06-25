@@ -383,6 +383,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: google_genai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-genai
+  tested_versions_by_dependency:
+    google-genai:
+      min: 1.21.1
+      max: 1.21.1
+
 - integration_name: google_generativeai
   is_external_package: true
   is_tested: true
