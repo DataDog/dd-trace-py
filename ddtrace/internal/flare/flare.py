@@ -54,6 +54,8 @@ class Flare:
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
+        # Use a fixed boundary for consistency
+        self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
     def prepare(self, log_level: str):
         """
@@ -63,32 +65,15 @@ class Flare:
         try:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
-            log.error("Failed to create %s directory: %s", self.flare_dir, e)
+            log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
             return
 
         flare_log_level_int = logging.getLevelName(log_level)
         if type(flare_log_level_int) != int:
-            raise TypeError("Invalid log level provided: %s", log_level)
+            raise TypeError("Flare prepare: Invalid log level provided: %s", log_level)
 
-        ddlogger = get_logger("ddtrace")
-        pid = os.getpid()
-        flare_file_path = self.flare_dir / f"tracer_python_{pid}.log"
-        self.original_log_level = ddlogger.level
-
-        # Set the logger level to the more verbose between original and flare
-        # We do this valid_original_level check because if the log level is NOTSET, the value is 0
-        # which is the minimum value. In this case, we just want to use the flare level, but still
-        # retain the original state as NOTSET/0
-        valid_original_level = (
-            logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
-        )
-        logger_level = min(valid_original_level, flare_log_level_int)
-        ddlogger.setLevel(logger_level)
-        self.file_handler = _add_file_handler(
-            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
-        )
-
-        # Create and add config file
+        # Setup logging and create config file
+        pid = self._setup_flare_logging(flare_log_level_int)
         self._generate_config_file(pid)
 
     def send(self, flare_send_req: FlareSendRequest):
@@ -101,18 +86,9 @@ class Flare:
         # Ensure the flare directory exists (it might have been deleted by clean_up_files)
         self.flare_dir.mkdir(exist_ok=True)
 
-        # # Validate case_id (must be a digit and cannot be 0 according to spec)
-        if flare_send_req.case_id in ("0", 0):
-            log.warning("Case ID cannot be 0, skipping flare send")
-            self.clean_up_files()
-            return
-
-        if not flare_send_req.case_id.isdigit():
-            log.warning("Case ID string must contain a digit, skipping flare send")
-            self.clean_up_files()
-            return
-
         try:
+            if not self._validate_case_id(flare_send_req.case_id):
+                return
             self._send_flare_request(flare_send_req)
         finally:
             self.clean_up_files()
@@ -149,69 +125,97 @@ class Flare:
             log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
         ddlogger.setLevel(self.original_log_level)
 
-    def _generate_payload(self, flare_send_req):
+    def _validate_case_id(self, case_id: str) -> bool:
         """
-        Generate the multipart form-data payload for the flare request.
+        Validate case_id (must be a digit and cannot be 0 according to spec).
+        Returns True if valid, False otherwise. Cleans up files if invalid.
         """
-        body = io.BytesIO()
+        if case_id in ("0", 0):
+            log.warning("Case ID cannot be 0, skipping flare send")
+            return False
+        
+        if not case_id.isdigit():
+            log.warning("Case ID string must contain a digit, skipping flare send")
+            return False
+        
+        return True
 
-        # Use a fixed boundary for consistency
-        boundary = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
+    def _setup_flare_logging(self, flare_log_level_int: int) -> int:
+        """
+        Setup flare logging configuration.
+        Returns the process ID.
+        """
+        ddlogger = get_logger("ddtrace")
+        pid = os.getpid()
+        flare_file_path = self.flare_dir / f"tracer_python_{pid}.log"
+        self.original_log_level = ddlogger.level
 
-        # Create the multipart form data in the same order:
-        # source, case_id, hostname, email, uuid, flare_file
+        # Set the logger level to the more verbose between original and flare
+        # We do this valid_original_level check because if the log level is NOTSET, the value is 0
+        # which is the minimum value. In this case, we just want to use the flare level, but still
+        # retain the original state as NOTSET/0
+        valid_original_level = (
+            logging.CRITICAL if self.original_log_level == logging.NOTSET else self.original_log_level
+        )
+        logger_level = min(valid_original_level, flare_log_level_int)
+        ddlogger.setLevel(logger_level)
+        self.file_handler = _add_file_handler(
+            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
+        )
+        return pid
 
-        # 1. source field
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(b'Content-Disposition: form-data; name="source"\r\n\r\n')
-        body.write(b"tracer_python\r\n")
-
-        # 2. case_id field
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(b'Content-Disposition: form-data; name="case_id"\r\n\r\n')
-        body.write(f"{flare_send_req.case_id}\r\n".encode())
-
-        # 3. hostname field
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(b'Content-Disposition: form-data; name="hostname"\r\n\r\n')
-        body.write(f"{flare_send_req.hostname}\r\n".encode())
-
-        # 4. email field
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(b'Content-Disposition: form-data; name="email"\r\n\r\n')
-        body.write(f"{flare_send_req.email}\r\n".encode())
-
-        # 5. uuid field (new, per spec)
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(b'Content-Disposition: form-data; name="uuid"\r\n\r\n')
-        body.write(f"{flare_send_req.uuid}\r\n".encode())
-
-        # 6. flare_file field with descriptive filename
-        timestamp = int(time.time() * 1000)
-        filename = f"tracer-python-{flare_send_req.case_id}-{timestamp}-debug.zip"
-        body.write(f"--{boundary}\r\n".encode())
-        body.write(f'Content-Disposition: form-data; name="flare_file"; filename="{filename}"\r\n'.encode())
-        body.write(b"Content-Type: application/octet-stream\r\n\r\n")
-
-        # Create the zip file content separately
+    def _create_zip_content(self) -> bytes:
+        """
+        Create ZIP file content containing all flare files.
+        Returns the ZIP file content as bytes.
+        """
         zip_stream = io.BytesIO()
         with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
             for flare_file_name in self.flare_dir.iterdir():
                 zipf.write(flare_file_name, arcname=flare_file_name.name)
         zip_stream.seek(0)
-        body.write(zip_stream.getvalue())
-        body.write(b"\r\n")
+        return zip_stream.getvalue()
 
-        # End boundary
-        body.write(f"--{boundary}--\r\n".encode())
+    def _write_body_field(self, body: io.BytesIO, name: str, value: str):
+        """Write a form field to the multipart body."""
+        body.write(f"--{self._BOUNDARY}\r\n".encode())
+        body.write(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
+        body.write(f"{value}\r\n".encode())
+
+    def _generate_payload(self, flare_send_req):
+        """
+        Generate the multipart form-data payload for the flare request.
+        """
+
+        # Create the multipart form data in the same order:
+        # source, case_id, hostname, email, uuid, flare_file
+        body = io.BytesIO()
+        self._write_body_field(body, "source", "tracer_python")
+        self._write_body_field(body, "case_id", flare_send_req.case_id)
+        self._write_body_field(body, "hostname", flare_send_req.hostname)
+        self._write_body_field(body, "email", flare_send_req.email)
+        self._write_body_field(body, "uuid", flare_send_req.uuid)
+
+        # flare_file field with descriptive filename
+        timestamp = int(time.time() * 1000)
+        filename = f"tracer-python-{flare_send_req.case_id}-{timestamp}-debug.zip"
+        body.write(f"--{self._BOUNDARY}\r\n".encode())
+        body.write(f'Content-Disposition: form-data; name="flare_file"; filename="{filename}"\r\n'.encode())
+        body.write(b"Content-Type: application/octet-stream\r\n\r\n")
+
+        # Create the zip file content separately
+        body.write(self._create_zip_content() + b"\r\n")
+
+        # Ending boundary
+        body.write(f"--{self._BOUNDARY}--\r\n".encode())
 
         # Set headers
         headers = {
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Type": f"multipart/form-data; boundary={self._BOUNDARY}",
             "Content-Length": str(body.tell()),
         }
 
-        # Don't send DD-API-KEY or Host Header - the agent should add it when forwarding to backend
+        # Note: don't send DD-API-KEY or Host Header - the agent should add it when forwarding to backend
         return headers, body.getvalue()
 
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
