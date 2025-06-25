@@ -43,6 +43,10 @@ def extract_metrics_google_genai(response):
     usage = {}
     # streamed responses will be a list of GenerateContentResponse chunks
     if isinstance(response, list):
+        #NOTE: currently for streamed responses, we get prompt from first chunk and output from last chunk
+        #      this is because prompt count from last chunk is often less than the prompt count from first chunk
+        #      which may be due to caching, may need to account for this cost computing in the future
+        
         # get prompt token count from first chunk
         usage_metadata_first = _get_attr(response[0], "usage_metadata", {})
         input_tokens = _get_attr(usage_metadata_first, "prompt_token_count", None)

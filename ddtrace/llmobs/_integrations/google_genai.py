@@ -136,6 +136,15 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             parts = _get_attr(content, "parts", [])
             role = _get_attr(content, "role", None)
             for part in parts:
+                if (part and not _get_attr(part, "text", None) and 
+                    not _get_attr(part, "function_call", None) and 
+                    not _get_attr(part, "function_response", None)):
+                    message = {"content": "[Non-text content object: {}]".format(repr(part))}
+                    if role:
+                        message["role"] = role
+                    messages.append(message)
+                    continue
+                    
                 message = extract_message_from_part_google(part, role)
                 messages.append(message)
         return messages
