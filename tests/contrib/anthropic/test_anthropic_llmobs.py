@@ -194,7 +194,13 @@ class TestLLMObsAnthropic:
                 ],
                 output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
-                token_metrics={"input_tokens": 43, "output_tokens": 15, "total_tokens": 58},
+                token_metrics={
+                    "input_tokens": 43,
+                    "output_tokens": 15,
+                    "total_tokens": 58,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
