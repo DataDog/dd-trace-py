@@ -29,3 +29,46 @@ MOCK_GENERATE_CONTENT_RESPONSE = types.GenerateContentResponse(
         total_token_count=17
     )
 )
+
+MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model", parts=[types.Part.from_text(text="The sky")]
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8,
+            total_token_count=8
+        )
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model", parts=[types.Part.from_text(text=" is blue")]
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8,
+            total_token_count=8
+        )
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model", parts=[types.Part.from_text(text=" due to rayleigh scattering")]
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8,
+            candidates_token_count=9,
+            total_token_count=17
+        )
+    )
+]
