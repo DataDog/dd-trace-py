@@ -13,9 +13,11 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
@@ -67,18 +69,20 @@ class AnthropicIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
+        span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: span.get_tag("anthropic.request.model") or "",
                 MODEL_PROVIDER: "anthropic",
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("anthropic", span),
+                METRICS: get_llmobs_metrics_tags("anthropic", span) if span_kind != "workflow" else {},
             }
         )
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(self, messages, system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None):
         """Extract input messages from the stored prompt.
@@ -188,3 +192,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
         if input_tokens is not None and output_tokens is not None:
             span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
+
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        client = getattr(instance, "_client", None)
+        base_url = getattr(client, "_base_url", None) if client else None
+        return str(base_url) if base_url else None

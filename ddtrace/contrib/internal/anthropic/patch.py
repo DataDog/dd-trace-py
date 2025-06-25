@@ -57,6 +57,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None
@@ -129,6 +130,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None
