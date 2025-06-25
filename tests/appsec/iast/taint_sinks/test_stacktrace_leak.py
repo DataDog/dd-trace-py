@@ -6,8 +6,8 @@ from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import check_and_report_stacktrace_leak
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import get_report_stacktrace_later
 from ddtrace.appsec._iast.taint_sinks.stacktrace_leak import iast_check_stacktrace_leak
-from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
-from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
+from tests.appsec.iast.conftest import _end_iast_context_and_oce
+from tests.appsec.iast.conftest import _start_iast_context_and_oce
 
 
 def _load_html_django_stacktrace():

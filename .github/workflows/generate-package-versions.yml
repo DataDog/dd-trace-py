@@ -86,9 +86,6 @@ jobs:
       - name: Run regenerate-riot-latest
         run: scripts/regenerate-riot-latest.sh
 
-      - name: Run integration registry update
-        run: python scripts/integration_registry/update_and_format_registry.py
-
       - name: Get latest version
         id: new-latest
         run: |

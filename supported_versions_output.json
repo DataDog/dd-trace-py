@@ -112,7 +112,7 @@
         "dependency": "boto3",
         "integration": "botocore",
         "minimum_tracer_supported": "1.34.49",
-        "max_tracer_supported": "1.38.26",
+        "max_tracer_supported": "1.37.5",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -120,7 +120,7 @@
         "dependency": "botocore",
         "integration": "botocore",
         "minimum_tracer_supported": "1.34.49",
-        "max_tracer_supported": "1.38.26",
+        "max_tracer_supported": "1.37.5",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -276,7 +276,7 @@
         "dependency": "flask",
         "integration": "flask",
         "minimum_tracer_supported": "1.1.4",
-        "max_tracer_supported": "3.1.0",
+        "max_tracer_supported": "3.1.1",
         "auto-instrumented": true
     },
     {
@@ -306,13 +306,6 @@
         "integration": "gevent",
         "minimum_tracer_supported": "20.12.1",
         "max_tracer_supported": "24.11.1",
-        "auto-instrumented": true
-    },
-    {
-        "dependency": "google-genai",
-        "integration": "google_genai",
-        "minimum_tracer_supported": "1.21.1",
-        "max_tracer_supported": "1.21.1",
         "auto-instrumented": true
     },
     {
@@ -400,14 +393,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "mako",
@@ -455,7 +448,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.91.0",
+        "max_tracer_supported": "1.60.0",
         "auto-instrumented": true
     },
     {
@@ -619,7 +612,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "tornado",

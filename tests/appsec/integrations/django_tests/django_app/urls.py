@@ -38,11 +38,6 @@ urlpatterns = [
         name="command_injection_secure_mark",
     ),
     handler(
-        "appsec/command-injection/security-control/$",
-        views.command_injection_security_control,
-        name="command_injection_security_control",
-    ),
-    handler(
         "appsec/xss/secure-mark/$",
         views.xss_secure_mark,
         name="xss_secure_mark",

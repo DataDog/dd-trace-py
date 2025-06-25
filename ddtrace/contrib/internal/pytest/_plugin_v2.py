@@ -8,6 +8,7 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
+from ddtrace._monkey import patch
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -240,11 +241,8 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
-            from ddtrace._monkey import patch
-
-            # Freezegun is proactively patched to avoid it interfering with internal timing
-            patch(freezegun=True)
+        # Freezegun is proactively patched to avoid it interfering with internal timing
+        patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():

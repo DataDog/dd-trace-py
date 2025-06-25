@@ -96,7 +96,6 @@ def _on_lambda_start_request(
     route: str,
     method: str,
     parsed_query: Dict[str, Any],
-    request_path_parameters: Optional[Dict[str, Any]],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -114,7 +113,7 @@ def _on_lambda_start_request(
         headers,
         request_cookies,
         parsed_query,
-        request_path_parameters,
+        None,
         request_body,
         None,
         None,
