@@ -1,13 +1,5 @@
 import pytest
 
-from ddtrace.trace import tracer
-
-
-def tracer_injection(logger, log_method, event_dict):
-    """Inject tracer information into custom structlog log"""
-    event_dict.update(tracer.get_log_correlation_context())
-    return event_dict
-
 
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_VERSION": "test-version", "DD_ENV": "test-env", "DD_SERVICE": "test-service"}
@@ -119,17 +111,18 @@ def test_get_log_correlation_context_disabled_tracer():
 
 
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_custom_logging_injection_global_config():
-    """Ensure custom log injection via get_correlation_log_record returns proper tracer information."""
+def test_structored_logging_injection():
+    """Ensure the structored loggers automatically injects trace attributes into the
+    log records when ddtrace_run is used.
+    """
     import structlog
 
     from ddtrace import config
     from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.trace import tracer
-    from tests.tracer.test_correlation_log_context import tracer_injection
 
     capture_log = structlog.testing.LogCapture()
-    structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
+    structlog.configure(processors=[capture_log, structlog.processors.JSONRenderer()])
     logger = structlog.get_logger()
 
     config.service = "global-service"
@@ -154,14 +147,12 @@ def test_custom_logging_injection_global_config():
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_VERSION": "global-version", "DD_ENV": "global-env", "DD_SERVICE": "global-service"}
 )
-def test_custom_logging_injection_no_span():
-    """Ensure custom log injection via get_correlation_log_record with no active span returns empty record."""
+def test_structored_logging_injection_no_span():
+    """Ensure the structored loggers automatically injects global config attributes into the log records."""
     import structlog
 
-    from tests.tracer.test_correlation_log_context import tracer_injection
-
     capture_log = structlog.testing.LogCapture()
-    structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
+    structlog.configure(processors=[capture_log, structlog.processors.JSONRenderer()])
     logger = structlog.get_logger()
     logger.msg("No Span!")
 
@@ -177,17 +168,18 @@ def test_custom_logging_injection_no_span():
     }, capture_log.entries[0]
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_VERSION": None, "DD_ENV": None, "DD_SERVICE": None})
-def test_custom_logging_injection():
-    """Ensure custom log injection via get_correlation_log_record returns proper active span information."""
+@pytest.mark.subprocess(
+    ddtrace_run=True, env={"DD_LOGS_INJECTION": None, "DD_VERSION": None, "DD_ENV": None, "DD_SERVICE": None}
+)
+def test_structored_logging_injection_default_configs():
+    """Ensure the structored loggers automatically injects default trace attributes into the log records."""
     import structlog
 
     from ddtrace.internal.utils.formats import format_trace_id
     from ddtrace.trace import tracer
-    from tests.tracer.test_correlation_log_context import tracer_injection
 
     capture_log = structlog.testing.LogCapture()
-    structlog.configure(processors=[tracer_injection, capture_log, structlog.processors.JSONRenderer()])
+    structlog.configure(processors=[capture_log, structlog.processors.JSONRenderer()])
     logger = structlog.get_logger()
 
     with tracer.trace("test span") as span:
