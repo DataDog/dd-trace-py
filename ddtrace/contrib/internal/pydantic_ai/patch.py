@@ -1,5 +1,5 @@
 from ddtrace import config
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -7,10 +7,6 @@ from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 
 config._add("pydantic_ai", {})
-
-
-class PydanticAIIntegration(BaseLLMIntegration):
-    _integration_name = "pydantic_ai"
 
 
 def get_version() -> str:
@@ -22,7 +18,7 @@ def get_version() -> str:
 @with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False)
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False, model=getattr(instance, "model", None))
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
