@@ -1257,8 +1257,8 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
-                "Evaluation metric data will not be sent.",
+                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. "
+                "Evaluation metric data will not be sent."
             )
             return
 
@@ -1318,26 +1318,22 @@ class LLMObs(Service):
             metric_type = metric_type.lower()
             if metric_type == "numerical":
                 error = "invalid_metric_type"
-                log.warning(
-                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-                    "Converting `numerical` metric to `score` type."
-                )
-                metric_type = "score"
+                raise TypeError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be a string for a categorical metric.")
+                raise TypeError("value must be a string for a categorical metric.")
             if metric_type == "score" and not isinstance(value, (int, float)):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be an integer or float for a score metric.")
+                raise TypeError("value must be an integer or float for a score metric.")
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be a boolean for a boolean metric.")
+                raise TypeError("value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 error = "invalid_tags"
-                log.warning("tags must be a dictionary")
-                return
+                log.warning("tags must be a dictionary of string key-value pairs.")
+                tags = {}
 
             evaluation_tags = {
                 "ddtrace.version": ddtrace.__version__,
@@ -1408,21 +1404,23 @@ class LLMObs(Service):
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
-                                    If not set, the current time will be used.
+                                 If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation() called when LLMObs is not enabled. ",
-                "Evaluation metric data will not be sent.",
+                "LLMObs.submit_evaluation() called when LLMObs is not enabled. "
+                "Evaluation metric data will not be sent."
             )
             return
 
         error = None
         try:
-            if not isinstance(span_context, dict) or not isinstance(span_context.get("span_id"), str) or not isinstance(
-                span_context.get("trace_id"), str
+            if (
+                not isinstance(span_context, dict)
+                or not isinstance(span_context.get("span_id"), str)
+                or not isinstance(span_context.get("trace_id"), str)
             ):
                 error = "invalid_span"
                 raise TypeError(
@@ -1447,26 +1445,22 @@ class LLMObs(Service):
             metric_type = metric_type.lower()
             if metric_type == "numerical":
                 error = "invalid_metric_type"
-                log.warning(
-                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-                    "Converting `numerical` metric to `score` type."
-                )
-                metric_type = "score"
+                raise TypeError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be a string for a categorical metric.")
+                raise TypeError("value must be a string for a categorical metric.")
             if metric_type == "score" and not isinstance(value, (int, float)):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be an integer or float for a score metric.")
+                raise TypeError("value must be an integer or float for a score metric.")
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
-                raise TypeError("Value must be a boolean for a boolean metric.")
+                raise TypeError("value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 error = "invalid_tags"
-                log.warning("tags must be a dictionary")
-                return
+                log.warning("tags must be a dictionary of string key-value pairs.")
+                tags = {}
 
             evaluation_tags = {
                 "ddtrace.version": ddtrace.__version__,
@@ -1491,7 +1485,7 @@ class LLMObs(Service):
                 return
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
-                "join_on": {"span": span_context},
+                "join_on": {"span": {"span_id": span_context["span_id"], "trace_id": span_context["trace_id"]}},
                 "label": str(label),
                 "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
