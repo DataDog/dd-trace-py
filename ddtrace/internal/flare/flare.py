@@ -99,11 +99,7 @@ class Flare:
         self.revert_configs()
 
         # Ensure the flare directory exists (it might have been deleted by clean_up_files)
-        try:
-            self.flare_dir.mkdir(exist_ok=True)
-        except Exception as e:
-            log.error("Failed to create %s directory: %s", self.flare_dir, e)
-            return
+        self.flare_dir.mkdir(exist_ok=True)
 
         # # Validate case_id (must be a digit and cannot be 0 according to spec)
         if flare_send_req.case_id in ("0", 0):
@@ -121,32 +117,8 @@ class Flare:
             # multiple tracer instances
             lock_path = self.flare_dir / TRACER_FLARE_LOCK
             if not os.path.exists(lock_path):
-                try:
-                    open(lock_path, "w").close()
-                except Exception as e:
-                    log.error("Failed to create %s file", lock_path)
-                    raise e
-                client = None
-                try:
-                    client = get_connection(self.url, timeout=self.timeout)
-                    headers, body = self._generate_payload(flare_send_req)
-                    client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
-                    response = client.getresponse()
-                    if response.status == 200:
-                        log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-                    else:
-                        msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
-                            response.status,
-                            response.reason,
-                            response.read().decode(),
-                        )
-                        raise TracerFlareSendError(msg)
-                except Exception as e:
-                    log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-                    raise e
-                finally:
-                    if client is not None:
-                        client.close()
+                open(lock_path, "w").close()
+                self._send_flare_request(flare_send_req)
         finally:
             self.clean_up_files()
 
@@ -250,6 +222,32 @@ class Flare:
     def _get_valid_logger_level(self, flare_log_level: int) -> int:
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
+
+    def _send_flare_request(self, flare_send_req: FlareSendRequest):
+        """
+        Send the flare request to the agent.
+        """
+        client = None
+        try:
+            client = get_connection(self.url, timeout=self.timeout)
+            headers, body = self._generate_payload(flare_send_req)
+            client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+            response = client.getresponse()
+            if response.status == 200:
+                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+            else:
+                msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                    response.status,
+                    response.reason,
+                    response.read().decode(),
+                )
+                raise TracerFlareSendError(msg)
+        except Exception as e:
+            log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+            raise e
+        finally:
+            if client is not None:
+                client.close()
 
     def clean_up_files(self):
         try:
