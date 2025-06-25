@@ -73,10 +73,23 @@ def track_user(
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
-
-    _trace_utils.set_user(None, user_id, session_id=session_id, may_block=False)
-    if metadata:
-        _trace_utils.track_custom_event(None, "auth_sdk", metadata=metadata)
+    meta = metadata or {}
+    usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
+    usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
+    usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
+    usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
+    _trace_utils.set_user(
+        None,
+        user_id,
+        name=usr_name if isinstance(usr_name, str) else None,
+        email=usr_email if isinstance(usr_email, str) else None,
+        scope=usr_scope if isinstance(usr_scope, str) else None,
+        role=usr_role if isinstance(usr_role, str) else None,
+        session_id=session_id,
+        may_block=False,
+    )
+    if meta:
+        _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
     if _asm_request_context.in_asm_context():
         custom_data = {

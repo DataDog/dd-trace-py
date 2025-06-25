@@ -1,6 +1,7 @@
 from importlib import import_module
 import inspect
 import os
+from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 
 from wrapt import wrap_function_wrapper as _w
@@ -78,9 +79,17 @@ def get_version():
 PATCHED_VERSIONS = {}
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"psycopg": ">=3.0.0", "psycopg2": ">=2.8.0"}
+
+
 def get_versions():
     # type: () -> List[str]
     return PATCHED_VERSIONS
+
+
+def format_version(version: str) -> str:
+    return ".".join(map(lambda x: x.split(" ")[0], version.split(".")[:3]))
 
 
 def _psycopg_modules():
@@ -91,7 +100,7 @@ def _psycopg_modules():
     for module_name in module_names:
         try:
             module = import_module(module_name)
-            PATCHED_VERSIONS[module_name] = getattr(module, "__version__", "")
+            PATCHED_VERSIONS[module_name] = format_version(getattr(module, "__version__", ""))
             yield module
         except ImportError:
             pass

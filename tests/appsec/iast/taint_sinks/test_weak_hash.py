@@ -5,14 +5,14 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast
 from tests.appsec.iast.conftest import iast_context
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import hashlib_new
 from tests.appsec.iast.fixtures.taint_sinks.weak_algorithms import parametrized_weak_hash
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 WEAK_ALGOS_FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_algorithms.py"
@@ -75,7 +75,7 @@ def test_weak_hash_hashlib(iast_context_defaults, hash_func, method):
         "parametrized_weak_hash", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH
     )
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_ALGOS_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].location.line == line
@@ -103,7 +103,7 @@ def test_ensure_line_reported_is_minus_one_for_edge_cases(iast_context_defaults,
         "parametrized_weak_hash", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH, fixed_line=-1
     )
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_ALGOS_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].location.line == -1
@@ -119,7 +119,7 @@ def test_weak_hash_hashlib_no_digest(iast_context_md5_and_sha1_configured, hash_
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -131,13 +131,13 @@ def test_weak_hash_secure_hash(iast_context_md5_and_sha1_configured, hash_func, 
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     getattr(m, method)()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
 def test_weak_hash_new(iast_context_defaults):
     hashlib_new()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     line, hash_value = get_line_and_hash("hashlib_new", VULN_INSECURE_HASHING_TYPE, filename=WEAK_ALGOS_FIXTURES_PATH)
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
@@ -148,14 +148,14 @@ def test_weak_hash_new(iast_context_defaults):
 
 
 def test_weak_hash_md5_builtin_py3_unpatched(iast_context_md5_and_sha1_configured):
+    _testing_unpatch_iast()
     import _md5
 
-    unpatch_iast()
     m = _md5.md5()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert span_report is None
 
@@ -167,7 +167,7 @@ def test_weak_hash_md5_builtin_py3_md5_and_sha1_configured(iast_context_defaults
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
@@ -181,7 +181,7 @@ def test_weak_hash_md5_builtin_py3_only_md4_configured(iast_context_only_md4):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert span_report is None
 
@@ -193,7 +193,7 @@ def test_weak_hash_md5_builtin_py3_only_md5_configured(iast_context_only_md5):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
@@ -207,7 +207,7 @@ def test_weak_hash_md5_builtin_py3_only_sha1_configured(iast_context_only_sha1):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert span_report is None
 
@@ -219,7 +219,7 @@ def test_weak_hash_pycryptodome_hashes_md5(iast_context_defaults):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
@@ -232,7 +232,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_defaults(iast_context_defaults):
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
@@ -246,7 +246,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_only_md5_configured(iast_context_onl
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert span_report is None
 
@@ -258,7 +258,7 @@ def test_weak_hash_pycryptodome_hashes_sha1_only_sha1_configured(iast_context_on
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     m.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path == WEAK_HASH_FIXTURES_PATH
@@ -275,7 +275,7 @@ def test_weak_check_repeated(iast_context_defaults):
     for _ in range(0, num_vulnerabilities):
         m.digest()
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
 
     assert len(span_report.vulnerabilities) == 1
 
@@ -287,7 +287,7 @@ def test_weak_hash_check_hmac(iast_context_defaults):
 
     mac = hmac.new(b"test", digestmod=hashlib.md5)
     mac.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert len(span_report.vulnerabilities) == 1
 
 
@@ -297,7 +297,7 @@ def test_weak_check_hmac_secure(iast_context_defaults):
 
     mac = hmac.new(b"test", digestmod=hashlib.sha256)
     mac.digest()
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report is None
 
 
@@ -320,7 +320,7 @@ def test_weak_hash_deduplication_expired_cache(
             m.update(b"Nobody inspects" * i)
             m.digest()
 
-            span_report = _get_span_report()
+            span_report = get_iast_reporter()
             assert span_report is not None, f"Failed at iteration {i}. span_report {span_report}"
             assert len(span_report.vulnerabilities) == 1, f"Failed at iteration {i}"
 
@@ -342,7 +342,7 @@ def test_weak_hash_deduplication_cache(iast_context_contextmanager_deduplication
             m.update(b"Nobody inspects" * i)
             m.digest()
 
-            span_report = _get_span_report()
+            span_report = get_iast_reporter()
             if i > 0 and deduplication_enabled:
                 assert span_report is None, f"Failed at iteration {i}"
             else:

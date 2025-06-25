@@ -11,6 +11,7 @@ Enabling
 The LangGraph integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LangGraph integration::
+
     from ddtrace import patch
     patch(langgraph=True)
 
@@ -28,6 +29,7 @@ Instance Configuration
 
 To configure the LangGraph integration on a per-instance basis use the
 ``Pin`` API::
+
     import langgraph
     from ddtrace.trace import Pin
     Pin.override(langgraph, service="my-langgraph-service")
