@@ -7,7 +7,7 @@ from ddtrace.trace import Span
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
 
-    def _set_base_span_tags(self, span: Span, model: Optional[str] = None) -> None:
+    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs) -> None:
         if model:
             span.set_tag("pydantic_ai.request.model", getattr(model, "model_name", ""))
             provider = getattr(model, "_provider", None)
