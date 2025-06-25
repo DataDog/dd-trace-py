@@ -113,12 +113,7 @@ class Flare:
             return
 
         try:
-            # We only want the flare to be sent once, even if there are
-            # multiple tracer instances
-            lock_path = self.flare_dir / TRACER_FLARE_LOCK
-            if not os.path.exists(lock_path):
-                open(lock_path, "w").close()
-                self._send_flare_request(flare_send_req)
+            self._send_flare_request(flare_send_req)
         finally:
             self.clean_up_files()
 
@@ -227,27 +222,32 @@ class Flare:
         """
         Send the flare request to the agent.
         """
-        client = None
-        try:
-            client = get_connection(self.url, timeout=self.timeout)
-            headers, body = self._generate_payload(flare_send_req)
-            client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
-            response = client.getresponse()
-            if response.status == 200:
-                log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-            else:
-                msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
-                    response.status,
-                    response.reason,
-                    response.read().decode(),
-                )
-                raise TracerFlareSendError(msg)
-        except Exception as e:
-            log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
-            raise e
-        finally:
-            if client is not None:
-                client.close()
+        # We only want the flare to be sent once, even if there are
+        # multiple tracer instances
+        lock_path = self.flare_dir / TRACER_FLARE_LOCK
+        if not os.path.exists(lock_path):
+            open(lock_path, "w").close()
+            client = None
+            try:
+                client = get_connection(self.url, timeout=self.timeout)
+                headers, body = self._generate_payload(flare_send_req)
+                client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
+                response = client.getresponse()
+                if response.status == 200:
+                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
+                else:
+                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                        response.status,
+                        response.reason,
+                        response.read().decode(),
+                    )
+                    raise TracerFlareSendError(msg)
+            except Exception as e:
+                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                raise e
+            finally:
+                if client is not None:
+                    client.close()
 
     def clean_up_files(self):
         try:
