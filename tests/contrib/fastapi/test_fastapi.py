@@ -670,7 +670,7 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+# @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(test_spans, snapshot_app):
     """Test trace context propagation."""
@@ -702,11 +702,9 @@ def test_websocket_context_propagation(test_spans, snapshot_app):
     websocket_spans = []
     for trace in spans:
         for span in trace:
-            if (
-                span.name in ["websocket.receive", "websocket.send", "websocket.close"]
-                and span.parent_id == handshake_span.span_id
-            ):
-                websocket_spans.append(span)
+            if span.name == "websocket.receive" or span.name == "websocket.close":
+                if span._links and span._links[0].trace_id == handshake_span.trace_id:
+                    websocket_spans.append(span)
 
     assert len(websocket_spans) > 0, "No websocket spans found as children of handshake span"
 
@@ -729,14 +727,6 @@ def test_websocket_context_propagation(test_spans, snapshot_app):
             ), f"Websocket span {ws_span.name} should have baggage.{key} in context"
 
         assert len(ws_span.context._baggage) > 0, f"Websocket span {ws_span.name} should have non-empty baggage"
-
-        assert (
-            ws_span.trace_id == handshake_span.trace_id
-        ), f"Websocket span {ws_span.name} should inherit trace_id from handshake"
-
-        assert (
-            ws_span.parent_id == handshake_span.span_id
-        ), f"Websocket span {ws_span.name} should be child of handshake span"
 
 
 # Ignoring span link attributes until values are

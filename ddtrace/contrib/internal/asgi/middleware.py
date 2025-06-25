@@ -272,17 +272,13 @@ class TraceMiddleware:
                     span_type="websocket",
                 )
 
-                recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-                recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-
-                recv_span.set_link(trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"})
-
                 try:
                     message = await receive()
 
                     if message["type"] == "websocket.receive":
-                        recv_span.set_tag_str("websocket.message.type", "receive")
                         core.dispatch("asgi.websocket.receive", (message,))
+                        recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                        recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
                         if "text" in message:
                             recv_span.set_tag_str("websocket.message.type", "text")
@@ -292,6 +288,25 @@ class TraceMiddleware:
                             recv_span.set_metric("websocket.message.length", len(message["bytes"]))
 
                         recv_span.set_metric("websocket.message.frames", 1)
+
+                        recv_span.set_link(
+                            trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
+                        )
+
+                        if span.context:
+                            # Copy baggage items from the handshake span's context
+                            for key, value in span.context._baggage.items():
+                                recv_span.context.set_baggage_item(key, value)
+                                recv_span.set_tag_str(f"baggage.{key}", value)
+
+                            if span.context.sampling_priority is not None:
+                                recv_span.context.sampling_priority = span.context.sampling_priority
+
+                            if span.context._meta.get("_dd.origin"):
+                                recv_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
+
+                            if span.context._meta.get("_dd.p.dm"):
+                                recv_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
 
                         # Store the receive span in scope so it can be used by send operations
                         # and finished when the handler completes
@@ -318,11 +333,23 @@ class TraceMiddleware:
 
                         disconnect_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                         disconnect_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-                        disconnect_span.set_tag_str("websocket.message.type", "disconnect")
 
                         disconnect_span.set_link(
                             trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
                         )
+                        if span.context:
+                            for key, value in span.context._baggage.items():
+                                disconnect_span.context.set_baggage_item(key, value)
+                                disconnect_span.set_tag_str(f"baggage.{key}", value)
+
+                            if span.context.sampling_priority is not None:
+                                disconnect_span.context.sampling_priority = span.context.sampling_priority
+
+                            if span.context._meta.get("_dd.origin"):
+                                disconnect_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
+
+                            if span.context._meta.get("_dd.p.dm"):
+                                disconnect_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
 
                         code = message.get("code")
                         reason = message.get("reason")
@@ -375,22 +402,6 @@ class TraceMiddleware:
                             send_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
                             # Propagate context from the handshake span (baggage, origin, sampling decision)
-                            # but NOT the trace ID (which is inherited through child_of)
-                            if span.context:
-                                # Copy baggage items from the handshake span's context
-                                for key, value in span.context._baggage.items():
-                                    send_span.context.set_baggage_item(key, value)
-                                    send_span.set_tag_str(f"baggage.{key}", value)
-
-                                if span.context.sampling_priority is not None:
-                                    send_span.context.sampling_priority = span.context.sampling_priority
-
-                                if span.context._meta.get("_dd.origin"):
-                                    send_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
-
-                                if span.context._meta.get("_dd.p.dm"):
-                                    send_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
-
                             # set tags related to peer.hostname
                             client = scope.get("client")
                             if len(client) >= 1:
@@ -436,23 +447,6 @@ class TraceMiddleware:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             close_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-                            # Propagate context from the handshake span (baggage, origin, sampling decision)
-                            # but NOT the trace ID (which is inherited through child_of)
-                            if span.context:
-                                # Copy baggage items from the handshake span's context
-                                for key, value in span.context._baggage.items():
-                                    close_span.context.set_baggage_item(key, value)
-                                    close_span.set_tag_str(f"baggage.{key}", value)
-
-                                if span.context.sampling_priority is not None:
-                                    close_span.context.sampling_priority = span.context.sampling_priority
-
-                                if span.context._meta.get("_dd.origin"):
-                                    close_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
-
-                                if span.context._meta.get("_dd.p.dm"):
-                                    close_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
-
                             client = scope.get("client")
                             if len(client) >= 1:
                                 client_ip = client[0]
@@ -473,6 +467,19 @@ class TraceMiddleware:
                             close_span.set_link(
                                 trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
                             )
+                            if span.context:
+                                for key, value in span.context._baggage.items():
+                                    close_span.context.set_baggage_item(key, value)
+                                    close_span.set_tag_str(f"baggage.{key}", value)
+
+                                if span.context.sampling_priority is not None:
+                                    close_span.context.sampling_priority = span.context.sampling_priority
+
+                                if span.context._meta.get("_dd.origin"):
+                                    close_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
+
+                                if span.context._meta.get("_dd.p.dm"):
+                                    close_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
                             code = message.get("code")
                             reason = message.get("reason")
                             if code is not None:
