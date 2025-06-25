@@ -1,0 +1,121 @@
+interactions:
+- request:
+    body: '{"input":"What is the weather like in Boston today?","model":"gpt-4.1","tool_choice":"auto","tools":[{"type":"function","name":"get_current_weather","description":"Get
+      the current weather in a given location","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The
+      city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '433'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.76.2
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.76.2
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.10
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_682f80f5bdb88191bb25ea6b93eb685f03d0b2fd90d3afa9\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1747943669,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"error\": null,\n  \"incomplete_details\":
+        null,\n  \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"model\":
+        \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\": \"fc_682f80f647c48191b7fbc7f71049db4a03d0b2fd90d3afa9\",\n
+        \     \"type\": \"function_call\",\n      \"status\": \"completed\",\n      \"arguments\":
+        \"{\\\"location\\\":\\\"Boston, MA\\\",\\\"unit\\\":\\\"celsius\\\"}\",\n
+        \     \"call_id\": \"call_tjEzTywkXuBUO42ugPFnQYqi\",\n      \"name\": \"get_current_weather\"\n
+        \   }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+        null,\n  \"reasoning\": {\n    \"effort\": null,\n    \"summary\": null\n
+        \ },\n  \"service_tier\": \"default\",\n  \"store\": false,\n  \"temperature\":
+        1.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    }\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [\n    {\n      \"type\":
+        \"function\",\n      \"description\": \"Get the current weather in a given
+        location\",\n      \"name\": \"get_current_weather\",\n      \"parameters\":
+        {\n        \"type\": \"object\",\n        \"properties\": {\n          \"location\":
+        {\n            \"type\": \"string\",\n            \"description\": \"The city
+        and state, e.g. San Francisco, CA\"\n          },\n          \"unit\": {\n
+        \           \"type\": \"string\",\n            \"enum\": [\n              \"celsius\",\n
+        \             \"fahrenheit\"\n            ]\n          }\n        },\n        \"required\":
+        [\n          \"location\",\n          \"unit\"\n        ]\n      },\n      \"strict\":
+        true\n    }\n  ],\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\":
+        {\n    \"input_tokens\": 75,\n    \"input_tokens_details\": {\n      \"cached_tokens\":
+        0\n    },\n    \"output_tokens\": 23,\n    \"output_tokens_details\": {\n
+        \     \"reasoning_tokens\": 0\n    },\n    \"total_tokens\": 98\n  },\n  \"user\":
+        null,\n  \"metadata\": {}\n}"
+    headers:
+      CF-RAY:
+      - 943edd9e4c85904a-BOS
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 22 May 2025 19:54:30 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=5CWWmQJRX3WDLu_OWuf0D4BErKXuBVTrZz7CiSI2yAc-1747943670-1.0.1.1-9jEnLbVd7FGIaXUOxcO6XUJPrzMQPSCYaz41iTk82orFyKjjgLsXP00T.QSO8fDeDKRzFEjbGu5pVyEUw27jL48cICg8vSUTZQO9uLSppY8;
+        path=/; expires=Thu, 22-May-25 20:24:30 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=BPPHO.vzXC07T5DlOdEmkwdajT02PqigcwSqdDdYcG8-1747943670423-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      content-length:
+      - '1826'
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '672'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999708'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_1c9acab9d4c19339d82b6d672457d059
+    status:
+      code: 200
+      message: OK
+version: 1
