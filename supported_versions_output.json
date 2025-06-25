@@ -420,7 +420,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.11",
+        "max_tracer_supported": "1.1.12",
         "auto-instrumented": true
     },
     {
