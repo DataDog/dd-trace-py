@@ -86,7 +86,7 @@ if config._otel_enabled:
         # exporter = OTLPMetricExporter(insecure=True)
         # reader = PeriodicExportingMetricReader(exporter)
         # provider = MeterProvider(metric_readers=[reader])
-        set_meter_provider(MeterProvider())
+        set_meter_provider(MeterProvider(OTLPMetricExporter()))
 
 
 if config._llmobs_enabled:

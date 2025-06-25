@@ -65,8 +65,8 @@ class MeterProvider(OtelMeterProvider):
     One MeterProvider should be initialized and set per application.
     """
 
-    def __init__(self) -> None:
-        self._exporter = OTLPMetricExporter()
+    def __init__(self, exporter = None) -> None:
+        self._exporter = exporter
         super().__init__()
 
     if OTEL_VERSION >= (1, 26):
