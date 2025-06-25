@@ -1,3 +1,4 @@
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
@@ -12,11 +13,10 @@ from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.contrib.internal.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.internal.webbrowser.patch import unpatch as webbrowser_unpatch
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 from tests.utils import override_global_config
 
 
@@ -153,7 +153,7 @@ def test_urllib_request(tracer, iast_context_defaults):
 
 
 def _check_no_report_if_deduplicated(num_vuln_expected):
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     if num_vuln_expected == 0:
         assert span_report is None
     else:

@@ -1,19 +1,17 @@
 import inspect
 from typing import Text
 
-from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
-from ddtrace.appsec._iast._patch import set_and_check_module_is_patched
-from ddtrace.appsec._iast._patch import set_module_unpatched
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -25,26 +23,19 @@ def get_version() -> Text:
     return ""
 
 
+@patch_once
 def patch():
-    if not asm_config._iast_enabled:
-        return
+    iast_funcs = WrapFunctonsForIAST()
 
-    if not set_and_check_module_is_patched("builtins", default_attr="_datadog_code_injection_patch"):
-        return
+    iast_funcs.wrap_function("builtins", "eval", _iast_coi)
 
-    try_wrap_function_wrapper("builtins", "eval", _iast_coi)
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
-    # try_wrap_function_wrapper("builtins", "exec", _iast_coi_exec)
+    # iast_funcs.wrap_function("builtins", "exec", _iast_coi)
+
+    iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
-
-
-def unpatch():
-    try_unwrap("builtins", "eval")
-    # try_unwrap("builtins", "exec")
-
-    set_module_unpatched("builtins", default_attr="_datadog_code_injection_patch")
 
 
 class CodeInjection(VulnerabilityBase):

@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import anthropic
 
@@ -29,6 +30,10 @@ def get_version():
     return getattr(anthropic, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"anthropic": ">=0.28.0"}
+
+
 config._add(
     "anthropic",
     {
@@ -52,6 +57,7 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None
@@ -124,6 +130,7 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None

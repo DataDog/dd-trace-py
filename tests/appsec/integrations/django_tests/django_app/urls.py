@@ -21,6 +21,7 @@ def shutdown(request):
 
 urlpatterns = [
     handler(r"^$", views.index),
+    handler(r"^shutdown$", shutdown),
     # This must precede composed-view.
     handler("appsec/response-header/$", views.magic_header_key, name="response-header"),
     handler("appsec/body/$", views.body_view, name="body_view"),
@@ -37,10 +38,16 @@ urlpatterns = [
         name="command_injection_secure_mark",
     ),
     handler(
+        "appsec/command-injection/security-control/$",
+        views.command_injection_security_control,
+        name="command_injection_security_control",
+    ),
+    handler(
         "appsec/xss/secure-mark/$",
         views.xss_secure_mark,
         name="xss_secure_mark",
     ),
+    handler("appsec/header-injection-secure/$", views.header_injection_secure, name="header_injection"),
     handler("appsec/header-injection/$", views.header_injection, name="header_injection"),
     handler("appsec/unvalidated_redirect_url/$", views.unvalidated_redirect_url, name="unvalidated_redirect_url"),
     handler(
