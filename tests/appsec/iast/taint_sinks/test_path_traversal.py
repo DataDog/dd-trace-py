@@ -8,13 +8,15 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import DEFAULT_PATH_TRAVERSAL_FUNCTIONS
 from ddtrace.appsec._iast.constants import VULN_PATH_TRAVERSAL
+from ddtrace.appsec._iast.taint_sinks.path_traversal import check_and_report_path_traversal
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.iast_utils import _iast_patched_module
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import ROOT_DIR
 
 
 FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/path_traversal.py"
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _get_path_traversal_module_functions():
@@ -157,3 +159,22 @@ def test_path_traversal_deduplication(num_vuln_expected, iast_context_deduplicat
         assert span_report
 
         assert len(span_report.vulnerabilities) == num_vuln_expected
+
+
+@pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
+def test_path_traversal_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_context_defaults):
+    """Test that non-text types don't trigger path traversal vulnerabilities."""
+    # Taint the non-text object
+    tainted_obj = taint_pyobject(
+        non_text_obj,
+        source_name="test_source",
+        source_value=str(non_text_obj),
+        source_origin=OriginType.PARAMETER,
+    )
+
+    # Call the path traversal reporting function directly
+    check_and_report_path_traversal(tainted_obj)
+
+    # Assert no vulnerability was reported
+    span_report = get_iast_reporter()
+    assert span_report is None, f"Vulnerability reported for {obj_type}: {non_text_obj}"
