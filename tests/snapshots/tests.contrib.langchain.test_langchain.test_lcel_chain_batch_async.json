@@ -10,22 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67ab7faa00000000",
-      "langchain.request.inputs.0": "chickens",
+      "_dd.p.tid": "685b310700000000",
       "langchain.request.type": "chain",
-      "langchain.response.outputs.0": "Hello world!",
       "language": "python",
-      "runtime-id": "283efd16ebfc4477ac4f7c0bb3f68acc"
+      "runtime-id": "6bcdd46c18cc418dab0e4e1f9791f4b6"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 45846
+      "process_id": 49472
     },
-    "duration": 7074000,
-    "start": 1739292586772416000
+    "duration": 5918000,
+    "start": 1750806791888170000
   },
      {
        "name": "langchain.request",
@@ -38,25 +36,13 @@
        "error": 0,
        "meta": {
          "langchain.request.api_key": "...key>",
-         "langchain.request.messages.0.0.content": "Tell me a short joke about chickens",
-         "langchain.request.messages.0.0.message_type": "HumanMessage",
          "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.n": "1",
-         "langchain.request.openai.parameters.stream": "False",
-         "langchain.request.openai.parameters.temperature": "0.7",
          "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model",
-         "langchain.response.completions.0.0.content": "Hello world!",
-         "langchain.response.completions.0.0.message_type": "AIMessage"
+         "langchain.request.type": "chat_model"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 5,
-         "langchain.tokens.prompt_tokens": 5,
-         "langchain.tokens.total_tokens": 10
+         "_dd.measured": 1
        },
-       "duration": 3915000,
-       "start": 1739292586774880000
+       "duration": 2862000,
+       "start": 1750806791890516000
      }]]

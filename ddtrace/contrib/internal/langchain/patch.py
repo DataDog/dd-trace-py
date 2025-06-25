@@ -144,12 +144,6 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.record_instance(instance, span)
 
     try:
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -179,12 +173,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -213,12 +201,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
         chat_completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -248,14 +230,6 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-            else:
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-
-
         chat_completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -272,11 +246,6 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
     This traces both embed_query(text) and embed_documents(texts), so we need to make sure
     we get the right arg/kwarg.
     """
-    try:
-        input_texts = get_argument_value(args, kwargs, 0, "texts")
-    except ArgumentError:
-        input_texts = get_argument_value(args, kwargs, 0, "text")
-
     provider = instance.__class__.__name__.split("Embeddings")[0].lower()
     integration = langchain._datadog_integration
     span = integration.trace(
@@ -488,32 +457,11 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         if not integration.is_pc_sampled_span(span):
             return
 
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if not isinstance(val, dict):
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-                continue
-            for k, v in val.items():
-                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-
-
     def _on_span_finished(span: Span, streamed_chunks):
         joined_chunks = streamed_chunks[0]
         for chunk in streamed_chunks[1:]:
             joined_chunks += chunk  # base message types support __add__ for concatenation
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
-        if (
-            span.error
-            or not integration.is_pc_sampled_span(span)
-            or streamed_chunks is None
-            or len(streamed_chunks) == 0
-        ):
-            return
-
-        usage = streamed_chunks and getattr(streamed_chunks[-1], "usage_metadata", None)
-        if not usage or not isinstance(usage, dict):
-            return
-        for k, v in usage.items():
-            span.set_tag_str("langchain.response.usage_metadata.%s" % k, str(v))
 
     return shared_stream(
         integration=integration,
@@ -539,22 +487,10 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
-        if not integration.is_pc_sampled_span(span):
-            return
-
-        for param, val in getattr(instance, "_identifying_params", {}).items():
-            if not isinstance(val, dict):
-                span.set_tag_str("langchain.request.%s.parameters.%s" % (llm_provider, param), str(val))
-                continue
-            for k, v in val.items():
-                span.set_tag_str("langchain.request.%s.parameters.%s.%s" % (llm_provider, param, k), str(v))
-
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
-        if span.error or not integration.is_pc_sampled_span(span):
-            return
 
     return shared_stream(
         integration=integration,

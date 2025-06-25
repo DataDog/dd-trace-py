@@ -90,7 +90,6 @@ def shared_stream(
     options.update(extra_options)
 
     span = integration.trace(**options)
-    span.set_tag("langchain.request.stream", True)
     on_span_started(span)
 
     try:
