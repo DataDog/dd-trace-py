@@ -3,7 +3,6 @@ import typing
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
 from ddtrace.appsec._deduplications import deduplication
-from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -54,35 +53,35 @@ def _set_waf_error_log(msg: str, version: str, error_level: bool = True) -> None
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_updates_metric(info: DDWaf_info, success: bool):
+def _set_waf_updates_metric(info, success: bool):
     try:
-        tags: typing.Tuple[typing.Tuple[str, str], ...] = (
-            ("event_rules_version", info.version or UNKNOWN_VERSION),
-            ("waf_version", ddwaf_version),
-        )
+        if info:
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
+                ("waf_version", ddwaf_version),
+                ("success", bool_str[success]),
+            )
+        else:
+            tags = (("waf_version", ddwaf_version), ("success", bool_str[success]))
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags + (("success", bool_str[success]),)
-        )
-        if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.updates", 1, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:updates"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_init_metric(info: DDWaf_info, success: bool):
+def _set_waf_init_metric(info, success: bool):
     try:
-        tags: typing.Tuple[typing.Tuple[str, str], ...] = (
-            ("event_rules_version", info.version or UNKNOWN_VERSION),
-            ("waf_version", ddwaf_version),
-        )
+        if info:
+            tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+                ("event_rules_version", info.version or UNKNOWN_VERSION),
+                ("waf_version", ddwaf_version),
+                ("success", bool_str[success]),
+            )
+        else:
+            tags = (("waf_version", ddwaf_version), ("success", bool_str[success]))
 
-        telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags + (("success", bool_str[success]),)
-        )
-        if not success:
-            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.config_errors", 1, tags=tags)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.init", 1, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:init"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)

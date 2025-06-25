@@ -1,7 +1,5 @@
 import pytest
 
-from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
-from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -11,13 +9,15 @@ from ddtrace.appsec._iast._taint_utils import LazyTaintList
 
 @pytest.fixture
 def lazy_taint_json_patch():
-    iast_funcs = WrapFunctonsForIAST()
+    from ddtrace.appsec._iast._patches.json_tainting import patched_json_encoder_default
+    from ddtrace.appsec._iast._patches.json_tainting import try_unwrap
+    from ddtrace.appsec._iast._patches.json_tainting import try_wrap_function_wrapper
 
-    iast_funcs.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    iast_funcs.wrap_function("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
-    iast_funcs.patch()
+    try_wrap_function_wrapper("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
+    try_wrap_function_wrapper("simplejson.encoder", "JSONEncoder.default", patched_json_encoder_default)
     yield
-    iast_funcs.testing_unpatch()
+    try_unwrap("json.encoder", "JSONEncoder.default")
+    try_unwrap("simplejson.encoder", "JSONEncoder.default")
 
 
 def test_tainted_types(iast_context_defaults):

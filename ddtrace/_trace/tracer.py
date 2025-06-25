@@ -46,10 +46,12 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -87,9 +89,20 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
 
 
 def _default_span_processors_factory(
+    trace_filters: List[TraceProcessor],
+    writer: Optional[TraceWriter],
+    partial_flush_enabled: bool,
+    partial_flush_min_spans: int,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"]]:
+) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], SpanAggregator]:
     """Construct the default list of span processors to use."""
+    trace_processors: List[TraceProcessor] = []
+    trace_processors += [
+        PeerServiceProcessor(_ps_config),
+        BaseServiceProcessor(),
+    ]
+    trace_processors += trace_filters
+
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
@@ -127,7 +140,14 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    return span_processors, appsec_processor
+    # These need to run after all the other processors
+    span_aggregagtor = SpanAggregator(
+        partial_flush_enabled=partial_flush_enabled,
+        partial_flush_min_spans=partial_flush_min_spans,
+        trace_processors=trace_processors,
+        writer=writer,
+    )
+    return span_processors, appsec_processor, span_aggregagtor
 
 
 class Tracer(object):
@@ -161,6 +181,8 @@ class Tracer(object):
                     "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
+        self._user_trace_processors: List[TraceProcessor] = []
+
         # globally set tags
         self._tags = config.tags.copy()
 
@@ -177,13 +199,12 @@ class Tracer(object):
             config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
-            self._endpoint_call_counter_span_processor
-        )
-        self._span_aggregator = SpanAggregator(
-            partial_flush_enabled=config._partial_flush_enabled,
-            partial_flush_min_spans=config._partial_flush_min_spans,
-            dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
+        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
+            self._user_trace_processors,
+            None,
+            config._partial_flush_enabled,
+            config._partial_flush_min_spans,
+            self._endpoint_call_counter_span_processor,
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -368,6 +389,13 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
+        if isinstance(self._span_aggregator.writer, AgentWriter):
+            if appsec_enabled:
+                self._span_aggregator.writer._api_version = "v0.4"
+
+        if trace_processors:
+            self._user_trace_processors = trace_processors
+
         if any(
             x is not None
             for x in [
@@ -377,9 +405,7 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._recreate(
-                trace_processors, compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False
-            )
+            self._recreate()
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -407,31 +433,31 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        self._recreate()
         self._new_process = True
 
-    def _recreate(
-        self,
-        trace_processors: Optional[List[TraceProcessor]] = None,
-        compute_stats_enabled: Optional[bool] = None,
-        apm_opt_out: Optional[bool] = None,
-        appsec_enabled: Optional[bool] = None,
-        reset_buffer: bool = True,
-    ) -> None:
-        """Re-initialize the tracer's processors and trace writer"""
+    def _recreate(self):
+        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
+        try:
+            self._span_aggregator.writer.stop()
+        except ServiceStatusError:
+            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
+            # the writer before that point will raise a ServiceStatusError.
+            pass
+        # Re-create the background writer thread
+        rules = self._span_aggregator.sampling_processor.sampler._by_service_samplers
+        self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
-        self._span_aggregator.reset(
-            user_processors=trace_processors,
-            compute_stats=compute_stats_enabled,
-            apm_opt_out=apm_opt_out,
-            appsec_enabled=appsec_enabled,
-            reset_buffer=reset_buffer,
-        )
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
+            self._user_trace_processors,
+            self._span_aggregator.writer,
+            self._span_aggregator.partial_flush_enabled,
+            self._span_aggregator.partial_flush_min_spans,
             self._endpoint_call_counter_span_processor,
         )
+        self._span_aggregator.sampling_processor.sampler._by_service_samplers = rules.copy()
 
     def _start_span_after_shutdown(
         self,
@@ -775,7 +801,9 @@ class Tracer(object):
                 )
 
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                yield from f(*args, **kwargs)
+                gen = f(*args, **kwargs)
+                for value in gen:
+                    yield value
 
         return func_wrapper
 
@@ -792,7 +820,8 @@ class Tracer(object):
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                async for value in f(*args, **kwargs):
+                agen = f(*args, **kwargs)
+                async for value in agen:
                     yield value
 
         return func_wrapper

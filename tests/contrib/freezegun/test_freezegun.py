@@ -20,7 +20,6 @@ class TestFreezegunTestCase:
         yield
         unpatch()
 
-    @flaky(1759346444)
     def test_freezegun_unpatch(self):
         import freezegun
 
@@ -62,19 +61,14 @@ class TestFreezegunTestCase:
 
     def test_freezegun_configure_default_ignore_list_continues_to_ignore_ddtrace(self):
         import freezegun
-        from freezegun.config import DEFAULT_IGNORE_LIST
 
-        try:
-            freezegun.configure(default_ignore_list=[])
+        freezegun.configure(default_ignore_list=[])
 
-            with freezegun.freeze_time("2020-01-01"):
-                with dd_tracer.trace("freezegun.test") as span:
-                    time.sleep(1)
+        with freezegun.freeze_time("2020-01-01"):
+            with dd_tracer.trace("freezegun.test") as span:
+                time.sleep(1)
 
-            assert span.duration >= 1
-        finally:
-            # Reset the ignore list to its default value after the test
-            freezegun.configure(default_ignore_list=DEFAULT_IGNORE_LIST)
+        assert span.duration >= 1
 
 
 class PytestFreezegunTestCase(PytestTestCaseBase):

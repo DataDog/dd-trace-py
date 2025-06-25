@@ -15,8 +15,7 @@ Enabling
 Patch ``structlog``
 ~~~~~~~~~~~~~~~~~~~
 
-Structlog support is auto-enabled when :ref:`ddtrace-run<ddtracerun>` and a structured logging (ex: JSON) is used.
-To disable this integration, set the environment variable ``DD_LOGS_INJECTION=false``.
+If using :ref:`ddtrace-run<ddtracerun>` then set the environment variable ``DD_LOGS_INJECTION=true``.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 

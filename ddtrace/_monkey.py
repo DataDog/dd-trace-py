@@ -50,7 +50,6 @@ PATCH_MODULES = {
     "futures": True,
     "freezegun": True,
     "google_generativeai": True,
-    "google_genai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -92,10 +91,11 @@ PATCH_MODULES = {
     # Ignore some web framework integrations that might be configured explicitly in code
     "falcon": True,
     "pyramid": True,
-    "logbook": True,
-    "logging": True,
-    "loguru": True,
-    "structlog": True,
+    # Auto-enable logging if the environment variable DD_LOGS_INJECTION is true
+    "logbook": config._logs_injection,
+    "logging": config._logs_injection,
+    "loguru": config._logs_injection,
+    "structlog": config._logs_injection,
     "pynamodb": True,
     "pyodbc": True,
     "fastapi": True,
@@ -161,7 +161,6 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
-    "google_genai": ("google.genai",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
@@ -354,7 +353,7 @@ def _patch_all(**patch_modules: bool) -> None:
 
     patch(raise_errors=False, **modules)
     if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.main import patch_iast
+        from ddtrace.appsec._iast._patch_modules import patch_iast
         from ddtrace.appsec.iast import enable_iast_propagation
 
         patch_iast()

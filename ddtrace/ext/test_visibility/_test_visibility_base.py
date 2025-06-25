@@ -2,7 +2,11 @@ import abc
 import dataclasses
 from enum import Enum
 from pathlib import Path
+from typing import Any
+from typing import Dict
 from typing import Generic
+from typing import List
+from typing import NamedTuple
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -57,57 +61,46 @@ class _TestVisibilityChildItemIdBase(_TestVisibilityIdBase, Generic[PT]):
         return self.parent_id
 
 
-@dataclasses.dataclass(frozen=True)
-class TestModuleId(_TestVisibilityRootItemIdBase):
-    name: str
-
-    def __repr__(self):
-        return "TestModuleId(module={})".format(
-            self.name,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class TestSuiteId(_TestVisibilityChildItemIdBase[TestModuleId]):
-    def __repr__(self):
-        return "TestSuiteId(module={}, suite={})".format(self.parent_id.name, self.name)
-
-
-@dataclasses.dataclass(frozen=True)
-class TestId(_TestVisibilityChildItemIdBase[TestSuiteId]):
-    parameters: Optional[str] = None  # For hashability, a JSON string of a dictionary of parameters
-
-    def __repr__(self):
-        return "TestId(module={}, suite={}, test={}, parameters={})".format(
-            self.parent_id.parent_id.name,
-            self.parent_id.name,
-            self.name,
-            self.parameters,
-        )
-
-
 TestVisibilityItemId = TypeVar(
-    "TestVisibilityItemId",
-    bound=Union[
-        _TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId, TestModuleId, TestSuiteId, TestId
-    ],
+    "TestVisibilityItemId", bound=Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
 )
 
 
 class _TestVisibilityAPIBase(abc.ABC):
     __test__ = False
 
+    class GetTagArgs(NamedTuple):
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+        name: str
+
+    class SetTagArgs(NamedTuple):
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+        name: str
+        value: Any
+
+    class DeleteTagArgs(NamedTuple):
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+        name: str
+
+    class SetTagsArgs(NamedTuple):
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+        tags: Dict[str, Any]
+
+    class DeleteTagsArgs(NamedTuple):
+        item_id: Union[_TestVisibilityChildItemIdBase, _TestVisibilityRootItemIdBase, TestSessionId]
+        names: List[str]
+
     def __init__(self):
         raise NotImplementedError("This class is not meant to be instantiated")
 
     @staticmethod
     @abc.abstractmethod
-    def discover(*args, **kwargs):
+    def discover(item_id: TestVisibilityItemId, *args, **kwargs):
         pass
 
     @staticmethod
     @abc.abstractmethod
-    def start(*args, **kwargs):
+    def start(item_id: TestVisibilityItemId, *args, **kwargs):
         pass
 
     @staticmethod

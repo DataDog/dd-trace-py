@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds LLM Observability tracing support for the OpenAI Responses endpoint.

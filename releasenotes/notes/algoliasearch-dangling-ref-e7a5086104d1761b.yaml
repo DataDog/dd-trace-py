@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix for algoliasearch dangling reference.

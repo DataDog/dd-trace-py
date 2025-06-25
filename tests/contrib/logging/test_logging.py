@@ -99,7 +99,7 @@ class LoggingTestCase(TracerTestCase):
             else:
                 assert not isinstance(logging.StrFormatStyle.format, wrapt.BoundFunctionWrapper)
 
-    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env="", enabled="true"):
+    def _test_logging(self, create_span, service="tests.contrib.logging", version="", env=""):
         def func():
             span = create_span()
             logger.info("Hello!")
@@ -107,9 +107,7 @@ class LoggingTestCase(TracerTestCase):
                 span.finish()
             return span
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection=enabled)
-        ):
+        with self.override_config("logging", dict(tracer=self.tracer)):
             # with format string for trace info
             output, span = capture_function_log(func)
             trace_id = 0
@@ -234,9 +232,7 @@ class LoggingTestCase(TracerTestCase):
             "dd.version={dd.version} dd.trace_id={dd.trace_id} dd.span_id={dd.span_id}]"
         )
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection="true")
-        ):
+        with self.override_config("logging", dict(tracer=self.tracer)):
             output, span = capture_function_log(func, fmt=fmt, fmt_style="{")
 
             lines = output.splitlines()
@@ -265,9 +261,7 @@ class LoggingTestCase(TracerTestCase):
         )
         formatter = logging.StrFormatStyle(fmt)
 
-        with self.override_config("logging", dict(tracer=self.tracer)), self.override_global_config(
-            dict(_logs_injection="true")
-        ):
+        with self.override_config("logging", dict(tracer=self.tracer)):
             with self.tracer.trace("test.logging") as span:
                 record = logger.makeRecord("name", "INFO", "func", 534, "Manual log record", (), None)
                 log = formatter.format(record)

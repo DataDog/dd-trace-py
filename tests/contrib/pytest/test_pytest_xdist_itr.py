@@ -13,9 +13,9 @@ from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility._test_visibility_base import TestId
-from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
-from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.ext.test_visibility._item_ids import TestId
+from ddtrace.ext.test_visibility._item_ids import TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -97,7 +97,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId
+from ddtrace.ext.test_visibility._item_ids import TestSuiteId, TestModuleId
 
 
 # Create ITR settings and data

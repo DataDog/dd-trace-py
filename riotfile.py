@@ -175,63 +175,6 @@ venv = Venv(
             },
         ),
         Venv(
-            name="appsec_integrations_fastapi",
-            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
-            pkgs={
-                "requests": latest,
-                "python-multipart": latest,
-                "jinja2": latest,
-                "httpx": "<0.28.0",
-                "uvicorn": "==0.33.0",
-            },
-            env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
-                "AGENT_VERSION": "testagent",
-                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
-                "DD_IAST_REQUEST_SAMPLING": "100",
-                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
-                "DD_IAST_DEDUPLICATION_ENABLED": "false",
-            },
-            venvs=[
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.8"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.10"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "==0.94.1"},
-                ),
-                Venv(
-                    pys=["3.13"],
-                    pkgs={"fastapi": "~=0.114.2"},
-                ),
-            ],
-        ),
-        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
@@ -571,10 +514,6 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
                 "requests": latest,
-            },
-            env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
-                "AGENT_VERSION": "testagent",
             },
         ),
         Venv(
@@ -1438,7 +1377,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
+                    pkgs={"vcrpy": "==7.0.0", "botocore": ">=1.34.131", "boto3": ">=1.34.131"},
                 ),
             ],
         ),
@@ -2484,7 +2423,7 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": latest,
+                "vcrpy": "==4.2.1",
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
@@ -2501,7 +2440,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": latest,
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2812,15 +2751,6 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
                 "google-ai-generativelanguage": [latest],
-            },
-        ),
-        Venv(
-            name="google_genai",
-            command="pytest {cmdargs} tests/contrib/google_genai",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "google-genai": latest,
             },
         ),
         Venv(

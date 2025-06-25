@@ -6,7 +6,6 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
-import datetime
 import os
 import subprocess
 import typing as t
@@ -252,7 +251,8 @@ prechecks:
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments."""
 
-    current_month = datetime.datetime.now().month
+    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
+    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
 
     with TESTS_GEN.open("a") as f:
         f.write(
@@ -272,9 +272,6 @@ build_base_venvs:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     DD_FAST_BUILD: '1'
-    DD_CMAKE_INCREMENTAL_BUILD: '1'
-    DD_SETUP_CACHE_DOWNLOADS: '1'
-    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
   rules:
     - if: '$CI_COMMIT_REF_NAME == "main"'
       variables:
@@ -282,41 +279,40 @@ build_base_venvs:
     - when: always
   script: |
     set -e -o pipefail
-    apt update && apt install -y sccache
-    pip install riot==0.20.1
-    if [ ! -d $EXT_CACHE_VENV ]; then
-        python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
-        source $EXT_CACHE_VENV/bin/activate
-        pip install cmake setuptools_rust Cython
+    if [ ! -f cache_used.txt ];
+    then
+      echo "No cache found, building native extensions and base venv"
+      apt update && apt install -y sccache
+      pip install riot==0.20.1
+      riot -P -v generate --python=$PYTHON_VERSION
+      echo "Running smoke tests"
+      riot -v run -s --python=$PYTHON_VERSION smoke_test
+      touch cache_used.txt
     else
-        source $EXT_CACHE_VENV/bin/activate
+      echo "Skipping build, using compiled files/venv from cache"
+      echo "Fixing ddtrace versions"
+      pip install "setuptools_scm[toml]>=4"
+      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
+      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
+        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
+      echo "Using version: ${{ddtrace_version}}"
     fi
-    python scripts/gen_ext_cache_scripts.py
-    deactivate
-    $SHELL scripts/restore-ext-cache.sh
-    riot -P -v generate --python=$PYTHON_VERSION
-    echo "Running smoke tests"
-    riot -v run -s --python=$PYTHON_VERSION smoke_test
-    source $EXT_CACHE_VENV/bin/activate
-    python scripts/gen_ext_cache_scripts.py
-    deactivate
-    $SHELL scripts/save-ext-cache.sh
   cache:
     # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
       paths:
         - .cache
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+    # Reuse job artifacts between runs if no native source files have been changed
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
       paths:
-        - .ext_cache
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
-      paths:
-        - .download_cache
+        - .riot/venv_*
+        - ddtrace/**/*.so*
+        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+        - ddtrace/internal/datadog/profiling/test/test_*
+        - cache_used.txt
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
-      - scripts/restore-ext-cache.sh
-      - scripts/save-ext-cache.sh
       - .riot/venv_*
       - ddtrace/_version.py
       - ddtrace/**/*.so*

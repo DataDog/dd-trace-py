@@ -43,6 +43,7 @@ tests-gen:
   extends: .testrunner
   script:
     - pip install riot==0.20.1
+    - export DD_NATIVE_SOURCES_HASH=$(scripts/get-native-sources-hash.sh)
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -144,6 +145,16 @@ promote-oci-to-staging:
       artifacts: true
     - job: oci-internal-publish
       artifacts: true
+
+publish-lib-init-ghcr-tags:
+  stage: release
+  rules: null
+  only:
+    # TODO: Support publishing rc releases
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
 
 publish-lib-init-pinned-tags:
   stage: release
