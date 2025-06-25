@@ -122,9 +122,7 @@ ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
-tests/contrib/dbapi/test_dbapi_appsec.py    @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
-tests/contrib/flask/test_flask_appsec.py    @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
 tests/contrib/*/test*appsec*.py     @DataDog/asm-python
 scripts/iast/*                      @DataDog/asm-python

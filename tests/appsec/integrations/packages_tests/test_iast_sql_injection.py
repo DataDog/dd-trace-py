@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace import patch
+from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -37,6 +38,7 @@ DDBBS = [
 
 def setup_module():
     patch(pymysql=True, mysqldb=True)
+    load_iast()
 
 
 @pytest.mark.parametrize("fixture_path,fixture_module", DDBBS)
