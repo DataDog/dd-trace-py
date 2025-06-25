@@ -612,8 +612,8 @@ integrations:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
-      min: 5.29.3
-      max: 6.30.1
+      min: 5.29.5
+      max: 6.31.1
 
 - integration_name: psycopg
   is_external_package: true
