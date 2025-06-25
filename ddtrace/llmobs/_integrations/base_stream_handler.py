@@ -124,10 +124,10 @@ class _ClassTracedStream(wrapt.ObjectProxy):
             # update iterator in case we are wrapping a stream manager
             if result is not self.__wrapped__:
                 self._stream_iter = iter(result) if not hasattr(result, '__next__') else result
-                new_stream = _ClassTracedStream(result, self._handler, self._on_stream_created)
+                traced_stream = _ClassTracedStream(result, self._handler, self._on_stream_created)
                 if self._on_stream_created:
-                    self._on_stream_created(new_stream)
-                return new_stream
+                    self._on_stream_created(traced_stream)
+                return traced_stream
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -178,10 +178,10 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
             # update iterator in case we are wrapping a stream manager
             if result is not self.__wrapped__:
                 self._async_stream_iter = aiter(result) if not hasattr(result, '__anext__') else result
-                new_stream = _ClassTracedAsyncStream(result, self._handler, self._on_stream_created)
+                traced_stream = _ClassTracedAsyncStream(result, self._handler, self._on_stream_created)
                 if self._on_stream_created:
-                    self._on_stream_created(new_stream)
-                return new_stream
+                    self._on_stream_created(traced_stream)
+                return traced_stream
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
