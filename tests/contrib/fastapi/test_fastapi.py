@@ -670,7 +670,7 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-# @pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(test_spans, snapshot_app):
     """Test trace context propagation."""
@@ -961,86 +961,3 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
-
-
-def test_websocket_basic_functionality(client, test_spans):
-    """Test basic websocket functionality without any tracing."""
-    print("Testing basic websocket functionality...")
-
-    with client.websocket_connect("/ws") as websocket:
-        print("Websocket connected")
-
-        # Receive initial message
-        print("Receiving initial message...")
-        initial_data = websocket.receive_json()
-        print(f"Received initial data: {initial_data}")
-        assert initial_data == {"test": "Hello WebSocket"}
-
-        # Send a message
-        print("Sending message...")
-        websocket.send_text("message")
-        print("Waiting for response...")
-        response = websocket.receive_text()
-        print(f"Received response: {response}")
-        assert response == "pong message"
-
-        # Close connection
-        print("Sending goodbye...")
-        websocket.send_text("goodbye")
-        farewell = websocket.receive_text()
-        print(f"Received farewell: {farewell}")
-        assert farewell == "bye"
-
-    print("Basic websocket test completed successfully")
-
-
-def test_websocket_simple_no_tracing(client, test_spans):
-    """Test simple websocket functionality with tracing explicitly disabled."""
-    print("Testing websocket without tracing...")
-
-    # Explicitly disable websocket tracing
-    with override_config("fastapi", dict(_trace_asgi_websocket_messages=False)):
-        with client.websocket_connect("/ws") as websocket:
-            print("Websocket connected")
-
-            # Receive initial message
-            print("Receiving initial message...")
-            initial_data = websocket.receive_json()
-            print(f"Received initial data: {initial_data}")
-            assert initial_data == {"test": "Hello WebSocket"}
-
-            # Send a message
-            print("Sending test message...")
-            websocket.send_text("test_message")
-            print("Message sent, waiting for response...")
-            response = websocket.receive_text()
-            print(f"Received response: {response}")
-            assert response == "pong test_message"
-
-            # Close connection
-            print("Sending goodbye...")
-            websocket.send_text("goodbye")
-            farewell = websocket.receive_text()
-            print(f"Received farewell: {farewell}")
-            assert farewell == "bye"
-
-    print("Websocket connection closed successfully")
-
-
-def test_websocket_basic_no_tracing(client, test_spans):
-    """Test basic websocket functionality with tracing disabled."""
-    with override_config("fastapi", dict(_trace_asgi_websocket_messages=False)):
-        with client.websocket_connect("/ws") as websocket:
-            # Receive initial message
-            initial_data = websocket.receive_json()
-            assert initial_data == {"test": "Hello WebSocket"}
-
-            # Send a message
-            websocket.send_text("test_message")
-            response = websocket.receive_text()
-            assert response == "pong test_message"
-
-            # Close connection
-            websocket.send_text("goodbye")
-            farewell = websocket.receive_text()
-            assert farewell == "bye"
