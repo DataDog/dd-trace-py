@@ -200,6 +200,10 @@ python = ["3.8", "3.11", "3.13"]
 django = ["~=4.2"]
 
 [[envs.appsec_threats_django.matrix]]
+python = ["3.13"]
+django = ["==5.1.0"]
+
+[[envs.appsec_threats_django.matrix]]
 python = ["3.10", "3.13"]
 django = ["~=5.1"]
 
@@ -356,6 +360,7 @@ dependencies = [
     "bcrypt==4.2.1",
     "pytest-django[testing]==3.10.0",
     "Django{matrix:django}",
+    "cx_Oracle{matrix:oracle}",
 ]
 
 [envs.appsec_integrations_django.env-vars]
@@ -374,7 +379,8 @@ test = [
 
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.10", "3.13"]
-django = ["~=5.1"]
+django = ["~=5.2"]
+oracle = ["==8.3.0"]
 
 [[envs.appsec_integrations_django.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]

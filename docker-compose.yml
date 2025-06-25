@@ -206,6 +206,12 @@ services:
             - "127.0.0.1:7003:7003"
             - "127.0.0.1:7004:7004"
             - "127.0.0.1:7005:7005"
+    oracle:
+        image: gvenzl/oracle-xe:21-slim
+        environment:
+            - ORACLE_PASSWORD=oracle
+        ports:
+            - "127.0.0.1:1521:1521"
 
 volumes:
     ddagent:

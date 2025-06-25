@@ -586,3 +586,54 @@ def ssrf_requests(request):
     except ConnectionError:
         pass
     return HttpResponse("OK", status=200)
+
+
+# CVE-2024-53908 testing views
+def cve_insert_test_data(request):
+    """Insert test data for CVE-2024-53908 testing."""
+    from .models import Item
+
+    # Clear existing data first
+    Item.objects.all().delete()
+
+    # Insert test data
+    Item.objects.create(name="User1", data={"secure_key": "value"})
+    Item.objects.create(name="User2", data={"other_key": "xyz"})
+
+    return JsonResponse({"message": "Test data inserted", "count": Item.objects.count()})
+
+
+def cve_clear_database(request):
+    """Clear all Item entries for CVE-2024-53908 testing."""
+    from .models import Item
+
+    count = Item.objects.count()
+    Item.objects.all().delete()
+
+    return JsonResponse({"message": f"Cleared {count} items"})
+
+
+def cve_lookup_key_view(request):
+    """Vulnerable view demonstrating CVE-2024-53908.
+
+    This view is vulnerable to SQL injection when using Oracle database
+    with direct use of HasKey lookup and untrusted data as lhs value.
+    """
+    from django.db.models import F
+    from django.db.models.fields.json import HasKey
+
+    from .models import Item
+
+    key = request.GET.get("key")
+    if not key:
+        return JsonResponse({"error": "Missing 'key' parameter."}, status=400)
+
+    # ❌ Vulnerable to SQL Injection in Oracle
+    # Direct use of HasKey lookup with untrusted data as lhs value
+    lookup = HasKey(F("data"), key)
+    try:
+        results = Item.objects.filter(lookup)
+        count = results.count()
+        return JsonResponse({"count": count})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

@@ -1,3 +1,9 @@
+"""Django settings for Oracle database testing (CVE-2024-53908).
+
+This settings file extends the base settings to use Oracle database
+for testing the CVE-2024-53908 vulnerability.
+"""
+
 import os
 from pathlib import Path
 from pathlib import PosixPath
@@ -8,6 +14,9 @@ from tests.webclient import PingFilter
 
 tracer.configure(trace_processors=[PingFilter()])
 
+
+DEBUG = True
+
 ALLOWED_HOSTS = [
     "testserver",
     "localhost",
@@ -16,10 +25,20 @@ ALLOWED_HOSTS = [
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Oracle database configuration for CVE-2024-53908 testing
 DATABASES = {
-    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+    "default": {
+        "ENGINE": "django.db.backends.oracle",
+        "NAME": "xe",  # Oracle XE service name
+        "USER": "system",
+        "PASSWORD": "oracle",
+        "HOST": "127.0.0.1",
+        "PORT": "1521",
+        "OPTIONS": {
+            "threaded": True,
+        },
+    }
 }
-
 
 CACHES = {
     "default": {
@@ -74,3 +93,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "tests.appsec.integrations.django_tests.django_app",  # Add our app to enable models
 ]
+
+# Default auto field for primary keys
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

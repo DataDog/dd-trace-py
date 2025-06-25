@@ -85,14 +85,39 @@ def django_server(
     env=None,
     assert_debug=False,
     manual_propagation_debug=False,
+    django_settings_module=None,
+    run_migrations=False,
 ):
     """
     Context manager that runs a Django test server in a subprocess.
 
     This server uses the Django test application located in tests/appsec/integrations/django_tests/django_app.
     The server is started when entering the context and stopped when exiting.
+
+    Args:
+        django_settings_module (str, optional): Django settings module to use.
+            If provided, sets DJANGO_SETTINGS_MODULE environment variable.
+        run_migrations (bool, optional): Whether to run migrations before starting the server.
     """
     manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+
+    # Set up environment with Django settings module if provided
+    if env is None:
+        env = {}
+    if django_settings_module:
+        env["DJANGO_SETTINGS_MODULE"] = django_settings_module
+
+    # Run migrations if requested
+    if run_migrations:
+        migrate_cmd = [python_cmd, manage_py, "migrate", "--run-syncdb"]
+        migrate_env = _build_env(env, file_path=FILE_PATH)
+        if django_settings_module:
+            migrate_env["DJANGO_SETTINGS_MODULE"] = django_settings_module
+
+        migrate_process = subprocess.run(migrate_cmd, env=migrate_env, capture_output=True, text=True)
+        if migrate_process.returncode != 0:
+            raise RuntimeError(f"Migration failed: {migrate_process.stderr}")
+
     cmd = [python_cmd, manage_py, "runserver", f"0.0.0.0:{port}", "--noreload"]
     yield from appsec_application_server(
         cmd,
