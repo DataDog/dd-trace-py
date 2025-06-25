@@ -90,10 +90,6 @@ macrobenchmarks:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: on_success
-    - if: '$CI_COMMIT_BRANCH =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/'
-      when: on_success
     - when: manual
 
 check_new_flaky_tests:
