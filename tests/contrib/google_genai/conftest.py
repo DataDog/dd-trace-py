@@ -84,10 +84,11 @@ def mock_async_generate_content():
 @pytest.fixture
 def mock_generate_content_stream():
     from google import genai
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE
+    from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 
     def _fake_stream(self, *, model: str, contents, config=None) -> Iterator[Any]:
-        yield MOCK_GENERATE_CONTENT_RESPONSE
+        for chunk in MOCK_GENERATE_CONTENT_RESPONSE_STREAM:
+            yield chunk
 
     with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream):
         yield
@@ -95,11 +96,12 @@ def mock_generate_content_stream():
 @pytest.fixture
 def mock_async_generate_content_stream():
     from google import genai
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE
+    from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 
     async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
-            yield MOCK_GENERATE_CONTENT_RESPONSE
+            for chunk in MOCK_GENERATE_CONTENT_RESPONSE_STREAM:
+                yield chunk
 
         return _async_iterator()
 
