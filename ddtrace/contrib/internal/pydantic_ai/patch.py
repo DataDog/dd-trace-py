@@ -35,9 +35,13 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
 
 def patch():
     import pydantic_ai
+    if getattr(pydantic_ai, "_datadog_patch", False):
+        return
 
-    pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
+    pydantic_ai._datadog_patch = True
+
     Pin().onto(pydantic_ai)
+    pydantic_ai._datadog_integration = PydanticAIIntegration(integration_config=config.pydantic_ai)
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter(pydantic_ai))
     wrap(pydantic_ai, "tools.Tool.run", traced_tool_run(pydantic_ai))
@@ -45,9 +49,13 @@ def patch():
 
 def unpatch():
     import pydantic_ai
+    if not getattr(pydantic_ai, "_datadog_patch", False):
+        return
+
+    pydantic_ai._datadog_patch = False
 
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.tools.Tool, "run")
 
-    del pydantic_ai._datadog_integration
+    delattr(pydantic_ai, "_datadog_integration")
     Pin().remove_from(pydantic_ai)
