@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace import config
 from ddtrace.trace import tracer
 
 
@@ -125,8 +124,8 @@ def test_custom_logging_injection_global_config():
     import structlog
 
     from ddtrace import config
-    from ddtrace.trace import tracer
     from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.trace import tracer
     from tests.tracer.test_correlation_log_context import tracer_injection
 
     capture_log = structlog.testing.LogCapture()
