@@ -78,6 +78,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
+                METRICS: span._get_ctx_item(METRICS) if span_kind != "workflow" else {},
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
@@ -178,7 +179,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
-    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
+    def llmobs_record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
         if not usage:
             return
         input_tokens = _get_attr(usage, "input_tokens", None)

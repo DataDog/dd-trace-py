@@ -272,7 +272,7 @@ def _tag_streamed_chat_completion_usage(integration, span, message):
     if message is None:
         return
     usage = _get_attr(message, "usage", {})
-    integration.record_usage(span, usage)
+    integration.llmobs_record_usage(span, usage)
 
 
 def _is_stream(resp: Any) -> bool:

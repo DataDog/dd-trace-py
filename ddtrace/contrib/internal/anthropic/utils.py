@@ -10,7 +10,7 @@ log = get_logger(__name__)
 
 def handle_non_streamed_response(integration, chat_completions, args, kwargs, span):
     usage = _get_attr(chat_completions, "usage", {})
-    integration.record_usage(span, usage)
+    integration.llmobs_record_usage(span, usage)
 
 
 def _extract_api_key(instance: Any) -> Optional[str]:
