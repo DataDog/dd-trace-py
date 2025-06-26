@@ -21,7 +21,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 
 
-# omitted parameters in the config: system_instruction, tools, etc...
+# some parameters that we do not include in the config: system_instruction, tools, etc...
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
 METADATA_PARAMS = [
     "temperature",
@@ -37,6 +37,7 @@ METADATA_PARAMS = [
     "seed",
     "response_mime_type",
     "safety_settings",
+    "automatic_function_calling",
 ]
 
 
@@ -73,8 +74,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 METRICS: extract_metrics_google_genai(response),
             }
         )
-        print("input messages", span._get_ctx_item(INPUT_MESSAGES))
-        print("output messages", span._get_ctx_item(OUTPUT_MESSAGES))
 
     def _extract_message_from_part_google_genai(self, part, role):
         """
@@ -196,8 +195,5 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             return {}
         metadata = {}
         for param in METADATA_PARAMS:
-            value = _get_attr(config, param, None)
-            if value:
-                metadata[param] = value
-
+            metadata[param] = _get_attr(config, param, None)
         return metadata

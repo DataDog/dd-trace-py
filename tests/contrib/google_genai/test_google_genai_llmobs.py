@@ -21,7 +21,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -41,7 +41,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         with pytest.raises(TypeError):
             client.models.generate_content(
                 model="gemini-2.0-flash-001",
@@ -54,7 +54,9 @@ class TestLLMObsGoogleGenAI:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
     @pytest.mark.parametrize("is_vertex", [False, True])
-    def test_generate_content_stream(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex):
+    def test_generate_content_stream(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex
+    ):
         if is_vertex:
             client = genai.Client(
                 vertexai=True,
@@ -63,7 +65,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -76,7 +78,9 @@ class TestLLMObsGoogleGenAI:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
     @pytest.mark.parametrize("is_vertex", [False, True])
-    def test_generate_content_stream_error(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex):
+    def test_generate_content_stream_error(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex
+    ):
         if is_vertex:
             client = genai.Client(
                 vertexai=True,
@@ -85,7 +89,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         with pytest.raises(TypeError):
             client.models.generate_content_stream(
                 model="gemini-2.0-flash-001",
@@ -98,7 +102,9 @@ class TestLLMObsGoogleGenAI:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
     @pytest.mark.parametrize("is_vertex", [False, True])
-    async def test_generate_content_async(self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content, is_vertex):
+    async def test_generate_content_async(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content, is_vertex
+    ):
         if is_vertex:
             client = genai.Client(
                 vertexai=True,
@@ -107,7 +113,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -129,7 +135,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         with pytest.raises(TypeError):
             await client.aio.models.generate_content(
                 model="gemini-2.0-flash-001",
@@ -153,7 +159,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -177,7 +183,7 @@ class TestLLMObsGoogleGenAI:
             )
         else:
             client = genai.Client()
-        
+
         with pytest.raises(TypeError):
             await client.aio.models.generate_content_stream(
                 model="gemini-2.0-flash-001",

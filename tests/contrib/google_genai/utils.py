@@ -59,9 +59,10 @@ MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
     ),
 ]
 
+
 def get_expected_metadata():
     metadata = {}
     for param in METADATA_PARAMS:
         metadata[param] = getattr(FULL_GENERATE_CONTENT_CONFIG, param, None)
-    
+
     return metadata

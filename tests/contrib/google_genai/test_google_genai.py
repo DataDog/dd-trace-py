@@ -41,7 +41,7 @@ def test_google_genai_generate_content(mock_generate_content, genai, is_vertex):
         )
     else:
         client = genai.Client()
-    
+
     client.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -64,7 +64,7 @@ def test_google_genai_generate_content_error(mock_generate_content, genai, is_ve
             )
         else:
             client = genai.Client()
-        
+
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -86,7 +86,7 @@ def test_google_genai_generate_content_stream(mock_generate_content_stream, gena
         )
     else:
         client = genai.Client()
-    
+
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -111,7 +111,7 @@ def test_google_genai_generate_content_stream_error(mock_generate_content_stream
             )
         else:
             client = genai.Client()
-        
+
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -136,7 +136,7 @@ async def test_google_genai_generate_content_async(mock_async_generate_content, 
         )
     else:
         client = genai.Client()
-    
+
     await client.aio.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -159,7 +159,7 @@ async def test_google_genai_generate_content_async_error(mock_async_generate_con
             )
         else:
             client = genai.Client()
-        
+
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -182,7 +182,7 @@ async def test_google_genai_generate_content_async_stream(mock_async_generate_co
         )
     else:
         client = genai.Client()
-    
+
     response = await client.aio.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -207,7 +207,7 @@ async def test_google_genai_generate_content_async_stream_error(mock_async_gener
             )
         else:
             client = genai.Client()
-        
+
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",

@@ -61,7 +61,7 @@ def extract_metrics_google_genai(response):
         # get candidates token count from last chunk
         usage_metadata_last = _get_attr(response[-1], "usage_metadata", {})
         output_tokens = _get_attr(usage_metadata_last, "candidates_token_count", None)
-        cached_tokens = _get_attr(usage_metadata_last, "cached_content_token_count", None) #TODO(max): cached tokens
+        cached_tokens = _get_attr(usage_metadata_last, "cached_content_token_count", None)  # TODO(max): cached tokens
         total_tokens = (
             input_tokens + output_tokens
             if input_tokens and output_tokens
@@ -71,7 +71,7 @@ def extract_metrics_google_genai(response):
         usage_metadata = _get_attr(response, "usage_metadata", {})
         input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
         output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
-        cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None) 
+        cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
         total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
 
     if input_tokens is not None:
@@ -79,10 +79,10 @@ def extract_metrics_google_genai(response):
     if output_tokens is not None:
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if cached_tokens is not None:
-        usage["cached_tokens"] = cached_tokens # no constant for key
+        usage["cached_tokens"] = cached_tokens  # no constant for key
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-    
+
     return usage
 
 
