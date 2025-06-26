@@ -30,9 +30,18 @@ def test_global_tags(mock_generate_content, genai, mock_tracer):
     assert span.get_tag("google_genai.request.provider") == "google"
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content")
-def test_google_genai_generate_content(mock_generate_content, genai):
-    client = genai.Client()
+def test_google_genai_generate_content(mock_generate_content, genai, is_vertex):
+    if is_vertex:
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        client = genai.Client()
+    
     client.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -40,13 +49,22 @@ def test_google_genai_generate_content(mock_generate_content, genai):
     )
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_error(mock_generate_content, genai):
+def test_google_genai_generate_content_error(mock_generate_content, genai, is_vertex):
     with pytest.raises(TypeError):
-        client = genai.Client()
+        if is_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+        
         client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -55,11 +73,20 @@ def test_google_genai_generate_content_error(mock_generate_content, genai):
         )
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
 )
-def test_google_genai_generate_content_stream(mock_generate_content_stream, genai):
-    client = genai.Client()
+def test_google_genai_generate_content_stream(mock_generate_content_stream, genai, is_vertex):
+    if is_vertex:
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        client = genai.Client()
+    
     response = client.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -69,13 +96,22 @@ def test_google_genai_generate_content_stream(mock_generate_content_stream, gena
         pass
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["meta.error.stack", "meta.error.message"],
 )
-def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai):
+def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai, is_vertex):
     with pytest.raises(TypeError):
-        client = genai.Client()
+        if is_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+        
         response = client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -86,12 +122,21 @@ def test_google_genai_generate_content_stream_error(mock_generate_content_stream
             pass
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async(mock_async_generate_content, genai):
-    client = genai.Client()
+async def test_google_genai_generate_content_async(mock_async_generate_content, genai, is_vertex):
+    if is_vertex:
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        client = genai.Client()
+    
     await client.aio.models.generate_content(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -99,13 +144,22 @@ async def test_google_genai_generate_content_async(mock_async_generate_content, 
     )
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai):
+async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai, is_vertex):
     with pytest.raises(TypeError):
-        client = genai.Client()
+        if is_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+        
         await client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -114,12 +168,21 @@ async def test_google_genai_generate_content_async_error(mock_async_generate_con
         )
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
     ignores=["resource"],
 )
-async def test_google_genai_generate_content_async_stream(mock_async_generate_content_stream, genai):
-    client = genai.Client()
+async def test_google_genai_generate_content_async_stream(mock_async_generate_content_stream, genai, is_vertex):
+    if is_vertex:
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        client = genai.Client()
+    
     response = await client.aio.models.generate_content_stream(
         model="gemini-2.0-flash-001",
         contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -129,161 +192,22 @@ async def test_google_genai_generate_content_async_stream(mock_async_generate_co
         pass
 
 
+@pytest.mark.parametrize("is_vertex", [False, True])
 @pytest.mark.snapshot(
     token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
     ignores=["resource", "meta.error.message", "meta.error.stack"],
 )
-async def test_google_genai_generate_content_async_stream_error(mock_async_generate_content_stream, genai):
+async def test_google_genai_generate_content_async_stream_error(mock_async_generate_content_stream, genai, is_vertex):
     with pytest.raises(TypeError):
-        client = genai.Client()
-        response = await client.aio.models.generate_content_stream(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
-        )
-        async for _ in response:
-            pass
-
-
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content")
-def test_google_genai_generate_content_vertex(mock_generate_content, genai):
-    client = genai.Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-    )
-    client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-    ignores=["meta.error.stack", "meta.error.message"],
-)
-def test_google_genai_generate_content_vertex_error(mock_generate_content, genai):
-    with pytest.raises(TypeError):
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-        client.models.generate_content(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
-        )
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-)
-def test_google_genai_generate_content_stream_vertex(mock_generate_content_stream, genai):
-    client = genai.Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-    )
-    response = client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-    for _ in response:
-        pass
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-    ignores=["meta.error.stack", "meta.error.message"],
-)
-def test_google_genai_generate_content_stream_vertex_error(mock_generate_content_stream, genai):
-    with pytest.raises(TypeError):
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-        response = client.models.generate_content_stream(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
-        )
-        for _ in response:
-            pass
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
-    ignores=["resource"],
-)
-async def test_google_genai_generate_content_async_vertex(mock_async_generate_content, genai):
-    client = genai.Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-    )
-    await client.aio.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-    ignores=["resource", "meta.error.message", "meta.error.stack"],
-)
-async def test_google_genai_generate_content_async_vertex_error(mock_async_generate_content, genai):
-    with pytest.raises(TypeError):
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-        await client.aio.models.generate_content(
-            model="gemini-2.0-flash-001",
-            contents="Why is the sky blue? Explain in 2-3 sentences.",
-            config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
-        )
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-    ignores=["resource"],
-)
-async def test_google_genai_generate_content_async_stream_vertex(mock_async_generate_content_stream, genai):
-    client = genai.Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-    )
-    response = await client.aio.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-    async for _ in response:
-        pass
-
-
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-    ignores=["resource", "meta.error.message", "meta.error.stack"],
-)
-async def test_google_genai_generate_content_async_stream_vertex_error(mock_async_generate_content_stream, genai):
-    with pytest.raises(TypeError):
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
+        if is_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+        
         response = await client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -365,7 +289,7 @@ def test_normalize_contents(contents, expected):
 
     result = normalize_contents(contents)
 
-    # Verify structure: list of dicts with role and parts
+    # verify structure: list of dicts with role and parts
     assert isinstance(result, list)
     for item in result:
         assert isinstance(item, dict)
@@ -373,11 +297,11 @@ def test_normalize_contents(contents, expected):
         assert "parts" in item
         assert isinstance(item["parts"], list)
 
-    # For simple cases, do direct comparison
+    # simple cases, do direct comparison
     if all(isinstance(part, str) for item in result for part in item["parts"]):
         assert result == expected
     else:
-        # For complex objects, verify structure matches
+        # verify structure matches
         assert len(result) == len(expected)
         for actual, expected_item in zip(result, expected):
             assert actual["role"] == expected_item["role"]
