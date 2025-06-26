@@ -14,10 +14,6 @@ from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
 
-# This is bad, but we need to import it here to avoid circular imports
-# TODO: Move this to a better place
-from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-
 
 # Register operations to be performned after the preload is complete. In
 # general, we might need to perform some cleanup operations after the
@@ -79,7 +75,10 @@ if config._otel_enabled:
 
         set_tracer_provider(TracerProvider())
 
-    # TODO: Update this behind the actual new config DD_TRACE_OTEL_METRICS_ENABLED
+if config._otel_metrics_enabled:
+    # This POC uses the OpenTelemetry OTLP exporter.
+    # If we implement our own exporter, we can remove this import, which seems much safer.
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
     @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
     def _(_):
         from opentelemetry.metrics import set_meter_provider
