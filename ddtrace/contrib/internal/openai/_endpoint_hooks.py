@@ -165,18 +165,8 @@ class _CompletionHook(_BaseCompletionHook):
         "model",
         "engine",
         "suffix",
-        "max_tokens",
-        "temperature",
-        "top_p",
-        "n",
-        "stream",
-        "logprobs",
         "echo",
         "stop",
-        "presence_penalty",
-        "frequency_penalty",
-        "best_of",
-        "logit_bias",
         "user",
     )
     _response_attrs = ("created", "id", "model")
@@ -197,7 +187,6 @@ class _CompletionHook(_BaseCompletionHook):
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
-        integration.record_usage(span, resp.usage)
         return resp
 
 
@@ -210,15 +199,7 @@ class _ChatCompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
         "engine",
-        "temperature",
-        "top_p",
-        "n",
-        "stream",
         "stop",
-        "max_tokens",
-        "presence_penalty",
-        "frequency_penalty",
-        "logit_bias",
         "user",
     )
     _response_attrs = ("created", "id", "model")
@@ -247,7 +228,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="chat")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
-        integration.record_usage(span, resp.usage)
         return resp
 
 
@@ -275,7 +255,6 @@ class _EmbeddingHook(_EndpointHook):
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
         if not resp:
             return
-        integration.record_usage(span, resp.usage)
         return resp
 
 
@@ -684,20 +663,10 @@ class _ResponseHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
         "include",
-        "instructions",
-        "max_output_tokens",
         "metadata",
-        "parallel_tool_calls",
         "previous_response_id",
-        "reasoning",
         "service_tier",
         "store",
-        "stream",
-        "temperature",
-        "text",
-        "tool_choice",
-        "tools",
-        "top_p",
         "truncation",
         "user",
     )
@@ -714,5 +683,4 @@ class _ResponseHook(_BaseCompletionHook):
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
-        integration.record_usage(span, resp.usage)
         return resp

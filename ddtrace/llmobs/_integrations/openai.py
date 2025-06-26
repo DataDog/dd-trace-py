@@ -96,15 +96,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             return False
         return provider.lower() in base_url.lower()
 
-    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage:
-            return
-        for token_type in ("prompt", "completion", "output", "input", "total"):
-            num_tokens = getattr(usage, token_type + "_tokens", None)
-            if not num_tokens:
-                continue
-            span.set_metric("openai.response.usage.%s_tokens" % token_type, num_tokens)
-
     def _llmobs_set_tags(
         self,
         span: Span,
