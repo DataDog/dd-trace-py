@@ -41,7 +41,7 @@ def test_exploration_smoke():
     import tests.debugging.exploration.preload  # noqa: F401
 
 
-@pytest.mark.subprocess(env=expl_env(), out=OUT)
+@pytest.mark.subprocess(env=expl_env(), out=OUT, status=1)
 def test_exploration_bootstrap():
     # We test that we get the expected output from the exploration debuggers
     # and no errors when running the sitecustomize.py script.
@@ -63,6 +63,7 @@ def check_output_file(o):
 @pytest.mark.subprocess(
     env=expl_env(DD_DEBUGGER_EXPL_OUTPUT_FILE="expl.txt"),
     out=check_output_file,
+    status=1,
 )
 def test_exploration_file_output():
     from pathlib import Path

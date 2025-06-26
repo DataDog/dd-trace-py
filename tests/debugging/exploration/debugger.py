@@ -225,7 +225,10 @@ class ExplorationDebugger(Debugger):
         cls.__watchdog__.uninstall()
 
         failed = False
-        if nokprobes != nprobes:
+        if not nprobes:
+            failed = True
+            log(f"Exploration testing failed: no probes were installed for {cls.__name__}")
+        elif nokprobes != nprobes:
             failed = True
             log(
                 "Exploration testing failed: "

@@ -11,7 +11,6 @@ from debugger import status
 from debugging.utils import create_snapshot_line_probe
 from output import log
 from utils import COLS
-from utils import CWD
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -65,7 +64,7 @@ class LineCoverage(ExplorationDebugger):
             seen_lines_map[t.cast(LogLineProbe, probe).resolved_source_file].add(probe.line)
 
         try:
-            w = max(len(str(o.relative_to(CWD))) for o in _tracked_modules)
+            w = max(len(str(o)) for o in _tracked_modules)
         except ValueError:
             w = int(COLS * 0.75)
         log(("{:=^%ds}" % COLS).format(" Line coverage "))
