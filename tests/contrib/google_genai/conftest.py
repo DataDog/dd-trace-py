@@ -132,11 +132,9 @@ def mock_generate_content_with_tools():
         nonlocal call_count
         call_count += 1
 
-        # First call returns tool call, second call returns final response
         if call_count == 1:
             return MOCK_TOOL_CALL_RESPONSE
-        else:
-            return MOCK_TOOL_FINAL_RESPONSE
+        return MOCK_TOOL_FINAL_RESPONSE
 
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content_with_tools):
         yield
