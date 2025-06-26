@@ -237,6 +237,12 @@ gevent
 .. automodule:: ddtrace.contrib._gevent
 
 
+.. _google_genai:
+
+google-genai
+^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._google_genai
+
 .. _google_generativeai:
 
 google-generativeai
