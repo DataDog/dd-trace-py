@@ -359,3 +359,19 @@ def test_normalize_contents(contents, expected):
         for actual, expected_item in zip(result, expected):
             assert actual["role"] == expected_item["role"]
             assert len(actual["parts"]) == len(expected_item["parts"])
+
+
+@pytest.mark.parametrize("is_vertex", [False, True])
+@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message")
+def test_google_genai_chat_send_message(mock_generate_content, genai, is_vertex):
+    if is_vertex:
+        client = genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        client = genai.Client()
+
+    chat = client.chats.create(model="gemini-2.0-flash-001")
+    chat.send_message("tell me a story")
