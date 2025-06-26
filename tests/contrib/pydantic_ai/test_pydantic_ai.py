@@ -1,5 +1,6 @@
 import pytest
 
+
 async def test_agent_run(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
         with request_vcr.use_cassette("agent_iter.yaml"):
@@ -29,6 +30,7 @@ async def test_agent_iter(pydantic_ai, snapshot_context, request_vcr):
             async with agent.iter("Hello, world!") as agent_run:
                 async for _ in agent_run:
                     pass
+
 
 async def test_agent_iter_error(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run_error"):
