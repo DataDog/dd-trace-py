@@ -1,8 +1,11 @@
 import os
 
+from google.genai import types
 import pytest
 
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 
 
@@ -252,6 +255,56 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
 
     assert provider == expected_provider
     assert model == expected_model
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"
+)
+def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai):
+    client = genai.Client()
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=[
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+            )
+        ],
+        config=TOOL_GENERATE_CONTENT_CONFIG,
+    )
+
+    assert response.function_calls
+    function_call_part = response.function_calls[0]
+    assert function_call_part.name == "get_current_weather"
+    assert function_call_part.args["location"] == "Boston"
+
+    function_result = get_current_weather(**function_call_part.args)
+
+    final_response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=[
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+            ),
+            response.candidates[0].content,
+            types.Content(
+                role="tool",
+                parts=[
+                    types.Part.from_function_response(
+                        name=function_call_part.name,
+                        response={"result": function_result},
+                    )
+                ],
+            ),
+        ],
+        config=TOOL_GENERATE_CONTENT_CONFIG,
+    )
+
+    assert final_response.text
+    assert "Boston" in final_response.text
+    assert "72" in final_response.text
 
 
 @pytest.mark.parametrize(

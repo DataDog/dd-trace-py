@@ -1,8 +1,11 @@
 import os
 
+from google.genai import types
 import pytest
 
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import get_current_weather
 from tests.contrib.google_genai.utils import get_expected_metadata
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -195,6 +198,70 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
+    @pytest.mark.parametrize("is_vertex", [False, True])
+    def test_generate_content_with_tools(
+        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_with_tools, is_vertex
+    ):
+        if is_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        function_call_part = response.function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response.candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        first_call_args = mock_llmobs_writer.enqueue.call_args_list[0][0][0]
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert first_call_args == expected_first_event
+
+        second_call_args = mock_llmobs_writer.enqueue.call_args_list[1][0][0]
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert second_call_args == expected_second_event
+
 
 def expected_llmobs_span_event(span):
     return _expected_llmobs_llm_span_event(
@@ -226,5 +293,57 @@ def expected_llmobs_error_span_event(span):
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
         metadata=get_expected_metadata(),
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+    )
+
+
+def expected_llmobs_tool_call_span_event(span):
+    from tests.contrib.google_genai.utils import get_expected_tool_metadata
+
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-2.0-flash-001",
+        model_provider="google",
+        input_messages=[
+            {"content": "What is the weather like in Boston?", "role": "user"},
+        ],
+        output_messages=[
+            {"role": "model", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
+        ],
+        metadata=get_expected_tool_metadata(),
+        token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+    )
+
+
+def expected_llmobs_tool_response_span_event(span):
+    from tests.contrib.google_genai.utils import get_expected_tool_metadata
+
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-2.0-flash-001",
+        model_provider="google",
+        input_messages=[
+            {"content": "What is the weather like in Boston?", "role": "user"},
+            {"role": "model", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
+            {
+                "role": "tool",
+                "content": (
+                    "[tool result: {'result': {'location': 'Boston', 'temperature': 72, "
+                    "'unit': 'fahrenheit', 'forecast': 'Sunny with light breeze'}}]"
+                ),
+            },
+        ],
+        output_messages=[
+            {
+                "content": (
+                    "The weather in Boston is sunny with a light breeze and the temperature is "
+                    "72 degrees Fahrenheit."
+                ),
+                "role": "model",
+            }
+        ],
+        metadata=get_expected_tool_metadata(),
+        token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
     )

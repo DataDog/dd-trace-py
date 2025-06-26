@@ -117,3 +117,26 @@ def mock_async_generate_content_stream():
 
     with mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream):
         yield
+
+
+@pytest.fixture
+def mock_generate_content_with_tools():
+    from google import genai
+
+    from .utils import MOCK_TOOL_CALL_RESPONSE
+    from .utils import MOCK_TOOL_FINAL_RESPONSE
+
+    call_count = 0
+
+    def _fake_generate_content_with_tools(self, *, model: str, contents, config=None):
+        nonlocal call_count
+        call_count += 1
+
+        # First call returns tool call, second call returns final response
+        if call_count == 1:
+            return MOCK_TOOL_CALL_RESPONSE
+        else:
+            return MOCK_TOOL_FINAL_RESPONSE
+
+    with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content_with_tools):
+        yield
