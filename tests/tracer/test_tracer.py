@@ -366,7 +366,8 @@ class TracerTestCases(TracerTestCase):
             signals = iter_signals()
             while True:
                 try:
-                    signal = next(signals)
+                    # DEV: We don't need the return value
+                    next(signals)
                 except StopIteration as e:
                     assert e.value == 10
                     span.set_metric("num_signals", e.value)

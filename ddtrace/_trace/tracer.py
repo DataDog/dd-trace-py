@@ -775,8 +775,7 @@ class Tracer(object):
                 )
 
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                return_value = yield from f(*args, **kwargs)
-            return return_value
+                return yield from f(*args, **kwargs)
 
         return func_wrapper
 
