@@ -85,7 +85,7 @@ class AsyncStreamHandler(BaseStreamHandler):
         pass
 
 
-class _ClassTracedStream(wrapt.ObjectProxy):
+class TracedStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, handler: StreamHandler, on_stream_created=None):
         """
         Wrap a stream object to trace the stream.
@@ -98,35 +98,35 @@ class _ClassTracedStream(wrapt.ObjectProxy):
                 modifications to the stream object are needed
         """
         super().__init__(wrapped)
-        self._handler = handler
-        self._on_stream_created = on_stream_created
+        self._self_handler = handler
+        self._self_on_stream_created = on_stream_created
         if hasattr(self.__wrapped__, '__next__') or not hasattr(self.__wrapped__, '__iter__'):
-            self._stream_iter = self.__wrapped__
+            self._self_stream_iter = self.__wrapped__
         else:
-            self._stream_iter = iter(self.__wrapped__)
+            self._self_stream_iter = iter(self.__wrapped__)
     
     def __iter__(self):
         exc = None
         try:
-            for chunk in self._stream_iter:
-                self._handler.process_chunk(chunk, self._stream_iter)
+            for chunk in self._self_stream_iter:
+                self._self_handler.process_chunk(chunk, self._self_stream_iter)
                 yield chunk
         except Exception as e:
             exc = e
-            self._handler.handle_exception(e)
+            self._self_handler.handle_exception(e)
             raise
         finally:
-            self._handler.finalize_stream(exc)
+            self._self_handler.finalize_stream(exc)
     
     def __enter__(self):
         if hasattr(self.__wrapped__, '__enter__'):
             result = self.__wrapped__.__enter__()
             # update iterator in case we are wrapping a stream manager
             if result is not self.__wrapped__:
-                self._stream_iter = iter(result) if not hasattr(result, '__next__') else result
-                traced_stream = _ClassTracedStream(result, self._handler, self._on_stream_created)
-                if self._on_stream_created:
-                    self._on_stream_created(traced_stream)
+                self._self_stream_iter = iter(result) if not hasattr(result, '__next__') else result
+                traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
+                if self._self_on_stream_created:
+                    self._self_on_stream_created(traced_stream)
                 return traced_stream
         return self
     
@@ -136,10 +136,10 @@ class _ClassTracedStream(wrapt.ObjectProxy):
     
     @property
     def handler(self):
-        return self._handler
+        return self._self_handler
 
 
-class _ClassTracedAsyncStream(wrapt.ObjectProxy):
+class TracedAsyncStream(wrapt.ObjectProxy):
     def __init__(self, wrapped, handler: AsyncStreamHandler, on_stream_created=None):
         """
         Wrap an async stream object to trace the stream.
@@ -152,35 +152,35 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
                 modifications to the stream object are needed
         """
         super().__init__(wrapped)
-        self._handler = handler
-        self._on_stream_created = on_stream_created
+        self._self_handler = handler
+        self._self_on_stream_created = on_stream_created
         if hasattr(self.__wrapped__, '__anext__') or not hasattr(self.__wrapped__, '__aiter__'):
-            self._async_stream_iter = self.__wrapped__
+            self._self_async_stream_iter = self.__wrapped__
         else:
-            self._async_stream_iter = aiter(self.__wrapped__)
+            self._self_async_stream_iter = aiter(self.__wrapped__)
     
     async def __aiter__(self):
         exc = None
         try:
-            async for chunk in self._async_stream_iter:
-                await self._handler.process_chunk(chunk, self._async_stream_iter)
+            async for chunk in self._self_async_stream_iter:
+                await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
                 yield chunk
         except Exception as e:
             exc = e
-            self._handler.handle_exception(e)
+            self._self_handler.handle_exception(e)
             raise
         finally:
-            self._handler.finalize_stream(exc)
+            self._self_handler.finalize_stream(exc)
     
     async def __aenter__(self):
         if hasattr(self.__wrapped__, '__aenter__'):
             result = await self.__wrapped__.__aenter__()
             # update iterator in case we are wrapping a stream manager
             if result is not self.__wrapped__:
-                self._async_stream_iter = aiter(result) if not hasattr(result, '__anext__') else result
-                traced_stream = _ClassTracedAsyncStream(result, self._handler, self._on_stream_created)
-                if self._on_stream_created:
-                    self._on_stream_created(traced_stream)
+                self._self_async_stream_iter = aiter(result) if not hasattr(result, '__anext__') else result
+                traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
+                if self._self_on_stream_created:
+                    self._self_on_stream_created(traced_stream)
                 return traced_stream
         return self
     
@@ -190,76 +190,12 @@ class _ClassTracedAsyncStream(wrapt.ObjectProxy):
     
     @property
     def handler(self):
-        return self._handler
+        return self._self_handler
     
-
-class _GeneratorTracedStream:
-    def __init__(self, wrapped, handler: StreamHandler):
-        """
-        Wrap a generator to trace the stream.
-        
-        Args:
-            wrapped: The stream object to wrap
-            handler: The StreamHandler instance to use for processing chunks
-        """
-        self._wrapped = wrapped
-        self._handler = handler
-    
-    def __iter__(self):
-        exc = None
-        try:
-            for chunk in self._wrapped:
-                self._handler.process_chunk(chunk, self._wrapped)
-                yield chunk
-        except Exception as e:
-            exc = e
-            self._handler.handle_exception(e)
-            raise
-        finally:
-            self._handler.finalize_stream(exc)
-    
-    @property
-    def handler(self):
-        return self._handler
-
-
-class _AsyncGeneratorTracedStream:
-    def __init__(self, wrapped, handler: AsyncStreamHandler):
-        """
-        Wrap an async generator to trace the stream.
-        
-        Args:
-            wrapped: The stream object to wrap
-            handler: The StreamHandler instance to use for processing chunks
-        """
-        self._wrapped = wrapped
-        self._handler = handler
-    
-    async def __aiter__(self):
-        exc = None
-        try:
-            async for chunk in self._wrapped:
-                await self._handler.process_chunk(chunk, self._wrapped)
-                yield chunk
-        except Exception as e:
-            exc = e
-            self._handler.handle_exception(e)
-            raise
-        finally:
-            self._handler.finalize_stream(exc)
-    
-    @property
-    def handler(self):
-        return self._handler
-
 
 def make_traced_stream(wrapped, handler: StreamHandler, on_stream_created=None):
-    if isinstance(wrapped, GeneratorType):
-        return _GeneratorTracedStream(wrapped, handler)
-    return _ClassTracedStream(wrapped, handler, on_stream_created)
+    return TracedStream(wrapped, handler, on_stream_created)
 
 
 def make_traced_async_stream(wrapped, handler: AsyncStreamHandler, on_stream_created=None):
-    if isinstance(wrapped, AsyncGeneratorType):
-        return _AsyncGeneratorTracedStream(wrapped, handler)
-    return _ClassTracedAsyncStream(wrapped, handler, on_stream_created) 
+    return TracedAsyncStream(wrapped, handler, on_stream_created) 
