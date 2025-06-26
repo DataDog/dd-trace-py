@@ -420,7 +420,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.11",
+        "max_tracer_supported": "1.1.12",
         "auto-instrumented": true
     },
     {
@@ -476,7 +476,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.1",
+        "max_tracer_supported": "3.2.9",
         "auto-instrumented": true
     },
     {
