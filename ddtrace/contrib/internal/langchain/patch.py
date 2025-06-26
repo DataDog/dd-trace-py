@@ -144,6 +144,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.record_instance(instance, span)
 
     try:
+        integration.llmobs_set_metadata(span, instance._identifying_params)
         completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -173,6 +174,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
+        integration.llmobs_set_metadata(span, instance._identifying_params)
         completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -201,6 +203,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
+        integration.llmobs_set_metadata(span, instance._identifying_params)
         chat_completions = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -230,6 +233,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
+        integration.llmobs_set_metadata(span, instance._identifying_params)
         chat_completions = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -456,6 +460,7 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         integration.record_instance(instance, span)
         if not integration.is_pc_sampled_span(span):
             return
+        integration.llmobs_set_metadata(span, instance._identifying_params)
 
     def _on_span_finished(span: Span, streamed_chunks):
         joined_chunks = streamed_chunks[0]
@@ -487,6 +492,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
+        integration.llmobs_set_metadata(span, instance._identifying_params)
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])

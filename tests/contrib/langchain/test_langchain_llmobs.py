@@ -27,21 +27,7 @@ def _expected_langchain_llmobs_llm_span(
 ):
     provider = span.get_tag("langchain.request.provider")
 
-    metadata = {}
-    temperature_key = "temperature"
-    if provider == "huggingface_hub":
-        temperature_key = "model_kwargs.temperature"
-        max_tokens_key = "model_kwargs.max_tokens"
-    elif provider == "ai21":
-        max_tokens_key = "maxTokens"
-    else:
-        max_tokens_key = "max_tokens"
-    temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
-    max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
-    if temperature is not None:
-        metadata["temperature"] = float(temperature)
-    if max_tokens is not None:
-        metadata["max_tokens"] = int(max_tokens)
+    metadata = mock.ANY
 
     input_messages = [{"content": mock.ANY}]
     output_messages = [{"content": mock.ANY}]

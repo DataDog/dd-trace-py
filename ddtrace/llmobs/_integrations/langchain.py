@@ -147,7 +147,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_metadata(span, self._instances.get(span))
 
         is_workflow = False
 
@@ -345,13 +344,10 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def _llmobs_set_metadata(self, span: Span, instance: Any) -> None:
-        if not instance:
-            return
-
+    def llmobs_set_metadata(self, span: Span, parameters: Dict[str, Any]) -> None:
         max_tokens = None
         temperature = None
-        for param, val in getattr(instance, "_identifying_params", {}).items():
+        for param, val in parameters.items():
             if isinstance(val, dict):
                 for k, v in val.items():
                     if k == "temperature":
