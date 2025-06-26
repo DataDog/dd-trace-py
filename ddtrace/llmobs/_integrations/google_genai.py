@@ -18,7 +18,6 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -72,7 +71,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             if text:
                 message["content"] = text
                 return message
-            
+
             function_call = _get_attr(part, "function_call", None)
             if function_call:
                 function_call_dict = function_call.model_dump()
@@ -80,7 +79,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                     {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
                 ]
                 return message
-            
+
             function_response = _get_attr(part, "function_response", None)
             if function_response:
                 function_response_dict = function_response.model_dump()
@@ -93,20 +92,21 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 code = _get_attr(executable_code, "code", "")
                 message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
                 return message
-            
+
             code_execution_result = _get_attr(part, "code_execution_result", None)
             if code_execution_result:
                 outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
                 output = _get_attr(code_execution_result, "output", "")
-                message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
+                message["content"] = "[code execution result ({outcome}): {output}]".format(
+                    outcome=outcome, output=output
+                )
                 return message
-            
+
             thought = _get_attr(part, "thought", None)
             # thought is just a boolean indicating if the part was a thought
             if thought:
                 message["content"] = "[thought: {}]".format(thought)
                 return message
-
 
         return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
 
@@ -180,7 +180,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metadata_dict = config.model_dump()
         else:
             metadata_dict = config
-        # should I delete this to avoid overlap?
-        if "system_instruction" in metadata_dict:
-            del metadata_dict["system_instruction"]
+        # should I delete system instruction to avoid overlap?
+        # if "system_instruction" in metadata_dict:
+        #     del metadata_dict["system_instruction"]
         return metadata_dict
