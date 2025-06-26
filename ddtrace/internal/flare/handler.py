@@ -59,18 +59,22 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     """
     for c in configs:
         # AGENT_CONFIG is currently being used for multiple purposes
-        # We only want to prepare for a tracer flare if the config name
-        # starts with 'flare-log-level'
+        # We only want to prepare for a tracer flare if the config content
+        # has a log_level.
         if not isinstance(c, dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
-        if not c.get("name", "").startswith("flare-log-level"):
+
+        config_content = c.get("config", {})
+        log_level = config_content.get("log_level", "")
+        if log_level == "":
             log.debug(
-                "Config item name does not start with flare-log-level, received %s instead. Skipping...", c.get("name")
+                "Config item does not contain log_level, received %s instead. Skipping...",
+                config_content.get("log_level"),
             )
             continue
 
-        flare_log_level = c.get("config", {}).get("log_level").upper()
+        flare_log_level = log_level.lower()
         flare.prepare(flare_log_level)
         return True
     return False
@@ -95,8 +99,13 @@ def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
             )
             continue
         args = c.get("args", {})
+        uuid = c.get("uuid")
+        if not uuid:
+            log.warning("AGENT_TASK config missing UUID, skipping tracer flare")
+            continue
+
         flare_request = FlareSendRequest(
-            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle")
+            case_id=args.get("case_id"), hostname=args.get("hostname"), email=args.get("user_handle"), uuid=uuid
         )
 
         flare.revert_configs()
