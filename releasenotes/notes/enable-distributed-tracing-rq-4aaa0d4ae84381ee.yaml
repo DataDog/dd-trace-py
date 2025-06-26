@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    rq: enable parsing distributed tracing metadata in perform job

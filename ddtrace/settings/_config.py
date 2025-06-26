@@ -101,6 +101,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dramatiq",
         "flask",
         "google_generativeai",
+        "google_genai",
         "urllib3",
         "subprocess",
         "kafka",
