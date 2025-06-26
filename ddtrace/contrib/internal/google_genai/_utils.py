@@ -10,12 +10,16 @@ from ddtrace.llmobs._utils import _get_attr
 
 def normalize_contents(contents):
     """
-    Contents has a complex union type structure:
+    contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
     - ContentListUnion = Union[list[ContentUnion], ContentUnion]
     - ContentListUnionDict = Union[list[ContentUnionDict], ContentUnionDict]
+    - ContentUnion = Union[Content, list[PartUnion], PartUnion]
+    - PartUnion = Union[File, Part, str]
 
-    This function normalizes all these variants into a list of dicts
+    Can also be used for system_instruction which has type ContentUnion
+
+    This function normalizes all these variants into a list of dicts with format{"role": role, "parts": parts}
     """
 
     def extract_content(content):

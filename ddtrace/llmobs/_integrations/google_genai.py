@@ -1,8 +1,9 @@
 from typing import Any
 from typing import Dict
-from typing import Iterable
 from typing import List
 from typing import Optional
+
+from google.genai import types
 
 from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
@@ -48,18 +49,70 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 SPAN_KIND: "llm",
                 MODEL_NAME: model_name,
                 MODEL_PROVIDER: provider_name,
-                METADATA: config.model_dump()
-                if config and hasattr(config, "model_dump")
-                else {},  # TODO: replace with self._extract_metadata(config)
+                METADATA: self._extract_metadata(config),
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_message(response),
                 METRICS: extract_metrics_google_genai(response),
             }
         )
+        print("input messages", span._get_ctx_item(INPUT_MESSAGES))
+        print("output messages", span._get_ctx_item(OUTPUT_MESSAGES))
+
+    def _extract_message_from_part_google_genai(self, part, role):
+        """
+        part is a PartUnion = Union[File, Part, PIL_Image, str]
+        """
+        message = {"role": role}
+        if isinstance(part, str):
+            message["content"] = part
+            return message
+        if isinstance(part, types.Part):
+            # only one field is set in a Part
+            text = _get_attr(part, "text", None)
+            if text:
+                message["content"] = text
+                return message
+            
+            function_call = _get_attr(part, "function_call", None)
+            if function_call:
+                function_call_dict = function_call.model_dump()
+                message["tool_calls"] = [
+                    {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+                ]
+                return message
+            
+            function_response = _get_attr(part, "function_response", None)
+            if function_response:
+                function_response_dict = function_response.model_dump()
+                message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+                return message
+
+            executable_code = _get_attr(part, "executable_code", None)
+            if executable_code:
+                language = _get_attr(executable_code, "language", "UNKNOWN")
+                code = _get_attr(executable_code, "code", "")
+                message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
+                return message
+            
+            code_execution_result = _get_attr(part, "code_execution_result", None)
+            if code_execution_result:
+                outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
+                output = _get_attr(code_execution_result, "output", "")
+                message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
+                return message
+            
+            thought = _get_attr(part, "thought", None)
+            # thought is just a boolean indicating if the part was a thought
+            if thought:
+                message["content"] = "[thought: {}]".format(thought)
+                return message
+
+
+        return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
 
     def _extract_input_message(self, args, kwargs, config):
         messages = []
-
+        # system instruction in config
         if config is not None:
             system_instruction = _get_attr(config, "system_instruction", None)
             if system_instruction is not None:
@@ -69,43 +122,19 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                     role = content.get("role") or "system"
                     parts = content.get("parts", [])
 
-                    if not parts or not isinstance(parts, Iterable):
-                        messages.append(
-                            {"content": "[Non-text content object: {}]".format(repr(content)), "role": role}
-                        )
-                        continue
-
                     for part in parts:
-                        if isinstance(part, str):
-                            messages.append({"content": part, "role": role})
-                        else:
-                            message = extract_message_from_part_google(part, role)
-                            messages.append(message)
-
+                        message = self._extract_message_from_part_google_genai(part, role)
+                        messages.append(message)
+        # user input messages
         contents = get_argument_value(args, kwargs, -1, "contents")
         normalized_contents = normalize_contents(contents)
         for content in normalized_contents:
             role = content.get("role") or "user"
             parts = content.get("parts", [])
 
-            if not parts or not isinstance(parts, Iterable):
-                message = {"content": "[Non-text content object: {}]".format(repr(content))}
-                if role:
-                    message["role"] = role
-                messages.append(message)
-                continue
-
             for part in parts:
-                if isinstance(part, str):
-                    message = {"content": part}
-                    if role:
-                        message["role"] = role
-                    messages.append(message)
-                    continue
-
-                message = extract_message_from_part_google(part, role)
+                message = self._extract_message_from_part_google_genai(part, role)
                 messages.append(message)
-
         return messages
 
     def _extract_output_message(self, response):
@@ -137,21 +166,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             if not content:
                 continue
             parts = _get_attr(content, "parts", [])
-            role = _get_attr(content, "role", None)
+            role = _get_attr(content, "role", None) or "model"
             for part in parts:
-                if (
-                    part
-                    and not _get_attr(part, "text", None)
-                    and not _get_attr(part, "function_call", None)
-                    and not _get_attr(part, "function_response", None)
-                ):
-                    message = {"content": "[Non-text content object: {}]".format(repr(part))}
-                    if role:
-                        message["role"] = role
-                    messages.append(message)
-                    continue
-
-                message = extract_message_from_part_google(part, role)
+                message = self._extract_message_from_part_google_genai(part, role)
                 messages.append(message)
         return messages
 
@@ -163,6 +180,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metadata_dict = config.model_dump()
         else:
             metadata_dict = config
+        # should I delete this to avoid overlap?
         if "system_instruction" in metadata_dict:
             del metadata_dict["system_instruction"]
         return metadata_dict
