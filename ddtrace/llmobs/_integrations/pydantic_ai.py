@@ -9,6 +9,7 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-vertex": "google",
 }
 
+
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
 
