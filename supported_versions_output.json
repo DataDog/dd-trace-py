@@ -309,6 +309,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-genai",
+        "integration": "google_genai",
+        "minimum_tracer_supported": "1.21.1",
+        "max_tracer_supported": "1.21.1",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
         "minimum_tracer_supported": "0.7.2",
@@ -393,14 +400,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "mako",
@@ -413,7 +420,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.11",
+        "max_tracer_supported": "1.1.12",
         "auto-instrumented": true
     },
     {
@@ -448,8 +455,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.76.2",
-        "pinned": "true",
+        "max_tracer_supported": "1.91.0",
         "auto-instrumented": true
     },
     {
@@ -470,7 +476,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.1",
+        "max_tracer_supported": "3.2.9",
         "auto-instrumented": true
     },
     {
@@ -613,7 +619,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "tornado",

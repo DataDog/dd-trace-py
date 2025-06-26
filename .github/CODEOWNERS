@@ -148,6 +148,8 @@ ddtrace/contrib/internal/anthropic                            @DataDog/ml-observ
 ddtrace/contrib/_anthropic.py                                 @DataDog/ml-observability
 ddtrace/contrib/internal/google_generativeai                  @DataDog/ml-observability
 ddtrace/contrib/_google_generativeai.py                       @DataDog/ml-observability
+ddtrace/contrib/internal/google_genai                         @DataDog/ml-observability
+ddtrace/contrib/_google_genai.py                              @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                             @DataDog/ml-observability
 ddtrace/contrib/_vertexai.py                                  @DataDog/ml-observability
 ddtrace/contrib/internal/langgraph                            @DataDog/ml-observability
@@ -169,6 +171,7 @@ tests/contrib/botocore/bedrock_utils.py                       @DataDog/ml-observ
 tests/contrib/botocore/bedrock_cassettes                      @DataDog/ml-observability
 tests/contrib/anthropic                                       @DataDog/ml-observability
 tests/contrib/google_generativeai                             @DataDog/ml-observability
+tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
 tests/contrib/langgraph                                       @DataDog/ml-observability
 tests/contrib/crewai                                          @DataDog/ml-observability
@@ -176,7 +179,17 @@ tests/contrib/openai_agents                                   @DataDog/ml-observ
 tests/contrib/litellm                                         @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
-tests/snapshots/tests.contrib.vertexai.*                     @DataDog/apm-python @DataDog/ml-observability
+tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
+tests/snapshots/tests.contrib.langchain.*                     @DataDog/ml-observability
+tests/snapshots/tests.contrib.openai.*                        @DataDog/ml-observability
+tests/snapshots/tests.contrib.vertexai.*                      @DataDog/ml-observability
+tests/snapshots/tests.contrib.botocore.test_bedrock_agents.*  @DataDog/ml-observability
+tests/snapshots/tests.contrib.botocore.test_bedrock.*         @DataDog/ml-observability
+tests/snapshots/tests.contrib.google_generativeai.*           @DataDog/ml-observability
+tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observability
+tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
+tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
+tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
