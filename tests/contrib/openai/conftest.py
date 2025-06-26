@@ -71,6 +71,11 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
 
 
 @pytest.fixture
+def test_agent_openai_client(openai):
+    return openai.OpenAI(base_url="http://127.0.0.1:8126/vcr/openai")
+
+
+@pytest.fixture
 def azure_openai_config(openai):
     config = {
         "api_version": "2023-07-01-preview",
