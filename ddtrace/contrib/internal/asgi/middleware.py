@@ -275,7 +275,7 @@ class TraceMiddleware:
                 try:
                     message = await receive()
 
-                    if message["type"] == "websocket.receive":
+                    if scope["type"] == "websocket" and message["type"] == "websocket.receive":
                         core.dispatch("asgi.websocket.receive", (message,))
                         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -384,9 +384,10 @@ class TraceMiddleware:
                 websocket.message.frames
                 """
                 try:
-                    if self.integration_config._trace_asgi_websocket_messages and message.get("type") in (
-                        "websocket.send",
-                        "websocket.accept",
+                    if (
+                        scope["type"] == "websocket"
+                        and self.integration_config._trace_asgi_websocket_messages
+                        and message.get("type") in ("websocket.send", "websocket.accept")
                     ):
                         # Get the current receive span from scope
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -425,7 +426,8 @@ class TraceMiddleware:
                                 send_span.set_metric("websocket.message.length", len(message["bytes"]))
 
                     elif (
-                        self.integration_config._trace_asgi_websocket_messages
+                        scope["type"] == "websocket"
+                        and self.integration_config._trace_asgi_websocket_messages
                         and message.get("type") == "websocket.close"
                     ):
                         """
@@ -489,11 +491,12 @@ class TraceMiddleware:
 
                         return await send(message)
                     else:
-                        # Fallback to finish the receive span for other message types
-                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if current_receive_span:
-                            current_receive_span.finish()
-                            scope["datadog"].pop("current_receive_span", None)
+                        # Fallback to finish the receive span for other websocket message types
+                        if scope["type"] == "websocket":
+                            current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                            if current_receive_span:
+                                current_receive_span.finish()
+                                scope["datadog"].pop("current_receive_span", None)
 
                     response_headers = _extract_headers(message)
                 except Exception:
@@ -516,9 +519,10 @@ class TraceMiddleware:
                     raise BlockingException(blocked)
                 try:
                     # Finish the receive span after the send is complete
-                    if self.integration_config._trace_asgi_websocket_messages and message.get("type") in (
-                        "websocket.send",
-                        "websocket.accept",
+                    if (
+                        scope["type"] == "websocket"
+                        and self.integration_config._trace_asgi_websocket_messages
+                        and message.get("type") in ("websocket.send", "websocket.accept")
                     ):
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
                         if current_receive_span:
