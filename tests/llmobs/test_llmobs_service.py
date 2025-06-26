@@ -979,15 +979,17 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
 
 
 def test_submit_evaluation_invalid_timestamp_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="timestamp_ms must be a non-negative integer."):
-        llmobs.submit_evaluation(
-            span_context={"span_id": "123", "trace_id": "456"},
-            label="",
-            metric_type="categorical",
-            value="high",
-            ml_app="dummy",
-            timestamp_ms="invalid",
-        )
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="test",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+        timestamp_ms="invalid",
+    )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+    )
 
 
 def test_submit_evaluation_empty_label_raises_error(llmobs, mock_llmobs_logs):
@@ -998,34 +1000,46 @@ def test_submit_evaluation_empty_label_raises_error(llmobs, mock_llmobs_logs):
 
 
 def test_submit_evaluation_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        ValueError, match="metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation(
             span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        ValueError, match="metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation(
             span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
 
 
 def test_submit_evaluation_numerical_value_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(TypeError, match="value must be an integer or float for a score metric."):
         llmobs.submit_evaluation(
             span_context={"span_id": "123", "trace_id": "456"},
             label="token_count",
             metric_type="numerical",
             value="high",
         )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+        "Converting 'numerical' metric to 'score' type."
+    )
 
 
 def test_submit_evaluation_incorrect_numerical_value_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(TypeError, match="value must be an integer or float for a score metric."):
         llmobs.submit_evaluation(
             span_context={"span_id": "123", "trace_id": "456"},
             label="token_count",
             metric_type="numerical",
             value="high",
         )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+        "Converting 'numerical' metric to 'score' type."
+    )
 
 
 def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_llmobs_logs):
@@ -1233,15 +1247,31 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     )
 
 
-def test_submit_evaluation_with_numerical_metric_raises_error(llmobs, mock_llmobs_eval_metric_writer):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
-        llmobs.submit_evaluation(
-            span_context={"span_id": "123", "trace_id": "456"},
-            label="token_count",
-            metric_type="numerical",
-            value=35,
-            ml_app="dummy",
-        )
+def test_submit_evaluation_with_numerical_metric_converts_to_score(
+    llmobs, mock_llmobs_eval_metric_writer, mock_llmobs_logs
+):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="token_count",
+        metric_type="numerical",
+        value=35,
+        ml_app="dummy",
+    )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+        "Converting 'numerical' metric to 'score' type."
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        {
+            "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
+            "label": "token_count",
+            "metric_type": "score",
+            "timestamp_ms": mock.ANY,
+            "score_value": 35,
+            "ml_app": "dummy",
+            "tags": ["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy"],
+        }
+    )
 
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
@@ -1961,17 +1991,17 @@ def test_submit_evaluation_for_span_with_tag_value_empty_key_or_val_raises_error
 
 
 def test_submit_evaluation_for_invalid_timestamp_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(
-        ValueError, match="timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
-    ):
-        llmobs.submit_evaluation_for(
-            span={"span_id": "123", "trace_id": "456"},
-            label="",
-            metric_type="categorical",
-            value="high",
-            ml_app="dummy",
-            timestamp_ms="invalid",
-        )
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="test",
+        metric_type="categorical",
+        value="high",
+        ml_app="dummy",
+        timestamp_ms="invalid",
+    )
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
+    )
 
 
 def test_submit_evaluation_for_empty_label_raises_error(llmobs, mock_llmobs_logs):
@@ -1982,11 +2012,15 @@ def test_submit_evaluation_for_empty_label_raises_error(llmobs, mock_llmobs_logs
 
 
 def test_submit_evaluation_for_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        ValueError, match="metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(
+        ValueError, match="metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'."
+    ):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )

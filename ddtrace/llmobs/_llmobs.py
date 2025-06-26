@@ -1305,20 +1305,24 @@ class LLMObs(Service):
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
                 error = "invalid_timestamp"
-                raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                return
 
             if not label:
                 error = "invalid_metric_label"
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
-            if not metric_type or metric_type.lower() not in ("categorical", "score", "boolean"):
+            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                raise ValueError("metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'.")
 
             metric_type = metric_type.lower()
             if metric_type == "numerical":
-                error = "invalid_metric_type"
-                raise TypeError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                log.warning(
+                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                    "Converting 'numerical' metric to 'score' type."
+                )
+                metric_type = "score"
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -1432,20 +1436,24 @@ class LLMObs(Service):
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
                 error = "invalid_timestamp"
-                raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                return
 
             if not label:
                 error = "invalid_metric_label"
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
-            if not metric_type or metric_type.lower() not in ("categorical", "score", "boolean"):
+            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                raise ValueError("metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'.")
 
             metric_type = metric_type.lower()
             if metric_type == "numerical":
-                error = "invalid_metric_type"
-                raise TypeError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                log.warning(
+                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                    "Converting 'numerical' metric to 'score' type."
+                )
+                metric_type = "score"
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
