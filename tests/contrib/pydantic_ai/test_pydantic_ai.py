@@ -1,3 +1,5 @@
+import pytest
+
 async def test_agent_run(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
         with request_vcr.use_cassette("agent_iter.yaml"):
@@ -27,6 +29,15 @@ async def test_agent_iter(pydantic_ai, snapshot_context, request_vcr):
             async with agent.iter("Hello, world!") as agent_run:
                 async for _ in agent_run:
                     pass
+
+async def test_agent_iter_error(pydantic_ai, snapshot_context, request_vcr):
+    with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run_error"):
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            with pytest.raises(Exception, match="test error"):
+                async with agent.iter("Hello, world!") as agent_run:
+                    async for _ in agent_run:
+                        raise Exception("test error")
 
 
 def test_agent_with_tool(pydantic_ai, snapshot_context, request_vcr):

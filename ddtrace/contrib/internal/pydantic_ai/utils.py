@@ -13,4 +13,6 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
         try:
             return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         finally:
+            if exc_type:
+                self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
             self._dd_span.finish()
