@@ -5,13 +5,14 @@ from django.conf import settings
 import pytest
 
 from ddtrace.appsec._iast import enable_iast_propagation
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast import load_iast
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.internal import core
 from ddtrace.trace import Pin
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
@@ -32,6 +33,7 @@ def pytest_configure():
     ), override_env(dict(_DD_IAST_PATCH_MODULES="tests.appsec.integrations")):
         settings.DEBUG = False
         patch_iast()
+        load_iast()
         requests_patch()
         django_patch()
         enable_iast_propagation()

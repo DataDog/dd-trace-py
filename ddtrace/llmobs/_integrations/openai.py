@@ -14,12 +14,15 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -52,7 +55,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._user_api_key = "sk-...%s" % value[-4:]
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
-        if operation_id.endswith("Completion") or operation_id == "createEmbedding":
+        traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
+        if operation_id in traced_operations:
             submit_to_llmobs = True
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
@@ -107,10 +111,12 @@ class OpenAIIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # oneof "completion", "chat", "embedding"
+        operation: str = "",  # oneof "completion", "chat", "embedding", "response"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
-        span_kind = "embedding" if operation == "embedding" else "llm"
+        span_kind = (
+            "workflow" if span._get_ctx_item(PROXY_REQUEST) else "embedding" if operation == "embedding" else "llm"
+        )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
 
         model_provider = "openai"
@@ -118,14 +124,16 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "azure_openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
-
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
         elif operation == "chat":
             openai_set_meta_tags_from_chat(span, kwargs, response)
         elif operation == "embedding":
             self._llmobs_set_meta_tags_from_embedding(span, kwargs, response)
-        metrics = self._extract_llmobs_metrics_tags(span, response)
+        elif operation == "response":
+            openai_set_meta_tags_from_response(span, kwargs, response)
+        update_proxy_workflow_input_output_value(span, span_kind)
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
@@ -156,15 +164,27 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _extract_llmobs_metrics_tags(span: Span, resp: Any) -> Dict[str, Any]:
+    def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str) -> Dict[str, Any]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = _get_attr(resp, "usage", None)
-        if token_usage is not None:
+        if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
+
+            input_tokens = prompt_tokens or input_tokens
+            output_tokens = completion_tokens or output_tokens
+
             return {
-                INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-                OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-                TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
         return get_llmobs_metrics_tags("openai", span)
+
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        client = getattr(instance, "_client", None)
+        base_url = getattr(client, "_base_url", None) if client else None
+        return str(base_url) if base_url else None

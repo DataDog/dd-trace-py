@@ -1,14 +1,22 @@
 import io
 import json
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 import xmltodict
 
+from ddtrace._trace.span import Span
+from ddtrace.appsec._asm_request_context import _call_waf
+from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._http_utils import extract_cookies_from_headers
+from ddtrace.appsec._http_utils import normalize_headers
+from ddtrace.appsec._http_utils import parse_http_body
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
@@ -53,7 +61,7 @@ def _on_set_http_meta(
     response_headers,
     response_cookies,
 ):
-    if asm_config._asm_enabled and span.span_type == SpanTypes.WEB:
+    if asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types:
         # avoid circular import
         from ddtrace.appsec._asm_request_context import set_waf_address
 
@@ -75,6 +83,75 @@ def _on_set_http_meta(
         for k, v in addresses:
             if v is not None:
                 set_waf_address(k, v)
+
+
+# AWS Lambda
+def _on_lambda_start_request(
+    span: Span,
+    request_headers: Dict[str, str],
+    request_ip: Optional[str],
+    body: Optional[str],
+    is_body_base64: bool,
+    raw_uri: str,
+    route: str,
+    method: str,
+    parsed_query: Dict[str, Any],
+    request_path_parameters: Optional[Dict[str, Any]],
+):
+    if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
+        return
+
+    headers = normalize_headers(request_headers)
+    request_body = parse_http_body(headers, body, is_body_base64)
+    request_cookies = extract_cookies_from_headers(headers)
+
+    _on_set_http_meta(
+        span,
+        request_ip,
+        raw_uri,
+        route,
+        method,
+        headers,
+        request_cookies,
+        parsed_query,
+        request_path_parameters,
+        request_body,
+        None,
+        None,
+        None,
+    )
+
+    _call_waf_first(("aws_lambda",))
+
+
+def _on_lambda_start_response(
+    span: Span,
+    status_code: str,
+    response_headers: Dict[str, str],
+):
+    if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
+        return
+
+    waf_headers = normalize_headers(response_headers)
+    response_cookies = extract_cookies_from_headers(waf_headers)
+
+    _on_set_http_meta(
+        span,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        status_code,
+        waf_headers,
+        response_cookies,
+    )
+
+    _call_waf(("aws_lambda",))
 
 
 # ASGI
@@ -306,6 +383,9 @@ def listen():
     core.on("flask.start_response.blocked", _on_start_response_blocked)
 
     core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
+
+    core.on("aws_lambda.start_request", _on_lambda_start_request)
+    core.on("aws_lambda.start_response", _on_lambda_start_response)
 
     core.on("grpc.server.response.message", _on_grpc_server_response)
     core.on("grpc.server.data", _on_grpc_server_data)

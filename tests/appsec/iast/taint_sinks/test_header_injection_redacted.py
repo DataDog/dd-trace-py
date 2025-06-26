@@ -14,9 +14,9 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.header_injection import HeaderInjection
+from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
 
 
 @pytest.mark.parametrize(

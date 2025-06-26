@@ -1,6 +1,7 @@
 from typing import List
 from typing import Union
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -14,6 +15,7 @@ from ddtrace.settings.asm import config as asm_config
 from .._logs import iast_error
 from .._logs import iast_propagation_sink_point_debug_log
 from ._base import VulnerabilityBase
+from .utils import patch_once
 
 
 log = get_logger(__name__)
@@ -26,12 +28,15 @@ def get_version() -> str:
 _IAST_CMDI = "iast_cmdi"
 
 
+_is_patched = False
+
+
+@patch_once
 def patch():
-    if asm_config._iast_enabled:
-        subprocess_patch.patch()
-        subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
-        subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
-        _set_metric_iast_instrumented_sink(VULN_CMDI)
+    subprocess_patch.patch()
+    subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
+    subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
+    _set_metric_iast_instrumented_sink(VULN_CMDI)
 
 
 def unpatch() -> None:
@@ -61,7 +66,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
                 elif CommandInjection.is_tainted_pyobject(shell_args):
                     report_cmdi = shell_args
 
-                if report_cmdi:
+                if report_cmdi and isinstance(report_cmdi, IAST.TEXT_TYPES):
                     iast_propagation_sink_point_debug_log("Reporting command injection")
                     CommandInjection.report(evidence_value=report_cmdi)
 
