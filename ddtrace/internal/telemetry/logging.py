@@ -16,4 +16,4 @@ class DDTelemetryErrorHandler(logging.Handler):
         if record.levelno >= logging.ERROR:
             # Capture start up errors
             full_file_name = os.path.join(record.pathname, record.filename)
-            self.telemetry_writer.add_error(1, record.msg % record.args, full_file_name, record.lineno)
+            self.telemetry_writer.add_error(1, record.msg, full_file_name, record.lineno)
