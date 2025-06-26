@@ -333,55 +333,38 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
 @pytest.mark.parametrize(
     "contents,expected",
     [
+        ("just a string", [{"role": None, "parts": ["just a string"]}]),
+        ({"role": "user", "parts": "hello"}, [{"role": "user", "parts": ["hello"]}]),
         (
-            "just a string",
-            [{"role": None, "parts": ["just a string"]}]
-        ),
-        (
-            {"role": "user", "parts": "hello"},
-            [{"role": "user", "parts": ["hello"]}]
-        ),
-        (
-            [
-                {"role": "user", "parts": "hello"},
-                {"role": "assistant", "parts": "hi"}
-            ],
-            [
-                {"role": "user", "parts": ["hello"]},
-                {"role": "assistant", "parts": ["hi"]}
-            ]
+            [{"role": "user", "parts": "hello"}, {"role": "assistant", "parts": "hi"}],
+            [{"role": "user", "parts": ["hello"]}, {"role": "assistant", "parts": ["hi"]}],
         ),
         (
             type("Content", (), {"role": "system", "parts": ["instruction"]})(),
-            [{"role": "system", "parts": ["instruction"]}]
+            [{"role": "system", "parts": ["instruction"]}],
         ),
         (
             [
-                type("Content", (), {
-                    "role": "user",
-                    "parts": [type("Part", (), {"text": "What are LeBron James stats?"})()]
-                })(),
-                "you can only use the vowels e and o"
+                type(
+                    "Content",
+                    (),
+                    {"role": "user", "parts": [type("Part", (), {"text": "What are LeBron James stats?"})()]},
+                )(),
+                "you can only use the vowels e and o",
             ],
             [
-                {
-                    "role": "user",
-                    "parts": [type("Part", (), {"text": "What are LeBron James stats?"})()]
-                },
-                {
-                    "role": None,
-                    "parts": ["you can only use the vowels e and o"]
-                }
-            ]
+                {"role": "user", "parts": [type("Part", (), {"text": "What are LeBron James stats?"})()]},
+                {"role": None, "parts": ["you can only use the vowels e and o"]},
+            ],
         ),
     ],
 )
 def test_normalize_contents(contents, expected):
     """Test normalize_contents function with various complex type structures."""
     from ddtrace.contrib.internal.google_genai._utils import normalize_contents
-    
+
     result = normalize_contents(contents)
-    
+
     # Verify structure: list of dicts with role and parts
     assert isinstance(result, list)
     for item in result:
@@ -389,7 +372,7 @@ def test_normalize_contents(contents, expected):
         assert "role" in item
         assert "parts" in item
         assert isinstance(item["parts"], list)
-    
+
     # For simple cases, do direct comparison
     if all(isinstance(part, str) for item in result for part in item["parts"]):
         assert result == expected

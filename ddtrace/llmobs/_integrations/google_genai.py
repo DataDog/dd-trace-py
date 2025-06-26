@@ -21,6 +21,25 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 
 
+# omitted parameters in the config: system_instruction, tools, etc...
+# https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
+METADATA_PARAMS = [
+    "temperature",
+    "top_p",
+    "top_k",
+    "candidate_count",
+    "max_output_tokens",
+    "stop_sequences",
+    "response_logprobs",
+    "logprobs",
+    "presence_penalty",
+    "frequency_penalty",
+    "seed",
+    "response_mime_type",
+    "safety_settings",
+]
+
+
 class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
@@ -175,12 +194,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_metadata(self, config):
         if not config:
             return {}
+        metadata = {}
+        for param in METADATA_PARAMS:
+            value = _get_attr(config, param, None)
+            if value:
+                metadata[param] = value
 
-        if hasattr(config, "model_dump"):
-            metadata_dict = config.model_dump()
-        else:
-            metadata_dict = config
-        # should I delete system instruction to avoid overlap?
-        # if "system_instruction" in metadata_dict:
-        #     del metadata_dict["system_instruction"]
-        return metadata_dict
+        return metadata
