@@ -3,8 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from google.genai import types
-
 from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
@@ -83,48 +81,48 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if isinstance(part, str):
             message["content"] = part
             return message
-        if isinstance(part, types.Part):
-            # only one field is set in a Part
-            text = _get_attr(part, "text", None)
-            if text:
-                message["content"] = text
-                return message
 
-            function_call = _get_attr(part, "function_call", None)
-            if function_call:
-                function_call_dict = function_call.model_dump()
-                message["tool_calls"] = [
-                    {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-                ]
-                return message
+        # only one field is set in a Part
+        text = _get_attr(part, "text", None)
+        if text:
+            message["content"] = text
+            return message
 
-            function_response = _get_attr(part, "function_response", None)
-            if function_response:
-                function_response_dict = function_response.model_dump()
-                message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
-                return message
+        function_call = _get_attr(part, "function_call", None)
+        if function_call:
+            function_call_dict = function_call.model_dump()
+            message["tool_calls"] = [
+                {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+            ]
+            return message
 
-            executable_code = _get_attr(part, "executable_code", None)
-            if executable_code:
-                language = _get_attr(executable_code, "language", "UNKNOWN")
-                code = _get_attr(executable_code, "code", "")
-                message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
-                return message
+        function_response = _get_attr(part, "function_response", None)
+        if function_response:
+            function_response_dict = function_response.model_dump()
+            message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+            return message
 
-            code_execution_result = _get_attr(part, "code_execution_result", None)
-            if code_execution_result:
-                outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
-                output = _get_attr(code_execution_result, "output", "")
-                message["content"] = "[code execution result ({outcome}): {output}]".format(
-                    outcome=outcome, output=output
-                )
-                return message
+        executable_code = _get_attr(part, "executable_code", None)
+        if executable_code:
+            language = _get_attr(executable_code, "language", "UNKNOWN")
+            code = _get_attr(executable_code, "code", "")
+            message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
+            return message
 
-            thought = _get_attr(part, "thought", None)
-            # thought is just a boolean indicating if the part was a thought
-            if thought:
-                message["content"] = "[thought: {}]".format(thought)
-                return message
+        code_execution_result = _get_attr(part, "code_execution_result", None)
+        if code_execution_result:
+            outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
+            output = _get_attr(code_execution_result, "output", "")
+            message["content"] = "[code execution result ({outcome}): {output}]".format(
+                outcome=outcome, output=output
+            )
+            return message
+
+        thought = _get_attr(part, "thought", None)
+        # thought is just a boolean indicating if the part was a thought
+        if thought:
+            message["content"] = "[thought: {}]".format(thought)
+            return message
 
         return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
 
