@@ -391,4 +391,4 @@ notify-slo-breaches:
   needs: ["check-slo-breaches"]
   when: always
   variables:
-    CHANNEL: "test-ddtracepy-alerts"
+    CHANNEL: "apm-python-release"
