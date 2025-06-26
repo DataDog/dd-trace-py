@@ -7,7 +7,12 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import INPUT_MESSAGES, INPUT_TOKENS_METRIC_KEY, OUTPUT_TOKENS_METRIC_KEY, TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import (
+    INPUT_MESSAGES,
+    INPUT_TOKENS_METRIC_KEY,
+    OUTPUT_TOKENS_METRIC_KEY,
+    TOTAL_TOKENS_METRIC_KEY,
+)
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
