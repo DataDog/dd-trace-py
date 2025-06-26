@@ -383,6 +383,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: google_genai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-genai
+  tested_versions_by_dependency:
+    google-genai:
+      min: 1.21.1
+      max: 1.21.1
+
 - integration_name: google_generativeai
   is_external_package: true
   is_tested: true
@@ -533,7 +543,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.11
+      max: 1.1.12
 
 - integration_name: molten
   is_external_package: true
@@ -614,7 +624,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.2.1
+      max: 3.2.9
     psycopg2-binary:
       min: 2.8.6
       max: 2.9.10
