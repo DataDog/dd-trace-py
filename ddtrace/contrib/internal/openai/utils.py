@@ -301,36 +301,12 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        if integration.is_pc_sampled_span(span) and not operation_type == "response":
-            _tag_streamed_completions(integration, span, formatted_completions)
         _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
         integration.llmobs_set_tags(
             span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
         )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
-
-
-def _tag_streamed_completions(integration, span, completions_or_messages=None):
-    """Tagging logic for streamed completions and chat completions."""
-    for idx, choice in enumerate(completions_or_messages):
-        text = choice.get("text", "")
-        if text:
-            span.set_tag_str("openai.response.choices.%d.text" % idx, integration.trunc(str(text)))
-        message_role = choice.get("role", "")
-        if message_role:
-            span.set_tag_str("openai.response.choices.%d.message.role" % idx, str(message_role))
-        message_content = choice.get("content", "")
-        if message_content:
-            span.set_tag_str(
-                "openai.response.choices.%d.message.content" % idx, integration.trunc(str(message_content))
-            )
-        tool_calls = choice.get("tool_calls", [])
-        if tool_calls:
-            _tag_tool_calls(integration, span, tool_calls, idx)
-        finish_reason = choice.get("finish_reason", "")
-        if finish_reason:
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
 def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
@@ -392,27 +368,3 @@ def _compute_completion_tokens(completions_or_messages, model_name):
         estimated, completion_tokens = _compute_token_count(content, model_name)
         num_completion_tokens += completion_tokens
     return estimated, num_completion_tokens
-
-
-def _tag_tool_calls(integration, span, tool_calls, choice_idx):
-    # type: (...) -> None
-    """
-    Tagging logic if function_call or tool_calls are provided in the chat response.
-    Notes:
-        - since function calls are deprecated and will be replaced with tool calls, apply the same tagging logic/schema.
-        - streamed responses are processed and collected as dictionaries rather than objects,
-          so we need to handle both ways of accessing values.
-    """
-    for idy, tool_call in enumerate(tool_calls):
-        if hasattr(tool_call, "function"):
-            # tool_call is further nested in a "function" object
-            tool_call = tool_call.function
-        function_arguments = _get_attr(tool_call, "arguments", "")
-        function_name = _get_attr(tool_call, "name", "")
-        span.set_tag_str(
-            "openai.response.choices.%d.message.tool_calls.%d.arguments" % (choice_idx, idy),
-            integration.trunc(str(function_arguments)),
-        )
-        span.set_tag_str(
-            "openai.response.choices.%d.message.tool_calls.%d.name" % (choice_idx, idy), str(function_name)
-        )

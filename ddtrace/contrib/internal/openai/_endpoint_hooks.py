@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.openai.utils import _is_async_generator
 from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
-from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
 
 
@@ -187,12 +186,6 @@ class _CompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        if integration.is_pc_sampled_span(span):
-            prompt = kwargs.get("prompt", "")
-            if isinstance(prompt, str):
-                prompt = [prompt]
-            for idx, p in enumerate(prompt):
-                span.set_tag_str("openai.request.prompt.%d" % idx, integration.trunc(str(p)))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
@@ -204,10 +197,6 @@ class _CompletionHook(_BaseCompletionHook):
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="completion")
         if not resp:
             return
-        for choice in resp.choices:
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % choice.index, str(choice.finish_reason))
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.response.choices.%d.text" % choice.index, integration.trunc(choice.text))
         integration.record_usage(span, resp.usage)
         return resp
 
@@ -239,18 +228,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        for idx, m in enumerate(kwargs.get("messages", [])):
-            role = getattr(m, "role", "")
-            name = getattr(m, "name", "")
-            content = getattr(m, "content", "")
-            if isinstance(m, dict):
-                content = m.get("content", "")
-                role = m.get("role", "")
-                name = m.get("name", "")
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.request.messages.%d.content" % idx, integration.trunc(str(content)))
-            span.set_tag_str("openai.request.messages.%d.role" % idx, str(role))
-            span.set_tag_str("openai.request.messages.%d.name" % idx, str(name))
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             stream_options = kwargs.get("stream_options", {})
             if not isinstance(stream_options, dict):
@@ -270,20 +247,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="chat")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="chat")
-        for choice in resp.choices:
-            idx = choice.index
-            finish_reason = getattr(choice, "finish_reason", None)
-            message = choice.message
-            span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
-            span.set_tag_str("openai.response.choices.%d.message.role" % idx, choice.message.role)
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str(
-                    "openai.response.choices.%d.message.content" % idx, integration.trunc(message.content or "")
-                )
-            if getattr(message, "function_call", None):
-                _tag_tool_calls(integration, span, [message.function_call], idx)
-            if getattr(message, "tool_calls", None):
-                _tag_tool_calls(integration, span, message.tool_calls, idx)
         integration.record_usage(span, resp.usage)
         return resp
 
@@ -306,20 +269,12 @@ class _EmbeddingHook(_EndpointHook):
         manually set them in _pre_response().
         """
         super()._record_request(pin, integration, instance, span, args, kwargs)
-        embedding_input = kwargs.get("input", "")
-        if integration.is_pc_sampled_span(span):
-            if isinstance(embedding_input, str) or isinstance(embedding_input[0], int):
-                embedding_input = [embedding_input]
-            for idx, inp in enumerate(embedding_input):
-                span.set_tag_str("openai.request.input.%d" % idx, integration.trunc(str(inp)))
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
         if not resp:
             return
-        span.set_metric("openai.response.embeddings_count", len(resp.data))
-        span.set_metric("openai.response.embedding-length", len(resp.data[0].embedding))
         integration.record_usage(span, resp.usage)
         return resp
 
