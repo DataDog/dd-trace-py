@@ -29,7 +29,7 @@ class ExplorationConfig(DDConfig):
     encode = DDConfig.v(
         bool,
         "dd.debugger.expl.encode",
-        default=True,
+        default=False,
         help="Whether to encode the snapshots",
     )
 
@@ -40,7 +40,7 @@ class ExplorationConfig(DDConfig):
         help="Whether to print exploration debugger status messages",
     )
 
-    include = DDConfig.v(
+    includes = DDConfig.v(
         list,
         "dd.debugger.expl.include",
         parser=lambda v: [path.split(".") for path in v.split(",")],
@@ -58,7 +58,7 @@ class ExplorationConfig(DDConfig):
     conservative = DDConfig.v(
         bool,
         "dd.debugger.expl.conservative",
-        default=False,
+        default=True,
         help="Use extremely low capture limits to reduce overhead",
     )
 
