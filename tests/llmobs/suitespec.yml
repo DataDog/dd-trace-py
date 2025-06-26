@@ -161,3 +161,15 @@ suites:
       - tests/snapshots/tests.contrib.openai_agents.*
     runner: riot
     snapshot: true
+  pydantic_ai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@pydantic_ai'
+      - '@llmobs'
+      - tests/contrib/pydantic_ai/*
+      - tests/snapshots/tests.contrib.pydantic_ai.*
+    runner: riot
+    snapshot: true
