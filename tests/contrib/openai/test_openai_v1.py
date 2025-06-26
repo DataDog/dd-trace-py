@@ -4,7 +4,6 @@ import mock
 import openai as openai_module
 import pytest
 
-import ddtrace
 from ddtrace.contrib.internal.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
