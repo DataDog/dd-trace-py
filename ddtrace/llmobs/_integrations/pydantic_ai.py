@@ -3,6 +3,7 @@ from typing import Optional
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.trace import Span
 
+
 # in some cases, PydanticAI uses a different provider name than what we expect
 PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-gla": "google",
