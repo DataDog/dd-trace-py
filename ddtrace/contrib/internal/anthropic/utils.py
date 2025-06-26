@@ -88,6 +88,10 @@ def tag_params_on_span(span, kwargs, integration):
     for k, v in kwargs.items():
         if k == "system" and integration.is_pc_sampled_span(span):
             span.set_tag_str("anthropic.request.system", integration.trunc(str(v)))
+        elif k == "metadata" and isinstance(v, dict):
+            user_id = _get_attr(v, "user_id", None)
+            if user_id:
+                span.set_tag_str("anthropic.request.user_id", str(user_id))
         elif k not in ("messages", "model"):
             tagged_params[k] = v
     span.set_tag_str("anthropic.request.parameters", safe_json(tagged_params))

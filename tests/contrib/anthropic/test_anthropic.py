@@ -38,6 +38,22 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
     assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
+def test_user_id_tag(ddtrace_config_anthropic, anthropic, request_vcr, mock_tracer):
+    llm = anthropic.Anthropic()
+    with override_global_config(dict(service="test-svc", env="staging", version="1234")):
+        cassette_name = "anthropic_completion.yaml"
+        with request_vcr.use_cassette(cassette_name):
+            llm.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=15,
+                messages=[{"role": "user", "content": "What does Nietzsche mean by 'God is dead'?"}],
+                metadata={"user_id": "1234567890"},
+            )
+
+    span = mock_tracer.pop_traces()[0][0]
+    assert span.get_tag("anthropic.request.user_id") == "1234567890"
+
+
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
 def test_anthropic_llm_sync_create(anthropic, request_vcr):
     llm = anthropic.Anthropic()
