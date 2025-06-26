@@ -166,8 +166,6 @@ class _CompletionHook(_BaseCompletionHook):
         "engine",
         "suffix",
         "echo",
-        "stop",
-        "user",
     )
     _response_attrs = ("created", "id", "model")
     ENDPOINT_NAME = "completions"
@@ -199,8 +197,6 @@ class _ChatCompletionHook(_BaseCompletionHook):
     _request_kwarg_params = (
         "model",
         "engine",
-        "stop",
-        "user",
     )
     _response_attrs = ("created", "id", "model")
     ENDPOINT_NAME = "chat/completions"
@@ -237,7 +233,7 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
 
 class _EmbeddingHook(_EndpointHook):
     _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = ("model", "engine", "user")
+    _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
     ENDPOINT_NAME = "embeddings"
     HTTP_METHOD_TYPE = "POST"
