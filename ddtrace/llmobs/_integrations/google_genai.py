@@ -113,9 +113,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if code_execution_result:
             outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
             output = _get_attr(code_execution_result, "output", "")
-            message["content"] = "[code execution result ({outcome}): {output}]".format(
-                outcome=outcome, output=output
-            )
+            message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
             return message
 
         thought = _get_attr(part, "thought", None)
