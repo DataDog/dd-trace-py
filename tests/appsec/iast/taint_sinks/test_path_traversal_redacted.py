@@ -15,11 +15,9 @@ from ddtrace.appsec._iast.reporter import Location
 from ddtrace.appsec._iast.reporter import Vulnerability
 from ddtrace.appsec._iast.taint_sinks.path_traversal import PathTraversal
 from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import ROOT_DIR
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
-
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.mark.parametrize(
