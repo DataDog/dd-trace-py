@@ -33,7 +33,7 @@ async def test_agent_iter(pydantic_ai, snapshot_context, request_vcr):
 
 
 async def test_agent_iter_error(pydantic_ai, snapshot_context, request_vcr):
-    with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run_error"):
+    with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run_error", ignores=["meta.error.stack"]):
         with request_vcr.use_cassette("agent_iter.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             with pytest.raises(Exception, match="test error"):
