@@ -74,6 +74,9 @@ EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 MESSAGING_SYSTEM = "messaging.system"
 MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_OPERATION = "messaging.operation"
+
+NETWORK_DESTINATION_NAME = "network.destination.name"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
