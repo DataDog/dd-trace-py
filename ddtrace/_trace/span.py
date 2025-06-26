@@ -49,6 +49,8 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
+from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
@@ -638,10 +640,46 @@ class Span(object):
             "exception.stacktrace": tb,
         }
         if attributes:
+            attributes = {k: v for k, v in attributes.items() if self._validate_attribute(k, v)}
+
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
         self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
+
+    def _validate_attribute(self, key: str, value: Any) -> bool:
+        if isinstance(value, (str, bool, int, float)):
+            if self._validate_scalar(key, value):
+                return True
+            return False
+        elif isinstance(value, list):
+            if len(value) > 0:
+                if not isinstance(value[0], (str, bool, int, float)):
+                    log.warning(f"record_exception: Attribute #{key} must be a string, number, or boolean: #{value}.")
+                    return False
+                first_type = type(value[0])
+                for val in value:
+                    if not type(val) == first_type or not self._validate_scalar(key, val):
+                        log.warning(f"record_exception: Attribute #{key} array must be homogenous: #{value}.")
+                        return False
+            return True
+        return False
+
+    def _validate_scalar(self, key: str, value: Union[bool, str, int, float]) -> bool:
+        if isinstance(value, bool) or isinstance(value, str):
+            return True
+        elif isinstance(value, int):
+            if value < _MIN_INT_64BITS or value > _MAX_INT_64BITS:
+                log.warning(f"record_exception: Attribute {key} must be within the range of a signed 64-bit integer: {value}.")
+                return False
+            return True
+        elif isinstance(value, float):
+            if not math.isfinite(value):
+                log.warning(f"record_exception: Attribute {key} must be a finite number: {value}.")
+                return False
+            return True
+
+        return False
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
