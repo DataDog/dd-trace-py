@@ -744,18 +744,18 @@ class TestLLMObsOpenaiV1:
         )
 
     def test_chat_completion_prompt_caching(
-        self, openai, test_agent_openai_client, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
         base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
-        resp1 = test_agent_openai_client.chat.completions.create(
+        resp1 = oai_with_test_agent_backend.chat.completions.create(
             model=model,
             messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
             max_tokens=100,
             temperature=0.1,
         )
-        resp2 = test_agent_openai_client.chat.completions.create(
+        resp2 = oai_with_test_agent_backend.chat.completions.create(
             model=model,
             messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
             max_tokens=100,
@@ -965,7 +965,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
     def test_chat_completion_stream_prompt_caching(
-        self, openai, test_agent_openai_client, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
         input_messages = [
@@ -981,14 +981,14 @@ class TestLLMObsOpenaiV1:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        resp1 = test_agent_openai_client.chat.completions.create(
+        resp1 = oai_with_test_agent_backend.chat.completions.create(
             messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
             **request_args,
         )
         for chunk in resp1:
             if hasattr(chunk, "model"):
                 resp_model = chunk.model
-        resp2 = test_agent_openai_client.chat.completions.create(
+        resp2 = oai_with_test_agent_backend.chat.completions.create(
             messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
             **request_args,
         )

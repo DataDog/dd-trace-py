@@ -71,7 +71,7 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
 
 
 @pytest.fixture
-def test_agent_openai_client(openai):
+def oai_with_test_agent_backend(openai):
     return openai.OpenAI(base_url="http://127.0.0.1:8126/vcr/openai")
 
 
