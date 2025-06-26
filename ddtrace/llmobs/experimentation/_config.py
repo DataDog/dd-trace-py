@@ -3,7 +3,7 @@ import ddtrace
 
 from .._llmobs import LLMObs
 from .utils._exceptions import ConfigurationError
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.logger import get_logger
 
 
 # Default configuration values
@@ -23,7 +23,7 @@ VALID_DD_SITES = {
     "us3.datadoghq.com",
     "us5.datadoghq.com",
     "ap1.datadoghq.com",
-    "datad0g.com", 
+    "datad0g.com",
 }
 
 # Global state (initialized by init())
@@ -35,6 +35,7 @@ _ENV_DD_APPLICATION_KEY = None
 _RUN_LOCALLY = False
 _ML_APP = None
 
+log = get_logger(__name__)
 
 # Derived values
 def get_api_base_url() -> str:
@@ -53,7 +54,7 @@ def get_base_url() -> str:
     site = get_site()
     if site == "datad0g.com":
         return "https://dd.datad0g.com"
-    elif site == "datadoghq.com": 
+    elif site == "datadoghq.com":
         return "https://app.datadoghq.com"
     # Assume standard pattern for other valid sites (.eu, us3.com, etc.)
     return f"https://{site}"
@@ -86,7 +87,7 @@ def init(
     Raises:
         ConfigurationError: If required environment variables or parameters are missing or invalid when run_locally is False.
     """
-    from .utils._ui import Color 
+    from .utils._ui import Color
 
     global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, \
            _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY, _ML_APP
@@ -103,11 +104,15 @@ def init(
             )
 
     if application_key is None:
-        application_key = os.getenv("DD_APPLICATION_KEY")
+        application_key = os.getenv("DD_APP_KEY")
         if application_key is None:
-            raise ConfigurationError(
-                "DD_APPLICATION_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)"
-            )
+            application_key = os.getenv("DD_APPLICATION_KEY")
+            if application_key is None:
+                raise ConfigurationError(
+                    "DD_APP_KEY environment variable is not set, please set it or pass it as an argument to init(...application_key=...)"
+                )
+            else:
+                log.warning("the DD_APPLICATION_KEY env var is being deprecated, use the DD_APP_KEY env var instead")
 
     if site is None:
         site = os.getenv("DD_SITE")
