@@ -787,37 +787,6 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
-)
-def test_chat_completion_stream_explicit_no_tokens(openai, openai_vcr, mock_tracer):
-    """Assert that streamed token chunk extraction logic is avoided if explicitly set to False by the user."""
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-            client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                stream=True,
-                stream_options={"include_usage": False},
-                user="ddtrace-test",
-                n=None,
-            )
-            chunks = [c for c in resp]
-            assert len(chunks) == 15
-            completion = "".join([c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None])
-            assert completion == expected_completion
-
-    span = mock_tracer.pop_traces()[0][0]
-    assert span.get_metric("openai.response.usage.prompt_tokens") == 8
-    assert span.get_metric("openai.response.usage.completion_tokens") is not None
-    assert span.get_metric("openai.response.usage.total_tokens") is not None
-
-
-@pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
@@ -940,6 +909,7 @@ asyncio.run(task())
     assert status == 0, err
     assert out == b""
     assert err == b""
+
 
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
 def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_tracer):

@@ -301,7 +301,9 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
+        _set_token_metrics_from_streamed_response(
+            span, integration, formatted_completions, prompts, request_messages, kwargs
+        )
         integration.llmobs_set_tags(
             span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
         )
@@ -309,7 +311,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
-def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
+def _set_token_metrics_from_streamed_response(span, integration, response, prompts, messages, kwargs):
     """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
@@ -331,6 +333,15 @@ def _set_token_metrics_from_streamed_response(span, response, prompts, messages,
         estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         estimated, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
+
+    integration.llmobs_record_usage(
+        span,
+        {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        },
+    )
 
 
 def _compute_prompt_tokens(model_name, prompts=None, messages=None):
