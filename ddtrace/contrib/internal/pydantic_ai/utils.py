@@ -2,10 +2,9 @@ import wrapt
 
 
 class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, instance):
+    def __init__(self, wrapped, span):
         super().__init__(wrapped)
         self._dd_span = span
-        self._dd_instance = instance
 
     async def __aenter__(self):
         return await self.__wrapped__.__aenter__()
