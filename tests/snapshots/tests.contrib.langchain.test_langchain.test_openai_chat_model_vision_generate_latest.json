@@ -10,21 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685b315600000000",
+      "_dd.p.tid": "685daa6900000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "gpt-4o",
       "langchain.request.provider": "openai",
       "langchain.request.type": "chat_model",
       "language": "python",
-      "runtime-id": "b725262f1143479d9bc53bd689603db9"
+      "runtime-id": "ef300647060d406cbc4bd34615ab6b5d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 49865
+      "process_id": 65198
     },
-    "duration": 5510000,
-    "start": 1750806870953613000
+    "duration": 5830000,
+    "start": 1750968937222868000
   }]]
