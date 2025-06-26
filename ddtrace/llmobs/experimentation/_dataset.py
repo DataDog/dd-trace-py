@@ -222,10 +222,10 @@ class Dataset:
                     f"got {sorted(new_keys)}"
                 )
 
-        required_keys = {'input', 'expected_output'}
+        required_keys = {'input'}
         if not required_keys.issubset(first_row_keys):
             missing = required_keys - first_row_keys
-            raise ValueError(f"Records must contain 'input' and 'expected_output' fields. Missing: {missing}")
+            raise ValueError(f"Records must contain the 'input' field")
 
         # Validate consistency within new data
         for row in data:
@@ -363,7 +363,10 @@ class Dataset:
         if self._changes['added']:
             insert_records = []
             for record in self._changes['added']:
-                new_record = {"input": record["input"], "expected_output": record["expected_output"]}
+                new_record = {"input": record["input"]}
+                if record.get("expected_output"):
+                    new_record["expected_output"] = record["expected_output"]
+
                 metadata = {k: v for k, v in record.items() if k not in ["input", "expected_output", "record_id"]}
                 if metadata:
                     new_record["metadata"] = metadata
@@ -539,8 +542,10 @@ class Dataset:
         """Convert an internal record representation into the *insert_records* payload format."""
         new_rec = {
             "input": record["input"],
-            "expected_output": record["expected_output"],
+
         }
+        if record.get("expected_output"):
+            new_rec["expected_output"] = record["expected_output"]
         metadata = {k: v for k, v in record.items() if k not in ["input", "expected_output", "record_id"]}
         if metadata:
             new_rec["metadata"] = metadata
@@ -556,7 +561,7 @@ class Dataset:
         if old.get("input") != new.get("input"):
             upd["input"] = new["input"]
         if old.get("expected_output") != new.get("expected_output"):
-            upd["expected_output"] = new["expected_output"]
+            upd["expected_output"] = new.get("expected_output")
         # Diff metadata.
         old_meta = {k: v for k, v in old.items() if k not in ["input", "expected_output", "record_id"]}
         new_meta = {k: v for k, v in new.items() if k not in ["input", "expected_output", "record_id"]}
@@ -605,7 +610,7 @@ class Dataset:
                     attrs["update_records"] = update_records
                 if delete_records:
                     attrs["delete_records"] = delete_records
-            
+
             # Use create_new_version for first chunk, then overwrite=True for subsequent chunks
             # to append to the version established by the first chunk
             if idx == 0:
@@ -657,12 +662,11 @@ class Dataset:
             Dataset: A new Dataset instance containing the CSV data, structured for LLM experiments.
 
         Raises:
-            ValueError: If input_columns or expected_output_columns are not provided,
-                or if the CSV is missing those columns, or if the file is empty.
+            ValueError: If input_columns is not provided, or if the CSV is missing those columns, or if the file is empty.
             DatasetFileError: If there are issues reading the CSV file (e.g., file not found, permission error, malformed).
         """
-        if input_columns is None or expected_output_columns is None:
-            raise ValueError("`input_columns` and `expected_output_columns` must be provided.")
+        if input_columns is None:
+            raise ValueError("`input_columns` must be provided.")
 
         data = []
         try:
@@ -683,7 +687,9 @@ class Dataset:
 
                     header_columns = reader.fieldnames
                     missing_input_columns = [col for col in input_columns if col not in header_columns]
-                    missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+                    missing_output_columns = False
+                    if expected_output_columns is not None:
+                        missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
 
                     if missing_input_columns:
                         raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
@@ -698,7 +704,7 @@ class Dataset:
 
                     # Determine metadata columns (all columns not used for input or expected output)
                     metadata_columns = [
-                        col for col in header_columns if col not in input_columns and col not in expected_output_columns
+                        col for col in header_columns if col not in input_columns and (expected_output_columns is not None and col not in expected_output_columns)
                     ]
 
                     for row in rows:
@@ -713,7 +719,9 @@ class Dataset:
 
                         try:
                             input_data = row[input_columns[0]] if len(input_columns) == 1 else {col: row[col] for col in input_columns}
-                            expected_output_data = row[expected_output_columns[0]] if len(expected_output_columns) == 1 else {col: row[col] for col in expected_output_columns}
+                            expected_output_data = None
+                            if expected_output_columns is not None and len(expected_output_columns) > 0:
+                                expected_output_data = row[expected_output_columns[0]] if len(expected_output_columns) == 1 else {col: row[col] for col in expected_output_columns}
 
                             metadata = {}
                             for col in metadata_columns:
@@ -726,13 +734,14 @@ class Dataset:
                             # Other errors during row processing also indicate CSV issues
                             raise DatasetFileError(f"Error parsing CSV file (row processing): {e}")
 
-                        data.append(
-                            {
-                                "input": input_data,
-                                "expected_output": expected_output_data,
-                                **metadata,
-                            }
-                        )
+                        to_append = {
+                            "input": input_data,
+                            **metadata,
+                        }
+
+                        if expected_output_data:
+                            to_append["expected_output"] = expected_output_data
+                        data.append(to_append)
                 except csv.Error as e:
                     # Catch CSV-specific parsing errors
                     raise DatasetFileError(f"Error parsing CSV file: {e}")

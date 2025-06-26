@@ -710,11 +710,11 @@ class TestDatasetPush:
         """Test pushing a synced dataset with no local changes."""
         initial_len = len(synced_dataset)
         initial_version = synced_dataset._datadog_dataset_version
-        
+
         # This cassette should ideally show no POST requests or minimal GETs
         with experiments_vcr.use_cassette("test_dataset_push_synced_no_change.yaml"):
             synced_dataset.push()
-        
+
         captured = capsys.readouterr()
         assert f"Dataset '{synced_dataset.name}' (v{initial_version}) is already synced and has no pending changes" in captured.out
 
@@ -1093,11 +1093,9 @@ class TestDatasetFromCSV:
 
     def test_from_csv_missing_column_specifications(self, csv_file_simple):
         """Test calling from_csv without input/output columns raises ValueError."""
-        with pytest.raises(ValueError, match="`input_columns` and `expected_output_columns` must be provided"):
+        with pytest.raises(ValueError, match="`input_columns` must be provided"):
             dne.Dataset.from_csv(csv_file_simple, name="bad")
-        with pytest.raises(ValueError, match="`input_columns` and `expected_output_columns` must be provided"):
-            dne.Dataset.from_csv(csv_file_simple, name="bad", input_columns=["question"])
-        with pytest.raises(ValueError, match="`input_columns` and `expected_output_columns` must be provided"):
+        with pytest.raises(ValueError, match="`input_columns` must be provided"):
             dne.Dataset.from_csv(csv_file_simple, name="bad", expected_output_columns=["answer"])
 
     def test_from_csv_malformed_file(self, csv_file_malformed):
