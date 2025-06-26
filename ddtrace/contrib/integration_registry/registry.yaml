@@ -139,7 +139,17 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.20.0
-      max: 1.21.3
+      max: 1.23.0
+
+- integration_name: azure_servicebus
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-servicebus
+  tested_versions_by_dependency:
+    azure-servicebus:
+      min: 7.14.2
+      max: 7.14.2
 
 - integration_name: boto
   is_external_package: true
@@ -543,7 +553,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.11
+      max: 1.1.12
 
 - integration_name: molten
   is_external_package: true
@@ -624,7 +634,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.2.1
+      max: 3.2.9
     psycopg2-binary:
       min: 2.8.6
       max: 2.9.10
