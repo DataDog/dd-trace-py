@@ -2343,7 +2343,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
                 # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                "opentelemetry-api": ["~=1.26.0", latest], # Figure out how to run against only specific api versions, or version our support somehow
+                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,

@@ -11,10 +11,6 @@ TRACER_PROVIDER = TracerProvider()
 # set_tracer_provider can only be called once
 opentelemetry.trace.set_tracer_provider(TRACER_PROVIDER)
 
-METER_PROVIDER = MeterProvider()
-# set_meter_provider can only be called once
-opentelemetry.metrics.set_meter_provider(METER_PROVIDER)
-
 
 @pytest.fixture
 def set_otel_python_context():
@@ -28,8 +24,3 @@ def set_otel_python_context():
 def oteltracer(set_otel_python_context):
     assert opentelemetry.trace.get_tracer_provider() is TRACER_PROVIDER
     yield opentelemetry.trace.get_tracer(__name__)
-
-@pytest.fixture
-def otelmeter(set_otel_python_context):
-    assert opentelemetry.trace.get_meter_provider() is METER_PROVIDER
-    yield opentelemetry.trace.get_meter(__name__)
