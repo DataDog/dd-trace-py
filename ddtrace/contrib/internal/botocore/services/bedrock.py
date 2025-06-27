@@ -97,7 +97,6 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
             [execution_ctx, formatted_response, metadata, self.chunks, should_set_choice_ids],
         )
     
-
 def make_botocore_streaming_body_traced_stream(streaming_body, integration, span, args, kwargs, execution_ctx):
     original_read = getattr(streaming_body, "read", None)
     original_readlines = getattr(streaming_body, "readlines", None)
@@ -113,31 +112,28 @@ def make_botocore_streaming_body_traced_stream(streaming_body, integration, span
     return traced_stream
 
 
-class TracedBotocoreConverseStream(wrapt.ObjectProxy):
-    """
-    This class wraps the stream response returned by converse_stream.
-    """
+class BotocoreConverseStreamHandler(StreamHandler):
+    def process_chunk(self, chunk: Dict[str, Any], iterator=None):
+        stream_processor = self.options.get("stream_processor", None)
+        if stream_processor:
+            stream_processor.send(chunk)
+    
+    def handle_exception(self, exception):
+        stream_processor = self.options.get("stream_processor", None)
+        execution_ctx = self.options.get("execution_ctx", {})
+        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+    
+    def finalize_stream(self, exception=None):
+        if exception:
+            return
+        stream_processor = self.options.get("stream_processor", None)
+        execution_ctx = self.options.get("execution_ctx", {})
+        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
 
-    def __init__(self, wrapped, ctx: core.ExecutionContext):
-        super().__init__(wrapped)
-        self._execution_ctx = ctx
-
-    def __iter__(self):
-        stream_processor = self._execution_ctx["bedrock_integration"]._converse_output_stream_processor()
-        exception_raised = False
-        try:
-            next(stream_processor)
-            for chunk in self.__wrapped__:
-                stream_processor.send(chunk)
-                yield chunk
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            exception_raised = True
-            raise
-        finally:
-            if exception_raised:
-                return
-            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, stream_processor])
+def make_botocore_converse_traced_stream(stream, execution_ctx):
+    stream_processor = execution_ctx["bedrock_integration"]._converse_output_stream_processor()
+    next(stream_processor)
+    return make_traced_stream(stream, BotocoreConverseStreamHandler(None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor))
 
 
 def safe_token_count(token_count) -> Optional[int]:
@@ -445,7 +441,7 @@ def handle_bedrock_response(
         return result
     if ctx["resource"] == "ConverseStream":
         if "stream" in result:
-            result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
+            result["stream"] = make_botocore_converse_traced_stream(result["stream"], ctx)
         return result
 
     body = result["body"]
