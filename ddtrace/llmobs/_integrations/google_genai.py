@@ -74,9 +74,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         )
 
     def _extract_message_from_part_google_genai(self, part, role):
-        """
-        part is a PartUnion = Union[File, Part, PIL_Image, str]
-        """
+        """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
         message = {"role": role}
         if isinstance(part, str):
             message["content"] = part
