@@ -4,7 +4,6 @@ from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.google_genai.patch import patch

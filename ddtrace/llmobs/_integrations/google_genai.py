@@ -75,7 +75,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-
     def _extract_input_message(self, args, kwargs, config):
         messages = []
         system_instruction = _get_attr(config, "system_instruction", None)

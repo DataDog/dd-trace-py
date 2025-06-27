@@ -71,6 +71,7 @@ def extract_metrics_google_genai(response):
 
     return usage
 
+
 def extract_message_from_part_google_genai(part, role):
     """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
     message = {"role": role}
@@ -119,6 +120,7 @@ def extract_message_from_part_google_genai(part, role):
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
 
+
 def process_response(response):
     messages = []
     candidates = _get_attr(response, "candidates", [])
@@ -132,6 +134,7 @@ def process_response(response):
             message = extract_message_from_part_google_genai(part, role)
             messages.append(message)
     return messages
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -175,14 +178,12 @@ class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
         self._self_args = args
         self._self_kwargs = kwargs
         self._self_dd_integration = integration
-    
+
     # def _join_chunks(self):
     #     # since we are always using _get_attr, can use dict instead of constructing a GenerateContentResponse object
     #     response = {}
     #     for chunk in self._self_chunks:
     #         pass
-
-
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
