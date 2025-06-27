@@ -16,6 +16,10 @@ from tests.utils import DummyWriter
 from tests.utils import override_global_config
 from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
+from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 
 
 @pytest.fixture
@@ -102,11 +106,7 @@ def genai(ddtrace_global_config):
 
 
 @pytest.fixture
-def mock_generate_content():
-    from google import genai
-
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE
-
+def mock_generate_content(genai):
     def _fake_generate_content(self, *, model: str, contents, config=None):
         return MOCK_GENERATE_CONTENT_RESPONSE
 
@@ -115,11 +115,7 @@ def mock_generate_content():
 
 
 @pytest.fixture
-def mock_async_generate_content():
-    from google import genai
-
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE
-
+def mock_async_generate_content(genai):
     async def _fake_async_generate_content(self, *, model: str, contents, config=None):
         return MOCK_GENERATE_CONTENT_RESPONSE
 
@@ -128,11 +124,7 @@ def mock_async_generate_content():
 
 
 @pytest.fixture
-def mock_generate_content_stream():
-    from google import genai
-
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
-
+def mock_generate_content_stream(genai):
     def _fake_stream(self, *, model: str, contents, config=None) -> Iterator[Any]:
         for chunk in MOCK_GENERATE_CONTENT_RESPONSE_STREAM:
             yield chunk
@@ -142,11 +134,7 @@ def mock_generate_content_stream():
 
 
 @pytest.fixture
-def mock_async_generate_content_stream():
-    from google import genai
-
-    from .utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
-
+def mock_async_generate_content_stream(genai):
     async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
             for chunk in MOCK_GENERATE_CONTENT_RESPONSE_STREAM:
@@ -159,12 +147,7 @@ def mock_async_generate_content_stream():
 
 
 @pytest.fixture
-def mock_generate_content_with_tools():
-    from google import genai
-
-    from .utils import MOCK_TOOL_CALL_RESPONSE
-    from .utils import MOCK_TOOL_FINAL_RESPONSE
-
+def mock_generate_content_with_tools(genai):
     call_count = 0
 
     def _fake_generate_content_with_tools(self, *, model: str, contents, config=None):
