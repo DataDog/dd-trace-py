@@ -815,6 +815,7 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
+        log.debug("Starting LLMObs span: %s, span_kind: %s", name, operation_kind)
         span._set_ctx_item(SPAN_KIND, operation_kind)
         if model_name is not None:
             span._set_ctx_item(MODEL_NAME, model_name)
