@@ -60,9 +60,7 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
-    async def test_generate_content_async(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content
-    ):
+    async def test_generate_content_async(self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content):
         await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",

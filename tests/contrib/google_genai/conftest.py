@@ -75,16 +75,22 @@ def mock_tracer(ddtrace_global_config, genai):
     except Exception:
         yield
 
+
 @pytest.fixture
 def genai_llmobs(mock_tracer, llmobs_span_writer):
     LLMObs.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"}
+        {
+            "_dd_api_key": "<not-a-real-api_key>",
+            "_llmobs_ml_app": "<ml-app-name>",
+            "service": "tests.contrib.google_genai",
+        }
     ):
         LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer = llmobs_span_writer
         yield LLMObs
     LLMObs.disable()
+
 
 @pytest.fixture
 def llmobs_span_writer():
