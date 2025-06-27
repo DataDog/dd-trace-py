@@ -2913,7 +2913,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.20.0", latest],
+                "azure.functions": ["~=1.10.1", latest],
                 "azure.servicebus": latest,
                 "requests": latest,
             },
