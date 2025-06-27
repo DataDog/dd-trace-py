@@ -11,9 +11,9 @@ import pinecone as pinecone_
 import pytest
 
 from ddtrace import patch
-from ddtrace.trace import Span
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Span
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
