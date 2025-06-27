@@ -591,7 +591,7 @@ class SpanTestCase(TracerTestCase):
         try:
             raise RuntimeError("bim")
         except RuntimeError as e:
-            span.record_exception(e, {"foo": "bar", "toto": ["titi", 1], "tata": [[1]], "tutu": {"a":"b"}})
+            span.record_exception(e, {"foo": "bar", "toto": ["titi", 1], "tata": [[1]], "tutu": {"a": "b"}})
         span.finish()
 
         span.assert_span_event_count(1)
