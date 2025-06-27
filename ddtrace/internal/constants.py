@@ -74,6 +74,9 @@ EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 MESSAGING_SYSTEM = "messaging.system"
 MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_OPERATION = "messaging.operation"
+
+NETWORK_DESTINATION_NAME = "network.destination.name"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
@@ -89,6 +92,14 @@ BAGGAGE_TAG_PREFIX = "baggage."
 
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
+
+LOG_ATTR_TRACE_ID = "dd.trace_id"
+LOG_ATTR_SPAN_ID = "dd.span_id"
+LOG_ATTR_ENV = "dd.env"
+LOG_ATTR_VERSION = "dd.version"
+LOG_ATTR_SERVICE = "dd.service"
+LOG_ATTR_VALUE_ZERO = "0"
+LOG_ATTR_VALUE_EMPTY = ""
 
 
 class SamplingMechanism(object):
