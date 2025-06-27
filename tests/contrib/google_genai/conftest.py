@@ -2,6 +2,7 @@ import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
+import contextlib
 
 import mock
 import pytest
@@ -13,11 +14,51 @@ from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
+from tests.utils import request_token
+from tests.utils import snapshot_context as _snapshot_context
 
 
 @pytest.fixture
 def ddtrace_global_config():
     return {}
+
+
+@pytest.fixture
+def snapshot_context(request):
+    """
+    Fixture to provide a context manager for executing code within a ``tests.utils.snapshot_context``
+    with a default ``token`` based on the test function/``pytest`` request.
+
+    def test_case(snapshot_context):
+        with snapshot_context():
+            # my code
+    """
+    token = request_token(request)
+
+    @contextlib.contextmanager
+    def _snapshot(**kwargs):
+        if "token" not in kwargs:
+            kwargs["token"] = token
+        with _snapshot_context(**kwargs) as snapshot:
+            yield snapshot
+
+    return _snapshot
+
+
+@pytest.fixture(params=["google_genai", "vertex_ai"], ids=["google_genai", "vertex_ai"])
+def genai_client(request, genai):
+    """
+    In order to test clients which face both gemini and vertexai, we provide this fixture which
+    parametrizes the test case to run both cases.
+    """
+    if request.param == "vertex_ai":
+        return genai.Client(
+            vertexai=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        )
+    else:
+        return genai.Client()
 
 
 @pytest.fixture

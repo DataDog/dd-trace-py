@@ -14,18 +14,8 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsGoogleGenAI:
-    @pytest.mark.parametrize("is_vertex", [False, True])
-    def test_generate_content(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content, is_vertex):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        client.models.generate_content(
+    def test_generate_content(self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content):
+        genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
@@ -34,19 +24,9 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
-    def test_generate_content_error(self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content, is_vertex):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
+    def test_generate_content_error(self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content):
         with pytest.raises(TypeError):
-            client.models.generate_content(
+            genai_client.models.generate_content(
                 model="gemini-2.0-flash-001",
                 contents="Why is the sky blue? Explain in 2-3 sentences.",
                 config=FULL_GENERATE_CONTENT_CONFIG,
@@ -56,20 +36,10 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     def test_generate_content_stream(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content_stream
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        response = client.models.generate_content_stream(
+        response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
@@ -80,21 +50,11 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     def test_generate_content_stream_error(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_stream, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content_stream
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
         with pytest.raises(TypeError):
-            client.models.generate_content_stream(
+            genai_client.models.generate_content_stream(
                 model="gemini-2.0-flash-001",
                 contents="Why is the sky blue? Explain in 2-3 sentences.",
                 config=FULL_GENERATE_CONTENT_CONFIG,
@@ -104,20 +64,10 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     async def test_generate_content_async(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_async_generate_content
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        await client.aio.models.generate_content(
+        await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
@@ -126,21 +76,11 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     async def test_generate_content_async_error(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_async_generate_content
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
         with pytest.raises(TypeError):
-            await client.aio.models.generate_content(
+            await genai_client.aio.models.generate_content(
                 model="gemini-2.0-flash-001",
                 contents="Why is the sky blue? Explain in 2-3 sentences.",
                 config=FULL_GENERATE_CONTENT_CONFIG,
@@ -150,20 +90,10 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     async def test_generate_content_stream_async(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        response = await client.aio.models.generate_content_stream(
+        response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
@@ -174,21 +104,11 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     async def test_generate_content_stream_async_error(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_async_generate_content_stream
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
         with pytest.raises(TypeError):
-            await client.aio.models.generate_content_stream(
+            await genai_client.aio.models.generate_content_stream(
                 model="gemini-2.0-flash-001",
                 contents="Why is the sky blue? Explain in 2-3 sentences.",
                 config=FULL_GENERATE_CONTENT_CONFIG,
@@ -198,20 +118,10 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    @pytest.mark.parametrize("is_vertex", [False, True])
     def test_generate_content_with_tools(
-        self, genai, mock_llmobs_writer, mock_tracer, mock_generate_content_with_tools, is_vertex
+        self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content_with_tools
     ):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        response = client.models.generate_content(
+        response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents=[
                 types.Content(
@@ -225,7 +135,7 @@ class TestLLMObsGoogleGenAI:
         function_call_part = response.function_calls[0]
         function_result = get_current_weather(**function_call_part.args)
 
-        client.models.generate_content(
+        genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents=[
                 types.Content(

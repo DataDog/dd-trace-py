@@ -33,192 +33,116 @@ def test_global_tags(mock_generate_content, genai, mock_tracer):
     assert span.get_tag("google_genai.request.provider") == "google"
 
 
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content")
-def test_google_genai_generate_content(mock_generate_content, genai, is_vertex):
-    if is_vertex:
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-    else:
-        client = genai.Client()
-
-    client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-
-
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-    ignores=["meta.error.stack", "meta.error.message"],
-)
-def test_google_genai_generate_content_error(mock_generate_content, genai, is_vertex):
-    with pytest.raises(TypeError):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-            )
-        else:
-            client = genai.Client()
-
-        client.models.generate_content(
+def test_google_genai_generate_content(mock_generate_content, genai_client, snapshot_context):
+    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content"):
+        genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
         )
 
 
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-)
-def test_google_genai_generate_content_stream(mock_generate_content_stream, genai, is_vertex):
-    if is_vertex:
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-    else:
-        client = genai.Client()
-
-    response = client.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-    for _ in response:
-        pass
-
-
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-    ignores=["meta.error.stack", "meta.error.message"],
-)
-def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai, is_vertex):
-    with pytest.raises(TypeError):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+def test_google_genai_generate_content_error(mock_generate_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
+        ignores=["meta.error.stack", "meta.error.message"],
+    ):
+        with pytest.raises(TypeError):
+            genai_client.models.generate_content(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
             )
-        else:
-            client = genai.Client()
 
-        response = client.models.generate_content_stream(
+
+def test_google_genai_generate_content_stream(mock_generate_content_stream, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream"
+    ):
+        response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
         )
         for _ in response:
             pass
 
 
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
-    ignores=["resource"],
-)
-async def test_google_genai_generate_content_async(mock_async_generate_content, genai, is_vertex):
-    if is_vertex:
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-    else:
-        client = genai.Client()
-
-    await client.aio.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-
-
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
-    ignores=["resource", "meta.error.message", "meta.error.stack"],
-)
-async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai, is_vertex):
-    with pytest.raises(TypeError):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+def test_google_genai_generate_content_stream_error(mock_generate_content_stream, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
+        ignores=["meta.error.stack", "meta.error.message"],
+    ):
+        with pytest.raises(TypeError):
+            response = genai_client.models.generate_content_stream(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
             )
-        else:
-            client = genai.Client()
+            for _ in response:
+                pass
 
-        await client.aio.models.generate_content(
+
+async def test_google_genai_generate_content_async(mock_async_generate_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content",
+        ignores=["resource"],
+    ):
+        await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
         )
 
 
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
-    ignores=["resource"],
-)
-async def test_google_genai_generate_content_async_stream(mock_async_generate_content_stream, genai, is_vertex):
-    if is_vertex:
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-    else:
-        client = genai.Client()
-
-    response = await client.aio.models.generate_content_stream(
-        model="gemini-2.0-flash-001",
-        contents="Why is the sky blue? Explain in 2-3 sentences.",
-        config=FULL_GENERATE_CONTENT_CONFIG,
-    )
-    async for _ in response:
-        pass
-
-
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
-    ignores=["resource", "meta.error.message", "meta.error.stack"],
-)
-async def test_google_genai_generate_content_async_stream_error(mock_async_generate_content_stream, genai, is_vertex):
-    with pytest.raises(TypeError):
-        if is_vertex:
-            client = genai.Client(
-                vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+async def test_google_genai_generate_content_async_error(mock_async_generate_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_error",
+        ignores=["resource", "meta.error.message", "meta.error.stack"],
+    ):
+        with pytest.raises(TypeError):
+            await genai_client.aio.models.generate_content(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
             )
-        else:
-            client = genai.Client()
 
-        response = await client.aio.models.generate_content_stream(
+
+async def test_google_genai_generate_content_async_stream(
+    mock_async_generate_content_stream, genai_client, snapshot_context
+):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream",
+        ignores=["resource"],
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
-            not_an_argument="why am i here?",
         )
         async for _ in response:
             pass
+
+
+async def test_google_genai_generate_content_async_stream_error(
+    mock_async_generate_content_stream, genai_client, snapshot_context
+):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_stream_error",
+        ignores=["resource", "meta.error.message", "meta.error.stack"],
+    ):
+        with pytest.raises(TypeError):
+            response = await genai_client.aio.models.generate_content_stream(
+                model="gemini-2.0-flash-001",
+                contents="Why is the sky blue? Explain in 2-3 sentences.",
+                config=FULL_GENERATE_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+            async for _ in response:
+                pass
 
 
 @pytest.mark.parametrize(
@@ -257,54 +181,52 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
     assert model == expected_model
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"
-)
-def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai):
-    client = genai.Client()
+def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai, snapshot_context):
+    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"):
+        client = genai.Client()
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=[
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text="What is the weather like in Boston?")],
-            )
-        ],
-        config=TOOL_GENERATE_CONTENT_CONFIG,
-    )
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
 
-    assert response.function_calls
-    function_call_part = response.function_calls[0]
-    assert function_call_part.name == "get_current_weather"
-    assert function_call_part.args["location"] == "Boston"
+        assert response.function_calls
+        function_call_part = response.function_calls[0]
+        assert function_call_part.name == "get_current_weather"
+        assert function_call_part.args["location"] == "Boston"
 
-    function_result = get_current_weather(**function_call_part.args)
+        function_result = get_current_weather(**function_call_part.args)
 
-    final_response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=[
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text="What is the weather like in Boston?")],
-            ),
-            response.candidates[0].content,
-            types.Content(
-                role="tool",
-                parts=[
-                    types.Part.from_function_response(
-                        name=function_call_part.name,
-                        response={"result": function_result},
-                    )
-                ],
-            ),
-        ],
-        config=TOOL_GENERATE_CONTENT_CONFIG,
-    )
+        final_response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response.candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
 
-    assert final_response.text
-    assert "Boston" in final_response.text
-    assert "72" in final_response.text
+        assert final_response.text
+        assert "Boston" in final_response.text
+        assert "72" in final_response.text
 
 
 @pytest.mark.parametrize(
@@ -361,17 +283,7 @@ def test_normalize_contents(contents, expected):
             assert len(actual["parts"]) == len(expected_item["parts"])
 
 
-@pytest.mark.parametrize("is_vertex", [False, True])
-@pytest.mark.snapshot(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message")
-def test_google_genai_chat_send_message(mock_generate_content, genai, is_vertex):
-    if is_vertex:
-        client = genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
-        )
-    else:
-        client = genai.Client()
-
-    chat = client.chats.create(model="gemini-2.0-flash-001")
-    chat.send_message("tell me a story")
+def test_google_genai_chat_send_message(mock_generate_content, genai_client, snapshot_context):
+    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
+        chat = genai_client.chats.create(model="gemini-2.0-flash-001")
+        chat.send_message("tell me a story")
