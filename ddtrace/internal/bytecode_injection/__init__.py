@@ -7,6 +7,7 @@ from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from bytecode import Bytecode
+from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -108,6 +109,11 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
     for i in locs:
+        if isinstance(instr := code[i], Instr) and instr.name.startswith("END_"):
+            # This is the end of a block, e.g. a for loop. We have already
+            # instrumented the block on entry, so we skip instrumenting the
+            # end as well.
+            continue
         code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
 
