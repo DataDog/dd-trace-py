@@ -48,9 +48,9 @@ from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
+from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
@@ -620,7 +620,7 @@ class Span(object):
         :param timestamp: Deprecated.
         :param escaped: Deprecated.
         """
-        if escaped is True:
+        if escaped:
             deprecate(
                 prefix="The escaped argument is deprecated for record_exception",
                 message="escaped argument has no effect",
@@ -650,7 +650,7 @@ class Span(object):
 
         self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
 
-    def _validate_attribute(self, key: str, value: Any) -> bool:
+    def _validate_attribute(self, key: str, value: object) -> bool:
         if isinstance(value, (str, bool, int, float)):
             return self._validate_scalar(key, value)
 
@@ -661,13 +661,13 @@ class Span(object):
             return True
 
         if not isinstance(value[0], (str, bool, int, float)):
-            log.warning(f"record_exception: Attribute {key} must be a string, number, or boolean: {value}.")
+            log.warning("record_exception: Attribute %s must be a string, number, or boolean: %s.", key, value)
             return False
 
         first_type = type(value[0])
         for val in value:
             if not isinstance(val, first_type) or not self._validate_scalar(key, val):
-                log.warning(f"record_exception: Attribute {key} array must be homogenous: {value}.")
+                log.warning("record_exception: Attribute %s array must be homogenous: %s.", key, value)
                 return False
         return True
 
@@ -677,13 +677,17 @@ class Span(object):
 
         if isinstance(value, int):
             if value < _MIN_INT_64BITS or value > _MAX_INT_64BITS:
-                log.warning(f"record_exception: Attribute {key} must be within the range of a signed 64-bit integer: {value}.")
+                log.warning(
+                    "record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.",
+                    key,
+                    value,
+                )
                 return False
             return True
 
         if isinstance(value, float):
             if not math.isfinite(value):
-                log.warning(f"record_exception: Attribute {key} must be a finite number: {value}.")
+                log.warning("record_exception: Attribute %s must be a finite number: %s.", key, value)
                 return False
             return True
 
