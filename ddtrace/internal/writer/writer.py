@@ -644,8 +644,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         report_metrics: bool = True,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
         test_session_token: Optional[str] = None,
-        # Mark stats as computed skipping trace exporter stats computation
-        apm_opt_out: Optional[bool] = False,
+        # Mark stats as computed, without computing them, skipping trace exporter stats computation. This setting overrides the `compute_stats_enabled` parameter.
+        stats_opt_out: Optional[bool] = False,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -717,6 +717,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         self._sync_mode = sync_mode
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
+        self._stats_opt_out = stats_opt_out
         self._exporter = self._create_exporter()
 
     def start_worker_thread(self):
@@ -745,7 +746,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         )
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
-        if self._compute_stats_enabled:
+        if self._stats_opt_out:
+            builder.set_client_computed_stats()
+        elif self._compute_stats_enabled:
             builder.enable_stats(bucket_size_ns)
         return builder.build()
 

@@ -132,6 +132,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_client_computed_stats(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_client_computed_stats();
+        Ok(slf.into())
+    }
+
     fn enable_stats(mut slf: PyRefMut<'_, Self>, bucket_size_ns: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?
             .enable_stats(Duration::from_nanos(bucket_size_ns));

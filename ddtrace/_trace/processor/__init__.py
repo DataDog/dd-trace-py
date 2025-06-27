@@ -275,7 +275,7 @@ class SpanAggregator(SpanProcessor):
                 compute_stats_enabled=config._trace_compute_stats,
                 report_metrics=not asm_config._apm_opt_out,
                 response_callback=self._agent_response_callback,
-                apm_opt_out=asm_config._apm_opt_out,
+                stats_opt_out=asm_config._apm_opt_out,
             )
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())

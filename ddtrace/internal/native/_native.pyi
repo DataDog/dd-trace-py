@@ -224,6 +224,13 @@ class TraceExporterBuilder:
         Set the header indicating the tracer has computed the top-level tag
         """
         ...
+    def set_client_computed_stats(self) -> TraceExporterBuilder:
+        """
+        Set the header indicating the tracer has already computed stats.
+        This should not be used along with `enable_stats`.
+        The main use is to opt-out trace metrics.
+        """
+        ...
     def enable_stats(self, bucket_size_ns: int) -> TraceExporterBuilder:
         """
         Enable stats computation in the TraceExporter
