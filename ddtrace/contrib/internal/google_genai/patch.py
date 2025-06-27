@@ -33,12 +33,15 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     ) as span:
-        resp = func(*args, **kwargs)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-        return resp
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            return resp
+        finally:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module
@@ -50,12 +53,15 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     ) as span:
-        resp = await func(*args, **kwargs)
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-        return resp
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            return resp
+        finally:
+            if integration.is_pc_sampled_llmobs(span):
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module

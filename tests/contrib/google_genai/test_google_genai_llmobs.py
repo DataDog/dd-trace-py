@@ -194,7 +194,7 @@ def expected_llmobs_error_span_event(span):
             {"content": "You are a helpful assistant.", "role": "system"},
             {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
         ],
-        output_messages=[{"content": ""}],
+        output_messages=[{"content": "", "role": "model"}],
         error="builtins.TypeError",
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
