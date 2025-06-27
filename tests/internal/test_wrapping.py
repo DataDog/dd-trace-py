@@ -813,6 +813,8 @@ def test_wrapping_context_method_leaks():
 
     from ddtrace.internal.wrapping.context import WrappingContext
 
+    NOTSET = object()
+
     class DummyWrappingContext(WrappingContext):
         def __init__(self, f):
             super().__init__(f)
