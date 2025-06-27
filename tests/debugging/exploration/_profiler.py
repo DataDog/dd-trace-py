@@ -25,8 +25,13 @@ class FunctionCollector(ModuleCollector):
     def on_collect(self, discovery: FunctionDiscovery) -> None:
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
-        for fname, f in discovery._fullname_index.items():
-            if origin(module) != Path(f.__code__.co_filename).resolve():
+        for fname, fcp in discovery._fullname_index.items():
+            try:
+                f = fcp.resolve()
+            except ValueError:
+                # This function-code pair is not from a function, e.g. a class.
+                continue
+            if (o := origin(module)) != Path(f.__code__.co_filename).resolve():
                 # Do not wrap functions that do not belong to the module. We
                 # will have a chance to wrap them when we discover the module
                 # they belong to.
@@ -34,7 +39,7 @@ class FunctionCollector(ModuleCollector):
             _tracked_funcs[fname] = 0
             DeterministicProfiler.add_probe(
                 create_snapshot_function_probe(
-                    probe_id=str(hash(f)),
+                    probe_id=f"{o}:{f.__code__.co_firstlineno}",
                     module=module.__name__,
                     func_qname=fname.replace(module.__name__, "").lstrip("."),
                     rate=float("inf"),
