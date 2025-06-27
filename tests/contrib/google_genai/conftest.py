@@ -57,8 +57,7 @@ def genai_client(request, genai):
             project=os.environ.get("GOOGLE_CLOUD_PROJECT", "dummy-project"),
             location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
-    else:
-        return genai.Client()
+    return genai.Client()
 
 
 @pytest.fixture
