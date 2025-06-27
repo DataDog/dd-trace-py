@@ -1,8 +1,9 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from importlib.metadata import entry_points
 from itertools import chain
-import sys
+import sys  # noqa: F401
 import typing as t
 
 from ddtrace.internal import forksafe
@@ -17,10 +18,6 @@ from ddtrace.settings._core import DDConfig
 
 log = get_logger(__name__)
 
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
-else:
-    from importlib.metadata import entry_points
 
 try:
     from typing import Protocol  # noqa:F401
