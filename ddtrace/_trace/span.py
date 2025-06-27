@@ -611,13 +611,16 @@ class Span(object):
         escaped=False,
     ) -> None:
         """
-        Records an exception as span event.
+        Records an exception as a span event. Multiple exceptions can be recorded on a span.
 
-        :param Exception exception: the exception to record
-        :param dict attributes: optional attributes to add to the span event. It will override
-            the base attributes if :obj:`attributes` contains existing keys.
+        :param exception: The exception to record.
+        :param attributes: Optional dictionary of additional attributes to add to the exception event.
+            These attributes will override the default exception attributes if they contain the same keys.
+            Valid attribute values include (homogeneous array of) strings, booleans, integers, floats.
+        :param timestamp: Deprecated.
+        :param escaped: Deprecated.
         """
-        if escaped is False:
+        if escaped is True:
             deprecate(
                 prefix="The escaped argument is deprecated for record_exception",
                 message="escaped argument has no effect",
@@ -631,8 +634,8 @@ class Span(object):
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
-        exc_type, exc_val, exc_tb = type(exception), exception, exception.__traceback__
-        tb = self._get_traceback(exc_type, exc_val, exc_tb)
+
+        tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
         attrs: Dict[str, _AttributeValueType] = {
             "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
@@ -649,31 +652,36 @@ class Span(object):
 
     def _validate_attribute(self, key: str, value: Any) -> bool:
         if isinstance(value, (str, bool, int, float)):
-            if self._validate_scalar(key, value):
-                return True
+            return self._validate_scalar(key, value)
+
+        if not isinstance(value, list):
             return False
-        elif isinstance(value, list):
-            if len(value) > 0:
-                if not isinstance(value[0], (str, bool, int, float)):
-                    log.warning(f"record_exception: Attribute #{key} must be a string, number, or boolean: #{value}.")
-                    return False
-                first_type = type(value[0])
-                for val in value:
-                    if not type(val) == first_type or not self._validate_scalar(key, val):
-                        log.warning(f"record_exception: Attribute #{key} array must be homogenous: #{value}.")
-                        return False
+
+        if len(value) == 0:
             return True
-        return False
+
+        if not isinstance(value[0], (str, bool, int, float)):
+            log.warning(f"record_exception: Attribute {key} must be a string, number, or boolean: {value}.")
+            return False
+
+        first_type = type(value[0])
+        for val in value:
+            if not isinstance(val, first_type) or not self._validate_scalar(key, val):
+                log.warning(f"record_exception: Attribute {key} array must be homogenous: {value}.")
+                return False
+        return True
 
     def _validate_scalar(self, key: str, value: Union[bool, str, int, float]) -> bool:
-        if isinstance(value, bool) or isinstance(value, str):
+        if isinstance(value, (bool, str)):
             return True
-        elif isinstance(value, int):
+
+        if isinstance(value, int):
             if value < _MIN_INT_64BITS or value > _MAX_INT_64BITS:
                 log.warning(f"record_exception: Attribute {key} must be within the range of a signed 64-bit integer: {value}.")
                 return False
             return True
-        elif isinstance(value, float):
+
+        if isinstance(value, float):
             if not math.isfinite(value):
                 log.warning(f"record_exception: Attribute {key} must be a finite number: {value}.")
                 return False

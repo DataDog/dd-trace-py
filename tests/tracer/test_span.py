@@ -586,6 +586,19 @@ class SpanTestCase(TracerTestCase):
             0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "foo": "bar"}
         )
 
+    def test_span_record_exception_with_invalid_attributes(self):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(e, {"foo": "bar", "toto": ["titi", 1], "tata": [[1]], "tutu": {"a":"b"}})
+        span.finish()
+
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "foo": "bar"}
+        )
+
 
 @pytest.mark.parametrize(
     "value,assertion",
