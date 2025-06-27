@@ -71,6 +71,67 @@ def extract_metrics_google_genai(response):
 
     return usage
 
+def extract_message_from_part_google_genai(part, role):
+    """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
+    message = {"role": role}
+    if isinstance(part, str):
+        message["content"] = part
+        return message
+
+    text = _get_attr(part, "text", None)
+    if text:
+        message["content"] = text
+        return message
+
+    function_call = _get_attr(part, "function_call", None)
+    if function_call:
+        function_call_dict = function_call.model_dump()
+        message["tool_calls"] = [
+            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+        ]
+        return message
+
+    function_response = _get_attr(part, "function_response", None)
+    if function_response:
+        function_response_dict = function_response.model_dump()
+        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+        return message
+
+    executable_code = _get_attr(part, "executable_code", None)
+    if executable_code:
+        language = _get_attr(executable_code, "language", "UNKNOWN")
+        code = _get_attr(executable_code, "code", "")
+        message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
+        return message
+
+    code_execution_result = _get_attr(part, "code_execution_result", None)
+    if code_execution_result:
+        outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
+        output = _get_attr(code_execution_result, "output", "")
+        message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
+        return message
+
+    thought = _get_attr(part, "thought", None)
+    # thought is just a boolean indicating if the part was a thought
+    if thought:
+        message["content"] = "[thought: {}]".format(thought)
+        return message
+
+    return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
+
+def process_response(response):
+    messages = []
+    candidates = _get_attr(response, "candidates", [])
+    for candidate in candidates:
+        content = _get_attr(candidate, "content", None)
+        if not content:
+            continue
+        parts = _get_attr(content, "parts", [])
+        role = _get_attr(content, "role", None) or "model"
+        for part in parts:
+            message = extract_message_from_part_google_genai(part, role)
+            messages.append(message)
+    return messages
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -114,6 +175,14 @@ class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
         self._self_args = args
         self._self_kwargs = kwargs
         self._self_dd_integration = integration
+    
+    # def _join_chunks(self):
+    #     # since we are always using _get_attr, can use dict instead of constructing a GenerateContentResponse object
+    #     response = {}
+    #     for chunk in self._self_chunks:
+    #         pass
+
+
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):

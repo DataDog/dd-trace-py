@@ -7,6 +7,8 @@ from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.google_genai._utils import normalize_contents
+from ddtrace.contrib.internal.google_genai._utils import process_response
+from ddtrace.contrib.internal.google_genai._utils import extract_message_from_part_google_genai
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -73,53 +75,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_message_from_part_google_genai(self, part, role):
-        """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
-        message = {"role": role}
-        if isinstance(part, str):
-            message["content"] = part
-            return message
-
-        text = _get_attr(part, "text", None)
-        if text:
-            message["content"] = text
-            return message
-
-        function_call = _get_attr(part, "function_call", None)
-        if function_call:
-            function_call_dict = function_call.model_dump()
-            message["tool_calls"] = [
-                {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
-            ]
-            return message
-
-        function_response = _get_attr(part, "function_response", None)
-        if function_response:
-            function_response_dict = function_response.model_dump()
-            message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
-            return message
-
-        executable_code = _get_attr(part, "executable_code", None)
-        if executable_code:
-            language = _get_attr(executable_code, "language", "UNKNOWN")
-            code = _get_attr(executable_code, "code", "")
-            message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
-            return message
-
-        code_execution_result = _get_attr(part, "code_execution_result", None)
-        if code_execution_result:
-            outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
-            output = _get_attr(code_execution_result, "output", "")
-            message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
-            return message
-
-        thought = _get_attr(part, "thought", None)
-        # thought is just a boolean indicating if the part was a thought
-        if thought:
-            message["content"] = "[thought: {}]".format(thought)
-            return message
-
-        return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
 
     def _extract_input_message(self, args, kwargs, config):
         messages = []
@@ -132,7 +87,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 parts = content.get("parts", [])
 
                 for part in parts:
-                    message = self._extract_message_from_part_google_genai(part, role)
+                    message = extract_message_from_part_google_genai(part, role)
                     messages.append(message)
         # user input messages
         contents = get_argument_value(args, kwargs, -1, "contents")
@@ -142,7 +97,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             parts = content.get("parts", [])
 
             for part in parts:
-                message = self._extract_message_from_part_google_genai(part, role)
+                message = extract_message_from_part_google_genai(part, role)
                 messages.append(message)
         return messages
 
@@ -156,7 +111,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             role = "model"
             # response is a list of GenerateContentResponse chunks
             for r in response:
-                messages = self._process_response(r)
+                messages = process_response(r)
                 for message in messages:
                     message_content.append(message.get("content", ""))
                     tool_calls.extend(message.get("tool_calls", []))
@@ -165,21 +120,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 message["tool_calls"] = tool_calls
             return [message]
         # non-streamed responses will be a single GenerateContentResponse
-        return self._process_response(response)
-
-    def _process_response(self, response):
-        messages = []
-        candidates = _get_attr(response, "candidates", [])
-        for candidate in candidates:
-            content = _get_attr(candidate, "content", None)
-            if not content:
-                continue
-            parts = _get_attr(content, "parts", [])
-            role = _get_attr(content, "role", None) or "model"
-            for part in parts:
-                message = self._extract_message_from_part_google_genai(part, role)
-                messages.append(message)
-        return messages
+        return process_response(response)
 
     def _extract_metadata(self, config):
         if not config:
