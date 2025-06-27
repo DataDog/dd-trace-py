@@ -313,7 +313,7 @@ class AppSecSpanProcessor(SpanProcessor):
             root_span.set_metric(key, value)
 
         if waf_results.data:
-            log.debug("[DDAS-011-00] [TraceID %x]AAP In-App WAF returned: %s.", span.trace_id, waf_results)
+            log.debug("[DDAS-011-00] [TraceID %s]AAP In-App WAF returned: %s.", hex(span.trace_id), waf_results)
 
         if blocked:
             _asm_request_context.set_blocked(blocked)
