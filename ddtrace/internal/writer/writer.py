@@ -644,7 +644,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
         report_metrics: bool = True,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
         test_session_token: Optional[str] = None,
-        # Mark stats as computed, without computing them, skipping trace exporter stats computation. This setting overrides the `compute_stats_enabled` parameter.
+        # Mark stats as computed, without computing them, skipping trace exporter stats computation.
+        # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
     ) -> None:
         if processing_interval is None:
@@ -698,7 +699,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
 
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if test_session_token is None and additional_header_str is not None:
-            additional_header = parse_tags_str(additional_header_str) 
+            additional_header = parse_tags_str(additional_header_str)
             if "X-Datadog-Test-Session-Token" in additional_header:
                 test_session_token = additional_header["X-Datadog-Test-Session-Token"]
 

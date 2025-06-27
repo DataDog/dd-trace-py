@@ -56,15 +56,15 @@ def skip_if_testagent(f):
         AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason."
     )(f)
 
+
 def skip_if_native_writer(f):
     def _check_native_writer():
-        from ddtrace.trace import tracer as t
         from ddtrace.internal.writer import NativeWriter
+        from ddtrace.trace import tracer as t
+
         return isinstance(t._span_aggregator.writer, NativeWriter)
-    
-    return pytest.mark.skipif(
-        _check_native_writer, reason="Test incompatible with the native writer"
-    )(f)
+
+    return pytest.mark.skipif(_check_native_writer, reason="Test incompatible with the native writer")(f)
 
 
 def import_ddtrace_in_subprocess(env):

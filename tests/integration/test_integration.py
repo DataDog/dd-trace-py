@@ -10,8 +10,8 @@ import pytest
 from ddtrace.internal.atexit import register_on_exit_signal
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
-from tests.integration.utils import skip_if_testagent
 from tests.integration.utils import skip_if_native_writer
+from tests.integration.utils import skip_if_testagent
 from tests.utils import DummyTracer
 from tests.utils import call_program
 
@@ -98,8 +98,8 @@ def test_uds_wrong_socket_path():
 
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -108,13 +108,13 @@ def test_uds_wrong_socket_path():
 
     # TODO: Use proper feature flag
     if isinstance(t._span_aggregator.writer, NativeWriter):
-        calls =  [
-                mock.call(
-                    'failed to send, dropping %d traces to intake at %s: %s',
-                    1,
-                    "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-                    'client error (Connect)'
-                )
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                "client error (Connect)",
+            )
         ]
     else:
         calls = [
@@ -209,8 +209,8 @@ def test_child_spans_do_not_cause_warning_logs():
 def test_metrics():
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
@@ -232,18 +232,18 @@ def test_metrics():
             log.error.assert_not_called()
 
     calls = [
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
     ]
 
     if not isinstance(t._span_aggregator.writer, NativeWriter):
@@ -266,8 +266,8 @@ def test_metrics():
 def test_metrics_partial_flush_disabled():
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
@@ -287,12 +287,12 @@ def test_metrics_partial_flush_disabled():
             log.error.assert_not_called()
 
     calls = [
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
     ]
 
     if not isinstance(t._span_aggregator.writer, NativeWriter):
@@ -371,8 +371,8 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
+    from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("op").finish()
@@ -384,10 +384,10 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     if isinstance(t._span_aggregator.writer, NativeWriter):
         calls = [
             mock.call(
-                'failed to send, dropping %d traces to intake at %s: %s',
+                "failed to send, dropping %d traces to intake at %s: %s",
                 1,
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-                'client error (Connect)'
+                "client error (Connect)",
             )
         ]
     else:
@@ -522,9 +522,8 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
 def test_trace_with_invalid_payload_generates_error_log():
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
-
+    from ddtrace.trace import tracer as t
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
@@ -537,7 +536,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                     0,
                     "http://localhost:8126/v0.5/traces",
                     # TODO: Check if Mock can work without using str
-                    "Invalid format: Unable to read payload len"
+                    "Invalid format: Unable to read payload len",
                 )
             ]
         )
@@ -559,10 +558,8 @@ def test_trace_with_invalid_payload_generates_error_log():
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
-    from ddtrace.trace import tracer as t
     from ddtrace.internal.writer import NativeWriter
-    from ddtrace.internal.native import DeserializationError
-
+    from ddtrace.trace import tracer as t
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
@@ -575,10 +572,10 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                     0,
                     "http://localhost:8126/v0.5/traces",
                     "Invalid format: Unable to read payload len",
-                    "6261645f7061796c6f6164"
+                    "6261645f7061796c6f6164",
                 )
             ]
-    )
+        )
     else:
         log.error.assert_has_calls(
             [
