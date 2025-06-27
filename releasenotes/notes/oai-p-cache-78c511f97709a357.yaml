@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: This introduces the ability to track the number of tokens read from the cache for OpenAI Chat Completions prompt caching.
+    LLM Observability: Introduces tracking the count of cached input tokens for OpenAI Chat Completions prompt caching.
