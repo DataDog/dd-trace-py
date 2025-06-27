@@ -321,7 +321,7 @@
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
         "max_tracer_supported": "1.21.1",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "google-generativeai",
@@ -408,14 +408,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "mako",
@@ -512,7 +512,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.10.1",
+        "max_tracer_supported": "4.13.2",
         "auto-instrumented": true
     },
     {
@@ -627,7 +627,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "tornado",
