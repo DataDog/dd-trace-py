@@ -42,7 +42,6 @@ OPENAI_SKIPPED_COMPLETION_TAGS = (
 OPENAI_SKIPPED_CHAT_TAGS = (
     "model",
     "messages",
-    "tools",
     "functions",
     "api_key",
     "user_api_key",
@@ -322,7 +321,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        tool_call_id = m.get("tool_call_id")
+        tool_call_id = m.get("tool_call_id") if isinstance(m, dict) else getattr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})

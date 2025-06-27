@@ -644,7 +644,7 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[tool_call_expected_output],
-                metadata={"user": "ddtrace-test"},
+                metadata={"user": "ddtrace-test", "tools": chat_completion_custom_functions},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
@@ -676,7 +676,12 @@ class TestLLMObsOpenaiV1:
                 model_provider="openai",
                 input_messages=[{"content": chat_completion_input_description, "role": "user"}],
                 output_messages=[tool_call_expected_output],
-                metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
+                metadata={
+                    "user": "ddtrace-test",
+                    "stream": True,
+                    "stream_options": {"include_usage": True},
+                    "tools": chat_completion_custom_functions,
+                },
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
