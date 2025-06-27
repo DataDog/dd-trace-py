@@ -807,6 +807,8 @@ async def test_wrapping_context_async_concurrent() -> None:
     assert set(values) == {(n, n) for n in range(0, N)}
 
 
+# DEV: Since this test relies on `gc`, run this test as a subprocess and avoid over-importing
+# too many modules to avoid outside impact on `gc` causing flakiness
 @pytest.mark.subprocess()
 def test_wrapping_context_method_leaks():
     import gc
@@ -815,6 +817,8 @@ def test_wrapping_context_method_leaks():
 
     NOTSET = object()
 
+    # DEV: Redefine this module level class to avoid importing `tests.internal.test_wrapping`
+    # to help reduce flakiness caused by outside impact on `gc`
     class DummyWrappingContext(WrappingContext):
         def __init__(self, f):
             super().__init__(f)
