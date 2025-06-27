@@ -516,7 +516,7 @@ def store_waf_results_data(data) -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(span: Span, rc_products:str):
+def start_context(span: Span, rc_products: str):
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))

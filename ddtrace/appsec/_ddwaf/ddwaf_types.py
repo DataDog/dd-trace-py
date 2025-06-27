@@ -3,7 +3,7 @@ import ctypes.util
 from enum import IntEnum
 from platform import machine
 from platform import system
-from typing import Any, Tuple
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
@@ -406,7 +406,9 @@ def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_han
     return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
 
 
-ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32)(
+ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
+    ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32
+)(
     ("ddwaf_builder_get_config_paths", ddwaf),
     (
         (1, "builder"),
@@ -416,8 +418,11 @@ ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(ctypes.c_uint32, ddwaf_builder
     ),
 )
 
-def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter: str) -> int:
-    return ddwaf_builder_get_config_paths(builder.builder, None, filter.encode(), len(filter))
+
+def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter_str: str) -> int:
+    filter_bytes = filter_str.encode()
+    return ddwaf_builder_get_config_paths(builder.builder, None, filter_bytes, len(filter_bytes))
+
 
 ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
     ("ddwaf_builder_destroy", ddwaf),

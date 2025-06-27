@@ -8,13 +8,14 @@ from typing import Sequence
 from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config, py_ddwaf_builder_get_config_paths
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
@@ -77,7 +78,7 @@ class DDWaf(WAF):
             )
         self._default_ruleset = ruleset_map_object
         metrics.ddwaf_version = version()
-        self._rc_products = {}
+        self._rc_products: Dict[str, int] = {}
 
     @property
     def required_data(self) -> List[str]:
@@ -119,6 +120,7 @@ class DDWaf(WAF):
             if product == "ASM_DD":
                 self._asm_dd_cache.discard(path)
         for product, path, rules in updates:
+            print(f"DDWaf.update_rules: {product} {path} {rules}")
             if product == "ASM_DD":
                 if ASM_DD_DEFAULT in self._asm_dd_cache:
                     # we need to remove the default ruleset before adding the new one
@@ -142,11 +144,12 @@ class DDWaf(WAF):
         if new_handle:
             self._handle = new_handle
         for product in ["ASM_DD", "ASM_DATA", "ASM", "ASM_FEATURES"]:
-            res = py_ddwaf_builder_get_config_paths(self._builder, f"^{product}.*")
-            if res>0:
+            res = py_ddwaf_builder_get_config_paths(self._builder, f"^Datadog/[0-9]+/{product}/.*")
+            if res > 0:
                 self._rc_products[product] = res
             else:
                 self._rc_products.pop(product, None)
+        print(f"DDWaf.update_rules: rc_products={self._rc_products} {id(self)}")
         return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
@@ -154,6 +157,7 @@ class DDWaf(WAF):
         if self._handle:
             ctx = py_ddwaf_context_init(self._handle)
             ctx.rc_products = ",".join(f"{p}:{v}" for p, v in self._rc_products.items())
+            print(f"DDWaf._at_request_start: rc_products={ctx.rc_products} {id(self)}")
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
