@@ -96,7 +96,7 @@ class TestExperimentationConfig:
                 api_key=self.API_KEY,
             )
 
-    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APPLICATION_KEY": APP_KEY, "DD_SITE": SITE}, clear=True)
+    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APP_KEY": APP_KEY, "DD_SITE": SITE}, clear=True)
     def test_init_with_env_vars(self):
         """Test init() reading credentials from environment variables."""
         with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
@@ -114,7 +114,7 @@ class TestExperimentationConfig:
             assert call_kwargs.get("site") == self.SITE
             assert call_kwargs.get("api_key") == self.API_KEY
 
-    @patch.dict(os.environ, {"DD_APPLICATION_KEY": APP_KEY, "DD_SITE": SITE}, clear=True)
+    @patch.dict(os.environ, {"DD_APP_KEY": APP_KEY, "DD_SITE": SITE}, clear=True)
     def test_init_missing_api_key(self):
         """Test init() raises ConfigurationError if API key is missing."""
         with pytest.raises(ConfigurationError, match="DD_API_KEY .* not set"):
@@ -123,16 +123,16 @@ class TestExperimentationConfig:
     @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_SITE": SITE}, clear=True)
     def test_init_missing_app_key(self):
         """Test init() raises ConfigurationError if Application key is missing."""
-        with pytest.raises(ConfigurationError, match="DD_APPLICATION_KEY .* not set"):
+        with pytest.raises(ConfigurationError, match="DD_APP_KEY .* not set"):
             config.init(self.ML_APP, self.PROJECT_NAME)
 
-    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APPLICATION_KEY": APP_KEY}, clear=True)
+    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APP_KEY": APP_KEY}, clear=True)
     def test_init_missing_site(self):
         """Test init() raises ConfigurationError if site arg and DD_SITE env var are missing."""
         with pytest.raises(ConfigurationError, match="DD_SITE .* not set"):
             config.init(self.ML_APP, self.PROJECT_NAME)
 
-    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APPLICATION_KEY": APP_KEY}, clear=True)
+    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APP_KEY": APP_KEY}, clear=True)
     def test_init_invalid_site_arg(self):
         """Test init() raises ConfigurationError for invalid site argument."""
         with pytest.raises(ConfigurationError, match=f"Invalid Datadog site '{self.INVALID_SITE}'"):
@@ -144,7 +144,7 @@ class TestExperimentationConfig:
                 site=self.INVALID_SITE,
             )
 
-    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APPLICATION_KEY": APP_KEY, "DD_SITE": INVALID_SITE}, clear=True)
+    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APP_KEY": APP_KEY, "DD_SITE": INVALID_SITE}, clear=True)
     def test_init_invalid_site_env(self):
         """Test init() raises ConfigurationError for invalid DD_SITE env var."""
         with pytest.raises(ConfigurationError, match=f"Invalid Datadog site '{self.INVALID_SITE}'"):
@@ -235,7 +235,7 @@ class TestExperimentationConfig:
 
             mock_llmobs_enable.assert_called_once()
 
-    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APPLICATION_KEY": APP_KEY}, clear=True)
+    @patch.dict(os.environ, {"DD_API_KEY": API_KEY, "DD_APP_KEY": APP_KEY}, clear=True)
     def test_init_missing_site_env_raises_error(self):
         with pytest.raises(ConfigurationError, match="DD_SITE .* not set"):
             config.init(self.ML_APP, self.PROJECT_NAME)
@@ -266,7 +266,7 @@ class TestExperimentationConfig:
         """Test init() uses default ml_app/project_name constants when env vars are present."""
         with patch.dict(
             os.environ,
-            {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY, "DD_SITE": self.SITE},
+            {"DD_API_KEY": self.API_KEY, "DD_APP_KEY": self.APP_KEY, "DD_SITE": self.SITE},
             clear=True,
         ):
             with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
@@ -293,14 +293,36 @@ class TestExperimentationConfig:
 
         # Only API key set
         with patch.dict(os.environ, {"DD_API_KEY": self.API_KEY}, clear=True):
-            with pytest.raises(ConfigurationError, match="DD_APPLICATION_KEY .* not set"):
+            with pytest.raises(ConfigurationError, match="DD_APP_KEY .* not set"):
                 config.init()
 
         # API key and App key set, but no site
         with patch.dict(
             os.environ,
-            {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY},
+            {"DD_API_KEY": self.API_KEY, "DD_APP_KEY": self.APP_KEY},
             clear=True
         ):
             with pytest.raises(ConfigurationError, match="DD_SITE .* not set"):
                 config.init()
+
+    def test_init_with_deprecated_application_key_env_var_still_works(self):
+        """Test init() uses default ml_app/project_name constants when env vars are present."""
+        with patch.dict(
+                os.environ,
+                {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY, "DD_SITE": self.SITE},
+                clear=True,
+        ):
+            with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
+                config.init()
+
+                assert config.is_initialized()
+                assert getattr(config, "_ML_APP") == config.DEFAULT_ML_APP
+                assert config.get_project_name() == config.DEFAULT_PROJECT_NAME
+
+                mock_llmobs_enable.assert_called_once_with(
+                    ml_app=config.DEFAULT_ML_APP,
+                    integrations_enabled=True,
+                    agentless_enabled=True,
+                    site=self.SITE,
+                    api_key=self.API_KEY,
+                )
