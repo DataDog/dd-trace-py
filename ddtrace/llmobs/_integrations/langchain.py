@@ -3,7 +3,6 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Literal
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -153,7 +152,7 @@ class LangChainIntegration(BaseLLMIntegration):
         args: List[Any],
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
-        operation: Literal["llm", "chat", "chain", "embedding", "retrieval", "tool", ""] = "",
+        operation: str = "",  # oneof "llm","chat","chain","embedding","retrieval","tool"
     ) -> None:
         """Sets meta tags and metrics for span events to be sent to LLMObs."""
         if not self.llmobs_enabled:

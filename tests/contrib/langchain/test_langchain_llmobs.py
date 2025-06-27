@@ -574,7 +574,6 @@ def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tra
         response=None,
         operation="chat",
     )
-    assert 0
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
