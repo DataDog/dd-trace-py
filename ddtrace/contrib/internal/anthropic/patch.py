@@ -13,9 +13,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import AnthropicIntegration
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Pin
 
 
@@ -42,7 +40,6 @@ config._add(
 
 @with_traced_module
 def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
-    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
 
@@ -78,7 +75,6 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_async_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
-    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
 
