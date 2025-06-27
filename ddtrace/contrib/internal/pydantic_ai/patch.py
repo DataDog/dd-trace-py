@@ -1,10 +1,18 @@
+import pydantic_ai
 from typing import Dict
 
 from ddtrace import config
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.trace import Pin
 
@@ -25,27 +33,27 @@ def _supported_versions() -> Dict[str, str]:
 @with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False, model=getattr(instance, "model", None))
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None))
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
+    span._set_ctx_item(SPAN_KIND, "agent")
 
     result = func(*args, **kwargs)
-    return TracedPydanticAsyncContextManager(result, span)
+    return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
 
 
 @with_traced_module
 async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    with integration.trace(pin, "Pydantic Tool", submit_to_llmobs=False) as span:
+    with integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True) as span:
         span.name = getattr(instance, "name", None) or "Pydantic Tool"
+        span._set_ctx_item(SPAN_KIND, "tool")
         return await func(*args, **kwargs)
 
 
 def patch():
-    import pydantic_ai
-
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
-
+    
     pydantic_ai._datadog_patch = True
 
     Pin().onto(pydantic_ai)
@@ -56,11 +64,9 @@ def patch():
 
 
 def unpatch():
-    import pydantic_ai
-
     if not getattr(pydantic_ai, "_datadog_patch", False):
         return
-
+    
     pydantic_ai._datadog_patch = False
 
     unwrap(pydantic_ai.agent.Agent, "iter")
