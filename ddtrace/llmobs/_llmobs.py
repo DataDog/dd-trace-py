@@ -545,6 +545,7 @@ class LLMObs(Service):
                 start_ns,
                 _auto,
                 config._llmobs_instrumented_proxy_urls,
+                config._llmobs_ml_app,
             )
 
     @classmethod
