@@ -80,7 +80,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             message["content"] = part
             return message
 
-        # only one field is set in a Part
         text = _get_attr(part, "text", None)
         if text:
             message["content"] = text
