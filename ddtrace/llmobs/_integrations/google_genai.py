@@ -35,6 +35,7 @@ METADATA_PARAMS = [
     "response_mime_type",
     "safety_settings",
     "automatic_function_calling",
+    "tools",
 ]
 
 
