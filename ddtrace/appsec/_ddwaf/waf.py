@@ -154,7 +154,7 @@ class DDWaf(WAF):
         ctx = None
         if self._handle:
             ctx = py_ddwaf_context_init(self._handle)
-            ctx.rc_products =self._rc_products_str
+            ctx.rc_products = self._rc_products_str
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
