@@ -15,6 +15,7 @@ from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
@@ -70,24 +71,29 @@ def mock_tracer(ddtrace_global_config, genai):
         pin = Pin.get_from(genai)
         mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
         pin._override(genai, tracer=mock_tracer)
-        if ddtrace_global_config.get("_llmobs_enabled", False):
-            LLMObs.disable()
-            LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False, agentless_enabled=False)
         yield mock_tracer
     except Exception:
         yield
 
+@pytest.fixture
+def genai_llmobs(mock_tracer, llmobs_span_writer):
+    LLMObs.disable()
+    with override_global_config(
+        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"}
+    ):
+        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+        yield LLMObs
+    LLMObs.disable()
 
 @pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+
+
+@pytest.fixture
+def llmobs_events(genai_llmobs, llmobs_span_writer):
+    return llmobs_span_writer.events
 
 
 @pytest.fixture
