@@ -1,9 +1,8 @@
 interactions:
 - request:
-    body: '{"messages": [{"role": "user", "content": [{"text": "What are the key principles
-      for microservices architecture?"}]}], "inferenceConfig": {"temperature": 0.7,
-      "topP": 0.9, "maxTokens": 1000, "stopSequences": []}, "system": [{"text": "Software
-      architecture guidelines: bye bye bye bye bye bye bye bye bye bye bye bye bye
+    body: '{"messages": [{"role": "user", "content": [{"text": "What is a service"}]}],
+      "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences":
+      []}, "system": [{"text": "Software architecture guidelines: bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
@@ -57,75 +56,25 @@ interactions:
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye "}, {"cachePoint": {"type": "default"}}]}'
+      bye bye bye bye bye bye bye bye bye bye bye bye bye "}, {"cachePoint": {"type":
+      "default"}}]}'
     headers:
       Content-Length:
-      - '8309'
+      - '4363'
       Content-Type:
       - !!binary |
         YXBwbGljYXRpb24vanNvbg==
       User-Agent:
       - !!binary |
         Qm90bzMvMS4zOC4yNiBtZC9Cb3RvY29yZSMxLjM4LjI2IHVhLzIuMSBvcy9tYWNvcyMyNC41LjAg
-        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIG0vWixi
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIG0vYixa
         IGNmZy9yZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM4LjI2
       X-Amz-Date:
       - !!binary |
-        MjAyNTA2MjRUMTUxNTI3Wg==
+        MjAyNTA2MjdUMTQ0MjQyWg==
       amz-sdk-invocation-id:
       - !!binary |
-        NzlkNTE4YTQtYzdhZC00MjU4LThhNDYtYmM2MGUwZTM0ZTBi
+        ODVjYzM0NjEtN2EyZC00MDkwLTg0NzAtOWJhOThkOWJiMzQ3
       amz-sdk-request:
       - !!binary |
         YXR0ZW1wdD0x
@@ -133,47 +82,43 @@ interactions:
     uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-7-sonnet-20250219-v1%3A0/converse
   response:
     body:
-      string: '{"metrics":{"latencyMs":12971},"output":{"message":{"content":[{"text":"#
-        Key Principles for Microservices Architecture\n\n## Single Responsibility\n-
-        Each microservice should focus on doing one thing well\n- Services should
-        have a bounded context and clear domain boundaries\n- Organized around business
-        capabilities rather than technical layers\n\n## Autonomy\n- Services can be
-        developed, deployed, and scaled independently\n- Teams can work on different
-        services with minimal coordination\n- Technology stack can be chosen based
-        on service-specific requirements\n\n## Communication\n- Services interact
-        through well-defined APIs (often REST or gRPC)\n- Asynchronous messaging for
-        complex workflows and loose coupling\n- API gateways to manage client-service
-        communication\n\n## Decentralization\n- Distributed data management with each
-        service owning its data\n- Avoid shared databases between services\n- Decentralized
-        governance allowing teams to make independent decisions\n\n## Resilience\n-
-        Design for failure with circuit breakers and fallback mechanisms\n- Services
-        should continue functioning when dependent services fail\n- Implement health
-        checks and monitoring\n\n## Observability\n- Centralized logging and monitoring
-        across services\n- Distributed tracing to track requests across service boundaries\n-
-        Metrics collection for performance analysis\n\n## Automation\n- CI/CD pipelines
-        for each service\n- Infrastructure as code for consistent environments\n-
-        Automated testing at multiple levels\n\n## Evolutionary Design\n- Services
-        can evolve independently\n- Versioning APIs to maintain backward compatibility\n-
-        Ability to replace or rewrite services without system-wide impact"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"cacheReadInputTokenCount":0,"cacheReadInputTokens":0,"cacheWriteInputTokenCount":2004,"cacheWriteInputTokens":2004,"inputTokens":18,"outputTokens":317,"totalTokens":2339}}'
+      string: '{"metrics":{"latencyMs":8844},"output":{"message":{"content":[{"text":"#
+        Service\n\nIn software architecture, a service is a self-contained unit of
+        functionality that performs a specific business function and can be accessed
+        remotely through well-defined interfaces. Services are a fundamental concept
+        in service-oriented architecture (SOA) and microservices architecture.\n\n##
+        Key characteristics of services:\n\n1. **Self-contained**: A service encapsulates
+        its own data and business logic\n2. **Well-defined interfaces**: Services
+        expose clear APIs, often using protocols like HTTP/REST, gRPC, or message
+        queues\n3. **Independent deployment**: Services can be deployed and scaled
+        independently\n4. **Business-aligned**: Services are typically organized around
+        business capabilities\n5. **Loose coupling**: Services interact with minimal
+        dependencies on each other\n\n## Common types of services:\n\n- **Microservices**:
+        Small, focused services that each handle a specific business function\n- **Web
+        services**: Services that communicate over HTTP/HTTPS using formats like JSON
+        or XML\n- **RESTful services**: Services that follow REST architectural principles\n-
+        **Utility services**: Shared services that provide common functionality across
+        an application\n\nServices enable modular, scalable, and maintainable software
+        systems by breaking down complex applications into manageable components with
+        clear responsibilities."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"cacheReadInputTokenCount":0,"cacheReadInputTokens":0,"cacheWriteInputTokenCount":1028,"cacheWriteInputTokens":1028,"inputTokens":11,"outputTokens":264,"totalTokens":1303}}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '1926'
+      - '1656'
       Content-Type:
       - application/json
       Date:
-      - Tue, 24 Jun 2025 15:15:41 GMT
+      - Fri, 27 Jun 2025 14:42:51 GMT
       x-amzn-RequestId:
-      - 3f990a88-fd43-4fed-b80b-cae40f4965c2
+      - 4a2a2d5f-003c-4434-bccb-325b23b43fe1
     status:
       code: 200
       message: OK
 - request:
-    body: '{"messages": [{"role": "user", "content": [{"text": "What are the key principles
-      for microservices architecture?"}]}], "inferenceConfig": {"temperature": 0.7,
-      "topP": 0.9, "maxTokens": 1000, "stopSequences": []}, "system": [{"text": "Software
-      architecture guidelines: bye bye bye bye bye bye bye bye bye bye bye bye bye
+    body: '{"messages": [{"role": "user", "content": [{"text": "What is a ml app"}]}],
+      "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences":
+      []}, "system": [{"text": "Software architecture guidelines: bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
@@ -227,75 +172,25 @@ interactions:
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
       bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye bye
-      bye bye bye bye bye bye bye bye bye bye bye "}, {"cachePoint": {"type": "default"}}]}'
+      bye bye bye bye bye bye bye bye bye bye bye bye bye "}, {"cachePoint": {"type":
+      "default"}}]}'
     headers:
       Content-Length:
-      - '8309'
+      - '4362'
       Content-Type:
       - !!binary |
         YXBwbGljYXRpb24vanNvbg==
       User-Agent:
       - !!binary |
         Qm90bzMvMS4zOC4yNiBtZC9Cb3RvY29yZSMxLjM4LjI2IHVhLzIuMSBvcy9tYWNvcyMyNC41LjAg
-        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIG0vWixi
+        bWQvYXJjaCNhcm02NCBsYW5nL3B5dGhvbiMzLjEwLjEzIG1kL3B5aW1wbCNDUHl0aG9uIG0vYixa
         IGNmZy9yZXRyeS1tb2RlI2xlZ2FjeSBCb3RvY29yZS8xLjM4LjI2
       X-Amz-Date:
       - !!binary |
-        MjAyNTA2MjRUMTUxNTQxWg==
+        MjAyNTA2MjdUMTQ0MjUxWg==
       amz-sdk-invocation-id:
       - !!binary |
-        OGFmZWZkMzAtZmUwNS00OWQ5LTkyY2EtMDE4NjM0OWJmYTI1
+        ZjI1ZGNlOWItZDczZS00N2Q3LWEzOWEtNDBiZmJlYzkzOTQz
       amz-sdk-request:
       - !!binary |
         YXR0ZW1wdD0x
@@ -303,38 +198,30 @@ interactions:
     uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-7-sonnet-20250219-v1%3A0/converse
   response:
     body:
-      string: '{"metrics":{"latencyMs":13503},"output":{"message":{"content":[{"text":"#
-        Key Principles for Microservices Architecture\n\n## 1. Single Responsibility\n-
-        Each microservice should focus on a single business capability\n- Services
-        should have high cohesion and clear boundaries\n\n## 2. Autonomy and Independence\n-
-        Services should be independently deployable\n- Teams can develop, test, and
-        deploy services without dependencies on other teams\n- Technology stack can
-        be chosen based on service requirements\n\n## 3. Data Management\n- Each service
-        should own its data store\n- Avoid shared databases to maintain loose coupling\n-
-        Implement data consistency through eventual consistency patterns\n\n## 4.
-        Communication Patterns\n- Use lightweight protocols (HTTP/REST, gRPC, messaging)\n-
-        Implement well-defined APIs\n- Consider both synchronous and asynchronous
-        communication models\n\n## 5. Resilience\n- Design for failure with circuit
-        breakers, timeouts, and retries\n- Implement graceful degradation\n- Services
-        should fail without cascading failures\n\n## 6. Decentralization\n- Push decision-making
-        to service teams\n- Avoid centralized governance that slows innovation\n-
-        Use shared standards rather than shared code\n\n## 7. Observability\n- Implement
-        comprehensive monitoring, logging, and tracing\n- Distributed tracing across
-        service boundaries\n- Centralized log aggregation\n\n## 8. Automation\n- CI/CD
-        pipelines for each service\n- Infrastructure as code\n- Automated testing
-        at all levels\n\n## 9. Right-sizing\n- Services should be neither too large
-        nor too small\n- Balance between functionality and complexity"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"cacheReadInputTokenCount":2004,"cacheReadInputTokens":2004,"cacheWriteInputTokenCount":0,"cacheWriteInputTokens":0,"inputTokens":18,"outputTokens":342,"totalTokens":2364}}'
+      string: '{"metrics":{"latencyMs":7053},"output":{"message":{"content":[{"text":"#
+        Machine Learning (ML) Application\n\nA Machine Learning (ML) application is
+        a software program that uses ML algorithms to analyze data, learn patterns,
+        and make predictions or decisions without being explicitly programmed for
+        specific tasks.\n\n## Key Components:\n\n1. **Data Collection & Processing**:
+        Gathers and prepares data for model training\n2. **ML Model**: The trained
+        algorithm that makes predictions\n3. **Interface**: How users interact with
+        the application\n4. **Deployment Infrastructure**: Servers and systems that
+        host the application\n\n## Common Examples:\n\n- Recommendation systems (Netflix,
+        Amazon)\n- Voice assistants (Siri, Alexa)\n- Fraud detection systems\n- Image
+        recognition applications\n- Predictive maintenance tools\n- Natural language
+        processing applications\n\nML applications can range from simple prediction
+        tools to complex systems that continuously learn and improve over time."}],"role":"assistant"}},"stopReason":"end_turn","usage":{"cacheReadInputTokenCount":1028,"cacheReadInputTokens":1028,"cacheWriteInputTokenCount":0,"cacheWriteInputTokens":0,"inputTokens":12,"outputTokens":185,"totalTokens":1225}}'
     headers:
       Connection:
       - keep-alive
       Content-Length:
-      - '1856'
+      - '1218'
       Content-Type:
       - application/json
       Date:
-      - Tue, 24 Jun 2025 15:15:55 GMT
+      - Fri, 27 Jun 2025 14:42:58 GMT
       x-amzn-RequestId:
-      - 6d82df50-dc2a-4345-80c7-d1799c451b59
+      - 58d2f12b-9c5e-49f7-b1b1-9f3b2b7d20dd
     status:
       code: 200
       message: OK
