@@ -8,7 +8,7 @@ from typing import Sequence
 from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config, py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
@@ -77,6 +77,7 @@ class DDWaf(WAF):
             )
         self._default_ruleset = ruleset_map_object
         metrics.ddwaf_version = version()
+        self._rc_products = {}
 
     @property
     def required_data(self) -> List[str]:
@@ -140,12 +141,19 @@ class DDWaf(WAF):
         new_handle = py_ddwaf_builder_build_instance(self._builder)
         if new_handle:
             self._handle = new_handle
+        for product in ["ASM_DD", "ASM_DATA", "ASM", "ASM_FEATURES"]:
+            res = py_ddwaf_builder_get_config_paths(self._builder, f"^{product}.*")
+            if res>0:
+                self._rc_products[product] = res
+            else:
+                self._rc_products.pop(product, None)
         return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
         ctx = None
         if self._handle:
             ctx = py_ddwaf_context_init(self._handle)
+            ctx.rc_products = ",".join(f"{p}:{v}" for p, v in self._rc_products.items())
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
