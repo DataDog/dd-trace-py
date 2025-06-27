@@ -5,14 +5,13 @@ import opentelemetry
 
 import ddtrace
 from ddtrace.opentelemetry import TracerProvider
+from ddtrace.opentelemetry import MeterProvider
 from tests.webclient import PingFilter
 
 
 opentelemetry.trace.set_tracer_provider(TracerProvider())
-
 ddtrace.tracer.configure(trace_processors=[PingFilter()])
 app = flask.Flask(__name__)
-
 
 @app.route("/")
 def index():
