@@ -147,7 +147,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_output_message(self, response):
         if not response:
-            return [{"content": ""}]
+            return [{"content": "", "role": "model"}]
         # streamed responses will be a list of chunks
         if isinstance(response, list):
             message_content = []
