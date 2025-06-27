@@ -149,7 +149,7 @@ def extract_message_from_part_google(part, role=None):
         message["role"] = role
     if function_call:
         function_call_dict = function_call
-        if hasattr(function_call, "model_dump"):
+        if hasattr(function_call, "model_dump") and callable(obj.model_dump):
             function_call_dict = function_call.model_dump()
         elif not isinstance(function_call, dict):
             function_call_dict = type(function_call).to_dict(function_call)
