@@ -696,6 +696,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if test_session_token is None and additional_header_str is not None:
+            additional_header = parse_tags_str(additional_header_str) 
+            if "X-Datadog-Test-Session-Token" in additional_header:
+                test_session_token = additional_header["X-Datadog-Test-Session-Token"]
+
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
         self._buffer_size = buffer_size
