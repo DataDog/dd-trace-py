@@ -47,14 +47,9 @@ def extract_metrics_google_genai(response):
     if not response:
         return {}
 
-    usage = {}
-    # streamed responses will be a list of GenerateContentResponse chunks
-    if isinstance(response, list):
-        # get usage metadata from last chunk
-        usage_metadata = _get_attr(response[-1], "usage_metadata", {})
-    else:  # non-streamed case
-        usage_metadata = _get_attr(response, "usage_metadata", {})
+    usage_metadata = _get_attr(response, "usage_metadata", {})
 
+    usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
     output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
@@ -170,6 +165,60 @@ def extract_provider_and_model_name(kwargs):
     return "custom", model_name if model_name else "custom"
 
 
+def _join_chunks(chunks):
+    """
+    In order to make llmobs_set_tags agnostic of streamed vs non-streamed responses, this function merges chunks into a single response.
+    We take in a list of GenerateContentResponse objects and return a single dict representing the object.
+    This works because _get_attr allows us to treat dicts and the response object interchangeably.
+    """
+    if not chunks:
+        return None
+
+    merged_content_by_role = {}
+
+    for chunk in chunks:
+        candidates = _get_attr(chunk, "candidates", [])
+        for candidate in candidates:
+            content = _get_attr(candidate, "content", None)
+            if not content:
+                continue
+
+            role = _get_attr(content, "role", None) or "model"
+            parts = _get_attr(content, "parts", [])
+
+            if role not in merged_content_by_role:
+                merged_content_by_role[role] = {"text": "", "non_text_parts": []}
+
+            for part in parts:
+                text = _get_attr(part, "text", None)
+                if text is not None:
+                    merged_content_by_role[role]["text"] += text
+                else:
+                    merged_content_by_role[role]["non_text_parts"].append(part)
+
+    merged_candidates = []
+    for role, content_data in merged_content_by_role.items():
+        parts = []
+
+        if content_data["text"]:
+            parts.append({"text": content_data["text"]})
+
+        parts.extend(content_data["non_text_parts"])
+
+        if parts:
+            merged_candidates.append({"content": {"role": role, "parts": parts}})
+
+    merged_response = {"candidates": merged_candidates}
+
+    if chunks:
+        last_chunk = chunks[-1]
+        usage_metadata = _get_attr(last_chunk, "usage_metadata", None)
+        if usage_metadata:
+            merged_response["usage_metadata"] = usage_metadata
+
+    return merged_response
+
+
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
     def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
@@ -178,12 +227,6 @@ class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
         self._self_args = args
         self._self_kwargs = kwargs
         self._self_dd_integration = integration
-
-    # def _join_chunks(self):
-    #     # since we are always using _get_attr, can use dict instead of constructing a GenerateContentResponse object
-    #     response = {}
-    #     for chunk in self._self_chunks:
-    #         pass
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
@@ -198,7 +241,10 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
         except StopIteration:
             if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
                 self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_chunks
+                    self._self_dd_span,
+                    args=self._self_args,
+                    kwargs=self._self_kwargs,
+                    response=_join_chunks(self._self_chunks),
                 )
             self._self_dd_span.finish()
             raise
@@ -220,7 +266,10 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
         except StopAsyncIteration:
             if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
                 self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_chunks
+                    self._self_dd_span,
+                    args=self._self_args,
+                    kwargs=self._self_kwargs,
+                    response=_join_chunks(self._self_chunks),
                 )
             self._self_dd_span.finish()
             raise

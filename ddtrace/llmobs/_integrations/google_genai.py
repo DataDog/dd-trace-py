@@ -4,11 +4,11 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.contrib.internal.google_genai._utils import extract_message_from_part_google_genai
 from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
 from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.google_genai._utils import normalize_contents
 from ddtrace.contrib.internal.google_genai._utils import process_response
-from ddtrace.contrib.internal.google_genai._utils import extract_message_from_part_google_genai
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -103,22 +103,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_output_message(self, response):
         if not response:
             return [{"content": "", "role": "model"}]
-        # streamed responses will be a list of chunks
-        if isinstance(response, list):
-            message_content = []
-            tool_calls = []
-            role = "model"
-            # response is a list of GenerateContentResponse chunks
-            for r in response:
-                messages = process_response(r)
-                for message in messages:
-                    message_content.append(message.get("content", ""))
-                    tool_calls.extend(message.get("tool_calls", []))
-            message = {"content": "".join(message_content), "role": role}
-            if tool_calls:
-                message["tool_calls"] = tool_calls
-            return [message]
-        # non-streamed responses will be a single GenerateContentResponse
+
         return process_response(response)
 
     def _extract_metadata(self, config):
