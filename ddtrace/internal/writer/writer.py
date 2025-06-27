@@ -839,41 +839,22 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
+        # TODO: Does it make sense as the http requests number can vary with libdatadog retries
         self._metrics_dist("http.requests")
 
-        try:
-            # TODO: Return agent response from send
-            self.start_worker_thread()
-            response_body = self._exporter.send(payload, count)
-            if self._response_cb:
-                response = Response(body=response_body)
-                raw_resp = response.get_json()
-                if raw_resp and "rate_by_service" in raw_resp:
-                    self._response_cb(
-                        AgentResponse(
-                            rate_by_service=raw_resp["rate_by_service"],
-                        )
-                    )
-        except (native.AgentError, native.NetworkError, native.RequestError) as e:
-            msg = "failed to send traces to intake at %s: %s"
-            log_args = (
-                self._intake_endpoint(client),
-                e,
-            )
-            # Append the payload if requested
-            if config._trace_writer_log_err_payload:
-                msg += ", payload %s"
-                # If the payload is bytes then hex encode the value before logging
-                if isinstance(payload, bytes):
-                    log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
-                else:
-                    log_args += (payload,)
+        # TODO: Return agent response from send
+        self.start_worker_thread()
+        response_body = self._exporter.send(payload, count)
+        if self._response_cb:
+            response = Response(body=response_body)
+            raw_resp = response.get_json()
 
-            log.error(msg, *log_args)
-            raise e
-        except (native.DeserializationError, native.SerializationError, native.IoError) as e:
-            log.debug("failed to send traces: %s", e)
-            raise e
+            if raw_resp and "rate_by_service" in raw_resp:
+                self._response_cb(
+                    AgentResponse(
+                        rate_by_service=raw_resp["rate_by_service"],
+                    )
+                )
 
     def write(self, spans=None):
         for client in self._clients:
@@ -955,14 +936,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
                 raise
-            else:
-                log.error(
-                    "failed to send, dropping %d traces to intake at %s after %d retries: %s",
-                    n_traces,
-                    self._intake_endpoint(client),
-                    self.RETRY_ATTEMPTS,
-                    e,
-                )
+
+            msg = "failed to send, dropping %d traces to intake at %s: %s"
+            log_args = (
+                n_traces,
+                self._intake_endpoint(client),
+                str(e),
+            )
+            # Append the payload if requested
+            # TODO: Does it make sense or should we log the final payload from the trace exporter
+            if config._trace_writer_log_err_payload:
+                msg += ", payload %s"
+                log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
+
+            log.error(msg, *log_args)
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
             self._metrics_dist("http.sent.traces", n_traces)
