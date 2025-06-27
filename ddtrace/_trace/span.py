@@ -655,13 +655,14 @@ class Span(object):
             return self._validate_scalar(key, value)
 
         if not isinstance(value, list):
+            log.warning("record_exception: Attribute %s must be a string, number, or boolean: %s.", key, value)
             return False
 
         if len(value) == 0:
             return True
 
         if not isinstance(value[0], (str, bool, int, float)):
-            log.warning("record_exception: Attribute %s must be a string, number, or boolean: %s.", key, value)
+            log.warning("record_exception: List values %s must be string, number, or boolean: %s.", key, value)
             return False
 
         first_type = type(value[0])
