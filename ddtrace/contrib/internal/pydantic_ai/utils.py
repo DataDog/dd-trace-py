@@ -1,5 +1,6 @@
 import wrapt
 
+
 class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, instance, integration, args, kwargs):
         super().__init__(wrapped)
@@ -27,9 +28,6 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
                     self._dd_span, args=self._args, kwargs=self._kwargs, response=self._agent_run
                 )
         finally:
+            if exc_type:
+                self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
             self._dd_span.finish()
-
-
-
-    
-

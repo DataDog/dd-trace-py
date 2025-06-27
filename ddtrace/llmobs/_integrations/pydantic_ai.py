@@ -15,21 +15,23 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
+# in some cases, PydanticAI uses a different provider name than what we expect
+PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
+    "google-gla": "google",
+    "google-vertex": "google",
+}
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
 
-    def _set_base_span_tags(
-        self, span: Span, model: Optional[str] = None
-    ) -> None:
+    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs) -> None:
         if model:
             span.set_tag("pydantic_ai.request.model", getattr(model, "model_name", ""))
-            provider = getattr(model, "_provider", None)
             system = getattr(model, "system", None)
-            # different model providers have different model classes and ways of accessing the provider name
-            if provider or system:
-                span.set_tag("pydantic_ai.request.provider", getattr(provider, "name", "") or system)
+            if system:
+                system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
+                span.set_tag("pydantic_ai.request.provider", system)
     
     def _llmobs_set_tags(
         self,
@@ -62,7 +64,3 @@ class PydanticAIIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
         }
         
-
-    
-
-    

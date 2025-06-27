@@ -50,6 +50,7 @@ PATCH_MODULES = {
     "futures": True,
     "freezegun": True,
     "google_generativeai": True,
+    "google_genai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
@@ -103,6 +104,7 @@ PATCH_MODULES = {
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_functions": True,
+    "azure_servicebus": True,
     "tornado": False,
     "openai": True,
     "langchain": True,
@@ -158,9 +160,11 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "azure_functions": ("azure.functions",),
+    "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_generativeai": ("google.generativeai",),
+    "google_genai": ("google.genai",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",

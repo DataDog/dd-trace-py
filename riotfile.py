@@ -2815,6 +2815,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_genai",
+            command="pytest {cmdargs} tests/contrib/google_genai",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-genai": latest,
+            },
+        ),
+        Venv(
             name="crewai",
             command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
@@ -2823,7 +2832,7 @@ venv = Venv(
                 "openai": latest,
                 "crewai": ["~=0.102.0", "~=0.121.0"],
                 "vcrpy": "==7.0.0",
-            }
+            },
         ),
         Venv(
             name="pydantic_ai",
@@ -2915,7 +2924,17 @@ venv = Venv(
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
                 "azure.functions": ["~=1.20.0", latest],
+                "azure.servicebus": latest,
                 "requests": latest,
+            },
+        ),
+        Venv(
+            name="azure_servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pkgs={
+                "azure.servicebus": ["~=7.14.0", latest],
+                "pytest-asyncio": "==0.24.0",
             },
         ),
         Venv(

@@ -1,4 +1,5 @@
 import pydantic_ai
+from typing import Dict
 
 from ddtrace import config
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -8,6 +9,13 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+from ddtrace.trace import Pin
+
 
 config._add("pydantic_ai", {})
 
@@ -16,6 +24,10 @@ def get_version() -> str:
     import pydantic_ai
 
     return getattr(pydantic_ai, "__version__", "0.0.0")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pydantic_ai": "*"}
 
 
 @with_traced_module

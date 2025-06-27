@@ -186,7 +186,6 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
                 stop=".",
                 max_tokens=10,
                 user="ddtrace-test",
-                stream=True,
             )
 
 
