@@ -28,10 +28,8 @@ def _tracer_injection(event_dict):
     if config._logs_injection == LogInjectionState.DISABLED:
         # log injection is opt-out for structured logging
         return event_dict
-    event_dd_attributes = ddtrace.tracer.get_log_correlation_context()
-    event_dict.update(event_dd_attributes)
-
-    return event_dd_attributes
+    event_dict.update(ddtrace.tracer.get_log_correlation_context())
+    return event_dict
 
 
 def _w_configure(func, instance, args, kwargs):

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    loguru: Fixed an issue where the ddtrace Loguru integration replaced all contextual (extra) fields with its own log correlation data.
+    It now adds its attributes alongside existing fields.

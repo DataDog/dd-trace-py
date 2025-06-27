@@ -320,3 +320,30 @@ def test_configured_format():
     assert json.loads(captured_logs[0])["dd.env"] == "global.env"
     assert json.loads(captured_logs[0])["dd.service"] == "logging"
     assert json.loads(captured_logs[0])["dd.version"] == "global.version"
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_configured_extra_args():
+    """
+    Ensure loguru integration does not override user configured extra args
+    """
+    import json
+
+    from loguru import logger
+
+    from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.trace import tracer
+
+    captured_logs = []
+    logger.remove()
+    logger.add(captured_logs.append, serialize=True)
+
+    with tracer.trace("test.logging") as span:
+        logger.bind(some_key="some_val").debug("Hello Moon!")
+
+    assert len(captured_logs) == 1
+    log = json.loads(captured_logs[0])
+    assert log["record"]["message"] == "Hello Moon!"
+    assert log["record"]["extra"]["some_key"] == "some_val"
+    assert log["record"]["extra"]["dd.trace_id"] == format_trace_id(span.trace_id)
+    assert log["record"]["extra"]["dd.span_id"] == str(span.span_id)
