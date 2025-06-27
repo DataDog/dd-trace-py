@@ -19,7 +19,6 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 
 
-# some parameters that we do not include in the config: system_instruction, tools, etc...
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
 METADATA_PARAMS = [
     "temperature",
