@@ -1,8 +1,8 @@
+import contextlib
 import os
 from typing import Any
 from typing import Iterator
 from unittest.mock import patch as mock_patch
-import contextlib
 
 import mock
 import pytest
@@ -11,15 +11,15 @@ from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Pin
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
+from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
-from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
-from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
-from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
-from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 
 
 @pytest.fixture

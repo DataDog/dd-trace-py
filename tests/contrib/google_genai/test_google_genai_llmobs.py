@@ -1,5 +1,3 @@
-import os
-
 from google.genai import types
 import pytest
 
