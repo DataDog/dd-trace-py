@@ -13,7 +13,7 @@ from ddtrace.llmobs._integrations.utils import tag_response_part_google
 from ddtrace.llmobs._utils import _get_attr
 
 class BaseVertexAIStreamHandler:
-    def _initialize_chunk_storage(self):
+    def initialize_chunk_storage(self):
         return []
     
     def _process_chunk(self, chunk):

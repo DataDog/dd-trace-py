@@ -8,7 +8,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 
 class BaseLangchainStreamHandler:
-    def _initialize_chunk_storage(self):
+    def initialize_chunk_storage(self):
         return []
 
     def _process_chunk(self, chunk):

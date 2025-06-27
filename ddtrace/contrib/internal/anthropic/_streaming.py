@@ -56,7 +56,7 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
         return traced_stream
 
 class BaseAnthropicStreamHandler:
-    def _initialize_chunk_storage(self):
+    def initialize_chunk_storage(self):
         return []
     
     def finalize_stream(self, exception=None):

@@ -72,7 +72,7 @@ def traced_stream_readlines(traced_stream, original_readlines):
         raise
 
 class BotocoreStreamingBodyStreamHandler(StreamHandler):
-    def _initialize_chunk_storage(self):
+    def initialize_chunk_storage(self):
         return []
 
     def process_chunk(self, chunk, iterator=None):
