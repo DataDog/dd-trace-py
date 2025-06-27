@@ -134,7 +134,7 @@ def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     indirect=True,
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_servicebus_distributed_tracing(azure_functions_client: Client) -> None:
+def test_service_bus_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.post("/api/httppostrootservicebus", headers=DEFAULT_HEADERS).status_code == 200
 
 

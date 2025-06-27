@@ -105,7 +105,7 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
         msg = kwargs.get(trigger_arg_name)
         entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
         return (
-            "azure.functions.servicebus_consumer_modifier",
+            "azure.functions.service_bus_trigger_modifier",
             (
                 ctx,
                 config.azure_functions,

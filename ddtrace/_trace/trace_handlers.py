@@ -870,7 +870,7 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-def _on_azure_functions_servicebus_consumer_span_modifier(
+def _on_azure_functions_service_bus_trigger_span_modifier(
     ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
 ):
     span = ctx.span
@@ -945,7 +945,7 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
-    core.on("azure.functions.servicebus_consumer_modifier", _on_azure_functions_servicebus_consumer_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers
