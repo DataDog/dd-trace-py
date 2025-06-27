@@ -182,7 +182,9 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
 
 
 def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai, snapshot_context):
-    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"
+    ):
         client = genai.Client()
 
         response = client.models.generate_content(

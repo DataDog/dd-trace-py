@@ -36,9 +36,7 @@ class TestLLMObsGoogleGenAI:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
 
-    def test_generate_content_stream(
-        self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content_stream
-    ):
+    def test_generate_content_stream(self, genai_client, mock_llmobs_writer, mock_tracer, mock_generate_content_stream):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",

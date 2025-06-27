@@ -54,7 +54,7 @@ def extract_metrics_google_genai(response):
         usage_metadata = _get_attr(response[-1], "usage_metadata", {})
     else:  # non-streamed case
         usage_metadata = _get_attr(response, "usage_metadata", {})
-    
+
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
     output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
     cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
