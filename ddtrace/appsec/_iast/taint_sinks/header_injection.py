@@ -57,6 +57,7 @@ is passed to header-setting APIs without proper sanitization.
 import typing
 from typing import Text
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -235,8 +236,14 @@ def _iast_report_header_injection(headers_args, check_header_injection=True, che
                 if header_name_lower == header_to_exclude or header_name_lower.startswith(header_to_exclude):
                     return
 
-            if HeaderInjection.has_quota() and (
-                HeaderInjection.is_tainted_pyobject(header_name) or HeaderInjection.is_tainted_pyobject(header_value)
+            if (
+                isinstance(header_name, IAST.TEXT_TYPES)
+                and isinstance(header_value, IAST.TEXT_TYPES)
+                and HeaderInjection.has_quota()
+                and (
+                    HeaderInjection.is_tainted_pyobject(header_name)
+                    or HeaderInjection.is_tainted_pyobject(header_value)
+                )
             ):
                 header_evidence = add_aspect(add_aspect(header_name, HEADER_NAME_VALUE_SEPARATOR), header_value)
                 HeaderInjection.report(evidence_value=header_evidence)

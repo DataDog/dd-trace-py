@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "google_genai.request",
+    "service": "tests.contrib.google_genai",
+    "resource": "Models.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6850374b00000000",
+      "error.message": "Models.generate_content() got an unexpected keyword argument 'not_an_argument'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/max.zhang/dd-trace-py/ddtrace/contrib/internal/google_genai/patch.py\", line 41, in traced_generate\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\nTypeError: Models.generate_content() got an unexpected keyword argument 'not_an_argument'\n",
+      "error.type": "builtins.TypeError",
+      "google_genai.request.model": "gemini-2.0-flash-001",
+      "google_genai.request.provider": "google",
+      "language": "python",
+      "runtime-id": "21de5d02783a4bda9916cba8736920d0"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 23200
+    },
+    "duration": 133000,
+    "start": 1750087499827076000
+  }]]
