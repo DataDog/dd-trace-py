@@ -879,8 +879,8 @@ class TestLLMObsAnthropic:
                             "input_tokens": 18,
                             "output_tokens": 100,
                             "total_tokens": 118,
-                            "cache_write_input_tokens": 2055,  # Cache write tokens
-                            "cache_read_input_tokens": 0,  # Should be 0 for first request
+                            "cache_write_input_tokens": 2055,
+                            "cache_read_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -909,8 +909,8 @@ class TestLLMObsAnthropic:
                             "input_tokens": 11,
                             "output_tokens": 100,
                             "total_tokens": 111,
-                            "cache_write_input_tokens": 0,  # Should be 0 for cache read
-                            "cache_read_input_tokens": 2055,  # Cache read tokens
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 2055,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -979,8 +979,8 @@ class TestLLMObsAnthropic:
                             "input_tokens": 18,
                             "output_tokens": 100,
                             "total_tokens": 118,
-                            "cache_write_input_tokens": 1031,  # Cache write tokens
-                            "cache_read_input_tokens": 0,  # Should be 0 for first request
+                            "cache_write_input_tokens": 1031,
+                            "cache_read_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
@@ -1009,8 +1009,8 @@ class TestLLMObsAnthropic:
                             "input_tokens": 11,
                             "output_tokens": 100,
                             "total_tokens": 111,
-                            "cache_write_input_tokens": 0,  # Should be 0 for cache read
-                            "cache_read_input_tokens": 1031,  # Cache read tokens
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 1031,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )
