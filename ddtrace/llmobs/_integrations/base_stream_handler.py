@@ -114,6 +114,19 @@ class TracedStream(wrapt.ObjectProxy):
         finally:
             self._self_handler.finalize_stream(exc)
     
+    def __next__(self):
+        try:
+            chunk = next(self._self_stream_iter)
+            self._self_handler.process_chunk(chunk, self._self_stream_iter)
+            return chunk
+        except StopIteration:
+            self._self_handler.finalize_stream()
+            raise
+        except Exception as e:
+            self._handler.handle_exception(e)
+            self._handler.finalize_stream(e)
+            raise
+
     def __enter__(self):
         """
         Enter the context of the stream.
@@ -174,6 +187,19 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             raise
         finally:
             self._self_handler.finalize_stream(exc)
+    
+    async def __anext__(self):
+        try:
+            chunk = await self._self_async_stream_iter.__anext__()
+            await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
+            return chunk
+        except StopAsyncIteration:
+            self._self_handler.finalize_stream()
+            raise
+        except Exception as e:
+            self._handler.handle_exception(e)
+            self._handler.finalize_stream(e)
+            raise
     
     async def __aenter__(self):
         """
