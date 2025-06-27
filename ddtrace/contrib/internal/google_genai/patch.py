@@ -27,49 +27,35 @@ def get_version() -> str:
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    resp = None
     provider_name, model_name = extract_provider_and_model_name(kwargs)
-    span = integration.trace(
+    with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=True,
-    )
-    try:
+        submit_to_llmobs=False,
+    ) as span:
         resp = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-        span.finish()
-    return resp
+        return resp
 
 
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    resp = None
     provider_name, model_name = extract_provider_and_model_name(kwargs)
-    span = integration.trace(
+    with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=True,
-    )
-    try:
+        submit_to_llmobs=False,
+    ) as span:
         resp = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
         if integration.is_pc_sampled_llmobs(span):
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
-        span.finish()
-    return resp
+        return resp
 
 
 @with_traced_module
