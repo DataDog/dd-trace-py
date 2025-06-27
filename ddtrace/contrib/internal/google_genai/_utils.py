@@ -167,7 +167,8 @@ def extract_provider_and_model_name(kwargs):
 
 def _join_chunks(chunks):
     """
-    In order to make llmobs_set_tags agnostic of streamed vs non-streamed responses, this function merges chunks into a single response.
+    In order to make llmobs_set_tags agnostic of streamed vs non-streamed responses, this function merges
+    chunks into a single response.
     We take in a list of GenerateContentResponse objects and return a single dict representing the object.
     This works because _get_attr allows us to treat dicts and the response object interchangeably.
     """
