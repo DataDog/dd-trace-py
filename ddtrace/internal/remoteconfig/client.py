@@ -1,6 +1,5 @@
 import base64
 import dataclasses
-from datetime import datetime
 import enum
 import hashlib
 import json
@@ -30,7 +29,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
-from ddtrace.internal.utils.time import parse_isoformat
 
 from ..utils.formats import parse_tags_str
 from ..utils.version import _pep440_to_semver
@@ -121,7 +119,7 @@ class Root:
     _type: str
     spec_version: str
     consistent_snapshot: bool
-    expires: datetime
+    expires: str
     keys: Mapping[str, Key]
     roles: Mapping[str, Role]
     version: int
@@ -129,8 +127,6 @@ class Root:
     def __post_init__(self):
         if self._type != "root":
             raise ValueError("Root: invalid root type")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
         for k, v in self.keys.items():
             if isinstance(v, dict):
                 self.keys[k] = Key(**v)
@@ -163,7 +159,7 @@ class TargetDesc:
 class Targets:
     _type: str
     custom: Mapping[str, Any]
-    expires: datetime
+    expires: str
     spec_version: str
     targets: Mapping[str, TargetDesc]
     version: int
@@ -173,8 +169,6 @@ class Targets:
             raise ValueError("Targets: invalid targets type")
         if self.spec_version not in ("1.0", "1.0.0"):
             raise ValueError("Targets: invalid spec version")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
         for k, v in self.targets.items():
             if isinstance(v, dict):
                 self.targets[k] = TargetDesc(**v)
