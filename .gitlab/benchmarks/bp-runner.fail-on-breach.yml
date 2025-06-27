@@ -1,4 +1,4 @@
-# Measurements from https://benchmarking.us1.prod.dog/benchmarks?benchmarkGroupPipelineId=66629462&benchmarkGroupSha=16054515e292a66c5eaf79b9ea62df6f348cd67e&page=1&ciJobDateStart=1746309551994&ciJobDateEnd=1748901551994&benchmarkId=14167634:
+# Example of measurements can be seen here: https://benchmarking.us1.prod.dog/benchmarks?benchmarkGroupPipelineId=66629462&benchmarkGroupSha=16054515e292a66c5eaf79b9ea62df6f348cd67e&page=1&ciJobDateStart=1746309551994&ciJobDateEnd=1748901551994&benchmarkId=14167634
 
 # Thresholds set based on guidance in https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates#How-to-choose-thresholds-for-pre-release-gates%3F
 
