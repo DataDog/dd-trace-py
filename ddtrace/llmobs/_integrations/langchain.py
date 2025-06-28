@@ -163,7 +163,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_metadata(span, model_provider)
 
         is_workflow = False
 
@@ -365,26 +364,32 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
-        if not model_provider:
-            return
+    def llmobs_set_metadata(self, span: Span, parameters: Dict[str, Any]) -> None:
+        max_tokens = None
+        temperature = None
+        for param, val in parameters.items():
+            if isinstance(val, dict):
+                for k, v in val.items():
+                    if k == "temperature":
+                        temperature = v
+                    elif k in ["max_tokens", "maxTokens"]:
+                        max_tokens = v
+            else:
+                if param == "temperature":
+                    temperature = val
+                elif param in ["max_tokens", "maxTokens"]:
+                    max_tokens = val
 
         metadata = {}
-        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
-            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
-        )  # huggingface
-        max_tokens = (
-            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
-        )
-
-        if temperature is not None and temperature != "None":
-            metadata["temperature"] = float(temperature)
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
+        if temperature is not None and temperature != "None":
+            metadata["temperature"] = float(temperature)
+
         if metadata:
             span._set_ctx_item(METADATA, metadata)
+        
+        
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
