@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.trace import tracer as dd_tracer
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+from tests.utils import flaky
 
 
 class TestFreezegunTestCase:
@@ -76,6 +77,7 @@ class TestFreezegunTestCase:
 
 
 class PytestFreezegunTestCase(PytestTestCaseBase):
+    @flaky(1759346444)
     def test_freezegun_pytest_plugin(self):
         """Tests that pytest's patching of freezegun in the v1 plugin version works"""
         import sys
