@@ -743,6 +743,69 @@ class TestLLMObsOpenaiV1:
             )
         )
 
+    def test_chat_completion_prompt_caching(
+        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Test that prompt caching metrics are properly captured"""
+        model = "gpt-4o"
+        base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
+        resp1 = oai_with_test_agent_backend.chat.completions.create(
+            model=model,
+            messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            max_tokens=100,
+            temperature=0.1,
+        )
+        resp2 = oai_with_test_agent_backend.chat.completions.create(
+            model=model,
+            messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+            max_tokens=100,
+            temperature=0.1,
+        )
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp1.model,
+                        model_provider="openai",
+                        input_messages=base_messages
+                        + [{"role": "user", "content": "What are the best practices for API design?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={"max_tokens": 100, "temperature": 0.1},
+                        token_metrics={
+                            "input_tokens": 1221,
+                            "output_tokens": 100,
+                            "total_tokens": 1321,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp2.model,
+                        model_provider="openai",
+                        input_messages=base_messages
+                        + [{"role": "user", "content": "How should I structure my database schema?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={"max_tokens": 100, "temperature": 0.1},
+                        token_metrics={
+                            "input_tokens": 1220,
+                            "output_tokens": 100,
+                            "total_tokens": 1320,
+                            "cache_read_input_tokens": 1152,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ]
+        )
+
     def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
@@ -896,6 +959,95 @@ class TestLLMObsOpenaiV1:
                 metadata={"stream": True},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
+    def test_chat_completion_stream_prompt_caching(
+        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Test that prompt caching metrics are properly captured for streamed chat completions."""
+        input_messages = [
+            {
+                "role": "system",
+                "content": "you are not an expert software engineer " * 200,
+            },
+        ]
+        request_args = {
+            "model": "gpt-4o",
+            "max_tokens": 100,
+            "temperature": 0.1,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        resp1 = oai_with_test_agent_backend.chat.completions.create(
+            messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            **request_args,
+        )
+        for chunk in resp1:
+            if hasattr(chunk, "model"):
+                resp_model = chunk.model
+        resp2 = oai_with_test_agent_backend.chat.completions.create(
+            messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+            **request_args,
+        )
+        for chunk in resp2:
+            if hasattr(chunk, "model"):
+                resp_model = chunk.model
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=input_messages
+                        + [{"role": "user", "content": "What are the best practices for API design?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_tokens": 100,
+                            "temperature": 0.1,
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                        token_metrics={
+                            "input_tokens": 1421,
+                            "output_tokens": 100,
+                            "total_tokens": 1521,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=input_messages
+                        + [{"role": "user", "content": "How should I structure my database schema?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_tokens": 100,
+                            "temperature": 0.1,
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                        token_metrics={
+                            "input_tokens": 1420,
+                            "output_tokens": 100,
+                            "total_tokens": 1520,
+                            "cache_read_input_tokens": 1280,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ]
         )
 
     @pytest.mark.skipif(
