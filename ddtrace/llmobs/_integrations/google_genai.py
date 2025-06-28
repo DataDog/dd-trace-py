@@ -1,9 +1,44 @@
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.contrib.internal.google_genai._utils import extract_message_from_part_google_genai
+from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
+from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
+from ddtrace.contrib.internal.google_genai._utils import normalize_contents
+from ddtrace.contrib.internal.google_genai._utils import process_response
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_attr
+
+
+# https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
+METADATA_PARAMS = [
+    "temperature",
+    "top_p",
+    "top_k",
+    "candidate_count",
+    "max_output_tokens",
+    "stop_sequences",
+    "response_logprobs",
+    "logprobs",
+    "presence_penalty",
+    "frequency_penalty",
+    "seed",
+    "response_mime_type",
+    "safety_settings",
+    "automatic_function_calling",
+    "tools",
+]
 
 
 class GoogleGenAIIntegration(BaseLLMIntegration):
@@ -16,3 +51,65 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             span.set_tag_str("google_genai.request.provider", provider)
         if model is not None:
             span.set_tag_str("google_genai.request.model", model)
+
+    def _llmobs_set_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        config = get_argument_value(args, kwargs, -1, "config", optional=True)
+        provider_name, model_name = extract_provider_and_model_name(kwargs)
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "llm",
+                MODEL_NAME: model_name,
+                MODEL_PROVIDER: provider_name,
+                METADATA: self._extract_metadata(config),
+                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+                OUTPUT_MESSAGES: self._extract_output_message(response),
+                METRICS: extract_metrics_google_genai(response),
+            }
+        )
+
+    def _extract_input_message(self, args, kwargs, config):
+        messages = []
+        system_instruction = _get_attr(config, "system_instruction", None)
+        if system_instruction is not None:
+            normalized_sys = normalize_contents(system_instruction)
+
+            for content in normalized_sys:
+                role = content.get("role") or "system"
+                parts = content.get("parts", [])
+
+                for part in parts:
+                    message = extract_message_from_part_google_genai(part, role)
+                    messages.append(message)
+        # user input messages
+        contents = get_argument_value(args, kwargs, -1, "contents")
+        normalized_contents = normalize_contents(contents)
+        for content in normalized_contents:
+            role = content.get("role") or "user"
+            parts = content.get("parts", [])
+
+            for part in parts:
+                message = extract_message_from_part_google_genai(part, role)
+                messages.append(message)
+        return messages
+
+    def _extract_output_message(self, response):
+        if not response:
+            return [{"content": "", "role": "model"}]
+
+        return process_response(response)
+
+    def _extract_metadata(self, config):
+        if not config:
+            return {}
+        metadata = {}
+        for param in METADATA_PARAMS:
+            metadata[param] = _get_attr(config, param, None)
+        return metadata

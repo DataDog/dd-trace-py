@@ -2,6 +2,134 @@ import sys
 
 import wrapt
 
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _get_attr
+
+
+def normalize_contents(contents):
+    """
+    contents has a complex union type structure:
+    - contents: Union[ContentListUnion, ContentListUnionDict]
+    - ContentListUnion = Union[list[ContentUnion], ContentUnion]
+    - ContentListUnionDict = Union[list[ContentUnionDict], ContentUnionDict]
+    - ContentUnion = Union[Content, list[PartUnion], PartUnion]
+    - PartUnion = Union[File, Part, str]
+
+    Can also be used for system_instruction which has type ContentUnion
+
+    This function normalizes all these variants into a list of dicts with format{"role": role, "parts": parts}
+    """
+
+    def extract_content(content):
+        role = _get_attr(content, "role", None)
+        parts = _get_attr(content, "parts", None)
+
+        # if parts is missing and content itself is a PartUnion or list[PartUnion]
+        if parts is None:
+            if isinstance(content, list):
+                parts = content
+            else:
+                parts = [content]
+
+        elif not isinstance(parts, list):
+            parts = [parts]
+
+        return {"role": role, "parts": parts}
+
+    if isinstance(contents, list):
+        return [extract_content(c) for c in contents]
+    return [extract_content(contents)]
+
+
+def extract_metrics_google_genai(response):
+    if not response:
+        return {}
+
+    usage_metadata = _get_attr(response, "usage_metadata", {})
+
+    usage = {}
+    input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
+    output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
+    cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
+    total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
+
+    if input_tokens is not None:
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+    if output_tokens is not None:
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if cached_tokens is not None:
+        usage["cached_tokens"] = cached_tokens  # no constant for cached tokens
+    if total_tokens is not None:
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+
+    return usage
+
+
+def extract_message_from_part_google_genai(part, role):
+    """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
+    message = {"role": role}
+    if isinstance(part, str):
+        message["content"] = part
+        return message
+
+    text = _get_attr(part, "text", None)
+    if text:
+        message["content"] = text
+        return message
+
+    function_call = _get_attr(part, "function_call", None)
+    if function_call:
+        function_call_dict = function_call.model_dump()
+        message["tool_calls"] = [
+            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+        ]
+        return message
+
+    function_response = _get_attr(part, "function_response", None)
+    if function_response:
+        function_response_dict = function_response.model_dump()
+        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+        return message
+
+    executable_code = _get_attr(part, "executable_code", None)
+    if executable_code:
+        language = _get_attr(executable_code, "language", "UNKNOWN")
+        code = _get_attr(executable_code, "code", "")
+        message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
+        return message
+
+    code_execution_result = _get_attr(part, "code_execution_result", None)
+    if code_execution_result:
+        outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
+        output = _get_attr(code_execution_result, "output", "")
+        message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
+        return message
+
+    thought = _get_attr(part, "thought", None)
+    # thought is just a boolean indicating if the part was a thought
+    if thought:
+        message["content"] = "[thought: {}]".format(thought)
+        return message
+
+    return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
+
+
+def process_response(response):
+    messages = []
+    candidates = _get_attr(response, "candidates", [])
+    for candidate in candidates:
+        content = _get_attr(candidate, "content", None)
+        if not content:
+            continue
+        parts = _get_attr(content, "parts", [])
+        role = _get_attr(content, "role", None) or "model"
+        for part in parts:
+            message = extract_message_from_part_google_genai(part, role)
+            messages.append(message)
+    return messages
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -37,11 +165,69 @@ def extract_provider_and_model_name(kwargs):
     return "custom", model_name if model_name else "custom"
 
 
+def _join_chunks(chunks):
+    """
+    In order to make llmobs_set_tags agnostic of streamed vs non-streamed responses, this function merges
+    chunks into a single response.
+    We take in a list of GenerateContentResponse objects and return a single dict representing the object.
+    This works because _get_attr allows us to treat dicts and the response object interchangeably.
+    """
+    if not chunks:
+        return None
+
+    merged_content_by_role = {}
+
+    for chunk in chunks:
+        candidates = _get_attr(chunk, "candidates", [])
+        for candidate in candidates:
+            content = _get_attr(candidate, "content", None)
+            if not content:
+                continue
+
+            role = _get_attr(content, "role", None) or "model"
+            parts = _get_attr(content, "parts", [])
+
+            if role not in merged_content_by_role:
+                merged_content_by_role[role] = {"text": "", "non_text_parts": []}
+
+            for part in parts:
+                text = _get_attr(part, "text", None)
+                if text is not None:
+                    merged_content_by_role[role]["text"] += text
+                else:
+                    merged_content_by_role[role]["non_text_parts"].append(part)
+
+    merged_candidates = []
+    for role, content_data in merged_content_by_role.items():
+        parts = []
+
+        if content_data["text"]:
+            parts.append({"text": content_data["text"]})
+
+        parts.extend(content_data["non_text_parts"])
+
+        if parts:
+            merged_candidates.append({"content": {"role": role, "parts": parts}})
+
+    merged_response = {"candidates": merged_candidates}
+
+    if chunks:
+        last_chunk = chunks[-1]
+        usage_metadata = _get_attr(last_chunk, "usage_metadata", None)
+        if usage_metadata:
+            merged_response["usage_metadata"] = usage_metadata
+
+    return merged_response
+
+
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span):
+    def __init__(self, wrapped, integration, span, args, kwargs):
         super().__init__(wrapped)
         self._self_dd_span = span
         self._self_chunks = []
+        self._self_args = args
+        self._self_kwargs = kwargs
+        self._self_dd_integration = integration
 
 
 class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
@@ -54,6 +240,13 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._self_chunks.append(chunk)
             return chunk
         except StopIteration:
+            if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
+                self._self_dd_integration.llmobs_set_tags(
+                    self._self_dd_span,
+                    args=self._self_args,
+                    kwargs=self._self_kwargs,
+                    response=_join_chunks(self._self_chunks),
+                )
             self._self_dd_span.finish()
             raise
         except Exception:
@@ -72,6 +265,13 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._self_chunks.append(chunk)
             return chunk
         except StopAsyncIteration:
+            if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
+                self._self_dd_integration.llmobs_set_tags(
+                    self._self_dd_span,
+                    args=self._self_args,
+                    kwargs=self._self_kwargs,
+                    response=_join_chunks(self._self_chunks),
+                )
             self._self_dd_span.finish()
             raise
         except Exception:
