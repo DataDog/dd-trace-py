@@ -149,4 +149,8 @@ urlpatterns = [
     path("appsec/stacktrace_leak/", views.stacktrace_leak_view),
     path("appsec/stacktrace_leak_500/", views.stacktrace_leak_500_view),
     path("appsec/signup/", views.signup, name="signup"),
+    # CVE-2024-53908 testing endpoints
+    path("cve/insert-test-data/", views.cve_insert_test_data, name="cve_insert_test_data"),
+    path("cve/clear-database/", views.cve_clear_database, name="cve_clear_database"),
+    path("cve/lookup-key/", views.cve_lookup_key_view, name="cve_lookup_key_view"),
 ]
