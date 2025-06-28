@@ -9,6 +9,8 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -258,6 +260,18 @@ class BedrockIntegration(BaseLLMIntegration):
                 for token_type in ("input", "output", "total"):
                     if "{}Tokens".format(token_type) in usage:
                         usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
+
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
+                if cache_read_tokens is not None:
+                    usage_metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+                if cache_write_tokens is not None:
+                    usage_metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
 
             if "messageStart" in chunk:
                 message_data = chunk["messageStart"]

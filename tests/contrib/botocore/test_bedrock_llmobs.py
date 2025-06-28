@@ -405,6 +405,159 @@ class TestLLMObsBedrock:
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_prompt_caching(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
+        large_system_prompt = "Software architecture guidelines: " + "bye " * 1024
+        large_system_content = [
+            {"text": large_system_prompt},
+            {"cachePoint": {"type": "default"}},
+        ]
+        with request_vcr.use_cassette("bedrock_converse_prompt_caching.yaml"):
+            _, _ = bedrock_client.converse(
+                **create_bedrock_converse_request(
+                    system=large_system_content,
+                    user_message="What is a service",
+                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                )
+            ), bedrock_client.converse(
+                **create_bedrock_converse_request(
+                    system=large_system_content,
+                    user_message="What is a ml app",
+                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                )
+            )
+            assert len(llmobs_events) == 2
+            spans = mock_tracer.pop_traces()
+            span1, span2 = spans[0][0], spans[1][0]
+            assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+                span1,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"role": "system", "content": large_system_prompt},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"role": "user", "content": "What is a service"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={
+                    "max_tokens": 1000,
+                    "stop_reason": "end_turn",
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": 11,
+                    "output_tokens": 264,
+                    "total_tokens": 1303,
+                    "cache_write_input_tokens": 1028,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+            assert llmobs_events[1] == _expected_llmobs_llm_span_event(
+                span2,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"role": "system", "content": large_system_prompt},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"role": "user", "content": "What is a ml app"},
+                ],
+                output_messages=[{"role": "assistant", "content": mock.ANY}],
+                metadata={
+                    "max_tokens": 1000,
+                    "stop_reason": "end_turn",
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": 12,
+                    "output_tokens": 185,
+                    "total_tokens": 1225,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 1028,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        """Test that prompt caching metrics are properly captured for streamed converse responses."""
+        large_system_prompt = "Software architecture guidelines: " + "hello " * 1024
+        large_system_content = [
+            {"text": large_system_prompt},
+            {"cachePoint": {"type": "default"}},
+        ]
+        with request_vcr.use_cassette("bedrock_converse_stream_prompt_caching.yaml"):
+            stream_1 = bedrock_client.converse_stream(
+                **create_bedrock_converse_request(
+                    system=large_system_content,
+                    user_message="What is a service",
+                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                )
+            )
+            for _ in stream_1["stream"]:
+                pass
+            stream_2 = bedrock_client.converse_stream(
+                **create_bedrock_converse_request(
+                    system=large_system_content,
+                    user_message="What is a ml app",
+                    modelId="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                )
+            )
+            for _ in stream_2["stream"]:
+                pass
+
+            assert len(llmobs_events) == 2
+            spans = mock_tracer.pop_traces()
+            span1, span2 = spans[0][0], spans[1][0]
+
+            assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+                span1,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": large_system_prompt, "role": "system"},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"content": "What is a service", "role": "user"},
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": 11,
+                    "output_tokens": 236,
+                    "total_tokens": 1275,
+                    "cache_write_input_tokens": 1028,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+            assert llmobs_events[1] == _expected_llmobs_llm_span_event(
+                span2,
+                model_name="claude-3-7-sonnet-20250219-v1:0",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": large_system_prompt, "role": "system"},
+                    {"role": "system", "content": "[Unsupported content type: cachePoint]"},
+                    {"content": "What is a ml app", "role": "user"},
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                },
+                token_metrics={
+                    "input_tokens": 12,
+                    "output_tokens": 250,
+                    "total_tokens": 1290,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 1028,
+                },
+                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            )
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
