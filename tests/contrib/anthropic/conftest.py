@@ -80,6 +80,13 @@ def anthropic(ddtrace_global_config, ddtrace_config_anthropic):
                 unpatch()
 
 
+@pytest.fixture
+def anthropic_with_test_agent_backend(anthropic):
+    return anthropic.Anthropic(
+        api_key=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"), base_url="http://127.0.0.1:9126/vcr/anthropic"
+    )
+
+
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr()

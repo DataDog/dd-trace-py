@@ -38,6 +38,8 @@ CREWAI_APM_SPAN_NAME = "crewai.request"
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"
+CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
+CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
