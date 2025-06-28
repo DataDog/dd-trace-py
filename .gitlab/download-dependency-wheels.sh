@@ -24,3 +24,11 @@ export PYTHONUNBUFFERED=TRUE
     --platform manylinux2014 \
     --output-dir ../pywheels-dep \
     --verbose
+
+../lib-injection/dl_wheels.py \
+    --python-version=$PYTHON_VERSION \
+    --local-ddtrace \
+    --arch arm64 \
+    --platform macosx_12_0 \
+    --output-dir ../pywheels-dep \
+    --verbose

@@ -1,8 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
-if [ "$OS" != "linux" ]; then
-  echo "Only linux packages are supported. Exiting"
+if [ "$OS" != "linux" ] && [ "$OS" != "darwin" ]; then
+  echo "Only linux or darwin packages are supported. Exiting"
   exit 0
 fi
 
@@ -31,15 +31,32 @@ BUILD_DIR=sources
 
 echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 
-echo "Cleaning up binaries for ${ARCH}"
-if [ "${ARCH}" == "arm64" ]; then
-  echo "Removing x86_64 binaries"
-  find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
-elif [ "${ARCH}" == "amd64" ]; then
-  echo "Removing aarch64 binaries"
-  find ../pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
-else
-  echo "No ARCH set, not removing any binaries"
+if [ "$OS" == "linux" ]; then
+  echo "Cleaning up binaries for Linux ${ARCH}"
+  echo "Removing Darwin binaries"
+  find ../pywheels-dep/ -type f -name '*macosx*' -exec rm -f {} \;
+  if [ "${ARCH}" == "arm64" ]; then
+    echo "Removing x86_64 binaries"
+    find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
+  elif [ "${ARCH}" == "amd64" ]; then
+    echo "Removing aarch64 binaries"
+    find ../pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
+  else
+    echo "No ARCH set, not removing any binaries"
+  fi
+elif [ "$OS" == "darwin" ]; then
+  echo "Cleaning up binaries for Darwin ${ARCH}"
+  echo "Removing Linux binaries"
+  find ../pywheels-dep/ -type f -name '*linux*' -exec rm -f {} \;
+  if [ "${ARCH}" == "arm64" ]; then
+    echo "Removing x86_64 binaries"
+    find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
+  elif [ "${ARCH}" == "amd64" ]; then
+    echo "Removing arm64 binaries"
+    find ../pywheels-dep/ -type f -name '*arm64*' -exec rm -f {} \;
+  else
+    echo "No ARCH set, not removing any binaries"
+  fi
 fi
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
