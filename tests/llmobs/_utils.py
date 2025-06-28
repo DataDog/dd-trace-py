@@ -259,9 +259,11 @@ def _expected_llmobs_eval_metric_event(
     categorical_value=None,
     score_value=None,
     numerical_value=None,
+    boolean_value=None,
     tags=None,
     metadata=None,
 ):
+    """Helper function to create an expected evaluation metric event."""
     eval_metric_event = {
         "join_on": {},
         "metric_type": metric_type,
@@ -281,6 +283,8 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if boolean_value is not None:
+        eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
     if timestamp_ms is not None:

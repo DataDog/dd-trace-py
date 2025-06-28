@@ -1231,7 +1231,7 @@ class LLMObs(Service):
         cls,
         label: str,
         metric_type: str,
-        value: Union[str, int, float],
+        value: Union[str, int, float, bool],
         span: Optional[dict] = None,
         span_with_tag_value: Optional[Dict[str, str]] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -1243,9 +1243,9 @@ class LLMObs(Service):
         Submits a custom evaluation metric for a given span.
 
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), or float (score).
+                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
@@ -1259,8 +1259,8 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. ",
-                "Evaluation metric data will not be sent.",
+                "LLMObs.submit_evaluation_for() called when LLMObs is not enabled. "
+                "Evaluation metric data will not be sent."
             )
             return
 
@@ -1307,16 +1307,24 @@ class LLMObs(Service):
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
                 error = "invalid_timestamp"
-                raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
+                return
 
             if not label:
                 error = "invalid_metric_label"
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
-            metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score"):
+            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical' or 'score'.")
+                raise ValueError("metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'.")
+
+            metric_type = metric_type.lower()
+            if metric_type == "numerical":
+                log.warning(
+                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                    "Converting 'numerical' metric to 'score' type."
+                )
+                metric_type = "score"
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -1324,8 +1332,12 @@ class LLMObs(Service):
             if metric_type == "score" and not isinstance(value, (int, float)):
                 error = "invalid_metric_value"
                 raise TypeError("value must be an integer or float for a score metric.")
+            if metric_type == "boolean" and not isinstance(value, bool):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
+                error = "invalid_tags"
                 log.warning("tags must be a dictionary of string key-value pairs.")
                 tags = {}
 
@@ -1380,7 +1392,7 @@ class LLMObs(Service):
         span_context: Dict[str, str],
         label: str,
         metric_type: str,
-        value: Union[str, int, float],
+        value: Union[str, int, float, bool],
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -1389,31 +1401,76 @@ class LLMObs(Service):
         """
         Submits a custom evaluation metric for a given span ID and trace ID.
 
-        :param span_context: A dictionary containing the span_id and trace_id of interest.
+        :param dict span_context: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
+                            the span associated with this evaluation.
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), or float (score).
+                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
-        :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
+        :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
+                                 If not set, the current time will be used.
         :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
                                 evaluation metric.
         """
         if cls.enabled is False:
             log.debug(
-                "LLMObs.submit_evaluation() called when LLMObs is not enabled. Evaluation metric data will not be sent."
+                "LLMObs.submit_evaluation() called when LLMObs is not enabled. "
+                "Evaluation metric data will not be sent."
             )
             return
+
         error = None
         try:
-            if not isinstance(span_context, dict):
+            if (
+                not isinstance(span_context, dict)
+                or not isinstance(span_context.get("span_id"), str)
+                or not isinstance(span_context.get("trace_id"), str)
+            ):
                 error = "invalid_span"
-                log.warning(
-                    "span_context must be a dictionary containing both span_id and trace_id keys. "
+                raise TypeError(
+                    "`span_context` must be a dictionary containing both span_id and trace_id keys. "
                     "LLMObs.export_span() can be used to generate this dictionary from a given span."
                 )
+
+            timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
+
+            if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
+                error = "invalid_timestamp"
+                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
                 return
+
+            if not label:
+                error = "invalid_metric_label"
+                raise ValueError("label must be the specified name of the evaluation metric.")
+
+            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
+                error = "invalid_metric_type"
+                raise ValueError("metric_type must be one of 'categorical', 'numerical', 'score', or 'boolean'.")
+
+            metric_type = metric_type.lower()
+            if metric_type == "numerical":
+                log.warning(
+                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
+                    "Converting 'numerical' metric to 'score' type."
+                )
+                metric_type = "score"
+
+            if metric_type == "categorical" and not isinstance(value, str):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a string for a categorical metric.")
+            if metric_type == "score" and not isinstance(value, (int, float)):
+                error = "invalid_metric_value"
+                raise TypeError("value must be an integer or float for a score metric.")
+            if metric_type == "boolean" and not isinstance(value, bool):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a boolean for a boolean metric.")
+
+            if tags is not None and not isinstance(tags, dict):
+                error = "invalid_tags"
+                log.warning("tags must be a dictionary of string key-value pairs.")
+                tags = {}
 
             ml_app = ml_app if ml_app else config._llmobs_ml_app
             if not ml_app:
@@ -1424,54 +1481,6 @@ class LLMObs(Service):
                 )
                 return
 
-            timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
-
-            if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
-                error = "invalid_timestamp"
-                log.warning("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
-                return
-
-            span_id = span_context.get("span_id")
-            trace_id = span_context.get("trace_id")
-            if not (span_id and trace_id):
-                error = "invalid_span"
-                log.warning(
-                    "span_id and trace_id must both be specified for the given evaluation metric to be submitted."
-                )
-                return
-            if not label:
-                error = "invalid_metric_label"
-                log.warning("label must be the specified name of the evaluation metric.")
-                return
-
-            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
-                error = "invalid_metric_type"
-                log.warning("metric_type must be one of 'categorical' or 'score'.")
-                return
-
-            metric_type = metric_type.lower()
-            if metric_type == "numerical":
-                error = "invalid_metric_type"
-                log.warning(
-                    "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-                    "Converting `numerical` metric to `score` type."
-                )
-                metric_type = "score"
-
-            if metric_type == "categorical" and not isinstance(value, str):
-                error = "invalid_metric_value"
-                log.warning("value must be a string for a categorical metric.")
-                return
-            if metric_type == "score" and not isinstance(value, (int, float)):
-                error = "invalid_metric_value"
-                log.warning("value must be an integer or float for a score metric.")
-                return
-            if tags is not None and not isinstance(tags, dict):
-                error = "invalid_tags"
-                log.warning("tags must be a dictionary of string key-value pairs.")
-                return
-
-            # initialize tags with default values that will be overridden by user-provided tags
             evaluation_tags = {
                 "ddtrace.version": ddtrace.__version__,
                 "ml_app": ml_app,
@@ -1486,9 +1495,9 @@ class LLMObs(Service):
                         log.warning("Failed to parse tags. Tags for evaluation metrics must be strings.")
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
-                "join_on": {"span": {"span_id": span_id, "trace_id": trace_id}},
+                "join_on": {"span": {"span_id": span_context["span_id"], "trace_id": span_context["trace_id"]}},
                 "label": str(label),
-                "metric_type": metric_type.lower(),
+                "metric_type": metric_type,
                 "timestamp_ms": timestamp_ms,
                 "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
