@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Add `anthropic.request.user_id` tag to Anthropic spans from `metadata.user_id` parameter.
