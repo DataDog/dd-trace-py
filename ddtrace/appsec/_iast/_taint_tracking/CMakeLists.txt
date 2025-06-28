@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
+cmake_policy(SET CMP0148 OLD)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
@@ -44,6 +44,10 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
     message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
+    include(FetchContent)
+    set(FETCHCONTENT_BASE_DIR
+        ${CMAKE_BINARY_DIR}/_deps
+        CACHE PATH "Dependency cache dir")
     FetchContent_Declare(absl URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip")
     FetchContent_MakeAvailable(absl)
 endif()
@@ -73,6 +77,9 @@ file(
 # 'i18n' for the internationalization library include_directories(${ICU_INCLUDE_DIRS}) list(APPEND ICU_LIBS
 # ${ICU_LIBRARIES})
 
+find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
+find_package(pybind11 CONFIG REQUIRED)
 # Debug messages
 message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
@@ -80,7 +87,6 @@ message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
-add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
