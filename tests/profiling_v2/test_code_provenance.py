@@ -116,3 +116,8 @@ class TestCodeProvenance:
 
         for path in stdlib_paths:
             assert path.startswith("<frozen") or path == sysconfig.get_path("stdlib")
+
+    def test_main_package_my_code(self):
+        # TODO: set DD_MAIN_PACKAGE to something and confirm that the package
+        # does not have a "kind" in the code provenance
+        pass
