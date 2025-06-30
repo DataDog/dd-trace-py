@@ -6,6 +6,7 @@ experiments:
       - name: SLO breach check
         run: fail_on_breach
         warning_range: 7
+        breach_threshold: 1.0
         scenarios:
           - name: flasksimple-tracer
             thresholds:
