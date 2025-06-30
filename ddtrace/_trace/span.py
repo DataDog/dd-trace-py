@@ -608,7 +608,7 @@ class Span(object):
         exception: BaseException,
         attributes: Optional[Dict[str, _AttributeValueType]] = None,
         timestamp: Optional[int] = None,
-        escaped=False,
+        escaped: bool = False,
     ) -> None:
         """
         Records an exception as a span event. Multiple exceptions can be recorded on a span.
@@ -623,14 +623,16 @@ class Span(object):
         if escaped:
             deprecate(
                 prefix="The escaped argument is deprecated for record_exception",
-                message="escaped argument has no effect",
+                message="""If an exception exits the scope of the span, it will automatically be
+                reported in the span tags.""",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
-        if timestamp:
+        if timestamp is not None:
             deprecate(
                 prefix="The timestamp argument is deprecated for record_exception",
-                message="timestamp argument has no effect",
+                message="""The timestamp of the span event should correspond to the time when the
+                error is recorded which is set automatically.""",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
