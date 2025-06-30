@@ -214,8 +214,8 @@ class CIVisibilityWriter(HTTPWriter):
 
         return response
 
-    def flush_queue(self):
-        # type: () -> None
+    def flush_queue(self, raise_exc=False):
+        # type: (bool) -> None
         if not self._clients:
             return
 
@@ -226,8 +226,10 @@ class CIVisibilityWriter(HTTPWriter):
                     if not payload or count == 0:
                         break
 
-                    headers = self._get_http_headers(client)
+                    headers = self._get_finalized_headers(count, client)
                     self._put(payload, headers, client, no_trace=True)
                 except Exception:
                     log.error("Failed to flush queue for client %r", client, exc_info=True)
+                    if raise_exc:
+                        raise
                     break
