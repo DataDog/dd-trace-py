@@ -279,6 +279,7 @@ def test_snapshot_skip():
 @pytest.mark.snapshot()
 def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
     from ddtrace import tracer
+
     with override_global_config(dict(_trace_api=encoding)):
         s = tracer.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
