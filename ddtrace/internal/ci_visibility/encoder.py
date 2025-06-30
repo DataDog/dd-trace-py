@@ -49,8 +49,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
+        self._metadata = {}  # type: Dict[str, Dict[str, str]]
         self._lock = threading.RLock()
-        self._metadata = {}
+        self._is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
         self._init_buffer()
 
     def __len__(self):
@@ -91,71 +92,74 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return 0
 
     def _build_payload(self, traces):
+        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
         new_parent_session_span_id = self._get_parent_session(traces)
-        is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
 
-        # Convert all traces to spans
-        all_spans_with_trace_info = []
-        for trace_idx, trace in enumerate(traces):
-            trace_spans = [
-                self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
-                for span in trace
-                if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
-            ]
-            all_spans_with_trace_info.append((trace_idx, trace_spans))
-
-        # Count all traces (including those with no spans after filtering)
+        # Convert all traces to spans with filtering
+        all_spans_with_trace_info = self._convert_traces_to_spans(traces, new_parent_session_span_id)
         total_traces = len(traces)
 
         # Get all spans (flattened)
-        all_spans = []
-        for _, trace_spans in all_spans_with_trace_info:
-            all_spans.extend(trace_spans)
+        all_spans = [span for _, trace_spans in all_spans_with_trace_info for span in trace_spans]
 
         if not all_spans:
             log.debug("No spans to encode after filtering, returning empty payload")
             return None, total_traces
 
-        # Try to fit all spans first
-        payload = CIVisibilityEncoderV01._pack_payload(
-            {
-                "version": self.PAYLOAD_FORMAT_VERSION,
-                "metadata": self._metadata,
-                "events": all_spans,
-            }
-        )
-
+        # Try to fit all spans first (optimistic case)
+        payload = self._create_payload_from_spans(all_spans)
         if len(payload) <= self._MAX_PAYLOAD_SIZE:
-            # All traces fit, we're done
             record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
             return payload, total_traces
 
-        # Payload is too big, bisect to find the maximum number of traces that fit
+        # Payload is too big, use binary search to find the maximum number of traces that fit
+        best_traces_count, best_spans = self._find_max_traces_that_fit(traces, all_spans_with_trace_info)
+
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(best_spans))
+        return self._create_payload_from_spans(best_spans), best_traces_count
+
+    def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
+        # type: (List[List[Span]], Optional[int]) -> List[Tuple[int, List[Dict[str, Any]]]]
+        """Convert all traces to spans with xdist filtering applied."""
+        all_spans_with_trace_info = []
+        for trace_idx, trace in enumerate(traces):
+            trace_spans = [
+                self._convert_span(span, trace[0].context.dd_origin or "", new_parent_session_span_id)
+                for span in trace
+                if self._is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE
+            ]
+            all_spans_with_trace_info.append((trace_idx, trace_spans))
+
+        return all_spans_with_trace_info
+
+    def _create_payload_from_spans(self, spans):
+        # type: (List[Dict[str, Any]]) -> bytes
+        """Create a payload from the given spans."""
+        return CIVisibilityEncoderV01._pack_payload(
+            {
+                "version": self.PAYLOAD_FORMAT_VERSION,
+                "metadata": self._metadata,
+                "events": spans,
+            }
+        )
+
+    def _find_max_traces_that_fit(self, traces, all_spans_with_trace_info):
+        # type: (List[List[Span]], List[Tuple[int, List[Dict[str, Any]]]]) -> Tuple[int, List[Dict[str, Any]]]
+        """Use binary search to find the maximum number of traces that fit within the payload size limit."""
         left, right = 1, len(traces)
         best_traces_count = 1  # At minimum, include 1 trace to avoid infinite loops
         best_spans = []
 
         while left <= right:
             mid = (left + right) // 2
-
-            # Collect spans for the first 'mid' traces
-            spans_subset = []
-            for i in range(mid):
-                _, trace_spans = all_spans_with_trace_info[i]
-                spans_subset.extend(trace_spans)
+            spans_subset = self._get_spans_for_traces(all_spans_with_trace_info, mid)
 
             if not spans_subset:
                 # No spans in this subset, try with more traces
                 left = mid + 1
                 continue
 
-            test_payload = CIVisibilityEncoderV01._pack_payload(
-                {
-                    "version": self.PAYLOAD_FORMAT_VERSION,
-                    "metadata": self._metadata,
-                    "events": spans_subset,
-                }
-            )
+            test_payload = self._create_payload_from_spans(spans_subset)
 
             if len(test_payload) <= self._MAX_PAYLOAD_SIZE:
                 # This fits, try with more traces
@@ -166,18 +170,16 @@ class CIVisibilityEncoderV01(BufferedEncoder):
                 # This is too big, try with fewer traces
                 right = mid - 1
 
-        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(best_spans))
+        return best_traces_count, best_spans
 
-        return (
-            CIVisibilityEncoderV01._pack_payload(
-                {
-                    "version": self.PAYLOAD_FORMAT_VERSION,
-                    "metadata": self._metadata,
-                    "events": best_spans,
-                }
-            ),
-            best_traces_count,
-        )
+    def _get_spans_for_traces(self, all_spans_with_trace_info, num_traces):
+        # type: (List[Tuple[int, List[Dict[str, Any]]]], int) -> List[Dict[str, Any]]
+        """Get all spans for the first num_traces traces."""
+        spans_subset = []
+        for i in range(num_traces):
+            _, trace_spans = all_spans_with_trace_info[i]
+            spans_subset.extend(trace_spans)
+        return spans_subset
 
     @staticmethod
     def _pack_payload(payload):
