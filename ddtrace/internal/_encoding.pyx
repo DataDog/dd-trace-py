@@ -1,5 +1,7 @@
 from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
+from .._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace._trace._limits import TRUNCATED_SPAN_ATTRIBUTE_LEN
 from libc cimport stdint
 from libc.string cimport strlen
 
