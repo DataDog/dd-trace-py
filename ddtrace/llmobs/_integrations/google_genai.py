@@ -77,27 +77,22 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_input_message(self, args, kwargs, config):
         messages = []
+        
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
-            normalized_sys = normalize_contents(system_instruction)
-
-            for content in normalized_sys:
-                role = content.get("role") or "system"
-                parts = content.get("parts", [])
-
-                for part in parts:
-                    message = extract_message_from_part_google_genai(part, role)
-                    messages.append(message)
-        # user input messages
+            messages.extend(self._extract_messages_from_contents(system_instruction, "system"))
+        
         contents = get_argument_value(args, kwargs, -1, "contents")
-        normalized_contents = normalize_contents(contents)
-        for content in normalized_contents:
-            role = content.get("role") or "user"
-            parts = content.get("parts", [])
+        messages.extend(self._extract_messages_from_contents(contents, "user"))
+        
+        return messages
 
-            for part in parts:
-                message = extract_message_from_part_google_genai(part, role)
-                messages.append(message)
+    def _extract_messages_from_contents(self, contents, default_role):
+        messages = []
+        for content in normalize_contents(contents):
+            role = content.get("role") or default_role
+            for part in content.get("parts", []):
+                messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
     def _extract_output_message(self, response):
