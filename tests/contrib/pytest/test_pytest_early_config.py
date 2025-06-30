@@ -2,6 +2,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
@@ -12,6 +13,8 @@ _TEST_PASS_CONTENT = """
 def test_func_pass():
     assert True
 """
+
+pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
 
 
 class PytestEarlyConfigTestCase(PytestTestCaseBase):
