@@ -209,7 +209,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
-    if not _is_enabled_early(early_config):
+    if not _is_enabled_early(early_config, args):
         return
 
     try:
