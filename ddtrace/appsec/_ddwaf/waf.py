@@ -5,6 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Set
 from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
@@ -77,6 +78,8 @@ class DDWaf(WAF):
             )
         self._default_ruleset = ruleset_map_object
         metrics.ddwaf_version = version()
+        self._rc_products: Dict[str, Set[str]] = {}
+        self._rc_products_str: str = ""
 
     @property
     def required_data(self) -> List[str]:
@@ -115,9 +118,13 @@ class DDWaf(WAF):
         ok = True
         for product, path in removals:
             ok &= py_remove_config(self._builder, path)
+            self._rc_products.get(product, set()).discard(path)
             if product == "ASM_DD":
                 self._asm_dd_cache.discard(path)
         for product, path, rules in updates:
+            if product not in self._rc_products:
+                self._rc_products[product] = set()
+            self._rc_products[product].add(path)
             if product == "ASM_DD":
                 if ASM_DD_DEFAULT in self._asm_dd_cache:
                     # we need to remove the default ruleset before adding the new one
@@ -138,6 +145,7 @@ class DDWaf(WAF):
             ddwaf_object_free(diagnostics)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
+        self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in self._rc_products.items() if v)
         if new_handle:
             self._handle = new_handle
         return ok
@@ -146,6 +154,7 @@ class DDWaf(WAF):
         ctx = None
         if self._handle:
             ctx = py_ddwaf_context_init(self._handle)
+            ctx.rc_products = self._rc_products_str
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
