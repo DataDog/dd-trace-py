@@ -484,7 +484,7 @@ class LangChainIntegration(BaseLLMIntegration):
             tokens_set_top_level = total_tokens > 0
 
         tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        for message_set in chat_completions.generations:
+        for message_set in getattr(chat_completions, "generations", []):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
