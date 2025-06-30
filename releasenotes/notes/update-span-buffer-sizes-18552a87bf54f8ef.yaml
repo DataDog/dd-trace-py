@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    - Increase ``DD_TRACE_BUFFER_SIZE_BYTES`` default value to 30MB to avoid potential OOMs under heavy load situations.
+    - Decrease ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` to 200.
