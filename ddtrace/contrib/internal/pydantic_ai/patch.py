@@ -34,10 +34,8 @@ def _supported_versions() -> Dict[str, str]:
 @with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None))
-    integration.register_span(span, "agent")
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
-    span._set_ctx_item(SPAN_KIND, "agent")
 
     result = func(*args, **kwargs)
     return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
@@ -48,10 +46,8 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     resp = None
     try:
-        span = integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True)
-        integration.register_span(span, "tool")
+        span = integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True, kind="tool")
         span.name = getattr(instance, "name", None) or "Pydantic Tool"
-        span._set_ctx_item(SPAN_KIND, "tool")
         resp = await func(*args, **kwargs)
         return resp
     except Exception:

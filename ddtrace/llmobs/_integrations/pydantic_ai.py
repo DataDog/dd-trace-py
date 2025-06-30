@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.trace import Pin
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._llmobs import LLMObs
@@ -29,6 +30,14 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
     _running_agents = {} # dictionary mapping agent span ID to tool span ID(s)
     _latest_agent = None # str representing the span ID of the latest agent that was started
+
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        kind = kwargs.get("kind", None)
+        if kind:
+            self._register_span(span, kind)
+            span._set_ctx_item(SPAN_KIND, kind)
+        return span
 
     def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs) -> None:
         if model:
@@ -91,7 +100,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 })
         return span_links
     
-    def register_span(self, span: Span, kind: str) -> None:
+    def _register_span(self, span: Span, kind: str) -> None:
         if kind == "agent":
             self._register_agent(span)
         elif kind == "tool":
