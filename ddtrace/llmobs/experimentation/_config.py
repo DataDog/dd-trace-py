@@ -10,10 +10,12 @@ from .utils._exceptions import ConfigurationError
 # Default configuration values
 MAX_DATASET_ROWS = 50000
 MAX_PROGRESS_BAR_WIDTH = 40
-DEFAULT_CHUNK_SIZE = 100 # TODO:Start from max payload size (65mb) and put as much per chunk as possible, instead of elements per chunk
+DEFAULT_CHUNK_SIZE = (
+    100  # TODO:Start from max payload size (65mb) and put as much per chunk as possible, instead of elements per chunk
+)
 DEFAULT_CONCURRENT_JOBS = 10
 FLUSH_EVERY = 10
-API_PROCESSING_TIME_SLEEP = 6 # Based on events processor median processing time
+API_PROCESSING_TIME_SLEEP = 6  # Based on events processor median processing time
 DEFAULT_ML_APP: str = "dne"
 DEFAULT_PROJECT_NAME: str = "Default Project"
 
@@ -37,6 +39,7 @@ _RUN_LOCALLY = False
 _ML_APP = None
 
 log = get_logger(__name__)
+
 
 # Derived values
 def get_api_base_url() -> str:
@@ -90,8 +93,7 @@ def init(
     """
     from .utils._ui import Color
 
-    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, \
-           _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY, _ML_APP
+    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY, _ML_APP
 
     if run_locally:
         _RUN_LOCALLY = True
@@ -118,15 +120,14 @@ def init(
     if site is None:
         site = os.getenv("DD_SITE")
         if site is None:
-             raise ConfigurationError(
-                 "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
-             )
+            raise ConfigurationError(
+                "DD_SITE environment variable is not set, please set it or pass it as an argument to init(...site=...)"
+            )
 
     if site not in VALID_DD_SITES:
         raise ConfigurationError(
             f"Invalid Datadog site '{site}' provided. Must be one of: {', '.join(sorted(VALID_DD_SITES))}"
         )
-
 
     if not _IS_INITIALIZED:
         trace_enabled_env = os.getenv("DD_TRACE_ENABLED")
@@ -136,7 +137,6 @@ def init(
                 f"{Color.YELLOW}Warning: APM tracing is disabled by default for LLM Experiments. Only LLM Observability tracing is enabled. "
                 f"To enable APM tracing, set the DD_TRACE_ENABLED=true environment variable.{Color.RESET}"
             )
-
 
         LLMObs.enable(
             ml_app=ml_app,

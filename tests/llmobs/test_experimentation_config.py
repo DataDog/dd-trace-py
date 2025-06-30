@@ -10,6 +10,7 @@ from ddtrace.llmobs.experimentation.utils._exceptions import ConfigurationError
 
 # --- Fixture to Reset Global Config State ---
 
+
 @pytest.fixture(autouse=True)
 def reset_config_state():
     """Resets global configuration state before each test."""
@@ -26,6 +27,7 @@ def reset_config_state():
 
 
 # --- Test Class ---
+
 
 class TestExperimentationConfig:
     """Tests for the configuration functions in _config.py."""
@@ -298,20 +300,16 @@ class TestExperimentationConfig:
                 config.init()
 
         # API key and App key set, but no site
-        with patch.dict(
-            os.environ,
-            {"DD_API_KEY": self.API_KEY, "DD_APP_KEY": self.APP_KEY},
-            clear=True
-        ):
+        with patch.dict(os.environ, {"DD_API_KEY": self.API_KEY, "DD_APP_KEY": self.APP_KEY}, clear=True):
             with pytest.raises(ConfigurationError, match="DD_SITE .* not set"):
                 config.init()
 
     def test_init_with_deprecated_application_key_env_var_still_works(self):
         """Test init() uses default ml_app/project_name constants when env vars are present."""
         with patch.dict(
-                os.environ,
-                {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY, "DD_SITE": self.SITE},
-                clear=True,
+            os.environ,
+            {"DD_API_KEY": self.API_KEY, "DD_APPLICATION_KEY": self.APP_KEY, "DD_SITE": self.SITE},
+            clear=True,
         ):
             with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
                 config.init()

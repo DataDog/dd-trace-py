@@ -292,7 +292,12 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
         payloads = []
         for event in events:
-            data = {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
+            data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
             if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
                 data["_dd.scope"] = "experiments"
             payloads.append(data)

@@ -327,6 +327,8 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+
 class HTTPResponse:
     def __init__(self, resp) -> None:
         if resp is None:

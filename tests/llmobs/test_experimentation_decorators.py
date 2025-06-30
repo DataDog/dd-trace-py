@@ -16,7 +16,7 @@ def simple_task_func(input: Dict[str, Union[str, Dict[str, Any]]]) -> str:
 
 def task_func_with_config(input: Dict[str, Union[str, Dict[str, Any]]], config: Optional[Dict[str, Any]] = None) -> str:
     """A task function that accepts input and config."""
-    cfg_val = config.get('setting', 'default') if config else 'default'
+    cfg_val = config.get("setting", "default") if config else "default"
     return f"Processed: {input.get('data', '')} with config: {cfg_val}"
 
 
@@ -55,7 +55,7 @@ class TestExperimentationDecorators:
         decorated_task = decorators.task(simple_task_func)
         assert callable(decorated_task)
         assert getattr(decorated_task, "_is_task", False) is True
-        assert getattr(decorated_task, "_accepts_config", True) is False # Decorator should detect no 'config' param
+        assert getattr(decorated_task, "_accepts_config", True) is False  # Decorator should detect no 'config' param
 
         test_input = {"data": "test_data"}
         result = decorated_task(input=test_input)
@@ -70,7 +70,7 @@ class TestExperimentationDecorators:
         decorated_task = decorators.task(task_func_with_config)
         assert callable(decorated_task)
         assert getattr(decorated_task, "_is_task", False) is True
-        assert getattr(decorated_task, "_accepts_config", False) is True # Decorator should detect 'config' param
+        assert getattr(decorated_task, "_accepts_config", False) is True  # Decorator should detect 'config' param
 
         # Calling without config should use default/None
         test_input = {"data": "abc"}
@@ -83,19 +83,21 @@ class TestExperimentationDecorators:
 
     def test_task_decorator_missing_input_param(self):
         """Test @task raises TypeError if 'input' parameter is missing."""
-        def invalid_task_func(data: str): # Missing 'input' param
-             return data
+
+        def invalid_task_func(data: str):  # Missing 'input' param
+            return data
 
         with pytest.raises(TypeError, match="Task function must have an 'input' parameter."):
             decorators.task(invalid_task_func)
 
     def test_task_decorator_reserved_name(self):
         """Test @task raises NameError if function name is 'task'."""
-        def task(input: Dict[str, Any]): # Function name 'task' is reserved
-             return input
+
+        def task(input: Dict[str, Any]):  # Function name 'task' is reserved
+            return input
 
         with pytest.raises(NameError, match="Function name 'task' is reserved."):
-             decorators.task(task)
+            decorators.task(task)
 
     # @evaluator Decorator Tests
 
@@ -113,14 +115,15 @@ class TestExperimentationDecorators:
 
     def test_evaluator_decorator_missing_params(self):
         """Test @evaluator raises TypeError if required parameters are missing."""
+
         def invalid_eval_missing_input(output: str, expected_output: str):
-             return {"score": 0.0}
+            return {"score": 0.0}
 
         def invalid_eval_missing_output(input: str, expected_output: str):
-             return {"score": 0.0}
+            return {"score": 0.0}
 
         def invalid_eval_missing_expected(input: str, output: str):
-             return {"score": 0.0}
+            return {"score": 0.0}
 
         expected_error_msg = "Evaluator function must have parameters \\['input', 'output', 'expected_output'\\]"
 
@@ -133,6 +136,7 @@ class TestExperimentationDecorators:
 
     def test_evaluator_decorator_extra_params(self):
         """Test @evaluator works correctly even with extra parameters."""
+
         def evaluator_with_extra(input: str, output: str, expected_output: str, extra_arg: bool = False):
             return {"score": 1.0 if not extra_arg else 0.5}
 
@@ -164,7 +168,7 @@ class TestExperimentationDecorators:
             {"idx": 1, "evaluations": {"score": {"value": 0.5, "error": None}}},
         ]
         result = decorated_summary(outputs=outputs, evaluations=evaluations)
-        assert result == 0.75 # (1.0 + 0.5) / 2
+        assert result == 0.75  # (1.0 + 0.5) / 2
 
     def test_summary_metric_decorator_dict_return(self):
         """Test @summary_metric on a function returning a dict."""
@@ -179,10 +183,12 @@ class TestExperimentationDecorators:
 
     def test_summary_metric_decorator_missing_params(self):
         """Test @summary_metric raises TypeError if required parameters are missing."""
+
         def invalid_summary_missing_outputs(evaluations: List[Dict]):
-             return 0.0
+            return 0.0
+
         def invalid_summary_missing_evals(outputs: List[Dict]):
-             return 0.0
+            return 0.0
 
         expected_error_msg = "Summary metric function must have parameters \\['outputs', 'evaluations'\\]"
 
@@ -193,6 +199,7 @@ class TestExperimentationDecorators:
 
     def test_summary_metric_decorator_extra_params(self):
         """Test @summary_metric works correctly even with extra parameters."""
+
         def summary_with_extra(outputs: List[Dict], evaluations: List[Dict], extra_arg: bool = False):
             return 1.0 if not extra_arg else 0.5
 
@@ -204,4 +211,4 @@ class TestExperimentationDecorators:
         outputs = []
         evaluations = []
         result = decorated_summary(outputs=outputs, evaluations=evaluations)
-        assert result == 1.0 # Should use default extra_arg=False
+        assert result == 1.0  # Should use default extra_arg=False

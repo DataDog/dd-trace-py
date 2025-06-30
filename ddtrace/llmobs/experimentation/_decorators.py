@@ -65,6 +65,7 @@ def summary_metric(_func=None, *, primary: bool = False):
     - A single value (int, float, bool, str) to be pushed using the function's name as the metric name.
     - A dictionary of {metric_name: value} pairs to be pushed.
     """
+
     # This inner function is the actual decorator logic
     def decorator(func):
         @wraps(func)

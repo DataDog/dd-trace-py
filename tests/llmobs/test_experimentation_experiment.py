@@ -19,16 +19,16 @@ from ddtrace.llmobs.experimentation.utils._ui import Color
 
 
 # Hardcoded VCR credentials (replace for recording)
-DD_APPLICATION_KEY="replace-when-recording"
-DD_API_KEY="replace-when-recording"
-DD_SITE="us3.datadoghq.com"
+DD_APPLICATION_KEY = "replace-when-recording"
+DD_API_KEY = "replace-when-recording"
+DD_SITE = "us3.datadoghq.com"
 
 
 def scrub_response_headers(response):
     headers_to_remove = ["content-security-policy", "strict-transport-security", "set-cookie"]
     for header in headers_to_remove:
         response["headers"].pop(header, None)
-    response["headers"]["content-length"] = ["100"] # Mock content length for stability
+    response["headers"]["content-length"] = ["100"]  # Mock content length for stability
     return response
 
 
@@ -51,25 +51,28 @@ def init_llmobs(experiments_vcr):
     app_key = DD_APPLICATION_KEY
     try:
         dne.init(
-            ml_app="test-exp-app", # Provide the required ML application name
+            ml_app="test-exp-app",  # Provide the required ML application name
             project_name="Test-Project-Experiment",
             api_key=api_key,
             application_key=app_key,
-            site=DD_SITE
+            site=DD_SITE,
         )
     except Exception as e:
         pytest.skip(f"Skipping LLMObs tests: Initialization failed - {e}")
 
+
 # --- Test Fixtures for Experiment ---
+
 
 @pytest.fixture
 def simple_dataset_data():
     # Use identical input / expected_output so the simple_match_evaluator
     # returns `True` for every record (many tests expect a 100 % "pass" rate).
     return [
-        {"input": "What is 1+1?",           "expected_output": "What is 1+1?"},
-        {"input": "Capital of France?",     "expected_output": "Capital of France?"},
+        {"input": "What is 1+1?", "expected_output": "What is 1+1?"},
+        {"input": "Capital of France?", "expected_output": "Capital of France?"},
     ]
+
 
 @pytest.fixture
 def simple_local_dataset(simple_dataset_data):
@@ -77,6 +80,7 @@ def simple_local_dataset(simple_dataset_data):
     # Use unique name to avoid conflicts if tests run out of order
     name = f"local-exp-ds-{uuid.uuid4().hex[:6]}"
     return dne.Dataset(name=name, data=simple_dataset_data, description="For experiment tests")
+
 
 @pytest.fixture
 def synced_dataset(experiments_vcr, simple_dataset_data):
@@ -88,7 +92,7 @@ def synced_dataset(experiments_vcr, simple_dataset_data):
     try:
         # Try pulling first - faster if cassette exists
         with experiments_vcr.use_cassette("test_experiment_setup_pull_dataset.yaml"):
-             dataset = dne.Dataset.pull(dataset_name)
+            dataset = dne.Dataset.pull(dataset_name)
         assert dataset._datadog_dataset_id is not None
         return dataset
     except ValueError:
@@ -105,16 +109,19 @@ def simple_identity_task(input):
     """Simple task that returns the input."""
     return input
 
+
 @dne.task
 def task_with_config(input, config):
     """Task that uses config."""
     model_name = config["models"][0]["name"] if config and "models" in config else "default"
     return f"{input} processed by {model_name}"
 
+
 @dne.task
 def failing_task(input):
     """Task that always raises an exception."""
     raise ValueError("Task failed intentionally")
+
 
 @dne.task
 def task_with_sleep(input, duration=0.1):
@@ -122,44 +129,47 @@ def task_with_sleep(input, duration=0.1):
     time.sleep(duration)
     return f"Slept for {duration}s on input: {input}"
 
+
 def task_with_io(input, latency=1.0):
     """Task that simulates I/O bound work by sleeping."""
     time.sleep(latency)
     return f"Simulated I/O for: {input} (took {latency}s)"
+
 
 @dne.evaluator
 def simple_match_evaluator(input, output, expected_output):
     """Evaluates if output matches expected_output."""
     return output == expected_output
 
+
 @dne.evaluator
 def length_evaluator(input, output, expected_output):
     """Evaluates based on output length."""
     return len(str(output))
+
 
 @dne.evaluator
 def failing_evaluator(input, output, expected_output):
     """Evaluator that always raises an exception."""
     raise TypeError("Evaluator failed intentionally")
 
+
 @pytest.fixture
 def valid_config():
     return {"models": [{"name": "test-model", "provider": "test-provider", "temperature": 0.7}]}
+
 
 @pytest.fixture
 def experiment_after_task_run(synced_dataset, experiments_vcr):
     """Fixture providing an Experiment instance *after* run_task has completed."""
     exp_name = f"exp-after-task-{uuid.uuid4().hex[:6]}"
     exp = dne.Experiment(
-        name=exp_name,
-        task=simple_identity_task,
-        dataset=synced_dataset,
-        evaluators=[simple_match_evaluator]
+        name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
     )
     with experiments_vcr.use_cassette("test_experiment_run_task_setup.yaml"):
         # Mock _is_locally_initialized to False to force Datadog interaction path
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             exp.run_task() # This will create the experiment in DD via VCR
+            exp.run_task()  # This will create the experiment in DD via VCR
     assert exp.has_run
     assert not exp.has_evaluated
     assert exp._datadog_experiment_id is not None
@@ -167,6 +177,7 @@ def experiment_after_task_run(synced_dataset, experiments_vcr):
 
 
 # --- Test Classes ---
+
 
 class TestExperimentInitialization:
     """Tests for Experiment.__init__."""
@@ -180,7 +191,7 @@ class TestExperimentInitialization:
             evaluators=[simple_match_evaluator, length_evaluator],
             tags=["init", "success"],
             description="A test experiment",
-            metadata={"user": "tester"}
+            metadata={"user": "tester"},
         )
         assert exp.name == "test-init"
         assert exp.task == simple_identity_task
@@ -201,31 +212,53 @@ class TestExperimentInitialization:
             task=task_with_config,
             dataset=simple_local_dataset,
             evaluators=[],
-            config=valid_config
+            config=valid_config,
         )
         assert exp.name == "test-init-config"
         assert exp.config == valid_config
 
     def test_init_invalid_task_decorator(self, simple_local_dataset):
         """Raise TypeError if task is not decorated with @task."""
-        def undecorated_task(input): return input
+
+        def undecorated_task(input):
+            return input
+
         with pytest.raises(TypeError, match="Task function must be decorated with @task decorator"):
             dne.Experiment("bad-task", undecorated_task, simple_local_dataset, [])
 
     def test_init_invalid_evaluator_decorator(self, simple_local_dataset):
         """Raise TypeError if an evaluator is not decorated with @evaluator."""
-        def undecorated_evaluator(input, output, expected_output): return True
-        with pytest.raises(TypeError, match="Evaluator 'undecorated_evaluator' must be decorated with @evaluator decorator"):
-            dne.Experiment("bad-eval", simple_identity_task, simple_local_dataset, [simple_match_evaluator, undecorated_evaluator])
+
+        def undecorated_evaluator(input, output, expected_output):
+            return True
+
+        with pytest.raises(
+            TypeError, match="Evaluator 'undecorated_evaluator' must be decorated with @evaluator decorator"
+        ):
+            dne.Experiment(
+                "bad-eval", simple_identity_task, simple_local_dataset, [simple_match_evaluator, undecorated_evaluator]
+            )
 
     @pytest.mark.parametrize(
         "invalid_config, expected_exception, match_pattern",
         [
             ("not-a-dict", TypeError, "When provided, config must be a dictionary"),
             ({"models": "not-a-list"}, TypeError, "config\\[\\'models\\'\\] must be a list"),
-            ({"models": [{"name": 123}]}, ValueError, "Invalid model at index 0: Model field 'name' must be of type str"),
-            ({"models": [{"provider": False}]}, ValueError, "Invalid model at index 0: Model field 'provider' must be of type str"),
-            ({"models": [{"temperature": "hot"}]}, ValueError, "Invalid model at index 0: Model field 'temperature' must be of type int or float, got str"), # Adjusted match
+            (
+                {"models": [{"name": 123}]},
+                ValueError,
+                "Invalid model at index 0: Model field 'name' must be of type str",
+            ),
+            (
+                {"models": [{"provider": False}]},
+                ValueError,
+                "Invalid model at index 0: Model field 'provider' must be of type str",
+            ),
+            (
+                {"models": [{"temperature": "hot"}]},
+                ValueError,
+                "Invalid model at index 0: Model field 'temperature' must be of type int or float, got str",
+            ),  # Adjusted match
         ],
         ids=[
             "config_not_dict",
@@ -233,19 +266,12 @@ class TestExperimentInitialization:
             "model_name_not_str",
             "model_provider_not_str",
             "model_temp_not_numeric",
-        ]
+        ],
     )
     def test_init_invalid_config(self, simple_local_dataset, invalid_config, expected_exception, match_pattern):
         """Raise TypeError or ValueError for various invalid config structures."""
         with pytest.raises(expected_exception, match=match_pattern):
-            dne.Experiment(
-                "bad-config-test",
-                simple_identity_task,
-                simple_local_dataset,
-                [],
-                config=invalid_config
-            )
-
+            dne.Experiment("bad-config-test", simple_identity_task, simple_local_dataset, [], config=invalid_config)
 
 
 class TestExperimentRunTask:
@@ -268,17 +294,14 @@ class TestExperimentRunTask:
         """Run task successfully, creating project/experiment in Datadog."""
         exp_name = f"test-run-task-dd-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(
-            name=exp_name,
-            task=simple_identity_task,
-            dataset=synced_dataset,
-            evaluators=[simple_match_evaluator]
+            name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
         )
 
         # Ensure we hit the Datadog path
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
             # Use cassette from fixture
             with experiments_vcr.use_cassette("test_experiment_run_task_setup.yaml"):
-                exp.run_task(jobs=1) # Use 1 job for deterministic VCR recording
+                exp.run_task(jobs=1)  # Use 1 job for deterministic VCR recording
 
         assert exp.has_run
         assert not exp.has_evaluated
@@ -289,7 +312,7 @@ class TestExperimentRunTask:
         # Note: The name comparison needs to be flexible as the reused cassette
         # might have recorded a different suffixed name from the fixture run.
         # Check if the originally intended name is a prefix.
-        assert exp.name.startswith(exp_name.split('-')[0]) # Check prefix before UUID
+        assert exp.name.startswith(exp_name.split("-")[0])  # Check prefix before UUID
         # Basic check on output structure
         self._check_output_structure(exp.outputs[0])
         assert exp.outputs[0]["output"] == synced_dataset[0]["input"]
@@ -298,10 +321,7 @@ class TestExperimentRunTask:
     def test_run_task_success_local(self, simple_local_dataset):
         """Run task successfully in simulated local mode."""
         exp = dne.Experiment(
-            name="test-run-task-local",
-            task=simple_identity_task,
-            dataset=simple_local_dataset,
-            evaluators=[]
+            name="test-run-task-local", task=simple_identity_task, dataset=simple_local_dataset, evaluators=[]
         )
         # Simulate local mode - no DD interaction expected
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
@@ -310,7 +330,7 @@ class TestExperimentRunTask:
         assert exp.has_run
         assert not exp.has_evaluated
         assert len(exp.outputs) == len(simple_local_dataset)
-        assert exp._datadog_experiment_id is None # No DD ID in local mode
+        assert exp._datadog_experiment_id is None  # No DD ID in local mode
         self._check_output_structure(exp.outputs[0])
         assert exp.outputs[0]["error"]["message"] is None
 
@@ -318,15 +338,11 @@ class TestExperimentRunTask:
         """Ensure task receives config when run."""
         exp_name = f"test-run-task-config-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(
-            name=exp_name,
-            task=task_with_config,
-            dataset=synced_dataset,
-            evaluators=[],
-            config=valid_config
+            name=exp_name, task=task_with_config, dataset=synced_dataset, evaluators=[], config=valid_config
         )
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_with_config.yaml"):
-                 exp.run_task(jobs=1)
+            with experiments_vcr.use_cassette("test_experiment_run_task_with_config.yaml"):
+                exp.run_task(jobs=1)
 
         assert exp.has_run
         assert len(exp.outputs) == len(synced_dataset)
@@ -338,15 +354,10 @@ class TestExperimentRunTask:
     def test_run_task_task_error_no_raise(self, synced_dataset, experiments_vcr):
         """Capture task errors when raise_errors=False."""
         exp_name = f"test-run-task-error-no-raise-{uuid.uuid4().hex[:6]}"
-        exp = dne.Experiment(
-            name=exp_name,
-            task=failing_task,
-            dataset=synced_dataset,
-            evaluators=[]
-        )
+        exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
-                 exp.run_task(jobs=1, raise_errors=False)
+            with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
+                exp.run_task(jobs=1, raise_errors=False)
 
         assert exp.has_run
         assert len(exp.outputs) == len(synced_dataset)
@@ -360,17 +371,12 @@ class TestExperimentRunTask:
     def test_run_task_task_error_raise(self, synced_dataset, experiments_vcr):
         """Raise exception from task when raise_errors=True."""
         exp_name = f"test-run-task-error-raise-{uuid.uuid4().hex[:6]}"
-        exp = dne.Experiment(
-            name=exp_name,
-            task=failing_task,
-            dataset=synced_dataset,
-            evaluators=[]
-        )
+        exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_error_raise.yaml"):
+            with experiments_vcr.use_cassette("test_experiment_run_task_error_raise.yaml"):
                 # We expect run_task to raise the underlying error
                 with pytest.raises(RuntimeError, match="Error on record 0: Task failed intentionally"):
-                     exp.run_task(jobs=1, raise_errors=True)
+                    exp.run_task(jobs=1, raise_errors=True)
         # Depending on execution model (e.g., thread pool), has_run might be True even if error raised mid-way
         # assert exp.has_run # This might be true or false depending on exact failure point
 
@@ -378,15 +384,10 @@ class TestExperimentRunTask:
         """Run task on a subset using sample_size."""
         sample_size = 1
         exp_name = f"test-run-task-sample-{uuid.uuid4().hex[:6]}"
-        exp = dne.Experiment(
-            name=exp_name,
-            task=simple_identity_task,
-            dataset=synced_dataset,
-            evaluators=[]
-        )
+        exp = dne.Experiment(name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[])
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_sample.yaml"):
-                 exp.run_task(jobs=1, sample_size=sample_size)
+            with experiments_vcr.use_cassette("test_experiment_run_task_sample.yaml"):
+                exp.run_task(jobs=1, sample_size=sample_size)
 
         assert exp.has_run
         assert len(exp.outputs) == sample_size
@@ -396,22 +397,15 @@ class TestExperimentRunTask:
         """Test that using more jobs speeds up execution for tasks with simulated I/O."""
         # Configure test parameters
         request_latency = 1.0  # Simulate 1 second latency
-        num_records = 20      # total records to process
+        num_records = 20  # total records to process
 
         # Create test dataset
         prompts = [
             f"Write a story about {topic}"
             for topic in ["cats", "dogs", "birds", "fish"] * 5  # 4 topics × 5 = 20 records
         ]
-        small_data = [
-            {"input": prompt, "expected_output": ""}
-            for prompt in prompts[:num_records]
-        ]
-        small_dataset = dne.Dataset(
-            name="concurrency-test-ds",
-            data=small_data
-        )
-
+        small_data = [{"input": prompt, "expected_output": ""} for prompt in prompts[:num_records]]
+        small_dataset = dne.Dataset(name="concurrency-test-ds", data=small_data)
 
         # Create a properly decorated task that includes the latency
         # This task IS decorated
@@ -422,9 +416,9 @@ class TestExperimentRunTask:
 
         exp = dne.Experiment(
             name="test-run-task-concurrency",
-            task=fixed_latency_task, # Use the decorated wrapper task
+            task=fixed_latency_task,  # Use the decorated wrapper task
             dataset=small_dataset,
-            evaluators=[]
+            evaluators=[],
         )
 
         # Run with single thread first
@@ -451,50 +445,55 @@ class TestExperimentRunTask:
         print(f"\nConcurrency test timings: jobs=1 -> {duration_1:.3f}s, jobs={num_records} -> {duration_multi:.3f}s")
 
         # Assertions
-        assert duration_multi < duration_1, (
-            f"Multi-job ({duration_multi:.3f}s) was not faster than single-job ({duration_1:.3f}s)"
-        )
+        assert (
+            duration_multi < duration_1
+        ), f"Multi-job ({duration_multi:.3f}s) was not faster than single-job ({duration_1:.3f}s)"
 
         # The parallel run should take roughly the time of one task (plus some overhead)
-        assert duration_multi >= request_latency, (
-            f"Multi-job ({duration_multi:.3f}s) was faster than a single task ({request_latency}s)"
-        )
+        assert (
+            duration_multi >= request_latency
+        ), f"Multi-job ({duration_multi:.3f}s) was faster than a single task ({request_latency}s)"
         # Allow generous overhead for thread startup/management, but should be much less than serial
-        assert duration_multi < request_latency * 3, (
-            f"Multi-job ({duration_multi:.3f}s) took too long (expected < {request_latency * 3:.3f}s)"
-        )
+        assert (
+            duration_multi < request_latency * 3
+        ), f"Multi-job ({duration_multi:.3f}s) took too long (expected < {request_latency * 3:.3f}s)"
 
         # Check duration calculation correctness (approximate)
         # Serial run should take roughly num_records * latency + small overhead
         expected_serial_duration = num_records * request_latency
         # Allow some overhead (e.g., 10% for scheduling, function calls)
-        assert duration_1 >= expected_serial_duration, \
-            f"Single-job duration ({duration_1:.3f}s) seems too fast, expected ~{expected_serial_duration:.3f}s"
-        assert duration_1 < expected_serial_duration * 1.2, \
-            f"Single-job duration ({duration_1:.3f}s) seems too slow, expected ~{expected_serial_duration:.3f}s"
+        assert (
+            duration_1 >= expected_serial_duration
+        ), f"Single-job duration ({duration_1:.3f}s) seems too fast, expected ~{expected_serial_duration:.3f}s"
+        assert (
+            duration_1 < expected_serial_duration * 1.2
+        ), f"Single-job duration ({duration_1:.3f}s) seems too slow, expected ~{expected_serial_duration:.3f}s"
 
         # Parallel run should take roughly latency + small overhead
         expected_parallel_duration = request_latency
         # Allow some overhead, but it should be significantly less than serial
-        assert duration_multi >= expected_parallel_duration, \
-            f"Multi-job duration ({duration_multi:.3f}s) seems too fast, expected ~{expected_parallel_duration:.3f}s"
+        assert (
+            duration_multi >= expected_parallel_duration
+        ), f"Multi-job duration ({duration_multi:.3f}s) seems too fast, expected ~{expected_parallel_duration:.3f}s"
         # Using * 3 multiplier for parallel overhead check already - keep it
-        assert duration_multi < expected_parallel_duration * 3, \
-            f"Multi-job duration ({duration_multi:.3f}s) seems too slow, expected < {expected_parallel_duration * 3:.3f}s"
+        assert (
+            duration_multi < expected_parallel_duration * 3
+        ), f"Multi-job duration ({duration_multi:.3f}s) seems too slow, expected < {expected_parallel_duration * 3:.3f}s"
 
     def test_run_task_needs_pushed_dataset_datadog(self, simple_local_dataset, experiments_vcr):
         """Raise ValueError if trying to run with non-pushed dataset in DD mode."""
         exp = dne.Experiment(
             name="test-needs-push",
             task=simple_identity_task,
-            dataset=simple_local_dataset, # Not pushed, _datadog_dataset_id is None
-            evaluators=[]
+            dataset=simple_local_dataset,  # Not pushed, _datadog_dataset_id is None
+            evaluators=[],
         )
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_needs_push.yaml"):
-                 with pytest.raises(ValueError, match="Dataset must be pushed to Datadog before running the experiment."):
-                     exp.run_task()
-
+            with experiments_vcr.use_cassette("test_experiment_run_task_needs_push.yaml"):
+                with pytest.raises(
+                    ValueError, match="Dataset must be pushed to Datadog before running the experiment."
+                ):
+                    exp.run_task()
 
 
 class TestExperimentRunEvaluations:
@@ -502,16 +501,16 @@ class TestExperimentRunEvaluations:
 
     # Helper to check evaluation structure within ExperimentResults or internal state
     def _check_eval_structure(self, eval_item):
-         assert isinstance(eval_item, dict)
-         assert "idx" in eval_item
-         assert "evaluations" in eval_item
-         assert isinstance(eval_item["evaluations"], dict)
-         for eval_name, result in eval_item["evaluations"].items():
-             assert isinstance(result, dict)
-             assert {"value", "error"} == set(result.keys())
-             if result["error"]:
-                 assert isinstance(result["error"], dict)
-                 assert {"message", "type", "stack"} == set(result["error"].keys())
+        assert isinstance(eval_item, dict)
+        assert "idx" in eval_item
+        assert "evaluations" in eval_item
+        assert isinstance(eval_item["evaluations"], dict)
+        for eval_name, result in eval_item["evaluations"].items():
+            assert isinstance(result, dict)
+            assert {"value", "error"} == set(result.keys())
+            if result["error"]:
+                assert isinstance(result["error"], dict)
+                assert {"message", "type", "stack"} == set(result["error"].keys())
 
     def _assert_match_is_true(self, record, value):
         # True when output == expected_output for that record
@@ -519,25 +518,23 @@ class TestExperimentRunEvaluations:
 
     def test_run_evals_success(self, experiment_after_task_run, synced_dataset, experiments_vcr):
         """Run evaluations successfully after task completion and push."""
-        exp = experiment_after_task_run # Already ran task
+        exp = experiment_after_task_run  # Already ran task
         assert exp.has_run
         assert not exp.has_evaluated
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
             with experiments_vcr.use_cassette("test_experiment_run_evals_success.yaml"):
-                results = exp.run_evaluations() # Should push evals automatically
+                results = exp.run_evaluations()  # Should push evals automatically
 
         assert exp.has_evaluated
         assert isinstance(results, ExperimentResults)
         assert len(results) == len(exp.outputs)
         # Check internal state just in case
-        assert hasattr(exp, 'evaluations') and len(exp.evaluations) == len(exp.outputs)
+        assert hasattr(exp, "evaluations") and len(exp.evaluations) == len(exp.outputs)
         self._check_eval_structure(exp.evaluations[0])
         # Example check on specific evaluator result (simple_match_evaluator should be True)
         rec0 = synced_dataset[0]
-        self._assert_match_is_true(
-            rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"]
-        )
+        self._assert_match_is_true(rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"])
         assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["error"] is None
 
     def test_run_evals_override_evaluators(self, experiment_after_task_run, experiments_vcr):
@@ -557,7 +554,6 @@ class TestExperimentRunEvaluations:
         assert list(exp.evaluations[0]["evaluations"].keys()) == ["length_evaluator"]
         assert exp.evaluations[0]["evaluations"]["length_evaluator"]["error"] is None
 
-
     def test_run_evals_evaluator_error_no_raise(self, experiment_after_task_run, synced_dataset, experiments_vcr):
         """Capture evaluator errors when raise_errors=False."""
         exp = experiment_after_task_run
@@ -565,33 +561,34 @@ class TestExperimentRunEvaluations:
         exp.evaluators = [simple_match_evaluator, failing_evaluator]
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_evals_error_no_raise.yaml"):
-                 results = exp.run_evaluations(raise_errors=False)
+            with experiments_vcr.use_cassette("test_experiment_run_evals_error_no_raise.yaml"):
+                results = exp.run_evaluations(raise_errors=False)
 
         assert exp.has_evaluated
         assert len(results) == len(exp.outputs)
         self._check_eval_structure(exp.evaluations[0])
         # Check good evaluator worked
         rec0 = synced_dataset[0]
-        self._assert_match_is_true(
-            rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"]
-        )
+        self._assert_match_is_true(rec0, exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["value"])
         assert exp.evaluations[0]["evaluations"]["simple_match_evaluator"]["error"] is None
         # Check failing evaluator captured error
         assert exp.evaluations[0]["evaluations"]["failing_evaluator"]["value"] is None
-        assert exp.evaluations[0]["evaluations"]["failing_evaluator"]["error"]["message"] == "Evaluator failed intentionally"
+        assert (
+            exp.evaluations[0]["evaluations"]["failing_evaluator"]["error"]["message"]
+            == "Evaluator failed intentionally"
+        )
         assert exp.evaluations[0]["evaluations"]["failing_evaluator"]["error"]["type"] == "TypeError"
 
     def test_run_evals_evaluator_error_raise(self, experiment_after_task_run, experiments_vcr):
         """Raise exception from evaluator when raise_errors=True."""
         exp = experiment_after_task_run
-        exp.evaluators = [failing_evaluator] # Only the failing one
+        exp.evaluators = [failing_evaluator]  # Only the failing one
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_evals_error_raise.yaml"):
-                 # Expect run_evaluations to raise the underlying error
-                 with pytest.raises(RuntimeError, match="Evaluator 'failing_evaluator' failed on row 0"):
-                      exp.run_evaluations(raise_errors=True)
+            with experiments_vcr.use_cassette("test_experiment_run_evals_error_raise.yaml"):
+                # Expect run_evaluations to raise the underlying error
+                with pytest.raises(RuntimeError, match="Evaluator 'failing_evaluator' failed on row 0"):
+                    exp.run_evaluations(raise_errors=True)
         # Should still mark as evaluated even if error occurred? Check implementation. Yes, seems so.
         assert exp.has_evaluated
 
@@ -601,7 +598,6 @@ class TestExperimentRunEvaluations:
         assert not exp.has_run
         with pytest.raises(ValueError, match="Task has not been run yet."):
             exp.run_evaluations()
-
 
 
 class TestExperimentRunFull:
@@ -614,7 +610,7 @@ class TestExperimentRunFull:
             name=exp_name,
             task=simple_identity_task,
             dataset=synced_dataset,
-            evaluators=[simple_match_evaluator, length_evaluator]
+            evaluators=[simple_match_evaluator, length_evaluator],
         )
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
@@ -640,25 +636,22 @@ class TestExperimentRunFull:
         """Test full run() when task fails but raise_errors=False."""
         exp_name = f"test-run-full-task-err-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(
-            name=exp_name,
-            task=failing_task, # Task fails
-            dataset=synced_dataset,
-            evaluators=[simple_match_evaluator]
+            name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]  # Task fails
         )
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
             with experiments_vcr.use_cassette("test_experiment_run_full_task_error.yaml"):
                 results = exp.run(jobs=1, raise_errors=False)
 
-        assert exp.has_run # Task ran (and failed)
-        assert exp.has_evaluated # Evaluations ran on the (None) outputs
+        assert exp.has_run  # Task ran (and failed)
+        assert exp.has_evaluated  # Evaluations ran on the (None) outputs
         assert isinstance(results, ExperimentResults)
         # Check task error captured in results
         assert results[0]["output"] is None
         assert results[0]["error"]["message"] == "Task failed intentionally"
         # Check evaluator ran on None output (should likely be False)
         assert "simple_match_evaluator" in results[0]["evaluations"]
-        assert results[0]["evaluations"]["simple_match_evaluator"]["value"] is False # Comparing None != "expected"
+        assert results[0]["evaluations"]["simple_match_evaluator"]["value"] is False  # Comparing None != "expected"
         assert results[0]["evaluations"]["simple_match_evaluator"]["error"] is None
 
     def test_run_full_eval_error_no_raise(self, synced_dataset, experiments_vcr):
@@ -666,9 +659,9 @@ class TestExperimentRunFull:
         exp_name = f"test-run-full-eval-err-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(
             name=exp_name,
-            task=simple_identity_task, # Task succeeds
+            task=simple_identity_task,  # Task succeeds
             dataset=synced_dataset,
-            evaluators=[failing_evaluator] # Evaluator fails
+            evaluators=[failing_evaluator],  # Evaluator fails
         )
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
@@ -687,7 +680,6 @@ class TestExperimentRunFull:
         assert results[0]["evaluations"]["failing_evaluator"]["error"]["message"] == "Evaluator failed intentionally"
 
 
-
 class TestExperimentPushSummaryMetric:
     """Tests for Experiment.push_summary_metric."""
 
@@ -703,8 +695,8 @@ class TestExperimentPushSummaryMetric:
         metric_name = "overall_accuracy"
         metric_value = 0.85
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_push_summary_metric_numeric.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value)
+            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_numeric.yaml"):
+                existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: score, score_value: 0.85
 
     def test_push_summary_metric_categorical(self, existing_experiment, experiments_vcr):
@@ -712,8 +704,8 @@ class TestExperimentPushSummaryMetric:
         metric_name = "pass_category"
         metric_value = "High"
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_push_summary_metric_categorical.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value)
+            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_categorical.yaml"):
+                existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "high"
 
     def test_push_summary_metric_boolean(self, existing_experiment, experiments_vcr):
@@ -721,14 +713,14 @@ class TestExperimentPushSummaryMetric:
         metric_name = "meets_criteria"
         metric_value = True
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_push_summary_metric_boolean.yaml"):
-                 existing_experiment.push_summary_metric(metric_name, metric_value)
+            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_boolean.yaml"):
+                existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "true"
 
     def test_push_summary_metric_before_create(self, simple_local_dataset):
         """Raise ValueError if push called before experiment exists in DD."""
         exp = dne.Experiment("local-exp", simple_identity_task, simple_local_dataset, [])
-        assert exp._datadog_experiment_id is None # Not created yet
+        assert exp._datadog_experiment_id is None  # Not created yet
         with pytest.raises(ValueError, match="Experiment has not been created in Datadog"):
             exp.push_summary_metric("some_metric", 1.0)
 
@@ -744,14 +736,19 @@ class TestExperimentRepr:
     # Helper to strip ANSI codes for easier assertions
     def _strip_ansi(self, text):
         import re
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mK]')
-        return ansi_escape.sub('', text)
+
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*[mK]")
+        return ansi_escape.sub("", text)
 
     def test_repr_initial_local(self, simple_local_dataset):
         """Repr for a new, local-only experiment."""
         exp = dne.Experiment(
-            name="repr-local", task=simple_identity_task, dataset=simple_local_dataset,
-            evaluators=[simple_match_evaluator], tags=["repr"], description="Local Repr"
+            name="repr-local",
+            task=simple_identity_task,
+            dataset=simple_local_dataset,
+            evaluators=[simple_match_evaluator],
+            tags=["repr"],
+            description="Local Repr",
         )
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
@@ -769,17 +766,16 @@ class TestExperimentRepr:
         assert "Pending run" in rep_clean
         assert "Local only" in rep_clean
         assert "Tags: #repr" in rep_clean
-        assert "URL:" not in rep_clean # Should not have URL when local
-
+        assert "URL:" not in rep_clean  # Should not have URL when local
 
     def test_repr_after_task_datadog(self, experiment_after_task_run):
         """Repr after run_task with Datadog sync."""
-        exp = experiment_after_task_run # Already ran task and synced
+        exp = experiment_after_task_run  # Already ran task and synced
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
 
         # Check key components are present
-        assert f"Experiment(name={exp.name})" in rep_clean # Name might have suffix
+        assert f"Experiment(name={exp.name})" in rep_clean  # Name might have suffix
         assert "Status:" in rep_clean
         assert "✓ Run complete" in rep_clean
         assert "Not evaluated" in rep_clean
@@ -787,19 +783,20 @@ class TestExperimentRepr:
         assert "URL:" in rep_clean
         assert f"/llm/testing/experiments/{exp._datadog_experiment_id}" in rep_clean
 
-
     def test_repr_after_full_run_datadog(self, synced_dataset, experiments_vcr):
         """Repr after a full run() with Datadog sync."""
         exp_name = f"repr-full-run-{uuid.uuid4().hex[:6]}"
-        exp = dne.Experiment(name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator])
+        exp = dne.Experiment(
+            name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
+        )
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_repr_full_run.yaml"):
-                 exp.run(jobs=1) # Run fully
+            with experiments_vcr.use_cassette("test_experiment_repr_full_run.yaml"):
+                exp.run(jobs=1)  # Run fully
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
 
         # Check key components are present
-        assert f"Experiment(name={exp.name})" in rep_clean # Name might have suffix
+        assert f"Experiment(name={exp.name})" in rep_clean  # Name might have suffix
         assert "Status:" in rep_clean
         assert "✓ Run complete" in rep_clean
         assert "✓ Evaluated" in rep_clean
@@ -807,32 +804,30 @@ class TestExperimentRepr:
         assert "URL:" in rep_clean
         assert f"/llm/testing/experiments/{exp._datadog_experiment_id}" in rep_clean
 
-
     def test_repr_after_task_with_errors(self, synced_dataset, experiments_vcr):
         """Repr shows error count after run_task with errors."""
         exp_name = f"repr-task-errors-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-             with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
-                 exp.run_task(jobs=1, raise_errors=False) # Run task that fails
+            with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
+                exp.run_task(jobs=1, raise_errors=False)  # Run task that fails
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
 
         # Note: Name assertion still checks prefix due to potential suffix
-        assert exp.name.startswith(exp_name.split('-')[0])
+        assert exp.name.startswith(exp_name.split("-")[0])
 
         # Check key components including error info
         assert "Experiment(name=" in rep_clean
         assert "Status:" in rep_clean
         assert "✓ Run complete" in rep_clean
         error_count = len(synced_dataset)
-        assert f"({error_count} errors)" in rep_clean # Check for error count
-        assert ", 100.0%)" in rep_clean # Check for percentage
+        assert f"({error_count} errors)" in rep_clean  # Check for error count
+        assert ", 100.0%)" in rep_clean  # Check for percentage
         assert "Not evaluated" in rep_clean
         assert "✓ Synced" in rep_clean
         assert "URL:" in rep_clean
         assert f"/llm/testing/experiments/{exp._datadog_experiment_id}" in rep_clean
-
 
 
 @dne.summary_metric
@@ -846,9 +841,10 @@ def average_length_summary(outputs, evaluations):
             try:
                 total_len += len(str(output))
                 count += 1
-            except Exception: # Ignore errors converting to string/len
+            except Exception:  # Ignore errors converting to string/len
                 pass
     return total_len / count if count > 0 else 0.0
+
 
 @dne.summary_metric
 def pass_fail_counts_summary(outputs, evaluations):
@@ -864,10 +860,12 @@ def pass_fail_counts_summary(outputs, evaluations):
                 fails += 1
     return {"passes": passes, "fails": fails}
 
+
 @dne.summary_metric
 def failing_summary(outputs, evaluations):
     """Summary metric that always fails."""
     raise ValueError("Summary metric failed intentionally")
+
 
 @dne.summary_metric
 def none_returning_summary(outputs, evaluations):
@@ -892,7 +890,7 @@ class TestExperimentSummaryMetrics:
         ]
         # Ensure evaluators needed by summaries are present
         if simple_match_evaluator not in exp.evaluators:
-             exp.evaluators.append(simple_match_evaluator)
+            exp.evaluators.append(simple_match_evaluator)
         # Reset evaluation status so we can run it again
         exp.has_evaluated = False
         exp.evaluations = []
@@ -902,11 +900,19 @@ class TestExperimentSummaryMetrics:
 
     def test_init_invalid_summary_metric_decorator(self, simple_local_dataset):
         """Raise TypeError if a summary metric is not decorated."""
-        def undecorated_summary(outputs, evaluations): return 0.0
-        with pytest.raises(TypeError, match="Summary metric 'undecorated_summary' must be decorated with @summary_metric"):
+
+        def undecorated_summary(outputs, evaluations):
+            return 0.0
+
+        with pytest.raises(
+            TypeError, match="Summary metric 'undecorated_summary' must be decorated with @summary_metric"
+        ):
             dne.Experiment(
-                "bad-summary", simple_identity_task, simple_local_dataset, [],
-                summary_metrics=[average_length_summary, undecorated_summary]
+                "bad-summary",
+                simple_identity_task,
+                simple_local_dataset,
+                [],
+                summary_metrics=[average_length_summary, undecorated_summary],
             )
 
     @patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric")
@@ -916,7 +922,7 @@ class TestExperimentSummaryMetrics:
         # Mock environment for pushing
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
             with experiments_vcr.use_cassette("test_experiment_run_summary_metrics.yaml"):
-                 results = exp.run_evaluations() # This triggers _run_summary_metrics
+                results = exp.run_evaluations()  # This triggers _run_summary_metrics
 
         assert exp.has_evaluated
         assert isinstance(results, ExperimentResults)
@@ -938,11 +944,7 @@ class TestExperimentSummaryMetrics:
         # Check keys are prefixed with function name
         assert "pass_fail_counts_summary.passes" in stored_results
         assert "pass_fail_counts_summary.fails" in stored_results
-        pass_count = sum(
-            1
-            for r in exp.dataset
-            if r["input"] == r["expected_output"]
-        )
+        pass_count = sum(1 for r in exp.dataset if r["input"] == r["expected_output"])
         fail_count = len(exp.dataset) - pass_count
 
         assert stored_results["pass_fail_counts_summary.passes"]["value"] == pass_count
@@ -965,10 +967,10 @@ class TestExperimentSummaryMetrics:
         assert stored_results["none_returning_summary"]["error"] is None
 
         # Check total calls to push (only for successful metrics)
-        assert mock_push.call_count == 3 # avg_length, passes, fails
+        assert mock_push.call_count == 3  # avg_length, passes, fails
 
     @patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric")
-    @patch("builtins.print") # Mock print to check local output
+    @patch("builtins.print")  # Mock print to check local output
     def test_run_summary_metrics_local_mode(self, mock_print, mock_push, experiment_with_summaries, experiments_vcr):
         """Test summary metrics run locally (no push) when not synced."""
         exp = experiment_with_summaries
@@ -978,12 +980,12 @@ class TestExperimentSummaryMetrics:
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
             # Need cassette for _push_evals (which will fail here, but summary should still run)
             with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_local.yaml"):
-                with pytest.raises(ValueError, match="Experiment has not been created in Datadog"): # _push_evals fails
-                    exp.run_evaluations() # This triggers _run_summary_metrics after push fails
+                with pytest.raises(ValueError, match="Experiment has not been created in Datadog"):  # _push_evals fails
+                    exp.run_evaluations()  # This triggers _run_summary_metrics after push fails
 
         # Even though _push_evals failed, summary metrics should have run
         stored_results = exp._summary_metric_results
-        assert "average_length_summary" in stored_results # Check one ran
+        assert "average_length_summary" in stored_results  # Check one ran
         assert stored_results["average_length_summary"]["error"] is None
         expected_avg_len = (len("What is 1+1?") + len("Capital of France?")) / 2
         assert stored_results["average_length_summary"]["value"] == pytest.approx(expected_avg_len)
@@ -996,36 +998,39 @@ class TestExperimentSummaryMetrics:
             f"  {Color.YELLOW}Local summary metric 'average_length_summary' = {expected_avg_len:.1f} "
             f"(pos=0, primary=False) (not pushed){Color.RESET}"
         )
-        pass_count = sum(
-            1
-            for r in exp.dataset
-            if r["input"] == r["expected_output"]
-        )
+        pass_count = sum(1 for r in exp.dataset if r["input"] == r["expected_output"])
         fail_count = len(exp.dataset) - pass_count
 
-        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'passes' = {pass_count} (not pushed){Color.RESET}")
-        mock_print.assert_any_call(f"  {Color.YELLOW}Local summary metric 'fails' = {fail_count} (not pushed){Color.RESET}")
+        mock_print.assert_any_call(
+            f"  {Color.YELLOW}Local summary metric 'passes' = {pass_count} (not pushed){Color.RESET}"
+        )
+        mock_print.assert_any_call(
+            f"  {Color.YELLOW}Local summary metric 'fails' = {fail_count} (not pushed){Color.RESET}"
+        )
         # Check error print for the failing one
-        mock_print.assert_any_call(f"  {Color.RED}Error running summary metric function 'failing_summary': Summary metric failed intentionally{Color.RESET}")
+        mock_print.assert_any_call(
+            f"  {Color.RED}Error running summary metric function 'failing_summary': Summary metric failed intentionally{Color.RESET}"
+        )
         # Check print for the None one
-        mock_print.assert_any_call(f"  {Color.DIM}Summary metric 'none_returning_summary' produced no results.{Color.RESET}")
-
+        mock_print.assert_any_call(
+            f"  {Color.DIM}Summary metric 'none_returning_summary' produced no results.{Color.RESET}"
+        )
 
     @patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric")
     def test_run_summary_metrics_push_error(self, mock_push, experiment_with_summaries, experiments_vcr):
         """Test capturing error when push_summary_metric itself fails."""
         exp = experiment_with_summaries
         # Make push fail for the first metric
-        mock_push.side_effect = [ValueError("Push failed"), None, None] # Fail on first call only
+        mock_push.side_effect = [ValueError("Push failed"), None, None]  # Fail on first call only
 
         with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
             with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_push_fail.yaml"):
-                 results = exp.run_evaluations()
+                results = exp.run_evaluations()
 
         stored_results = results.summary_metric_results
         # Check the first metric captured the push error
         assert "average_length_summary" in stored_results
-        assert stored_results["average_length_summary"]["value"] is not None # Value was calculated
+        assert stored_results["average_length_summary"]["value"] is not None  # Value was calculated
         assert stored_results["average_length_summary"]["error"] is not None
         assert stored_results["average_length_summary"]["error"]["message"] == "Push failed"
         assert stored_results["average_length_summary"]["error"]["type"] == "ValueError"
@@ -1033,11 +1038,10 @@ class TestExperimentSummaryMetrics:
         # Check other metrics were processed and pushed (mock allows subsequent calls)
         assert "pass_fail_counts_summary.passes" in stored_results
         assert stored_results["pass_fail_counts_summary.passes"]["error"] is None
-        assert "failing_summary" in stored_results # Still failed internally
+        assert "failing_summary" in stored_results  # Still failed internally
         assert stored_results["failing_summary"]["error"]["type"] == "ValueError"
 
-        assert mock_push.call_count == 3 # Push was attempted 3 times
-
+        assert mock_push.call_count == 3  # Push was attempted 3 times
 
     # --- Test ExperimentResults Integration ---
 
@@ -1047,33 +1051,32 @@ class TestExperimentSummaryMetrics:
     def test_experiment_results_repr_with_summaries(self, experiment_with_summaries, experiments_vcr):
         """Test ExperimentResults repr includes summary metrics."""
         # Run evaluations to populate results
-        with patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric"): # Mock push
-             with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-                 with experiments_vcr.use_cassette("test_experiment_results_repr_summaries.yaml"):
-                      results = experiment_with_summaries.run_evaluations()
+        with patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric"):  # Mock push
+            with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
+                with experiments_vcr.use_cassette("test_experiment_results_repr_summaries.yaml"):
+                    results = experiment_with_summaries.run_evaluations()
 
         rep = repr(results)
         # Helper to strip ANSI codes for easier assertions
         import re
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*[mK]')
-        rep_clean = ansi_escape.sub('', rep)
 
+        ansi_escape = re.compile(r"\x1b\[[0-9;]*[mK]")
+        rep_clean = ansi_escape.sub("", rep)
 
         assert "ExperimentResults(" in rep_clean
-        assert "Evaluations:" in rep_clean # Check evals are still there
-        assert "Summary Metrics:" in rep_clean # Check new section
+        assert "Evaluations:" in rep_clean  # Check evals are still there
+        assert "Summary Metrics:" in rep_clean  # Check new section
 
         # Check specific summary metric lines
         expected_avg_len = (len("What is 1+1?") + len("Capital of France?")) / 2
         assert f"average_length_summary: {expected_avg_len:.1f}" in rep_clean
-        pass_count = sum(
-            1
-            for r in experiment_with_summaries.dataset
-            if r["input"] == r["expected_output"]
-        )
+        pass_count = sum(1 for r in experiment_with_summaries.dataset if r["input"] == r["expected_output"])
         fail_count = len(experiment_with_summaries.dataset) - pass_count
         assert f"pass_fail_counts_summary.passes: {pass_count}" in rep_clean
         assert f"pass_fail_counts_summary.fails: {fail_count}" in rep_clean
         assert "failing_summary: Error (ValueError: Summary metric failed intentionally)" in rep_clean
         assert "none_returning_summary: No value returned" in rep_clean
-        assert f"URL: {get_base_url()}/llm/testing/experiments/{experiment_with_summaries._datadog_experiment_id}" in rep_clean
+        assert (
+            f"URL: {get_base_url()}/llm/testing/experiments/{experiment_with_summaries._datadog_experiment_id}"
+            in rep_clean
+        )

@@ -41,24 +41,26 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validates that a dictionary matches the Model schema.
     All fields are optional, but must be of correct type if present.
-    
+
     Args:
         data: Dictionary containing model configuration
-        
+
     Returns:
         The validated model dictionary
-        
+
     Raises:
         TypeError: If data is not a dictionary or if provided fields have wrong types
         ValueError: If temperature is outside valid range
     """
     if not isinstance(data, dict):
-        raise TypeError("Model must be a dictionary (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
+        raise TypeError(
+            "Model must be a dictionary (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])"
+        )
 
     MODEL_SCHEMA = {
         "name": str,
         "provider": str,
-        "temperature": (int, float)  # allow both int and float for temperature
+        "temperature": (int, float),  # allow both int and float for temperature
     }
 
     for field, expected_type in MODEL_SCHEMA.items():
@@ -78,17 +80,18 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
 
     return data
 
+
 def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Validates the config dictionary structure if provided.
     Models are optional but must follow schema if present.
-    
+
     Args:
         config: Optional dictionary containing experiment configuration
-        
+
     Returns:
         The validated config dictionary or None
-        
+
     Raises:
         TypeError: If config is provided but not a dictionary, or if models is provided but not a list
         ValueError: If models are provided but have invalid values
@@ -104,7 +107,9 @@ def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]
 
     models = config["models"]
     if not isinstance(models, list):
-        raise TypeError("When provided, config['models'] must be a list of model dictionaries (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
+        raise TypeError(
+            "When provided, config['models'] must be a list of model dictionaries (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])"
+        )
 
     validated_models = []
     for i, model in enumerate(models):
@@ -118,6 +123,7 @@ def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]
     validated_config = dict(config)
     validated_config["models"] = validated_models
     return validated_config
+
 
 class Experiment:
     """
@@ -199,7 +205,9 @@ class Experiment:
         # Make sure every summary metric is decorated with @summary_metric
         for summary_func in self.summary_metrics:
             if not hasattr(summary_func, "_is_summary_metric"):
-                raise TypeError(f"Summary metric '{summary_func.__name__}' must be decorated with @summary_metric decorator.")
+                raise TypeError(
+                    f"Summary metric '{summary_func.__name__}' must be decorated with @summary_metric decorator."
+                )
 
         # Post-run attributes
         self.has_run = False
@@ -559,9 +567,7 @@ class Experiment:
                         # experiment state is consistent with what actually ran.
                         self.has_evaluated = True
                         self.evaluations = evaluations
-                        raise RuntimeError(
-                            f"Evaluator '{evaluator.__name__}' failed on row {idx}: {str(e)}"
-                        ) from e
+                        raise RuntimeError(f"Evaluator '{evaluator.__name__}' failed on row {idx}: {str(e)}") from e
 
             evaluations.append({"idx": idx, "evaluations": evaluations_dict})
             progress.update(error=any(e["error"] is not None for e in evaluations_dict.values()))
@@ -576,9 +582,9 @@ class Experiment:
             experiment=self,
             outputs=self.outputs,
             evaluations=evaluations,
-            summary_metric_results=None # Initialize as None
+            summary_metric_results=None,  # Initialize as None
         )
-        self.results = experiment_results # Store immediately
+        self.results = experiment_results  # Store immediately
 
         # Always try to push.  In "local only" cases this will raise a
         # ValueError that tests explicitly expect.
@@ -593,7 +599,7 @@ class Experiment:
             self._run_summary_metrics()
             experiment_results.summary_metric_results = self._summary_metric_results
         except Exception as e:
-             print(f"{Color.RED}Error running or pushing summary metrics: {e}{Color.RESET}")
+            print(f"{Color.RED}Error running or pushing summary metrics: {e}{Color.RESET}")
 
         print(f"\n{Color.RESET}Evaluations and summary metrics complete.\n")
         # After everything is done, bubble the earlier push error (if any)
@@ -654,7 +660,9 @@ class Experiment:
                             # position / primary.  For dict-style children (passes/fails)
                             # omit them – tests expect this.
                             if isinstance(result, dict):
-                                print(f"  {Color.YELLOW}Local summary metric '{name}' = {value} (not pushed){Color.RESET}")
+                                print(
+                                    f"  {Color.YELLOW}Local summary metric '{name}' = {value} (not pushed){Color.RESET}"
+                                )
                             else:
                                 print(
                                     f"  {Color.YELLOW}Local summary metric '{name}' = {value} "
@@ -664,7 +672,10 @@ class Experiment:
                     except Exception as push_err:
                         err_msg = f"Error pushing summary metric '{name}' (from '{func_name}')"
                         print(f"  {Color.RED}{err_msg}: {push_err}{Color.RESET}")
-                        self._summary_metric_results[metric_key] = {"value": value, "error": {"message": str(push_err), "type": type(push_err).__name__}}
+                        self._summary_metric_results[metric_key] = {
+                            "value": value,
+                            "error": {"message": str(push_err), "type": type(push_err).__name__},
+                        }
 
             except Exception as e:
                 err_msg = f"Error running summary metric function '{func_name}'"
@@ -767,7 +778,9 @@ class Experiment:
 
         return "\n".join(info)
 
-    def push_summary_metric(self, name: str, value: Union[int, float, bool, str], position: Optional[int] = None, is_primary: bool = False) -> None:
+    def push_summary_metric(
+        self, name: str, value: Union[int, float, bool, str], position: Optional[int] = None, is_primary: bool = False
+    ) -> None:
         """
         Push a single summary metric to Datadog for this experiment.
 
@@ -825,7 +838,8 @@ class Experiment:
                 "attributes": {
                     "scope": "experiments",
                     "metrics": [metric],
-                    "tags": self.tags + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + self._datadog_experiment_id],
+                    "tags": self.tags
+                    + ["ddtrace.version:" + ddtrace.__version__, "experiment_id:" + self._datadog_experiment_id],
                 },
             }
         }
@@ -837,7 +851,10 @@ class Experiment:
         # Give Datadog time to process using the constant
         time.sleep(API_PROCESSING_TIME_SLEEP)
 
-        print(f"{Color.GREEN}✓ Pushed summary metric: '{name}' = {value} (pos={position}, primary={is_primary}){Color.RESET}") # Updated print
+        print(
+            f"{Color.GREEN}✓ Pushed summary metric: '{name}' = {value} (pos={position}, primary={is_primary}){Color.RESET}"
+        )  # Updated print
+
 
 class ExperimentResults:
     """
@@ -855,7 +872,14 @@ class ExperimentResults:
         summary_metric_results (Optional[Dict[str, Any]]): Dictionary storing the results of summary metric functions.
     """
 
-    def __init__(self, dataset: Dataset, experiment: Experiment, outputs: List[Dict], evaluations: List[Dict], summary_metric_results: Optional[Dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        dataset: Dataset,
+        experiment: Experiment,
+        outputs: List[Dict],
+        evaluations: List[Dict],
+        summary_metric_results: Optional[Dict[str, Any]],
+    ) -> None:
         """
         Initialize an ExperimentResults object, merging outputs and evaluations for each dataset record.
 
@@ -1210,15 +1234,15 @@ class ExperimentResults:
             info.append("  Summary Metrics:")
             for name, result_data in self.summary_metric_results.items():
                 if result_data["error"]:
-                    err_type = result_data["error"].get('type', 'Error')
-                    err_msg = result_data["error"].get('message', 'Unknown error')
+                    err_type = result_data["error"].get("type", "Error")
+                    err_msg = result_data["error"].get("message", "Unknown error")
                     preview = (err_msg[:40] + "...") if len(err_msg) > 40 else err_msg
                     info.append(f"    {name}: {Color.RED}Error ({err_type}: {preview}){Color.RESET}")
                 elif result_data["value"] is not None:
-                     info.append(f"    {name}: {result_data['value']}")
+                    info.append(f"    {name}: {result_data['value']}")
                 else:
-                     # Ran successfully but returned None or no metrics
-                     info.append(f"    {name}: {Color.DIM}No value returned{Color.RESET}")
+                    # Ran successfully but returned None or no metrics
+                    info.append(f"    {name}: {Color.DIM}No value returned{Color.RESET}")
 
         if self.experiment._datadog_experiment_id:
             info.append(
