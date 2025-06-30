@@ -1,13 +1,7 @@
 stages:
   - build
   - test
-  - gate
   - report
-
-include:
-  project: 'DataDog/benchmarking-platform-tools'
-  file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
-  ref: '925e0a3e7dd628885f6fc69cdaea5c8cc9e212bc'
 
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
@@ -49,6 +43,14 @@ variables:
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
     cp -R /artifacts ${CI_PROJECT_DIR}/
+
+    # Check for SLO breaches in this scenario
+    export ARTIFACTS_DIR="$(pwd)/artifacts/"
+    if [ -f ".gitlab/benchmarks/configs/bp-runner.${SCENARIO}.fail-on-breach.yml" ];
+    then
+      bp-runner ".gitlab/benchmarks/configs/bp-runner.${SCENARIO}.fail-on-breach.yml"
+    fi
+
   artifacts:
     name: "reports"
     when: always
@@ -235,27 +237,3 @@ check-big-regressions:
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
-
-check-slo-breaches:
-  stage: gate
-  when: always
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
-  artifacts:
-    name: "artifacts"
-    when: always
-    paths:
-      - artifacts/
-    expire_in: 3 months
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/artifacts/"
-    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
-
-# TODO: when/should we notify for microbenchmark breaches?
-# notify-slo-breaches:
-#   extends: .notify-slo-breaches
-#   stage: report
-#   when: always
-#   variables:
-#     CHANNEL: "apm-python-release"
-#     ARTIFACTS_DIR: "artifacts"

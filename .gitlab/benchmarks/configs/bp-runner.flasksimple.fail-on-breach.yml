@@ -1,13 +1,12 @@
 # Thresholds set based on guidance in https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates#How-to-choose-thresholds-for-pre-release-gates%3F
 
 experiments:
-  - name: Run SLO breach check
+  - name: Flask Simple SLO Check
     steps:
       - name: SLO breach check
         run: fail_on_breach
         warning_range: 7
         scenarios:
-          # Flask Simple
           - name: flasksimple-tracer
             thresholds:
               - execution_time < 3.65 ms
