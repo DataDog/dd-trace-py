@@ -120,7 +120,12 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
         # just a placeholder.
         locs = deque((i, instr) for i, instr in locs if instr != "NOP")
 
-    for i, _ in locs:
+    for i, instr in locs:
+        if instr.startswith("END_"):
+            # This is the end of a block, e.g. a for loop. We have already
+            # instrumented the block on entry, so we skip instrumenting the
+            # end as well.
+            continue
         code[i:i] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
 

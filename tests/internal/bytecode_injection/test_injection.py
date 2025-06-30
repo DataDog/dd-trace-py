@@ -278,3 +278,18 @@ def test_try_except():
         target()
 
     hook.assert_called_once_with(arg)
+
+
+def test_for_block():
+    def for_loop():
+        a = []
+        for i in range(10):
+            a.append(i)
+        return a
+
+    hook, arg = mock.Mock(), mock.Mock()
+
+    with injected_hook(for_loop, hook, arg, line=for_loop.__code__.co_firstlineno + 2):
+        for_loop()
+
+    hook.assert_called_once_with(arg)
