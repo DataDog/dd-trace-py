@@ -681,8 +681,8 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 30 << 20
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 30 << 20
 assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 """,
     )
