@@ -138,14 +138,18 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
 
     if PyBytesLike_Check(text):
         L = len(text)
-        if L > ITEM_LIMIT:
+        if L > MAX_SPAN_META_VALUE_LEN:
             PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(text).tp_name)
+            text = truncate_string(text)
+            L = len(text)
         ret = msgpack_pack_raw(pk, L)
         if ret == 0:
             ret = msgpack_pack_raw_body(pk, <char *> text, L)
         return ret
 
     if PyUnicode_Check(text):
+        if len(text) > MAX_SPAN_META_VALUE_LEN:
+            text = truncate_string(text)
         IF PY_MAJOR_VERSION >= 3:
             ret = msgpack_pack_unicode(pk, text, ITEM_LIMIT)
             if ret == -2:
@@ -256,6 +260,9 @@ cdef class MsgpackStringTable(StringTable):
 
     cdef insert(self, object string):
         cdef int ret
+
+        # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
+        string = truncate_string(string)
 
         if len(string) > self._max_string_length:
             string = "<dropped string of length %d because it's too long (max allowed length %d)>" % (
@@ -855,6 +862,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 raise
 
     cdef inline int _pack_string(self, object string) except? -1:
+        string = truncate_string(string)
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
