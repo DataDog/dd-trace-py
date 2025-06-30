@@ -130,7 +130,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
             return payload, total_traces
 
-        # Payload is too big, bisectto find the maximum number of traces that fit
+        # Payload is too big, bisect to find the maximum number of traces that fit
         left, right = 1, len(traces)
         best_traces_count = 1  # At minimum, include 1 trace to avoid infinite loops
         best_spans = []
