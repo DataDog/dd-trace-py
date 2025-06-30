@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.constants import DEFAULT_FLUSH_MIN_SPANS
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
@@ -200,7 +199,7 @@ def test_metrics():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    assert t._span_aggregator.partial_flush_min_spans == DEFAULT_FLUSH_MIN_SPANS
+    assert t._span_aggregator.partial_flush_min_spans == 30<<20
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
