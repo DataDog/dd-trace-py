@@ -5,10 +5,13 @@ from unittest import mock
 import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._ddwaf import version
 import ddtrace.appsec._ddwaf.ddwaf_types
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
+from ddtrace.appsec._remoteconfiguration import enable_asm
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -18,6 +21,7 @@ from ddtrace.trace import tracer
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import build_payload
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -258,3 +262,36 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
             assert len(list_metrics_logs) == 1
     finally:
         deduplication._time_lapse = old_value
+
+
+@pytest.mark.parametrize(
+    "environment,appsec_enabled,rc_enabled,expected_result,expected_origin",
+    (
+        ({}, False, False, 0, ""),
+        ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_RC),
+        ({APPSEC_ENV: "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+    ),
+)
+def test_appsec_enabled_metric(
+    environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
+):
+    """Test that an internal error is logged when the WAF returns an internal error."""
+    with override_env(environment), override_global_config(dict(_asm_enabled=appsec_enabled)):
+        tracer.configure(appsec_enabled=appsec_enabled)
+        AppSecSpanProcessor()
+        if rc_enabled:
+            enable_asm(tracer)
+
+        telemetry_writer._dispatch()
+
+        metrics_result = telemetry_writer._namespace.flush(0.1)
+        list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
+            TELEMETRY_NAMESPACE.APPSEC.value, {}
+        )
+        metrics = [m for m in list_telemetry_metrics if m["metric"] == "enabled"]
+        assert len(metrics) == expected_result, metrics
+        if expected_result > 0:
+            assert len(metrics[0]["tags"]) == 1
+            assert f"origin:{expected_origin}" in metrics[0]["tags"]
